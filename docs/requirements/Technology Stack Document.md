@@ -40,9 +40,9 @@ versions and roles are maintained in exactly one place.
 | --- | --- | --- |
 | **flutter_riverpod** | `^3.1.1` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
 | **go_router** | `^17.4.0` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
-| **dio** | `^5.9.0` | HTTP. One configured instance is shared by every generated service, carrying the bearer-token interceptor and the timeouts. |
-| **retrofit** | `^4.7.3` | The generated services' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
-| **json_annotation** | `^4.9.0` | The generated models' runtime, paired with `json_serializable` at build time. |
+| **dio** | `^5.11.0` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. |
+| **retrofit** | `^4.9.2` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
+| **json_annotation** | `^4.12.0` | The generated models' runtime, paired with `json_serializable` at build time. |
 | **flutter_secure_storage** | `^9.2.4` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted local storage on the web. |
 | **shared_preferences** | `^2.5.3` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
 | **google_sign_in** | `^7.2.0` | Obtains the Google ID token the API exchanges for a Heimdall token. |
@@ -53,14 +53,44 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
-| **swagger_parser** | `^1.28.0` | Generates the DTOs and retrofit services in `packages/heimdall_api_client` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
-| **build_runner** | `^2.10.4` | Runs the generators. |
-| **json_serializable** | `^6.11.1` | Emits the `fromJson`/`toJson` bodies for the generated models. |
-| **retrofit_generator** | `^11.1.1` | Emits the service implementations. |
+| **swagger_parser** | `^1.44.1` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
+| **build_runner** | `^2.15.1` | Runs the generators. |
+| **json_serializable** | `^6.14.1` | Emits the `fromJson`/`toJson` bodies for the generated models. |
+| **retrofit_generator** | `^10.2.8` | Emits the client implementations. |
+
+### 4.1 The generation pipeline
+
+Generation runs as one command, which is what CI reruns:
+
+```bash
+dart run tool/generate_api_client.dart
+```
+
+It does three things in order:
+
+1. Runs `swagger_parser` over `api/heimdall.json`.
+2. **Resolves colliding parameter names.** Several Heimdall operations declare, on the same
+   operation, a path parameter `scopeId` and a query parameter `ScopeId` — the filter object's own
+   property, which the path already supplies. Dart identifiers are case-sensitive but the generator
+   lower-camel-cases both, so the emitted method would declare `scopeId` twice and would not
+   compile. The script renames the **query** side to `scopeIdFilter`, leaving its wire name in the
+   `@Query('ScopeId')` annotation untouched, so the request is unchanged and only the Dart
+   identifier differs.
+3. Runs `build_runner` inside the package to emit the `.g.dart` bodies.
+
+The pipeline is deterministic: running it twice over an unchanged specification produces byte-identical
+output, which is what makes the drift check meaningful.
 
 The generated package is committed, and CI regenerates it and fails on any difference — the same
-drift guard the API applies to its own specification. It is never hand-edited; ergonomic wrappers
-belong in the consuming feature's `data/` layer.
+drift guard the API applies to its own specification. Everything under
+`packages/heimdall_api_client/lib` is generated and is never hand-edited; the package's own
+`pubspec.yaml` is not generated and is maintained by hand. Ergonomic wrappers belong in the
+consuming feature's `data/` layer.
+
+The package's public entry point is `package:heimdall_api_client/export.dart`, and its clients are
+named after their area — `AuthClient`, `ScopeClient`, `PersonClient`, `ApplicationClient`,
+`ScopePermissionClient`, `GoogleUserClient`, and `HealthCheckClient` — each constructed as
+`AuthClient(dio)`.
 
 ---
 
@@ -97,16 +127,16 @@ no test reaches the network.
 | Language | Dart | `3.12.2` |
 | State | flutter_riverpod | `^3.1.1` |
 | Routing | go_router | `^17.4.0` |
-| HTTP | dio | `^5.9.0` |
-| HTTP | retrofit | `^4.7.3` |
-| Serialization | json_annotation | `^4.9.0` |
+| HTTP | dio | `^5.11.0` |
+| HTTP | retrofit | `^4.9.2` |
+| Serialization | json_annotation | `^4.12.0` |
 | Storage | flutter_secure_storage | `^9.2.4` |
 | Storage | shared_preferences | `^2.5.3` |
 | Authentication | google_sign_in | `^7.2.0` |
-| Generation | swagger_parser | `^1.28.0` |
-| Generation | build_runner | `^2.10.4` |
-| Generation | json_serializable | `^6.11.1` |
-| Generation | retrofit_generator | `^11.1.1` |
+| Generation | swagger_parser | `^1.44.1` |
+| Generation | build_runner | `^2.15.1` |
+| Generation | json_serializable | `^6.14.1` |
+| Generation | retrofit_generator | `^10.2.8` |
 | Testing | mocktail | `^1.0.4` |
 | Lints | flutter_lints | `^6.0.0` |
 

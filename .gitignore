@@ -43,3 +43,10 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Local build configuration supplied with --dart-define-from-file
+/config/local.json
+
+# Generated package build output (the generated sources themselves are committed)
+/packages/*/.dart_tool/
+/packages/*/build/

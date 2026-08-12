@@ -1,0 +1,27 @@
+// coverage:ignore-file
+// GENERATED CODE - DO NOT MODIFY BY HAND
+// ignore_for_file: type=lint, unused_import, invalid_annotation_target, unnecessary_import
+
+import 'package:json_annotation/json_annotation.dart';
+
+part 'set_google_sign_in_command.g.dart';
+
+@JsonSerializable()
+class SetGoogleSignInCommand {
+  const SetGoogleSignInCommand({
+    this.id,
+    this.enabled,
+    this.actingPersonId,
+    this.actingRole,
+  });
+
+  factory SetGoogleSignInCommand.fromJson(Map<String, Object?> json) =>
+      _$SetGoogleSignInCommandFromJson(json);
+
+  final String? id;
+  final bool? enabled;
+  final String? actingPersonId;
+  final int? actingRole;
+
+  Map<String, Object?> toJson() => _$SetGoogleSignInCommandToJson(this);
+}
