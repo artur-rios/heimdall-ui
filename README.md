@@ -76,7 +76,8 @@ The design this repository was built from is at
   **and the C++ ATL component**. Without ATL the build fails on `atlstr.h`, which
   `flutter_secure_storage_windows` includes.
 - **Linux** — `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`,
-  `libstdc++-12-dev`.
+  `libstdc++-12-dev`, and `libsecret-1-dev`. The last is `flutter_secure_storage_linux`'s own
+  dependency rather than part of Flutter's generic desktop list, and the build fails without it.
 - **Android** — the Android SDK including `cmdline-tools`, the API 37 platform
   (`sdkmanager --install "platforms;android-37.0"`), accepted SDK licences (`flutter doctor
   --android-licenses`), and JDK 17. The app sets `compileSdk = 37` because `flutter_secure_storage`
