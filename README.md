@@ -77,7 +77,10 @@ The design this repository was built from is at
   `flutter_secure_storage_windows` includes.
 - **Linux** — `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`,
   `libstdc++-12-dev`.
-- **Android** — the Android SDK including `cmdline-tools`, accepted SDK licences, and JDK 17.
+- **Android** — the Android SDK including `cmdline-tools`, the API 37 platform
+  (`sdkmanager --install "platforms;android-37.0"`), accepted SDK licences (`flutter doctor
+  --android-licenses`), and JDK 17. The app sets `compileSdk = 37` because `flutter_secure_storage`
+  11 requires its consumers to, which is one level above Flutter's own default.
 
 ```bash
 flutter doctor

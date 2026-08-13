@@ -6,7 +6,11 @@ plugins {
 
 android {
     namespace = "com.arturrios.heimdall_ui"
-    compileSdk = flutter.compileSdkVersion
+    // Ahead of Flutter's own default of 36, because flutter_secure_storage 11
+    // publishes AAR metadata requiring its consumers to compile against 37.
+    // compileSdk affects compilation only — minSdk and targetSdk are unchanged,
+    // so this widens nothing about which devices the app runs on.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

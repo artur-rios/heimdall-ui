@@ -62,7 +62,7 @@ flutter run --dart-define-from-file=config/local.json
 | Web | A Chromium-based browser for `flutter run -d chrome` |
 | Windows | Visual Studio (or Build Tools) with the *Desktop development with C++* workload **and the C++ ATL component** |
 | Linux | `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev` |
-| Android | The Android SDK including `cmdline-tools`, accepted SDK licences, and JDK 17 |
+| Android | The Android SDK including `cmdline-tools`, the **API 37 platform** (`platforms;android-37.0`), accepted SDK licences, and JDK 17 |
 
 > **The Windows ATL component is not optional.** `flutter_secure_storage_windows`, which holds the
 > session token in DPAPI, includes `atlstr.h`. Without *C++ ATL for latest v143 build tools* in the
@@ -72,7 +72,15 @@ flutter run --dart-define-from-file=config/local.json
 
 > **Android needs more than the SDK directory.** `flutter doctor` reports `cmdline-tools component is
 > missing` and `Android license status unknown` on a partial installation, and the build fails. Install
-> the command-line tools and run `flutter doctor --android-licenses` once.
+> the command-line tools and run `flutter doctor --android-licenses` once. Note that the command-line
+> tools package Google's manifest lists is old enough to misread a current SDK's XML; use it to
+> install `cmdline-tools;latest` and then discard it.
+
+> **The app compiles against API 37, not Flutter's default of 36.** `flutter_secure_storage` 11
+> publishes AAR metadata requiring its consumers to compile against 37, so `android/app/build.gradle.kts`
+> sets `compileSdk = 37` explicitly. `minSdk` and `targetSdk` are untouched — this changes what the app
+> compiles against, not which devices it runs on. Google publishes that platform as
+> `platforms;android-37.0`; there is no plain `platforms;android-37` package.
 
 On Debian or Ubuntu:
 
@@ -203,6 +211,8 @@ the default so that no deployment address is exposed in a public log.
 | `flutter build linux` fails on a fresh machine | The apt packages in §3 are not installed |
 | `flutter build windows` fails with `Cannot open include file: 'atlstr.h'` | The C++ ATL component is missing from Visual Studio (see §3) |
 | `flutter build apk` fails after `flutter doctor` flags the Android toolchain | `cmdline-tools` is missing, or the SDK licences were never accepted (see §3) |
+| `flutter build apk` fails with `Failed to find target with hash string 'android-37'` | The API 37 platform is not installed — `sdkmanager --install "platforms;android-37.0"` |
+| A plugin module fails with `Could not close incremental caches in ...caches-jvm` | Kotlin incremental compilation; `kotlin.incremental=false` in `android/gradle.properties` turns it off, and is already set |
 | CI fails on `check-api-client` | The specification changed without the client being regenerated, or the reverse |
 
 ---
