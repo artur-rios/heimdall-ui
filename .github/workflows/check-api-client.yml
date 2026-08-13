@@ -1,0 +1,37 @@
+name: Check API client
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: check-api-client-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: 3.44.9
+
+jobs:
+  drift:
+    name: Regenerate and compare
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      # The pipeline is deterministic — generate, build, format — so a clean
+      # run must reproduce exactly what is committed.
+      - name: Regenerate the client
+        run: dart run tool/generate_api_client.dart
+
+      - name: Fail if the generated client is stale
+        run: git diff --exit-code -- packages/heimdall_api_client

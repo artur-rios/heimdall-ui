@@ -1,0 +1,10 @@
+swagger_parser:
+  schema_path: api/heimdall.json
+  output_directory: packages/heimdall_api_client/lib
+  language: dart
+  json_serializer: json_serializable
+  root_client: false
+  put_clients_in_folder: true
+  enums_to_json: true
+  unknown_enum_value: true
+  name: heimdall_api_client
