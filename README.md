@@ -206,6 +206,11 @@ the platform work that is not itself a use case. Each one ships on its own branc
 request — see the
 [Development Workflow Document](docs/requirements/Development%20Workflow%20Document.md).
 
+The same work is on the public board at
+[Heimdall UI Delivery](https://github.com/users/artur-rios/projects/11), which carries the
+`Todo → In Progress → Testing → Done` status of every issue. This table is the at-a-glance summary;
+the board is where an item's status changes as it moves.
+
 **Legend:** ✅ done and merged &nbsp;·&nbsp; 🚧 in progress &nbsp;·&nbsp; ⬜ not started
 
 ### Authentication & Session
