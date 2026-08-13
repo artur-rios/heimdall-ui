@@ -12,8 +12,6 @@ DisableTwoFactorAuthCommand _$DisableTwoFactorAuthCommandFromJson(
   password: json['password'] as String?,
   code: json['code'] as String?,
   recoveryCode: json['recoveryCode'] as String?,
-  actingPersonId: json['actingPersonId'] as String?,
-  actingRole: (json['actingRole'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$DisableTwoFactorAuthCommandToJson(
@@ -22,6 +20,4 @@ Map<String, dynamic> _$DisableTwoFactorAuthCommandToJson(
   'password': instance.password,
   'code': instance.code,
   'recoveryCode': instance.recoveryCode,
-  'actingPersonId': instance.actingPersonId,
-  'actingRole': instance.actingRole,
 };

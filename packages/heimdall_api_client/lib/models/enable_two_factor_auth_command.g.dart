@@ -12,14 +12,8 @@ EnableTwoFactorAuthCommand _$EnableTwoFactorAuthCommandFromJson(
   methods: (json['methods'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
-  actingPersonId: json['actingPersonId'] as String?,
-  actingRole: (json['actingRole'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$EnableTwoFactorAuthCommandToJson(
   EnableTwoFactorAuthCommand instance,
-) => <String, dynamic>{
-  'methods': instance.methods,
-  'actingPersonId': instance.actingPersonId,
-  'actingRole': instance.actingRole,
-};
+) => <String, dynamic>{'methods': instance.methods};

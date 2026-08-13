@@ -8,20 +8,13 @@ part 'confirm_two_factor_auth_command.g.dart';
 
 @JsonSerializable()
 class ConfirmTwoFactorAuthCommand {
-  const ConfirmTwoFactorAuthCommand({
-    this.appCode,
-    this.emailCode,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const ConfirmTwoFactorAuthCommand({this.appCode, this.emailCode});
 
   factory ConfirmTwoFactorAuthCommand.fromJson(Map<String, Object?> json) =>
       _$ConfirmTwoFactorAuthCommandFromJson(json);
 
   final String? appCode;
   final String? emailCode;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$ConfirmTwoFactorAuthCommandToJson(this);
 }

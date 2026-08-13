@@ -28,12 +28,9 @@ abstract class GoogleUserClient {
   @GET('/api/scopes/{scopeId}/google-users')
   Future<GoogleUserOutputPaginatedOutput> googleUserList({
     @Path('scopeId') required String scopeId,
-    @Query('ScopeId') String? scopeIdFilter,
     @Query('Name') String? name,
     @Query('Email') String? email,
     @Query('IncludeDeleted') bool? includeDeleted,
-    @Query('ActingPersonId') String? actingPersonId,
-    @Query('ActingRole') int? actingRole,
     @Query('PageNumber') int? pageNumber,
     @Query('PageSize') int? pageSize,
   });

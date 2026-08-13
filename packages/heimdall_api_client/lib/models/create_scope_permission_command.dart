@@ -9,23 +9,17 @@ part 'create_scope_permission_command.g.dart';
 @JsonSerializable()
 class CreateScopePermissionCommand {
   const CreateScopePermissionCommand({
-    this.scopeId,
     this.name,
     this.description,
     this.includeAsJwtClaim,
-    this.actingPersonId,
-    this.actingRole,
   });
 
   factory CreateScopePermissionCommand.fromJson(Map<String, Object?> json) =>
       _$CreateScopePermissionCommandFromJson(json);
 
-  final String? scopeId;
   final String? name;
   final String? description;
   final bool? includeAsJwtClaim;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$CreateScopePermissionCommandToJson(this);
 }

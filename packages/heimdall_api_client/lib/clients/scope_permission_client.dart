@@ -46,11 +46,8 @@ abstract class ScopePermissionClient {
   @GET('/api/scopes/{scopeId}/permissions')
   Future<ScopePermissionOutputPaginatedOutput> scopePermissionList({
     @Path('scopeId') required String scopeId,
-    @Query('ScopeId') String? scopeIdFilter,
     @Query('Name') String? name,
     @Query('IncludeDeleted') bool? includeDeleted,
-    @Query('ActingPersonId') String? actingPersonId,
-    @Query('ActingRole') int? actingRole,
     @Query('PageNumber') int? pageNumber,
     @Query('PageSize') int? pageSize,
   });

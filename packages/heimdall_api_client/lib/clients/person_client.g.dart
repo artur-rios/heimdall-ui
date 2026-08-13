@@ -85,23 +85,17 @@ class _PersonClient implements PersonClient {
   @override
   Future<PersonOutputPaginatedOutput> personListScopePersons({
     required String scopeId,
-    String? scopeIdFilter,
     String? name,
     String? email,
     bool? includeDeleted,
-    String? actingPersonId,
-    int? actingRole,
     int? pageNumber,
     int? pageSize,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'ScopeId': scopeIdFilter,
       r'Name': name,
       r'Email': email,
       r'IncludeDeleted': includeDeleted,
-      r'ActingPersonId': actingPersonId,
-      r'ActingRole': actingRole,
       r'PageNumber': pageNumber,
       r'PageSize': pageSize,
     };
@@ -164,23 +158,17 @@ class _PersonClient implements PersonClient {
   @override
   Future<PersonOutputPaginatedOutput> personListScopeOwners({
     required String scopeId,
-    String? scopeIdFilter,
     String? name,
     String? email,
     bool? includeDeleted,
-    String? actingPersonId,
-    int? actingRole,
     int? pageNumber,
     int? pageSize,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'ScopeId': scopeIdFilter,
       r'Name': name,
       r'Email': email,
       r'IncludeDeleted': includeDeleted,
-      r'ActingPersonId': actingPersonId,
-      r'ActingRole': actingRole,
       r'PageNumber': pageNumber,
       r'PageSize': pageSize,
     };

@@ -69,17 +69,23 @@ dart run tool/generate_api_client.dart
 It does three things in order:
 
 1. Runs `swagger_parser` over `api/heimdall.json`.
-2. **Resolves colliding parameter names.** Several Heimdall operations declare, on the same
-   operation, a path parameter `scopeId` and a query parameter `ScopeId` — the filter object's own
-   property, which the path already supplies. Dart identifiers are case-sensitive but the generator
-   lower-camel-cases both, so the emitted method would declare `scopeId` twice and would not
-   compile. The script renames the **query** side to `scopeIdFilter`, leaving its wire name in the
-   `@Query('ScopeId')` annotation untouched, so the request is unchanged and only the Dart
-   identifier differs.
-3. Runs `build_runner` inside the package to emit the `.g.dart` bodies.
+2. Runs `build_runner` inside the package to emit the `.g.dart` bodies.
+3. Runs `dart format` over the package, because the generators' own line breaking differs from what
+   `dart format` at the repository root would produce — and a difference there would fail the drift
+   check for no real reason.
 
 The pipeline is deterministic: running it twice over an unchanged specification produces byte-identical
 output, which is what makes the drift check meaningful.
+
+> **A note on what this pipeline used to carry.** Until the API's
+> [server-populated fields fix](https://github.com/artur-rios/heimdall-api/pull/83), several
+> operations published both a path parameter `scopeId` and a query parameter `ScopeId` — the filter
+> object's own property, which the path already supplied — alongside `ActingPersonId` and
+> `ActingRole`. Dart identifiers are case-sensitive but the generator lower-camel-cases both names,
+> so the emitted method declared `scopeId` twice and did not compile, and the pipeline carried a step
+> that renamed the query side. The API now guards its published contract against server-populated
+> fields with its own test, so that step has been removed rather than kept as a standing workaround.
+> A recurrence would surface as a compilation failure in the generated package, which CI catches.
 
 The generated package is committed, and CI regenerates it and fails on any difference — the same
 drift guard the API applies to its own specification. Everything under

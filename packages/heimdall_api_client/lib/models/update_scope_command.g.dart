@@ -8,14 +8,12 @@ part of 'update_scope_command.dart';
 
 UpdateScopeCommand _$UpdateScopeCommandFromJson(Map<String, dynamic> json) =>
     UpdateScopeCommand(
-      id: json['id'] as String?,
       name: json['name'] as String?,
       description: json['description'] as String?,
     );
 
 Map<String, dynamic> _$UpdateScopeCommandToJson(UpdateScopeCommand instance) =>
     <String, dynamic>{
-      'id': instance.id,
       'name': instance.name,
       'description': instance.description,
     };

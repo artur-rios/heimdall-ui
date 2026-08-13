@@ -52,12 +52,9 @@ abstract class PersonClient {
   @GET('/api/scopes/{scopeId}/persons')
   Future<PersonOutputPaginatedOutput> personListScopePersons({
     @Path('scopeId') required String scopeId,
-    @Query('ScopeId') String? scopeIdFilter,
     @Query('Name') String? name,
     @Query('Email') String? email,
     @Query('IncludeDeleted') bool? includeDeleted,
-    @Query('ActingPersonId') String? actingPersonId,
-    @Query('ActingRole') int? actingRole,
     @Query('PageNumber') int? pageNumber,
     @Query('PageSize') int? pageSize,
   });
@@ -81,12 +78,9 @@ abstract class PersonClient {
   @GET('/api/scopes/{scopeId}/owners')
   Future<PersonOutputPaginatedOutput> personListScopeOwners({
     @Path('scopeId') required String scopeId,
-    @Query('ScopeId') String? scopeIdFilter,
     @Query('Name') String? name,
     @Query('Email') String? email,
     @Query('IncludeDeleted') bool? includeDeleted,
-    @Query('ActingPersonId') String? actingPersonId,
-    @Query('ActingRole') int? actingRole,
     @Query('PageNumber') int? pageNumber,
     @Query('PageSize') int? pageSize,
   });

@@ -8,24 +8,14 @@ part 'create_user_command.g.dart';
 
 @JsonSerializable()
 class CreateUserCommand {
-  const CreateUserCommand({
-    this.scopeId,
-    this.name,
-    this.email,
-    this.password,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const CreateUserCommand({this.name, this.email, this.password});
 
   factory CreateUserCommand.fromJson(Map<String, Object?> json) =>
       _$CreateUserCommandFromJson(json);
 
-  final String? scopeId;
   final String? name;
   final String? email;
   final String? password;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$CreateUserCommandToJson(this);
 }

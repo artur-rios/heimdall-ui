@@ -8,24 +8,14 @@ part 'create_scope_owner_command.g.dart';
 
 @JsonSerializable()
 class CreateScopeOwnerCommand {
-  const CreateScopeOwnerCommand({
-    this.scopeId,
-    this.name,
-    this.email,
-    this.password,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const CreateScopeOwnerCommand({this.name, this.email, this.password});
 
   factory CreateScopeOwnerCommand.fromJson(Map<String, Object?> json) =>
       _$CreateScopeOwnerCommandFromJson(json);
 
-  final String? scopeId;
   final String? name;
   final String? email;
   final String? password;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$CreateScopeOwnerCommandToJson(this);
 }

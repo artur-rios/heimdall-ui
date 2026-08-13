@@ -8,20 +8,12 @@ part 'set_google_sign_in_command.g.dart';
 
 @JsonSerializable()
 class SetGoogleSignInCommand {
-  const SetGoogleSignInCommand({
-    this.id,
-    this.enabled,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const SetGoogleSignInCommand({this.enabled});
 
   factory SetGoogleSignInCommand.fromJson(Map<String, Object?> json) =>
       _$SetGoogleSignInCommandFromJson(json);
 
-  final String? id;
   final bool? enabled;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$SetGoogleSignInCommandToJson(this);
 }

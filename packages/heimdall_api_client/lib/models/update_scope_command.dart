@@ -8,12 +8,11 @@ part 'update_scope_command.g.dart';
 
 @JsonSerializable()
 class UpdateScopeCommand {
-  const UpdateScopeCommand({this.id, this.name, this.description});
+  const UpdateScopeCommand({this.name, this.description});
 
   factory UpdateScopeCommand.fromJson(Map<String, Object?> json) =>
       _$UpdateScopeCommandFromJson(json);
 
-  final String? id;
   final String? name;
   final String? description;
 

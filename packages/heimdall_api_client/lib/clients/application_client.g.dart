@@ -54,23 +54,17 @@ class _ApplicationClient implements ApplicationClient {
   @override
   Future<ApplicationOutputPaginatedOutput> applicationList({
     required String scopeId,
-    String? scopeIdFilter,
     String? name,
     String? ownerId,
     bool? includeDeleted,
-    String? actingPersonId,
-    int? actingRole,
     int? pageNumber,
     int? pageSize,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'ScopeId': scopeIdFilter,
       r'Name': name,
       r'OwnerId': ownerId,
       r'IncludeDeleted': includeDeleted,
-      r'ActingPersonId': actingPersonId,
-      r'ActingRole': actingRole,
       r'PageNumber': pageNumber,
       r'PageSize': pageSize,
     };

@@ -8,24 +8,13 @@ part 'update_application_command.g.dart';
 
 @JsonSerializable()
 class UpdateApplicationCommand {
-  const UpdateApplicationCommand({
-    this.scopeId,
-    this.id,
-    this.name,
-    this.ownerId,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const UpdateApplicationCommand({this.name, this.ownerId});
 
   factory UpdateApplicationCommand.fromJson(Map<String, Object?> json) =>
       _$UpdateApplicationCommandFromJson(json);
 
-  final String? scopeId;
-  final String? id;
   final String? name;
   final String? ownerId;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$UpdateApplicationCommandToJson(this);
 }

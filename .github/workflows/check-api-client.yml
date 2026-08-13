@@ -28,9 +28,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      # The pipeline is deterministic — it generates, repairs the specification's
-      # colliding scopeId parameters, builds, and formats — so a clean run must
-      # reproduce what is committed.
+      # The pipeline is deterministic — generate, build, format — so a clean
+      # run must reproduce exactly what is committed.
       - name: Regenerate the client
         run: dart run tool/generate_api_client.dart
 

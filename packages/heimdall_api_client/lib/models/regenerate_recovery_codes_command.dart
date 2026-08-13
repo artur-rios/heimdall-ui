@@ -8,20 +8,13 @@ part 'regenerate_recovery_codes_command.g.dart';
 
 @JsonSerializable()
 class RegenerateRecoveryCodesCommand {
-  const RegenerateRecoveryCodesCommand({
-    this.code,
-    this.recoveryCode,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const RegenerateRecoveryCodesCommand({this.code, this.recoveryCode});
 
   factory RegenerateRecoveryCodesCommand.fromJson(Map<String, Object?> json) =>
       _$RegenerateRecoveryCodesCommandFromJson(json);
 
   final String? code;
   final String? recoveryCode;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$RegenerateRecoveryCodesCommandToJson(this);
 }

@@ -11,8 +11,6 @@ RegenerateRecoveryCodesCommand _$RegenerateRecoveryCodesCommandFromJson(
 ) => RegenerateRecoveryCodesCommand(
   code: json['code'] as String?,
   recoveryCode: json['recoveryCode'] as String?,
-  actingPersonId: json['actingPersonId'] as String?,
-  actingRole: (json['actingRole'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$RegenerateRecoveryCodesCommandToJson(
@@ -20,6 +18,4 @@ Map<String, dynamic> _$RegenerateRecoveryCodesCommandToJson(
 ) => <String, dynamic>{
   'code': instance.code,
   'recoveryCode': instance.recoveryCode,
-  'actingPersonId': instance.actingPersonId,
-  'actingRole': instance.actingRole,
 };

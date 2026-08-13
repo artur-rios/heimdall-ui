@@ -12,8 +12,6 @@ class DisableTwoFactorAuthCommand {
     this.password,
     this.code,
     this.recoveryCode,
-    this.actingPersonId,
-    this.actingRole,
   });
 
   factory DisableTwoFactorAuthCommand.fromJson(Map<String, Object?> json) =>
@@ -22,8 +20,6 @@ class DisableTwoFactorAuthCommand {
   final String? password;
   final String? code;
   final String? recoveryCode;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$DisableTwoFactorAuthCommandToJson(this);
 }

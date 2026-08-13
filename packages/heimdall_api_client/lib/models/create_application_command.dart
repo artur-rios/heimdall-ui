@@ -8,22 +8,13 @@ part 'create_application_command.g.dart';
 
 @JsonSerializable()
 class CreateApplicationCommand {
-  const CreateApplicationCommand({
-    this.scopeId,
-    this.name,
-    this.ownerId,
-    this.actingPersonId,
-    this.actingRole,
-  });
+  const CreateApplicationCommand({this.name, this.ownerId});
 
   factory CreateApplicationCommand.fromJson(Map<String, Object?> json) =>
       _$CreateApplicationCommandFromJson(json);
 
-  final String? scopeId;
   final String? name;
   final String? ownerId;
-  final String? actingPersonId;
-  final int? actingRole;
 
   Map<String, Object?> toJson() => _$CreateApplicationCommandToJson(this);
 }

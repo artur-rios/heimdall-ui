@@ -59,21 +59,15 @@ class _ScopePermissionClient implements ScopePermissionClient {
   @override
   Future<ScopePermissionOutputPaginatedOutput> scopePermissionList({
     required String scopeId,
-    String? scopeIdFilter,
     String? name,
     bool? includeDeleted,
-    String? actingPersonId,
-    int? actingRole,
     int? pageNumber,
     int? pageSize,
   }) async {
     final _extra = <String, dynamic>{};
     final queryParameters = <String, dynamic>{
-      r'ScopeId': scopeIdFilter,
       r'Name': name,
       r'IncludeDeleted': includeDeleted,
-      r'ActingPersonId': actingPersonId,
-      r'ActingRole': actingRole,
       r'PageNumber': pageNumber,
       r'PageSize': pageSize,
     };
