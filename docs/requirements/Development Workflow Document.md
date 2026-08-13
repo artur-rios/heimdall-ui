@@ -43,6 +43,10 @@ flowchart TD
 
 ## 3. Issue status lifecycle
 
+Each use case is tracked by its GitHub issue on the
+[Heimdall UI Delivery board](https://github.com/users/artur-rios/projects/11), whose `Status` field
+carries these values, in order:
+
 | Order | Status | Set when |
 | --- | --- | --- |
 | 1 | **Todo** | The use case has not been started (default). |
