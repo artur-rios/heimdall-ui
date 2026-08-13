@@ -61,7 +61,7 @@ flutter run --dart-define-from-file=config/local.json
 | All | Flutter 3.44.9 or newer on the stable channel |
 | Web | A Chromium-based browser for `flutter run -d chrome` |
 | Windows | Visual Studio (or Build Tools) with the *Desktop development with C++* workload **and the C++ ATL component** |
-| Linux | `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev` |
+| Linux | `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`, `libsecret-1-dev` |
 | Android | The Android SDK including `cmdline-tools`, the **API 37 platform** (`platforms;android-37.0`), accepted SDK licences, and JDK 17 |
 
 > **The Windows ATL component is not optional.** `flutter_secure_storage_windows`, which holds the
@@ -85,7 +85,7 @@ flutter run --dart-define-from-file=config/local.json
 On Debian or Ubuntu:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+sudo apt-get update && sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev libsecret-1-dev
 ```
 
 Confirm the toolchain before building:
@@ -209,6 +209,7 @@ the default so that no deployment address is exposed in a public log.
 | The Google control never appears | No `HEIMDALL_GOOGLE_CLIENT_ID` was supplied at build time, or the scope has Google Sign-In switched off |
 | A deep link 404s in production but works locally | The static host is not falling back to `index.html` |
 | `flutter build linux` fails on a fresh machine | The apt packages in §3 are not installed |
+| `flutter build linux` fails with `required packages were not found: libsecret-1` | `libsecret-1-dev` is missing — it is a plugin dependency, not part of Flutter's generic desktop list |
 | `flutter build windows` fails with `Cannot open include file: 'atlstr.h'` | The C++ ATL component is missing from Visual Studio (see §3) |
 | `flutter build apk` fails after `flutter doctor` flags the Android toolchain | `cmdline-tools` is missing, or the SDK licences were never accepted (see §3) |
 | `flutter build apk` fails with `Failed to find target with hash string 'android-37'` | The API 37 platform is not installed — `sdkmanager --install "platforms;android-37.0"` |
