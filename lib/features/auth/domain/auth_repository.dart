@@ -59,4 +59,18 @@ abstract interface class AuthRepository {
     required String token,
     required String newPassword,
   });
+
+  /// Confirms an email address from the token in a verification link.
+  ///
+  /// Returns the envelope's `messages`, because an address that was already
+  /// verified answers successfully too (AF-05d) and the wording is the only
+  /// thing that tells the two apart.
+  Future<Result<List<String>>> verifyEmail({required String token});
+
+  /// Asks for a fresh verification email.
+  ///
+  /// Takes no argument: the API reads the person from the bearer token, so a
+  /// caller can only ever ask for their own — and an anonymous caller cannot
+  /// ask at all.
+  Future<Result<void>> resendVerificationEmail();
 }

@@ -529,6 +529,143 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  test('GivenAVerificationToken_WhenVerifying_ThenTheTokenIsSent', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'messages': <String>[],
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    await repository.verifyEmail(token: 'verification-token');
+
+    // Then
+    expect(adapter.requests.single['token'], 'verification-token');
+  });
+
+  // AF-05d — an address already verified answers successfully, and only the
+  // envelope's messages say which of the two happened.
+  test('GivenAcceptedEnvelope_WhenVerifying_ThenMessagesAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'messages': <String>['This address was already verified.'],
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.verifyEmail(token: 'spent-token');
+
+    // Then
+    expect(result.valueOrNull, <String>['This address was already verified.']);
+  });
+
+  // AF-05b — an unknown, expired, or spent token answers 400 by name.
+  test('GivenRejectedToken_WhenVerifying_ThenApiErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 400,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['The verification token has expired.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.verifyEmail(token: 'stale');
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>[
+      'The verification token has expired.',
+    ]);
+  });
+
+  test(
+    'GivenTransportFailure_WhenVerifying_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.verifyEmail(token: 'verification-token');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
+
+  // AF-05c — the resend takes no body; the person comes from the token.
+  test('GivenASession_WhenResending_ThenNoBodyIsSent', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resendVerificationEmail();
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.requests, isEmpty);
+  });
+
+  test('GivenRejectedResend_WhenResending_ThenApiErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 400,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['This address is already verified.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resendVerificationEmail();
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>[
+      'This address is already verified.',
+    ]);
+  });
+
+  test(
+    'GivenTransportFailure_WhenResending_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.resendVerificationEmail();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

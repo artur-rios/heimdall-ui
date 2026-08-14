@@ -8,6 +8,7 @@ import '../features/auth/presentation/password_recovery_screen.dart';
 import '../features/auth/presentation/password_reset_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
+import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -93,6 +94,13 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         // what is wrong. Refusing to route would only show "not found".
         builder: (context, state) =>
             PasswordResetScreen(token: state.uri.queryParameters['token']),
+      ),
+      GoRoute(
+        path: '/verify-email',
+        // AF-05a: as with the reset link, a link without `token` still reaches
+        // the screen, which explains and offers the resend.
+        builder: (context, state) =>
+            VerifyEmailScreen(token: state.uri.queryParameters['token']),
       ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then
