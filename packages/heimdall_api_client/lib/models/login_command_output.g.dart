@@ -12,6 +12,7 @@ LoginCommandOutput _$LoginCommandOutputFromJson(Map<String, dynamic> json) =>
       expiresAt: json['expiresAt'] == null
           ? null
           : DateTime.parse(json['expiresAt'] as String),
+      emailVerified: json['emailVerified'] as bool?,
       requiresTwoFactor: json['requiresTwoFactor'] as bool?,
       challengeToken: json['challengeToken'] as String?,
       availableMethods: (json['availableMethods'] as List<dynamic>?)
@@ -23,6 +24,7 @@ Map<String, dynamic> _$LoginCommandOutputToJson(LoginCommandOutput instance) =>
     <String, dynamic>{
       'token': instance.token,
       'expiresAt': instance.expiresAt?.toIso8601String(),
+      'emailVerified': instance.emailVerified,
       'requiresTwoFactor': instance.requiresTwoFactor,
       'challengeToken': instance.challengeToken,
       'availableMethods': instance.availableMethods,

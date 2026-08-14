@@ -824,6 +824,117 @@ void main() {
     expect(adapter.requests, isEmpty);
   });
 
+  // AF-05e — the API reports the address's state with every token it issues,
+  // on all three of the endpoints that issue one.
+  test('GivenAnUnverifiedAddress_WhenLoggingIn_ThenTheTokenSaysSo', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+            'emailVerified': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect((result.valueOrNull! as LoggedIn).token.emailVerified, isFalse);
+  });
+
+  test(
+    'GivenAnUnverifiedAddress_WhenVerifyingTheFactor_ThenTheTokenSaysSo',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'token': 'jwt',
+              'expiresAt': '2030-01-01T00:00:00Z',
+              'emailVerified': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      expect(result.valueOrNull?.emailVerified, isFalse);
+    },
+  );
+
+  test(
+    'GivenAnUnverifiedAddress_WhenSigningInWithGoogle_ThenTheTokenSaysSo',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'token': 'jwt',
+              'expiresAt': '2030-01-01T00:00:00Z',
+              'emailVerified': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+      );
+
+      // Then
+      expect(result.valueOrNull?.emailVerified, isFalse);
+    },
+  );
+
+  // A response that omits it is not saying the address is unverified.
+  test('GivenNoAnswerAboutTheAddress_WhenLoggingIn_ThenItIsVerified', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect((result.valueOrNull! as LoggedIn).token.emailVerified, isTrue);
+  });
+
   test(
     'GivenRejectedSignOut_WhenSigningOut_ThenApiErrorsAreReturned',
     () async {

@@ -11,6 +11,7 @@ class LoginCommandOutput {
   const LoginCommandOutput({
     this.token,
     this.expiresAt,
+    this.emailVerified,
     this.requiresTwoFactor,
     this.challengeToken,
     this.availableMethods,
@@ -21,6 +22,7 @@ class LoginCommandOutput {
 
   final String? token;
   final DateTime? expiresAt;
+  final bool? emailVerified;
   final bool? requiresTwoFactor;
   final String? challengeToken;
   final List<String>? availableMethods;

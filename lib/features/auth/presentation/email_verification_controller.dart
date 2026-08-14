@@ -121,6 +121,13 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
         onFailure: VerifyRejected.new,
       ),
     );
+
+    // AF-05e: a signed-in person who just verified should stop being asked to.
+    // The session's answer came with a token the API will not reissue for this,
+    // so it is corrected here instead.
+    if (result.isSuccess) {
+      await ref.read(sessionControllerProvider.notifier).markEmailVerified();
+    }
   }
 
   /// AF-05c — asks the API to send a fresh verification email.

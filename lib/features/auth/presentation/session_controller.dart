@@ -78,13 +78,9 @@ Principal principalFromToken(AuthToken token) {
         (payload['ownedScopeIds'] as List<dynamic>? ?? const <dynamic>[])
             .map((id) => id.toString())
             .toList(growable: false),
-    // AF-05e: read like every other claim here. Absent means "say nothing",
-    // not "unverified", so only an explicit false raises the prompt.
-    emailVerified: switch (payload['emailVerified']) {
-      final bool value => value,
-      final String value => value.toLowerCase() != 'false',
-      _ => true,
-    },
+    // AF-05e: not a claim. The API reports it alongside the token it issues,
+    // and that answer travels on [AuthToken] rather than inside the JWT.
+    emailVerified: token.emailVerified,
   );
 }
 
@@ -201,6 +197,22 @@ class SessionController extends Notifier<SessionState> {
         state = const Unauthenticated();
 
         return FailureResult<void>(failure);
+    }
+  }
+
+  /// Records that the signed-in person's address is now verified.
+  ///
+  /// AF-05e: the API reported the address as unverified when it issued this
+  /// token, and verifying it in this session does not issue a new one. Without
+  /// this the prompt would go on nagging about something already done.
+  Future<void> markEmailVerified() async {
+    if (state case Authenticated(:final token) when !token.emailVerified) {
+      final verified = token.asVerified();
+      await _store.write(verified);
+      state = Authenticated(
+        token: verified,
+        principal: principalFromToken(verified),
+      );
     }
   }
 

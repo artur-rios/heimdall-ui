@@ -8,6 +8,7 @@ class AuthToken {
     required this.value,
     required this.expiresAt,
     this.viaGoogle = false,
+    this.emailVerified = true,
   });
 
   factory AuthToken.fromJson(Map<String, dynamic> json) => AuthToken(
@@ -15,10 +16,20 @@ class AuthToken {
     expiresAt: DateTime.parse(json['expiresAt']! as String),
     // Absent in anything written before UI-06, which was password-only.
     viaGoogle: json['viaGoogle'] as bool? ?? false,
+    // Absent in anything written before the API reported it. Absent is not
+    // evidence of an unverified address, so it reads as verified.
+    emailVerified: json['emailVerified'] as bool? ?? true,
   );
 
   final String value;
   final DateTime expiresAt;
+
+  /// Whether the API considers this person's address verified, as reported
+  /// alongside the token it was issued with.
+  ///
+  /// Stored with the token because a session restored at start-up needs it and
+  /// there is nothing to re-read it from until the person endpoint arrives.
+  final bool emailVerified;
 
   /// Whether this session was established through Google.
   ///
@@ -29,10 +40,20 @@ class AuthToken {
 
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
 
+  /// The same token with its address now known to be verified, for after the
+  /// person has just verified it in this session.
+  AuthToken asVerified() => AuthToken(
+    value: value,
+    expiresAt: expiresAt,
+    viaGoogle: viaGoogle,
+    emailVerified: true,
+  );
+
   Map<String, dynamic> toJson() => <String, dynamic>{
     'value': value,
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     'viaGoogle': viaGoogle,
+    'emailVerified': emailVerified,
   };
 }
 
