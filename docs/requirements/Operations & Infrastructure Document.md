@@ -29,6 +29,37 @@ runtime, and no value is baked into source.
 | --- | --- | --- | --- |
 | `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:5000` | The API root. A trailing slash is trimmed. |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset | The Google client id for the target. When unset, the Google control is hidden rather than shown broken. |
+| `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset | The `PublicId` of the scope this build acts in. See §2.1 — on the web the calling application's value wins. |
+
+### 2.1 The target scope
+
+Heimdall UI is opened by the applications that use Heimdall's services, and **the scope being entered
+is theirs to name**. There is no screen here that asks for it, and no endpoint an anonymous caller
+could list scopes from, so it arrives from outside.
+
+On the **web**, the calling application writes the scope's `PublicId` into session storage before
+sending the user here:
+
+```js
+sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
+```
+
+Session storage rather than a cookie, deliberately:
+
+- It is scoped to the tab, so two tabs can act in two scopes at once.
+- It is never attached to a request, so the scope cannot become a header the API did not ask for,
+  and cannot be replayed by a third party's form.
+- It dies with the tab, so a scope does not outlive the visit on a shared machine.
+
+The value is read on every use rather than captured at start-up, so a caller may change it between
+one attempt and the next.
+
+On **Windows, Linux, and Android** there is no calling web application, so `HEIMDALL_SCOPE_ID` is the
+whole answer. On the web it is the fallback used when the caller left nothing — a build opened
+directly rather than handed off to.
+
+When neither supplies a scope, the request is made without one and the API decides what that means.
+Nothing is invented on the client's side.
 
 Supply them per command:
 
@@ -41,7 +72,8 @@ Or keep them in a file that is **not committed** — `config/local.json` is git-
 ```json
 {
   "HEIMDALL_API_BASE_URL": "https://heimdall.example.com",
-  "HEIMDALL_GOOGLE_CLIENT_ID": "000000000000-example.apps.googleusercontent.com"
+  "HEIMDALL_GOOGLE_CLIENT_ID": "000000000000-example.apps.googleusercontent.com",
+  "HEIMDALL_SCOPE_ID": "00000000-0000-0000-0000-000000000001"
 }
 ```
 

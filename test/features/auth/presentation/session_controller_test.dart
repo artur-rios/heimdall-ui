@@ -5,11 +5,35 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// Google's half, faked. No test reaches Google's SDK.
+class _FakeGoogleSignInGateway implements GoogleSignInGateway {
+  int signOuts = 0;
+
+  @override
+  GoogleSignInAvailability get availability =>
+      GoogleSignInAvailability.interactive;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Stream<GoogleIdTokenObtained> get idTokens =>
+      const Stream<GoogleIdTokenObtained>.empty();
+
+  @override
+  Future<GoogleSignInAttempt> obtainIdToken() async =>
+      const GoogleSignInCancelled();
+
+  @override
+  Future<void> signOut() async => signOuts++;
+}
 
 /// A token whose payload claims the System Admin role, so the principal read
 /// from it is something the guards can be asserted against.
@@ -431,6 +455,110 @@ void main() {
     expect(principal.role, Role.user);
     expect(principal.id, isEmpty);
   });
+
+  // UI-06 sign out — a Google session ends at the API and at Google too.
+  test('GivenAGoogleSession_WhenSignedOut_ThenGoogleIsToldAsWell', () async {
+    // Given
+    final gateway = _FakeGoogleSignInGateway();
+    final store = InMemoryTokenStore();
+    await store.write(
+      AuthToken(
+        value: _systemAdminJwt,
+        expiresAt: DateTime.utc(2030),
+        viaGoogle: true,
+      ),
+    );
+    final repository = _MockAuthRepository();
+    when(
+      () => repository.signOutFromGoogle(),
+    ).thenAnswer((_) async => const Success<void>(null));
+    final container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(store),
+        googleSignInGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut();
+
+    // Then
+    verify(() => repository.signOutFromGoogle()).called(1);
+    expect(gateway.signOuts, 1);
+  });
+
+  // A password session has no Google half, so nothing is told about it.
+  test('GivenAPasswordSession_WhenSignedOut_ThenGoogleIsNotCalled', () async {
+    // Given
+    final gateway = _FakeGoogleSignInGateway();
+    final store = InMemoryTokenStore();
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final repository = _MockAuthRepository();
+    final container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(store),
+        googleSignInGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut();
+
+    // Then
+    verifyNever(() => repository.signOutFromGoogle());
+    expect(gateway.signOuts, 0);
+  });
+
+  // The local session must end even when the API refuses to end its half —
+  // that is the part this side actually controls.
+  test(
+    'GivenARefusedGoogleSignOut_WhenSignedOut_ThenTheSessionStillEnds',
+    () async {
+      // Given
+      final gateway = _FakeGoogleSignInGateway();
+      final store = InMemoryTokenStore();
+      await store.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          viaGoogle: true,
+        ),
+      );
+      final repository = _MockAuthRepository();
+      when(() => repository.signOutFromGoogle()).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(kind: FailureKind.unauthorized, errors: <String>['No.']),
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut();
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await store.read(), isNull);
+    },
+  );
 
   // AF-05e — the claim the unverified-address prompt is decided by.
   test('GivenUnverifiedClaim_WhenPrincipalRead_ThenEmailIsUnverified', () {

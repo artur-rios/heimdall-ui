@@ -4,9 +4,13 @@
 /// literal beyond the local default, so a deployment address never reaches the
 /// repository.
 class AppConfig {
-  const AppConfig({required String apiBaseUrl, String? googleClientId})
-    : _rawApiBaseUrl = apiBaseUrl,
-      _rawGoogleClientId = googleClientId;
+  const AppConfig({
+    required String apiBaseUrl,
+    String? googleClientId,
+    String? scopeId,
+  }) : _rawApiBaseUrl = apiBaseUrl,
+       _rawGoogleClientId = googleClientId,
+       _rawScopeId = scopeId;
 
   /// Reads the configuration from the compile-time environment, falling back to
   /// a local API so the application runs with no flags at all.
@@ -16,10 +20,12 @@ class AppConfig {
       defaultValue: 'http://localhost:5000',
     ),
     googleClientId: String.fromEnvironment('HEIMDALL_GOOGLE_CLIENT_ID'),
+    scopeId: String.fromEnvironment('HEIMDALL_SCOPE_ID'),
   );
 
   final String _rawApiBaseUrl;
   final String? _rawGoogleClientId;
+  final String? _rawScopeId;
 
   /// The API root, without a trailing slash, so paths concatenate predictably.
   String get apiBaseUrl => _rawApiBaseUrl.endsWith('/')
@@ -37,4 +43,14 @@ class AppConfig {
 
   /// Whether the Google sign-in control should be offered at all.
   bool get isGoogleSignInConfigured => googleClientId != null;
+
+  /// The scope this build targets when no calling application named one.
+  ///
+  /// On the web the caller's value in session storage wins; this is what a
+  /// desktop or mobile build, which has no such caller, falls back to.
+  String? get scopeId {
+    final raw = _rawScopeId;
+
+    return (raw == null || raw.isEmpty) ? null : raw;
+  }
 }

@@ -4,21 +4,35 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// A bearer token together with the moment it stops being valid.
 class AuthToken {
-  const AuthToken({required this.value, required this.expiresAt});
+  const AuthToken({
+    required this.value,
+    required this.expiresAt,
+    this.viaGoogle = false,
+  });
 
   factory AuthToken.fromJson(Map<String, dynamic> json) => AuthToken(
     value: json['value']! as String,
     expiresAt: DateTime.parse(json['expiresAt']! as String),
+    // Absent in anything written before UI-06, which was password-only.
+    viaGoogle: json['viaGoogle'] as bool? ?? false,
   );
 
   final String value;
   final DateTime expiresAt;
+
+  /// Whether this session was established through Google.
+  ///
+  /// Stored rather than inferred because it outlives the exchange: signing out
+  /// of a restored session still has to tell Google about it, and nothing in
+  /// the token itself says where it came from.
+  final bool viaGoogle;
 
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
 
   Map<String, dynamic> toJson() => <String, dynamic>{
     'value': value,
     'expiresAt': expiresAt.toUtc().toIso8601String(),
+    'viaGoogle': viaGoogle,
   };
 }
 
