@@ -243,7 +243,7 @@ the board is where an item's status changes as it moves.
 | UI-04: Reset password | ✅ | [#4](https://github.com/artur-rios/heimdall-ui/issues/4) |
 | UI-05: Verify email and resend verification | ✅ | [#5](https://github.com/artur-rios/heimdall-ui/issues/5) |
 | UI-06: Sign in and sign out with Google | ✅ | [#6](https://github.com/artur-rios/heimdall-ui/issues/6) |
-| UI-07: Guard routes by session and role | ⬜ | [#7](https://github.com/artur-rios/heimdall-ui/issues/7) |
+| UI-07: Guard routes by session and role | ✅ | [#7](https://github.com/artur-rios/heimdall-ui/issues/7) |
 
 ### Profile & Security
 

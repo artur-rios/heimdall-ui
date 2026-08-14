@@ -281,14 +281,17 @@ class SessionController extends Notifier<SessionState> {
   /// A Google session is ended at the API and at Google as well as here. Both
   /// are best-effort: a refusal from either must not leave the user signed in
   /// locally, which is the part this side actually controls.
-  Future<void> signOut() async {
+  ///
+  /// AF-07e: [expired] marks a session that ended under the caller rather than
+  /// one they chose to leave, so the sign-in screen can say which happened.
+  Future<void> signOut({bool expired = false}) async {
     if (state case Authenticated(:final token) when token.viaGoogle) {
       await _repository.signOutFromGoogle();
       await _google.signOut();
     }
 
     await _store.clear();
-    state = const Unauthenticated();
+    state = Unauthenticated(sessionExpired: expired);
   }
 
   Future<void> _establish(AuthToken token) async {

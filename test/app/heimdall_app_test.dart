@@ -1,7 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
+import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -163,4 +167,224 @@ void main() {
     // Then
     expect(find.text('Signed in as admin@example.com'), findsOneWidget);
   });
+
+  // AF-07c — a slow read of the stored token must not bounce a returning user
+  // to sign-in; they wait instead.
+  testWidgets('GivenASlowTokenRead_WhenAppStarts_ThenALoadingStateIsShown', (
+    tester,
+  ) async {
+    // Given
+    final slow = _SlowTokenStore(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
+        tokenStoreProvider.overrideWithValue(slow),
+        authRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // When
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const HeimdallApp(),
+      ),
+    );
+    await tester.pump();
+
+    // Then
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
+    slow.finish();
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('GivenASlowTokenRead_WhenItCompletes_ThenTheSessionIsRestored', (
+    tester,
+  ) async {
+    // Given
+    final slow = _SlowTokenStore(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
+        tokenStoreProvider.overrideWithValue(slow),
+        authRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const HeimdallApp(),
+      ),
+    );
+    await tester.pump();
+
+    // When
+    slow.finish();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Signed in as admin@example.com'), findsOneWidget);
+  });
+
+  // AF-07d — a role that is not offered a screen is told so, and is not
+  // bounced somewhere it did not ask for.
+  testWidgets('GivenAUser_WhenVisitingAnAdminRoute_ThenTheRefusalIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _userJwt(), expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
+        tokenStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const HeimdallApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    container.read(routerProvider).go('/scopes');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Not available for your role'), findsOneWidget);
+  });
+
+  // AF-07e — a token rejected mid-session ends it and says why.
+  testWidgets('GivenARejectedToken_WhenTheSessionEnds_ThenTheReasonIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
+        tokenStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const HeimdallApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signOut(expired: true);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text(
+        'Your session ended. Sign in again to pick up where you left off.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  // Signing out deliberately is not a session that ended under the caller.
+  testWidgets('GivenADeliberateSignOut_WhenSignedOut_ThenNoReasonIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
+        tokenStoreProvider.overrideWithValue(store),
+        authRepositoryProvider.overrideWithValue(repository),
+      ],
+    );
+    addTearDown(container.dispose);
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: container,
+        child: const HeimdallApp(),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await container.read(sessionControllerProvider.notifier).signOut();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(
+      find.text(
+        'Your session ended. Sign in again to pick up where you left off.',
+      ),
+      findsNothing,
+    );
+  });
+}
+
+/// A token naming a User, which is the role the matrix hides the most from.
+String _userJwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'id',
+        'email': 'user@example.com',
+        'role': 3,
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
+
+/// A store whose read does not complete until it is told to, so AF-07c's slow
+/// read is a state a test can actually observe.
+class _SlowTokenStore implements TokenStore {
+  _SlowTokenStore(this._token);
+
+  final AuthToken? _token;
+  final Completer<AuthToken?> _pending = Completer<AuthToken?>();
+
+  void finish() => _pending.complete(_token);
+
+  @override
+  Future<AuthToken?> read() => _pending.future;
+
+  @override
+  Future<void> write(AuthToken token) async {}
+
+  @override
+  Future<void> clear() async {}
 }

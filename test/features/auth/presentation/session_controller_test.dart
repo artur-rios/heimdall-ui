@@ -456,6 +456,57 @@ void main() {
     expect(principal.id, isEmpty);
   });
 
+  // AF-07e — a token rejected mid-session ends it, and the state remembers
+  // that it ended rather than that the user left.
+  test(
+    'GivenARejectedToken_WhenSignedOutAsExpired_ThenTheReasonIsKept',
+    () async {
+      // Given
+      final container = containerWith();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut(expired: true);
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Unauthenticated).sessionExpired, isTrue);
+    },
+  );
+
+  test('GivenADeliberateSignOut_WhenSignedOut_ThenNoReasonIsKept', () async {
+    // Given
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut();
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Unauthenticated).sessionExpired, isFalse);
+  });
+
+  // AF-07g — an expired stored token is discarded at start-up, and the API is
+  // never asked about it.
+  test('GivenAnExpiredStoredToken_WhenRestored_ThenItIsDiscarded', () async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2000)),
+    );
+    final container = containerWith();
+
+    // When
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+    verifyZeroInteractions(repository);
+  });
+
   // UI-06 sign out — a Google session ends at the API and at Google too.
   test('GivenAGoogleSession_WhenSignedOut_ThenGoogleIsToldAsWell', () async {
     // Given

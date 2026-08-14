@@ -55,7 +55,9 @@ final Provider<Dio> dioProvider = Provider<Dio>(
   (ref) => createDio(
     config: ref.watch(appConfigProvider),
     tokenStore: ref.watch(tokenStoreProvider),
+    // AF-07e: the token was rejected mid-session, which is not the same as
+    // signing out — the user is told the session ended.
     onUnauthorized: () =>
-        ref.read(sessionControllerProvider.notifier).signOut(),
+        ref.read(sessionControllerProvider.notifier).signOut(expired: true),
   ),
 );

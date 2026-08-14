@@ -174,4 +174,108 @@ void main() {
     // Then
     expect(redirect, isNull);
   });
+
+  // AF-07d — a screen this role is not offered answers plainly rather than
+  // bouncing the caller somewhere they did not ask for.
+  test('GivenUser_WhenVisitingAnAdminRoute_ThenRedirectsToNotAvailable', () {
+    // Given
+    final session = Authenticated(
+      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
+    );
+
+    // When
+    final redirect = redirectFor(session: session, location: '/scopes');
+
+    // Then
+    expect(redirect, '/not-available');
+  });
+
+  test(
+    'GivenScopeAdmin_WhenVisitingCreateScope_ThenRedirectsToNotAvailable',
+    () {
+      // Given
+      final session = Authenticated(
+        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        principal: const Principal(
+          id: 'id',
+          email: 'a@b.c',
+          role: Role.scopeAdmin,
+        ),
+      );
+
+      // When
+      final redirect = redirectFor(session: session, location: '/scopes/new');
+
+      // Then
+      expect(redirect, '/not-available');
+    },
+  );
+
+  // AF-07d — and the refusal screen must be reachable, or it is the redirect
+  // loop the flow rules out.
+  test('GivenUser_WhenVisitingNotAvailable_ThenNoRedirect', () {
+    // Given
+    final session = Authenticated(
+      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
+    );
+
+    // When
+    final redirect = redirectFor(session: session, location: '/not-available');
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  test('GivenUser_WhenVisitingTheirProfile_ThenNoRedirect', () {
+    // Given
+    final session = Authenticated(
+      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
+    );
+
+    // When
+    final redirect = redirectFor(session: session, location: '/profile');
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  // A role the guard refuses is still refused with a query string attached.
+  test(
+    'GivenUser_WhenAnAdminRouteCarriesAQuery_ThenRedirectsToNotAvailable',
+    () {
+      // Given
+      final session = Authenticated(
+        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
+      );
+
+      // When
+      final redirect = redirectFor(
+        session: session,
+        location: '/scopes?page=2',
+      );
+
+      // Then
+      expect(redirect, '/not-available');
+    },
+  );
+
+  // AF-07e — a session that ended under the caller is still unauthenticated,
+  // so the guard treats it exactly as it treats never having had one.
+  test(
+    'GivenAnExpiredSession_WhenVisitingPrivateRoute_ThenRedirectsToLogin',
+    () {
+      // Given
+      const session = Unauthenticated(sessionExpired: true);
+
+      // When
+      final redirect = redirectFor(session: session, location: '/scopes');
+
+      // Then
+      expect(redirect, '/login?from=%2Fscopes');
+    },
+  );
 }
