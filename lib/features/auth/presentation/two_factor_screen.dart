@@ -181,11 +181,12 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                       ],
                       TextFormField(
                         controller: _code,
-                        autofocus: true,
                         keyboardType: _useRecoveryCode
                             ? TextInputType.text
                             : TextInputType.number,
-                        autofillHints: const <String>[AutofillHints.oneTimeCode],
+                        autofillHints: const <String>[
+                          AutofillHints.oneTimeCode,
+                        ],
                         decoration: InputDecoration(
                           labelText: _useRecoveryCode
                               ? 'Recovery code'
@@ -258,8 +259,10 @@ String _labelFor(String method) => switch (method.toLowerCase()) {
 
 /// What to tell the user to reach for, given the method in use.
 String _promptFor(String? method) => switch (method?.toLowerCase()) {
-  'totp' || 'app' || 'authenticator' || 'authenticatorapp' =>
-    'Enter the code from your authenticator app.',
+  'totp' ||
+  'app' ||
+  'authenticator' ||
+  'authenticatorapp' => 'Enter the code from your authenticator app.',
   'email' || 'mail' => 'Enter the code we sent to your email address.',
   null => 'Enter your verification code.',
   _ => 'Enter your verification code for $method.',

@@ -36,6 +36,28 @@ void main() {
     return container;
   }
 
+  /// A container whose session already holds a challenge, which is where every
+  /// UI-02 flow starts.
+  Future<ProviderContainer> challengedContainer({
+    List<String> methods = const <String>['Totp'],
+  }) async {
+    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+      (_) async => Success<LoginOutcome>(
+        TwoFactorRequired(
+          challengeToken: 'challenge',
+          availableMethods: methods,
+        ),
+      ),
+    );
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    // Settle the start-up read first, so it cannot land on the challenge.
+    await controller.restore();
+    await controller.signIn(email: 'a@b.c', password: 'secret');
+
+    return container;
+  }
+
   setUp(() {
     repository = _MockAuthRepository();
     store = InMemoryTokenStore();
@@ -133,6 +155,7 @@ void main() {
         () => repository.verifySecondFactor(
           challengeToken: 'challenge',
           code: '123456',
+          isRecoveryCode: false,
         ),
       ).thenAnswer((_) async => Success<AuthToken>(tokenFor(_systemAdminJwt)));
       final container = containerWith();
@@ -164,6 +187,7 @@ void main() {
         () => repository.verifySecondFactor(
           challengeToken: any(named: 'challengeToken'),
           code: any(named: 'code'),
+          isRecoveryCode: any(named: 'isRecoveryCode'),
         ),
       );
     },
@@ -243,6 +267,156 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
     expect(await store.read(), isNull);
   });
+
+  // AF-02a — a wrong code is the user's problem to fix, not the challenge's end.
+  test('GivenWrongCode_WhenSubmitted_ThenTheChallengeSurvives', () async {
+    // Given
+    final container = await challengedContainer();
+    final controller = container.read(sessionControllerProvider.notifier);
+    when(
+      () => repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '000000',
+        isRecoveryCode: false,
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<AuthToken>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['The code is incorrect.'],
+        ),
+      ),
+    );
+
+    // When
+    final result = await controller.submitSecondFactor('000000');
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>['The code is incorrect.']);
+    expect(container.read(sessionControllerProvider), isA<Challenged>());
+  });
+
+  // AF-02b — a challenge the API will not accept again cannot be retried.
+  test(
+    'GivenExpiredChallenge_WhenSubmitted_ThenTheChallengeIsDiscarded',
+    () async {
+      // Given
+      final container = await challengedContainer();
+      final controller = container.read(sessionControllerProvider.notifier);
+      when(
+        () => repository.verifySecondFactor(
+          challengeToken: 'challenge',
+          code: '123456',
+          isRecoveryCode: false,
+        ),
+      ).thenAnswer(
+        (_) async => const FailureResult<AuthToken>(
+          Failure(
+            kind: FailureKind.unauthorized,
+            errors: <String>['The challenge has expired.'],
+          ),
+        ),
+      );
+
+      // When
+      await controller.submitSecondFactor('123456');
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
+
+  // AF-02c — the choice belongs to the challenge, so it outlives a rebuild.
+  test('GivenSeveralMethods_WhenOneIsChosen_ThenItIsRemembered', () async {
+    // Given
+    final container = await challengedContainer(
+      methods: const <String>['Totp', 'Email'],
+    );
+
+    // When
+    container.read(sessionControllerProvider.notifier).chooseMethod('Email');
+
+    // Then
+    final state = container.read(sessionControllerProvider) as Challenged;
+    expect(state.methodInUse, 'Email');
+  });
+
+  // AF-02c — the API decides what is on offer; nothing else may be selected.
+  test('GivenUnofferedMethod_WhenChosen_ThenTheChoiceIsIgnored', () async {
+    // Given
+    final container = await challengedContainer();
+
+    // When
+    container.read(sessionControllerProvider.notifier).chooseMethod('Carrier');
+
+    // Then
+    final state = container.read(sessionControllerProvider) as Challenged;
+    expect(state.methodInUse, 'Totp');
+  });
+
+  // AF-02d — the recovery code is flagged so it reaches the right API field.
+  test('GivenRecoveryCode_WhenSubmitted_ThenItIsSentAsOne', () async {
+    // Given
+    final container = await challengedContainer();
+    final controller = container.read(sessionControllerProvider.notifier);
+    when(
+      () => repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: 'recovery-code',
+        isRecoveryCode: true,
+      ),
+    ).thenAnswer((_) async => Success<AuthToken>(tokenFor(_systemAdminJwt)));
+
+    // When
+    await controller.submitSecondFactor('recovery-code', isRecoveryCode: true);
+
+    // Then
+    verify(
+      () => repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: 'recovery-code',
+        isRecoveryCode: true,
+      ),
+    ).called(1);
+  });
+
+  // AF-02e — leaving ends the challenge, and it was never persisted.
+  test(
+    'GivenChallengedSession_WhenAbandoned_ThenSessionIsUnauthenticated',
+    () async {
+      // Given
+      final container = await challengedContainer();
+
+      // When
+      container.read(sessionControllerProvider.notifier).abandonChallenge();
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await store.read(), isNull);
+    },
+  );
+
+  // AF-02e — abandoning is only ever about a challenge; a real session stands.
+  test(
+    'GivenAuthenticatedSession_WhenAbandonCalled_ThenSessionStands',
+    () async {
+      // Given
+      when(
+        () => repository.login(email: 'a@b.c', password: 'secret'),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+      );
+      final container = containerWith();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.signIn(email: 'a@b.c', password: 'secret');
+
+      // When
+      controller.abandonChallenge();
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    },
+  );
 
   test('GivenMalformedToken_WhenPrincipalRead_ThenRoleFallsBackToUser', () {
     // Given
