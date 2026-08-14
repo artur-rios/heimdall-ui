@@ -25,7 +25,7 @@ void main() {
   test('GivenTokenResponse_WhenLoggingIn_ThenLoggedInIsReturned', () async {
     // Given
     repository = repositoryAnswering(
-      _Answer(
+      const _Answer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -53,7 +53,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        _Answer(
+        const _Answer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -87,7 +87,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        _Answer(
+        const _Answer(
           status: 200,
           body: <String, dynamic>{
             'success': false,
@@ -113,7 +113,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        _Answer(
+        const _Answer(
           status: 401,
           body: <String, dynamic>{
             'success': false,
@@ -150,7 +150,7 @@ void main() {
   test('GivenIncompleteEnvelope_WhenLoggingIn_ThenFailureIsReturned', () async {
     // Given
     repository = repositoryAnswering(
-      _Answer(
+      const _Answer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
