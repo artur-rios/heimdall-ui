@@ -67,6 +67,13 @@ Principal principalFromToken(AuthToken token) {
         (payload['ownedScopeIds'] as List<dynamic>? ?? const <dynamic>[])
             .map((id) => id.toString())
             .toList(growable: false),
+    // AF-05e: read like every other claim here. Absent means "say nothing",
+    // not "unverified", so only an explicit false raises the prompt.
+    emailVerified: switch (payload['emailVerified']) {
+      final bool value => value,
+      final String value => value.toLowerCase() != 'false',
+      _ => true,
+    },
   );
 }
 

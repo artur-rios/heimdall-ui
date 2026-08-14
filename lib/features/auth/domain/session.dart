@@ -26,11 +26,20 @@ class Principal {
     required this.role,
     this.scopeId,
     this.ownedScopeIds = const <String>[],
+    this.emailVerified = true,
   });
 
   final String id;
   final String email;
   final Role role;
+
+  /// Whether the API considers this address verified.
+  ///
+  /// AF-05e reads it to decide whether to prompt. It defaults to `true` — a
+  /// token that says nothing about verification is not evidence of an
+  /// unverified address, and nagging on absent data is worse than staying
+  /// quiet.
+  final bool emailVerified;
 
   /// The scope a User belongs to; `null` for the other roles.
   final String? scopeId;

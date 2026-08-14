@@ -121,6 +121,51 @@ class ApiAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<Result<List<String>>> verifyEmail({required String token}) async {
+    try {
+      final response = await _client.authVerifyEmail(
+        body: VerifyEmailCommand(token: token),
+      );
+
+      if (response.success != true) {
+        return FailureResult<List<String>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      // AF-05d: an address that was already verified answers successfully, so
+      // the messages are carried up rather than flattened away — they are what
+      // lets the screen say which of the two happened.
+      return Success<List<String>>(response.messages ?? const <String>[]);
+    } on DioException catch (error) {
+      return FailureResult<List<String>>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> resendVerificationEmail() async {
+    try {
+      final response = await _client.authResendVerification();
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
   /// Reads a login response, which answers one of two ways: a usable token, or
   /// a challenge that must be answered before a session exists.
   Result<LoginOutcome> _outcomeFrom(LoginCommandOutputDataOutput response) {

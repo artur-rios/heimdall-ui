@@ -6,6 +6,7 @@ import '../../../app/theme_mode_controller.dart';
 import '../../../shared/layout/adaptive_scaffold.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
+import '../../auth/presentation/verification_banner.dart';
 import 'destinations.dart';
 
 /// The screen behind `/`, and the shell every administrative screen will be
@@ -40,21 +41,30 @@ class HomeScreen extends ConsumerWidget {
               ref.read(sessionControllerProvider.notifier).signOut(),
         ),
       ],
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Text(
-                'Signed in as ${principal.email}',
-                style: Theme.of(context).textTheme.titleMedium,
+      body: Column(
+        children: <Widget>[
+          // AF-05e: renders nothing when the address is verified or the prompt
+          // was dismissed, so it sits here unconditionally.
+          const VerificationBanner(),
+          Expanded(
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: <Widget>[
+                    Text(
+                      'Signed in as ${principal.email}',
+                      style: Theme.of(context).textTheme.titleMedium,
+                    ),
+                    const SizedBox(height: 8),
+                    Text(_roleLabel(principal.role)),
+                  ],
+                ),
               ),
-              const SizedBox(height: 8),
-              Text(_roleLabel(principal.role)),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

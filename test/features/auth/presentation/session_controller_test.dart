@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -429,4 +431,47 @@ void main() {
     expect(principal.role, Role.user);
     expect(principal.id, isEmpty);
   });
+
+  // AF-05e — the claim the unverified-address prompt is decided by.
+  test('GivenUnverifiedClaim_WhenPrincipalRead_ThenEmailIsUnverified', () {
+    // Given
+    final token = AuthToken(
+      value: _jwtWith(<String, dynamic>{'emailVerified': false}),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.emailVerified, isFalse);
+  });
+
+  // Absent is not the same as false: a token that says nothing about
+  // verification must not raise the prompt.
+  test('GivenNoVerificationClaim_WhenPrincipalRead_ThenEmailIsVerified', () {
+    // Given
+    final token = AuthToken(
+      value: _jwtWith(<String, dynamic>{}),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.emailVerified, isTrue);
+  });
+}
+
+/// Builds a JWT whose payload is the standard User claims plus [extra].
+String _jwtWith(Map<String, dynamic> extra) {
+  final claims = <String, dynamic>{
+    'sub': 'id',
+    'email': 'a@b.c',
+    'role': 3,
+    ...extra,
+  };
+
+  return 'header.${base64Url.encode(utf8.encode(jsonEncode(claims)))}.signature';
 }
