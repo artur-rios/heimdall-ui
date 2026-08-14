@@ -34,8 +34,13 @@ abstract interface class AuthRepository {
     required String password,
   });
 
+  /// Answers a login challenge.
+  ///
+  /// The API takes a generated code and a recovery code in separate fields, so
+  /// [isRecoveryCode] decides which one [code] is sent as.
   Future<Result<AuthToken>> verifySecondFactor({
     required String challengeToken,
     required String code,
+    bool isRecoveryCode,
   });
 }

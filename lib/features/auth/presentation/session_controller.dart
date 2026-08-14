@@ -131,8 +131,35 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// Remembers which of the offered methods the user is answering with.
+  ///
+  /// AF-02c: the choice belongs to the challenge, not to the screen, so it
+  /// outlives a rebuild and is gone the moment the challenge is.
+  void chooseMethod(String method) {
+    if (state case final Challenged current
+        when current.availableMethods.contains(method)) {
+      state = current.withMethod(method);
+    }
+  }
+
+  /// Drops the challenge and returns the session to unauthenticated.
+  ///
+  /// AF-02e: leaving the screen ends the challenge. The token was never
+  /// persisted, so there is nothing to clear beyond the state itself.
+  void abandonChallenge() {
+    if (state is Challenged) {
+      state = const Unauthenticated();
+    }
+  }
+
   /// Answers the login challenge. Only valid while the session is [Challenged].
-  Future<Result<void>> submitSecondFactor(String code) async {
+  ///
+  /// A rejection keeps the challenge alive (AF-02a); a challenge the API no
+  /// longer recognises ends it (AF-02b), which sends the user back to sign in.
+  Future<Result<void>> submitSecondFactor(
+    String code, {
+    bool isRecoveryCode = false,
+  }) async {
     final current = state;
 
     if (current is! Challenged) {
@@ -147,6 +174,7 @@ class SessionController extends Notifier<SessionState> {
     final result = await _repository.verifySecondFactor(
       challengeToken: current.challengeToken,
       code: code,
+      isRecoveryCode: isRecoveryCode,
     );
 
     switch (result) {
@@ -155,9 +183,24 @@ class SessionController extends Notifier<SessionState> {
 
         return const Success<void>(null);
       case FailureResult<AuthToken>(:final failure):
+        if (_endsTheChallenge(failure.kind) && state is Challenged) {
+          state = const Unauthenticated();
+        }
+
         return FailureResult<void>(failure);
     }
   }
+
+  /// Whether a failure means the challenge itself is gone rather than the code
+  /// being wrong. The envelope carries no code of its own for this, so the
+  /// status is the signal: a challenge the API will not accept from anyone
+  /// again cannot be retried on this screen.
+  static bool _endsTheChallenge(FailureKind kind) => switch (kind) {
+    FailureKind.unauthorized ||
+    FailureKind.forbidden ||
+    FailureKind.notFound => true,
+    _ => false,
+  };
 
   /// Ends the session locally. Called on sign-out and whenever the API rejects
   /// the token with a 401.

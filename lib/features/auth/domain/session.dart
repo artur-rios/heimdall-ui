@@ -69,10 +69,27 @@ final class Challenged extends SessionState {
   const Challenged({
     required this.challengeToken,
     required this.availableMethods,
+    this.selectedMethod,
   });
 
   final String challengeToken;
   final List<String> availableMethods;
+
+  /// The method the user is answering with, when they chose one. It lives here
+  /// rather than in the screen so the choice survives a rebuild and lasts for
+  /// the challenge, as AF-02c requires.
+  final String? selectedMethod;
+
+  /// The method actually in use: the chosen one, or the first the API offered.
+  String? get methodInUse =>
+      selectedMethod ??
+      (availableMethods.isEmpty ? null : availableMethods.first);
+
+  Challenged withMethod(String method) => Challenged(
+    challengeToken: challengeToken,
+    availableMethods: availableMethods,
+    selectedMethod: method,
+  );
 }
 
 /// A usable session.

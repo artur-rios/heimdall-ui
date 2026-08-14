@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
+import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -34,6 +35,9 @@ String? redirectFor({required SessionState session, required String location}) {
     // bounce a returning user to sign-in.
     SessionRestoring() => null,
     Challenged() => path == '/login/two-factor' ? null : '/login/two-factor',
+    // AF-02b and AF-02e: a challenge screen without a challenge is a dead end.
+    // The token is gone and cannot be recovered, so sign-in restarts.
+    Unauthenticated() when path == '/login/two-factor' => '/login',
     Unauthenticated() when isPublic => null,
     Unauthenticated() => '/login?from=${Uri.encodeComponent(location)}',
     Authenticated() when path == '/login' || path == '/login/two-factor' =>
@@ -73,6 +77,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
+      GoRoute(
+        path: '/login/two-factor',
+        builder: (context, state) => const TwoFactorScreen(),
+      ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then
     // an unknown route says so plainly instead of throwing.

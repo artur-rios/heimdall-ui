@@ -35,12 +35,16 @@ class ApiAuthRepository implements AuthRepository {
   Future<Result<AuthToken>> verifySecondFactor({
     required String challengeToken,
     required String code,
+    bool isRecoveryCode = false,
   }) async {
     try {
       final response = await _client.authVerifyTwoFactorAuth(
+        // AF-02d: a recovery code travels in its own field. Sending it as the
+        // generated code would have the API check it against the wrong secret.
         body: VerifyTwoFactorAuthCommand(
           challengeToken: challengeToken,
-          code: code,
+          code: isRecoveryCode ? null : code,
+          recoveryCode: isRecoveryCode ? code : null,
         ),
       );
 
