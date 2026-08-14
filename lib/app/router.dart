@@ -25,7 +25,8 @@ const Set<String> publicRoutes = <String>{
 /// Pure on purpose: the whole guard is then testable without a widget tree,
 /// which is where its edge cases actually live.
 String? redirectFor({required SessionState session, required String location}) {
-  final path = Uri.parse(location).path;
+  final uri = Uri.parse(location);
+  final path = uri.path;
   final isPublic = publicRoutes.contains(path);
 
   return switch (session) {
@@ -35,9 +36,27 @@ String? redirectFor({required SessionState session, required String location}) {
     Challenged() => path == '/login/two-factor' ? null : '/login/two-factor',
     Unauthenticated() when isPublic => null,
     Unauthenticated() => '/login?from=${Uri.encodeComponent(location)}',
-    Authenticated() when path == '/login' || path == '/login/two-factor' => '/',
+    Authenticated() when path == '/login' || path == '/login/two-factor' =>
+      _returnTo(uri.queryParameters['from']),
     Authenticated() => null,
   };
+}
+
+/// Where a freshly signed-in caller belongs: the screen they originally asked
+/// for, or the home screen.
+///
+/// Only a path within this application is honoured. A value that is absolute,
+/// protocol-relative, or a login route itself would either send the user off
+/// the application or straight back into the sign-in loop, so both fall back
+/// home rather than being followed.
+String _returnTo(String? from) {
+  if (from == null || !from.startsWith('/') || from.startsWith('//')) {
+    return '/';
+  }
+
+  final path = Uri.parse(from).path;
+
+  return (path == '/login' || path == '/login/two-factor') ? '/' : from;
 }
 
 final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
