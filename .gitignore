@@ -50,3 +50,6 @@ app.*.map.json
 # Generated package build output (the generated sources themselves are committed)
 /packages/*/.dart_tool/
 /packages/*/build/
+
+# Claude Code local settings
+.claude/settings.local.json
