@@ -666,6 +666,185 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  /// A Google exchange answering with a usable token.
+  const acceptedGoogleExchange = _Answer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'token': 'jwt',
+        'expiresAt': '2030-01-01T00:00:00Z',
+      },
+    },
+  );
+
+  test(
+    'GivenAnIdToken_WhenSigningInWithGoogle_ThenTheTokenIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedGoogleExchange);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+        scopeId: 'scope-public-id',
+      );
+
+      // Then
+      expect(result.valueOrNull?.value, 'jwt');
+    },
+  );
+
+  // The session must remember it came from Google, so sign-out can tell it.
+  test(
+    'GivenAnIdToken_WhenSigningInWithGoogle_ThenTheTokenIsMarkedGoogle',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedGoogleExchange);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+        scopeId: 'scope-public-id',
+      );
+
+      // Then
+      expect(result.valueOrNull?.viaGoogle, isTrue);
+    },
+  );
+
+  test('GivenAScope_WhenSigningInWithGoogle_ThenBothTravelInTheBody', () async {
+    // Given
+    repository = repositoryAnswering(acceptedGoogleExchange);
+
+    // When
+    await repository.signInWithGoogle(
+      idToken: 'google-id-token',
+      scopeId: 'scope-public-id',
+    );
+
+    // Then
+    expect(adapter.requests.single['idToken'], 'google-id-token');
+    expect(adapter.requests.single['scopeId'], 'scope-public-id');
+  });
+
+  // AF-06b — the scope has Google Sign-In switched off, which the API answers
+  // 403 for a missing, deleted, and disabled scope alike.
+  test(
+    'GivenDisabledScope_WhenSigningInWithGoogle_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 403,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['Google Sign-In is not enabled for this scope.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+        scopeId: 'scope-public-id',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.forbidden);
+      expect(result.failureOrNull?.errors, <String>[
+        'Google Sign-In is not enabled for this scope.',
+      ]);
+    },
+  );
+
+  // AF-06d — the API refuses the ID token, answering 401 as login does.
+  test(
+    'GivenRejectedIdToken_WhenSigningInWithGoogle_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 401,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['That Google account could not be signed in.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'forged',
+        scopeId: 'scope-public-id',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unauthorized);
+    },
+  );
+
+  test(
+    'GivenTransportFailure_WhenSigningInWithGoogle_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
+
+  // The sign-out takes no body: the Google User comes from the bearer token.
+  test('GivenAGoogleSession_WhenSigningOut_ThenNoBodyIsSent', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.signOutFromGoogle();
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.requests, isEmpty);
+  });
+
+  test(
+    'GivenRejectedSignOut_WhenSigningOut_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 401,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['Not a Google session.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.signOutFromGoogle();
+
+      // Then
+      expect(result.failureOrNull?.errors, <String>['Not a Google session.']);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

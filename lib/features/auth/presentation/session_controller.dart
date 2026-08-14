@@ -4,8 +4,10 @@ import 'dart:convert';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/scope/scope_source.dart';
 import '../../../core/storage/token_store.dart';
 import '../domain/auth_repository.dart';
+import '../domain/google_sign_in_gateway.dart';
 import '../domain/session.dart';
 
 /// Overridden at start-up with the platform store, and in tests with a fake.
@@ -18,6 +20,15 @@ final Provider<AuthRepository> authRepositoryProvider =
     Provider<AuthRepository>(
       (ref) =>
           throw UnimplementedError('authRepositoryProvider must be overridden'),
+    );
+
+/// Overridden at start-up with the plugin-backed gateway, and in tests with a
+/// fake, so no test ever reaches Google.
+final Provider<GoogleSignInGateway> googleSignInGatewayProvider =
+    Provider<GoogleSignInGateway>(
+      (ref) => throw UnimplementedError(
+        'googleSignInGatewayProvider must be overridden',
+      ),
     );
 
 final NotifierProvider<SessionController, SessionState>
@@ -89,6 +100,7 @@ class SessionController extends Notifier<SessionState> {
 
   TokenStore get _store => ref.read(tokenStoreProvider);
   AuthRepository get _repository => ref.read(authRepositoryProvider);
+  GoogleSignInGateway get _google => ref.read(googleSignInGatewayProvider);
 
   /// Reads the stored token and settles the session. Called once at start-up,
   /// and directly by tests so they need not race the constructor.
@@ -132,6 +144,60 @@ class SessionController extends Notifier<SessionState> {
 
         return const Success<void>(null);
       case FailureResult<LoginOutcome>(:final failure):
+        state = const Unauthenticated();
+
+        return FailureResult<void>(failure);
+    }
+  }
+
+  /// Runs Google's flow from the application's own control, then exchanges
+  /// what it produced.
+  ///
+  /// AF-06c: a cancellation is a success carrying no change — nothing was
+  /// sent, so there is nothing to report and nothing to undo.
+  Future<Result<void>> signInWithGoogle() async {
+    final attempt = await _google.obtainIdToken();
+
+    return switch (attempt) {
+      GoogleIdTokenObtained(:final idToken) => await exchangeGoogleIdToken(
+        idToken,
+      ),
+      GoogleSignInCancelled() => const Success<void>(null),
+      GoogleSignInUnsupported() => const FailureResult<void>(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>['Google sign-in is not available on this device.'],
+        ),
+      ),
+      GoogleSignInUnavailable(:final message) => FailureResult<void>(
+        Failure(kind: FailureKind.unknown, errors: <String>[message]),
+      ),
+    };
+  }
+
+  /// Exchanges a Google ID token for a Heimdall session.
+  ///
+  /// Separate from [signInWithGoogle] because on the web the token arrives
+  /// from a control Google rendered itself, with no call of ours to await.
+  ///
+  /// The scope comes from the calling application, which is the only party that
+  /// knows which one is being entered.
+  Future<Result<void>> exchangeGoogleIdToken(String idToken) async {
+    final result = await _repository.signInWithGoogle(
+      idToken: idToken,
+      scopeId: ref.read(scopeSourceProvider).read(),
+    );
+
+    switch (result) {
+      case Success<AuthToken>(:final value):
+        await _establish(value);
+
+        return const Success<void>(null);
+      case FailureResult<AuthToken>(:final failure):
+        // AF-06b and AF-06d: Heimdall refused, but Google still considers the
+        // user signed in. Dropping that leaves the next attempt to start from
+        // the account chooser rather than silently reusing the refused one.
+        await _google.signOut();
         state = const Unauthenticated();
 
         return FailureResult<void>(failure);
@@ -209,9 +275,18 @@ class SessionController extends Notifier<SessionState> {
     _ => false,
   };
 
-  /// Ends the session locally. Called on sign-out and whenever the API rejects
-  /// the token with a 401.
+  /// Ends the session. Called on sign-out and whenever the API rejects the
+  /// token with a 401.
+  ///
+  /// A Google session is ended at the API and at Google as well as here. Both
+  /// are best-effort: a refusal from either must not leave the user signed in
+  /// locally, which is the part this side actually controls.
   Future<void> signOut() async {
+    if (state case Authenticated(:final token) when token.viaGoogle) {
+      await _repository.signOutFromGoogle();
+      await _google.signOut();
+    }
+
     await _store.clear();
     state = const Unauthenticated();
   }

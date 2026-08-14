@@ -119,6 +119,26 @@ Configuration is supplied at build time. Nothing is read from a file at runtime.
 | --- | --- | --- |
 | `HEIMDALL_API_BASE_URL` | In any real deployment | `http://localhost:5000` |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset — the Google control is hidden |
+| `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset — see below |
+
+### The target scope
+
+Heimdall UI is opened by the applications that use Heimdall's services, and the scope being entered
+is theirs to name — there is no screen here that asks for it, and no endpoint an anonymous caller
+could list scopes from. On the web the calling application writes the scope's `PublicId` into
+**session storage** before sending the user here:
+
+```js
+sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
+```
+
+Session storage rather than a cookie: it is scoped to the tab, so two tabs can act in two scopes; it
+is never attached to a request, so the scope cannot become a header the API did not ask for; and it
+dies with the tab, so a scope does not outlive the visit on a shared machine. It is read on every
+use, so a caller may change it between one attempt and the next.
+
+`HEIMDALL_SCOPE_ID` is the fallback for a build with no such caller — the desktop and Android
+targets, or a web build opened directly.
 
 ```bash
 flutter run --dart-define=HEIMDALL_API_BASE_URL=https://heimdall.example.com
@@ -222,7 +242,7 @@ the board is where an item's status changes as it moves.
 | UI-03: Request password recovery | ✅ | [#3](https://github.com/artur-rios/heimdall-ui/issues/3) |
 | UI-04: Reset password | ✅ | [#4](https://github.com/artur-rios/heimdall-ui/issues/4) |
 | UI-05: Verify email and resend verification | ✅ | [#5](https://github.com/artur-rios/heimdall-ui/issues/5) |
-| UI-06: Sign in and sign out with Google | ⬜ | [#6](https://github.com/artur-rios/heimdall-ui/issues/6) |
+| UI-06: Sign in and sign out with Google | ✅ | [#6](https://github.com/artur-rios/heimdall-ui/issues/6) |
 | UI-07: Guard routes by session and role | ⬜ | [#7](https://github.com/artur-rios/heimdall-ui/issues/7) |
 
 ### Profile & Security

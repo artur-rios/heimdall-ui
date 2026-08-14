@@ -73,4 +73,18 @@ abstract interface class AuthRepository {
   /// caller can only ever ask for their own — and an anonymous caller cannot
   /// ask at all.
   Future<Result<void>> resendVerificationEmail();
+
+  /// Exchanges a Google ID token for a Heimdall token.
+  ///
+  /// [scopeId] is the scope being entered, which the calling application named
+  /// — the first exchange for a Google account in a scope creates the Google
+  /// User, every later one authenticates it.
+  Future<Result<AuthToken>> signInWithGoogle({
+    required String idToken,
+    String? scopeId,
+  });
+
+  /// Ends the caller's Google-authenticated session at the API. Takes no
+  /// argument: the Google User is read from the bearer token.
+  Future<Result<void>> signOutFromGoogle();
 }

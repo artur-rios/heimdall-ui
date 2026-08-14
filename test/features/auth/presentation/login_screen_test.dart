@@ -7,11 +7,35 @@ import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/presentation/login_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// Google's half, faked. No test reaches Google's SDK, for the same reason
+/// none reaches the network.
+class _FakeGoogleSignInGateway implements GoogleSignInGateway {
+  _FakeGoogleSignInGateway(this.availability);
+
+  @override
+  final GoogleSignInAvailability availability;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Stream<GoogleIdTokenObtained> get idTokens =>
+      const Stream<GoogleIdTokenObtained>.empty();
+
+  @override
+  Future<GoogleSignInAttempt> obtainIdToken() async =>
+      const GoogleSignInCancelled();
+
+  @override
+  Future<void> signOut() async {}
+}
 
 /// A token whose payload names a User, which is all the screen's flows need.
 const String _jwt =
@@ -34,6 +58,7 @@ void main() {
     Size size = const Size(400, 900),
     ThemeData? theme,
     AppConfig config = withoutGoogle,
+    GoogleSignInAvailability google = GoogleSignInAvailability.interactive,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -45,6 +70,9 @@ void main() {
           appConfigProvider.overrideWithValue(config),
           authRepositoryProvider.overrideWithValue(repository),
           tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(
+            _FakeGoogleSignInGateway(google),
+          ),
         ],
         child: MaterialApp(
           theme: theme ?? buildLightTheme(),
@@ -228,6 +256,23 @@ void main() {
 
     // Then
     expect(find.text('Continue with Google'), findsOneWidget);
+  });
+
+  // AF-06e — a target that cannot run the flow shows no control, and the
+  // credentials form stays the only route in.
+  testWidgets('GivenUnsupportedTarget_WhenRendered_ThenGoogleControlIsHidden', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(
+      tester,
+      config: withGoogle,
+      google: GoogleSignInAvailability.unsupported,
+    );
+
+    // Then
+    expect(find.text('Continue with Google'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Sign in'), findsOneWidget);
   });
 
   // AF-06a — no client id, no control at all.

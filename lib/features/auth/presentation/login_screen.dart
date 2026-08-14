@@ -5,23 +5,9 @@ import 'package:go_router/go_router.dart';
 import '../../../core/network/dio_client.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../domain/google_sign_in_gateway.dart';
+import 'google_sign_in_control.dart';
 import 'session_controller.dart';
-
-/// What activating the Google sign-in control does.
-///
-/// UI-01 owns the control's placement and whether it is offered at all; the
-/// exchange behind it belongs to UI-06, which overrides this. Until then the
-/// control says so rather than failing silently.
-typedef GoogleSignInAction = Future<void> Function(BuildContext context);
-
-final Provider<GoogleSignInAction> googleSignInActionProvider =
-    Provider<GoogleSignInAction>(
-      (ref) => (context) async {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Google sign-in is not available yet.')),
-        );
-      },
-    );
 
 /// The sign-in screen.
 class LoginScreen extends ConsumerStatefulWidget {
@@ -157,20 +143,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       child: const Text('Forgot your password?'),
                     ),
                     // AF-01e: the control the login screen offers alongside the
-                    // credentials form. AF-06a hides it entirely when the build
-                    // carries no Google client id.
-                    if (ref
-                        .watch(appConfigProvider)
-                        .isGoogleSignInConfigured) ...<Widget>[
+                    // credentials form. AF-06a hides it when the build carries
+                    // no Google client id, and AF-06e when the target cannot
+                    // run the flow — both inside the control itself.
+                    if (ref.watch(appConfigProvider).isGoogleSignInConfigured &&
+                        ref.watch(googleSignInGatewayProvider).availability !=
+                            GoogleSignInAvailability.unsupported) ...<Widget>[
                       const SizedBox(height: 16),
-                      OutlinedButton.icon(
-                        onPressed: _submitting
-                            ? null
-                            : () =>
-                                  ref.read(googleSignInActionProvider)(context),
-                        icon: const Icon(Icons.account_circle_outlined),
-                        label: const Text('Continue with Google'),
-                      ),
+                      GoogleSignInControl(enabled: !_submitting),
                     ],
                   ],
                 ),

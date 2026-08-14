@@ -75,4 +75,36 @@ void main() {
     expect(restored.value, token.value);
     expect(restored.expiresAt, token.expiresAt);
   });
+
+  // UI-06 — sign-out has to tell Google about a Google session, including one
+  // restored from storage, so where it came from is stored with it.
+  test('GivenAGoogleToken_WhenRoundTrippedThroughJson_ThenItStaysGoogle', () {
+    // Given
+    final token = AuthToken(
+      value: 'jwt',
+      expiresAt: DateTime.utc(2030),
+      viaGoogle: true,
+    );
+
+    // When
+    final restored = AuthToken.fromJson(token.toJson());
+
+    // Then
+    expect(restored.viaGoogle, isTrue);
+  });
+
+  // Anything written before UI-06 was password-only and carries no such key.
+  test('GivenAStoredTokenWithoutTheFlag_WhenRead_ThenItIsNotGoogle', () {
+    // Given
+    final json = <String, dynamic>{
+      'value': 'jwt',
+      'expiresAt': '2030-01-01T00:00:00.000Z',
+    };
+
+    // When
+    final restored = AuthToken.fromJson(json);
+
+    // Then
+    expect(restored.viaGoogle, isFalse);
+  });
 }

@@ -166,6 +166,61 @@ class ApiAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<Result<AuthToken>> signInWithGoogle({
+    required String idToken,
+    String? scopeId,
+  }) async {
+    try {
+      final response = await _client.authGoogleSignIn(
+        body: GoogleSignInCommand(idToken: idToken, scopeId: scopeId),
+      );
+
+      if (response.success != true) {
+        return FailureResult<AuthToken>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+      final token = data?.token;
+      final expiresAt = data?.expiresAt;
+
+      if (token == null || expiresAt == null) {
+        return const FailureResult<AuthToken>(_incompleteResponse);
+      }
+
+      return Success<AuthToken>(
+        AuthToken(value: token, expiresAt: expiresAt, viaGoogle: true),
+      );
+    } on DioException catch (error) {
+      return FailureResult<AuthToken>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> signOutFromGoogle() async {
+    try {
+      final response = await _client.authGoogleSignOut();
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
   /// Reads a login response, which answers one of two ways: a usable token, or
   /// a challenge that must be answered before a session exists.
   Result<LoginOutcome> _outcomeFrom(LoginCommandOutputDataOutput response) {
