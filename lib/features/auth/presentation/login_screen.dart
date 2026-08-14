@@ -6,6 +6,7 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/google_sign_in_gateway.dart';
+import '../domain/session.dart';
 import 'google_sign_in_control.dart';
 import 'session_controller.dart';
 
@@ -87,6 +88,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       style: theme.textTheme.bodyMedium,
                     ),
                     const SizedBox(height: 24),
+                    // AF-07e: the token was rejected mid-session. Saying so
+                    // beats leaving the user to wonder why their work stopped.
+                    if (ref.watch(sessionControllerProvider)
+                        case Unauthenticated(sessionExpired: true)) ...<Widget>[
+                      const _SessionEndedBanner(),
+                      const SizedBox(height: 16),
+                    ],
                     if (_failure case final Failure failure) ...<Widget>[
                       if (failure.kind == FailureKind.network)
                         // AF-01d: nothing was rejected, so the only useful
@@ -158,6 +166,29 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// AF-07e — says that the session ended rather than that sign-in failed. It is
+/// not an error banner: nothing the user did was wrong.
+class _SessionEndedBanner extends StatelessWidget {
+  const _SessionEndedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Text(
+        'Your session ended. Sign in again to pick up where you left off.',
+        style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );
   }

@@ -10,6 +10,7 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import 'route_access.dart';
 
 /// Routes an unauthenticated caller may reach.
 ///
@@ -45,6 +46,12 @@ String? redirectFor({required SessionState session, required String location}) {
     Unauthenticated() => '/login?from=${Uri.encodeComponent(location)}',
     Authenticated() when path == '/login' || path == '/login/two-factor' =>
       _returnTo(uri.queryParameters['from']),
+    // AF-07d: a screen this role is not offered answers plainly. Sending them
+    // home instead would be the redirect loop the flow rules out, and would
+    // also lie about why they did not arrive.
+    Authenticated(:final principal)
+        when !isPublic && !roleMayReach(role: principal.role, path: path) =>
+      '/not-available',
     Authenticated() => null,
   };
 }
@@ -102,6 +109,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) =>
             VerifyEmailScreen(token: state.uri.queryParameters['token']),
       ),
+      GoRoute(
+        path: '/not-available',
+        builder: (context, state) => const _NotForYourRoleScreen(),
+      ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then
     // an unknown route says so plainly instead of throwing.
@@ -109,6 +120,59 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         _RouteNotReadyScreen(path: state.uri.path),
   );
 });
+
+/// AF-07d — what a caller sees when their role is not offered the screen they
+/// asked for.
+///
+/// A screen rather than a redirect: it says what happened, and it cannot loop.
+class _NotForYourRoleScreen extends StatelessWidget {
+  const _NotForYourRoleScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Not available')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(
+                  Icons.lock_person_outlined,
+                  size: 48,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Not available for your role',
+                  style: theme.textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Your account is signed in, but this screen is not part of '
+                  'what your role does. Nothing is wrong with your session.',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () => context.go('/'),
+                  child: const Text('Back to home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
 
 class _RouteNotReadyScreen extends StatelessWidget {
   const _RouteNotReadyScreen({required this.path});

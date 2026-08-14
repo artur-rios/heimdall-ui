@@ -68,7 +68,14 @@ final class SessionRestoring extends SessionState {
 
 /// No valid session exists.
 final class Unauthenticated extends SessionState {
-  const Unauthenticated();
+  const Unauthenticated({this.sessionExpired = false});
+
+  /// Whether this state was reached by a session ending under the caller
+  /// rather than by never having had one.
+  ///
+  /// AF-07e: being returned to sign-in mid-task needs an explanation, and
+  /// "your session ended" is a different message from "please sign in".
+  final bool sessionExpired;
 }
 
 /// Credentials were accepted but a second factor is still outstanding. The
