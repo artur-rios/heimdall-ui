@@ -299,6 +299,118 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  test(
+    'GivenAcceptedEnvelope_WhenRequestingRecovery_ThenSuccessIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': null,
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(result.isSuccess, isTrue);
+    },
+  );
+
+  test(
+    'GivenAnAddress_WhenRequestingRecovery_ThenItIsSentAsTheEmail',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': null,
+          },
+        ),
+      );
+
+      // When
+      await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(adapter.requests.single['email'], 'a@b.c');
+    },
+  );
+
+  // The neutral confirmation: the API answers an unknown address the same way,
+  // and nothing here reads any further into it.
+  test(
+    'GivenUnknownAddress_WhenRequestingRecovery_ThenSuccessIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': null,
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.requestPasswordRecovery(
+        email: 'nobody@nowhere.invalid',
+      );
+
+      // Then
+      expect(result.isSuccess, isTrue);
+    },
+  );
+
+  test(
+    'GivenRejectedEnvelope_WhenRequestingRecovery_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 400,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['Email is not in a valid format.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.requestPasswordRecovery(email: 'nope');
+
+      // Then
+      expect(result.failureOrNull?.errors, <String>[
+        'Email is not in a valid format.',
+      ]);
+    },
+  );
+
+  // AF-03b — the API could not be reached at all.
+  test(
+    'GivenTransportFailure_WhenRequestingRecovery_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

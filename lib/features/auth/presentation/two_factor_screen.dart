@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/widgets/failure_banner.dart';
 import '../domain/session.dart';
 import 'session_controller.dart';
 
@@ -150,9 +151,9 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                       const SizedBox(height: 24),
                       if (_failure case final Failure failure) ...<Widget>[
                         if (failure.kind == FailureKind.network)
-                          _RetryBanner(onRetry: _submitting ? null : _submit)
+                          RetryBanner(onRetry: _submitting ? null : _submit)
                         else
-                          _ErrorBanner(failure: failure),
+                          ErrorBanner(failure: failure),
                         const SizedBox(height: 16),
                       ],
                       // AF-02c: only worth showing when there is a choice to
@@ -267,68 +268,3 @@ String _promptFor(String? method) => switch (method?.toLowerCase()) {
   null => 'Enter your verification code.',
   _ => 'Enter your verification code for $method.',
 };
-
-/// Says that the API could not be reached, and offers the only action that
-/// helps. The challenge is untouched, so the same code can simply be sent again.
-class _RetryBanner extends StatelessWidget {
-  const _RetryBanner({required this.onRetry});
-
-  final VoidCallback? onRetry;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Could not reach the API. Check your connection and try again.',
-            style: TextStyle(color: scheme.onErrorContainer),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: onRetry, child: const Text('Retry')),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Shows the API's own error strings, unaltered.
-class _ErrorBanner extends StatelessWidget {
-  const _ErrorBanner({required this.failure});
-
-  final Failure failure;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final messages = failure.errors.isNotEmpty
-        ? failure.errors
-        : <String>[failure.displayMessage];
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          for (final message in messages)
-            Text(message, style: TextStyle(color: scheme.onErrorContainer)),
-        ],
-      ),
-    );
-  }
-}

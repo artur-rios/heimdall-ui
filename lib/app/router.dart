@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
+import '../features/auth/presentation/password_recovery_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -80,6 +81,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/login/two-factor',
         builder: (context, state) => const TwoFactorScreen(),
+      ),
+      GoRoute(
+        path: '/password-recovery',
+        builder: (context, state) => const PasswordRecoveryScreen(),
       ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then

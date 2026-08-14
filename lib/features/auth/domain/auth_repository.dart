@@ -43,4 +43,11 @@ abstract interface class AuthRepository {
     required String code,
     bool isRecoveryCode,
   });
+
+  /// Asks the API to mail a password reset link.
+  ///
+  /// Carries no result beyond success, deliberately: the API answers the same
+  /// way whether or not the address belongs to anyone, so there is nothing here
+  /// that could tell a caller which it was.
+  Future<Result<void>> requestPasswordRecovery({required String email});
 }
