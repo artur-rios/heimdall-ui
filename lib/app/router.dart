@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/password_recovery_screen.dart';
+import '../features/auth/presentation/password_reset_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/home/presentation/home_screen.dart';
@@ -85,6 +86,13 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/password-recovery',
         builder: (context, state) => const PasswordRecoveryScreen(),
+      ),
+      GoRoute(
+        path: '/password-reset',
+        // AF-04a: a link without `token` still reaches the screen, which says
+        // what is wrong. Refusing to route would only show "not found".
+        builder: (context, state) =>
+            PasswordResetScreen(token: state.uri.queryParameters['token']),
       ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then

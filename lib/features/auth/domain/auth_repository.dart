@@ -50,4 +50,13 @@ abstract interface class AuthRepository {
   /// way whether or not the address belongs to anyone, so there is nothing here
   /// that could tell a caller which it was.
   Future<Result<void>> requestPasswordRecovery({required String email});
+
+  /// Sets a new password from the token in a recovery link.
+  ///
+  /// The token is the only credential someone who has lost their password can
+  /// present, so it travels in the body and is never stored.
+  Future<Result<void>> resetPassword({
+    required String token,
+    required String newPassword,
+  });
 }

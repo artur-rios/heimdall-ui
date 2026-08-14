@@ -411,6 +411,124 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  test('GivenAcceptedEnvelope_WhenResetting_ThenSuccessIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resetPassword(
+      token: 'reset-token',
+      newPassword: 'new-secret',
+    );
+
+    // Then
+    expect(result.isSuccess, isTrue);
+  });
+
+  test('GivenAResetToken_WhenResetting_ThenTokenAndPasswordAreSent', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': null,
+        },
+      ),
+    );
+
+    // When
+    await repository.resetPassword(
+      token: 'reset-token',
+      newPassword: 'new-secret',
+    );
+
+    // Then
+    expect(adapter.requests.single['token'], 'reset-token');
+    expect(adapter.requests.single['newPassword'], 'new-secret');
+  });
+
+  // AF-04b — an unknown, expired, or spent token answers 400 by name.
+  test('GivenRejectedToken_WhenResetting_ThenApiErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 400,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['The reset token has expired.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resetPassword(
+      token: 'stale',
+      newPassword: 'new-secret',
+    );
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>[
+      'The reset token has expired.',
+    ]);
+  });
+
+  // AF-04d — the envelope reports failure within a 200.
+  test(
+    'GivenRejectedPasswordEnvelope_WhenResetting_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['Password must be at least 8 characters.'],
+            'data': null,
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.resetPassword(
+        token: 'reset-token',
+        newPassword: 'short',
+      );
+
+      // Then
+      expect(result.failureOrNull?.errors, <String>[
+        'Password must be at least 8 characters.',
+      ]);
+    },
+  );
+
+  test(
+    'GivenTransportFailure_WhenResetting_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.resetPassword(
+        token: 'reset-token',
+        newPassword: 'new-secret',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

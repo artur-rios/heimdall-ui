@@ -96,6 +96,31 @@ class ApiAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<Result<void>> resetPassword({
+    required String token,
+    required String newPassword,
+  }) async {
+    try {
+      final response = await _client.authResetPassword(
+        body: ResetPasswordCommand(token: token, newPassword: newPassword),
+      );
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
   /// Reads a login response, which answers one of two ways: a usable token, or
   /// a challenge that must be answered before a session exists.
   Result<LoginOutcome> _outcomeFrom(LoginCommandOutputDataOutput response) {
