@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
+import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
@@ -30,6 +32,11 @@ void main() {
   Future<void> pumpApp(WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: <Override>[
+        // The sign-in screen asks the configuration whether to offer the
+        // Google control, so the whole app needs one to render.
+        appConfigProvider.overrideWithValue(
+          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+        ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
       ],

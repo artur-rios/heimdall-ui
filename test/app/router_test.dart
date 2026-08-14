@@ -91,6 +91,39 @@ void main() {
     expect(redirect, '/');
   });
 
+  test('GivenAuthenticated_WhenLoginCarriesAFrom_ThenRedirectsToIt', () {
+    // Given / When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: '/login?from=%2Fscopes%2Fabc',
+    );
+
+    // Then
+    expect(redirect, '/scopes/abc');
+  });
+
+  test('GivenAuthenticated_WhenFromPointsAtLogin_ThenRedirectsHome', () {
+    // Given / When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: '/login?from=%2Flogin%2Ftwo-factor',
+    );
+
+    // Then
+    expect(redirect, '/');
+  });
+
+  test('GivenAuthenticated_WhenFromIsAbsolute_ThenRedirectsHome', () {
+    // Given / When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: '/login?from=https%3A%2F%2Felsewhere.example.com%2Fsteal',
+    );
+
+    // Then
+    expect(redirect, '/');
+  });
+
   test('GivenAuthenticated_WhenVisitingPrivateRoute_ThenNoRedirect', () {
     // Given / When
     final redirect = redirectFor(session: authenticated, location: '/scopes');

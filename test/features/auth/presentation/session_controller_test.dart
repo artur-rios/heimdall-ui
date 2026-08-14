@@ -89,6 +89,32 @@ void main() {
     expect(await store.read(), isNull);
   });
 
+  // AF-01d — the API could not be reached; nothing about the session changes.
+  test(
+    'GivenTransportFailure_WhenSignedIn_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      when(
+        () => repository.login(email: 'a@b.c', password: 'secret'),
+      ).thenAnswer(
+        (_) async => const FailureResult<LoginOutcome>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      final container = containerWith();
+
+      // When
+      final result = await container
+          .read(sessionControllerProvider.notifier)
+          .signIn(email: 'a@b.c', password: 'secret');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await store.read(), isNull);
+    },
+  );
+
   test(
     'GivenChallengedSession_WhenCodeAccepted_ThenSessionIsAuthenticated',
     () async {
