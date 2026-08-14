@@ -52,6 +52,22 @@ void main() {
     expect(redirect, isNull);
   });
 
+  // UI-03 — the recovery screen is reached by someone who, by definition,
+  // cannot sign in, so the guard must let them through.
+  test('GivenUnauthenticated_WhenVisitingRecovery_ThenNoRedirect', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(
+      session: session,
+      location: '/password-recovery',
+    );
+
+    // Then
+    expect(redirect, isNull);
+  });
+
   test('GivenChallenged_WhenVisitingAnyRoute_ThenRedirectsToTheChallenge', () {
     // Given
     const session = Challenged(

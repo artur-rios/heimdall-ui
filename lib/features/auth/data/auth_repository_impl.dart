@@ -71,6 +71,31 @@ class ApiAuthRepository implements AuthRepository {
     }
   }
 
+  @override
+  Future<Result<void>> requestPasswordRecovery({required String email}) async {
+    try {
+      final response = await _client.authPasswordRecovery(
+        body: PasswordRecoveryCommand(email: email),
+      );
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      // Nothing from the response is read beyond its success. The API answers
+      // an unknown address exactly as it answers a known one, and reading any
+      // further would only invite the interface to tell them apart.
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
   /// Reads a login response, which answers one of two ways: a usable token, or
   /// a challenge that must be answered before a session exists.
   Result<LoginOutcome> _outcomeFrom(LoginCommandOutputDataOutput response) {
