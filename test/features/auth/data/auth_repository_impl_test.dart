@@ -11,12 +11,27 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 void main() {
   late Dio dio;
   late ApiAuthRepository repository;
+  late _StubAdapter adapter;
 
   ApiAuthRepository repositoryAnswering(_Answer answer) {
-    dio.httpClientAdapter = _StubAdapter(answer);
+    adapter = _StubAdapter(answer);
+    dio.httpClientAdapter = adapter;
 
     return ApiAuthRepository(AuthClient(dio));
   }
+
+  /// A verify response carrying a usable token.
+  const acceptedChallenge = _Answer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'token': 'jwt',
+        'expiresAt': '2030-01-01T00:00:00Z',
+      },
+    },
+  );
 
   setUp(() {
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'));
@@ -166,6 +181,124 @@ void main() {
     // Then
     expect(result.failureOrNull, isNotNull);
   });
+
+  test('GivenTokenResponse_WhenVerifying_ThenTheTokenIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(acceptedChallenge);
+
+    // When
+    final result = await repository.verifySecondFactor(
+      challengeToken: 'challenge',
+      code: '123456',
+    );
+
+    // Then
+    expect(result.valueOrNull?.value, 'jwt');
+  });
+
+  test('GivenGeneratedCode_WhenVerifying_ThenItIsSentAsTheCode', () async {
+    // Given
+    repository = repositoryAnswering(acceptedChallenge);
+
+    // When
+    await repository.verifySecondFactor(
+      challengeToken: 'challenge',
+      code: '123456',
+    );
+
+    // Then
+    expect(adapter.requests.single['code'], '123456');
+  });
+
+  // AF-02d — the API checks a recovery code against a different secret, so it
+  // travels in its own field.
+  test(
+    'GivenRecoveryCode_WhenVerifying_ThenItIsSentAsTheRecoveryCode',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedChallenge);
+
+      // When
+      await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: 'recovery-code',
+        isRecoveryCode: true,
+      );
+
+      // Then
+      expect(adapter.requests.single['recoveryCode'], 'recovery-code');
+    },
+  );
+
+  // AF-02a — an unsuccessful envelope carries the reason in `errors`.
+  test(
+    'GivenRejectedEnvelope_WhenVerifying_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['The code is incorrect.'],
+            'data': null,
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '000000',
+      );
+
+      // Then
+      expect(result.failureOrNull?.errors, <String>['The code is incorrect.']);
+    },
+  );
+
+  // AF-02b — a challenge the API no longer recognises comes back as a 401.
+  test(
+    'GivenUnauthorizedStatus_WhenVerifying_ThenUnauthorizedFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const _Answer(
+          status: 401,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['The challenge has expired.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'stale',
+        code: '123456',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unauthorized);
+    },
+  );
+
+  test(
+    'GivenTransportFailure_WhenVerifying_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that
@@ -183,12 +316,30 @@ class _StubAdapter implements HttpClientAdapter {
 
   final _Answer _answer;
 
+  /// The bodies it was asked to send, so a test can assert which field a value
+  /// travelled in.
+  final List<Map<String, dynamic>> requests = <Map<String, dynamic>>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    if (requestStream != null) {
+      final bytes = <int>[];
+
+      await for (final chunk in requestStream) {
+        bytes.addAll(chunk);
+      }
+
+      if (bytes.isNotEmpty) {
+        if (jsonDecode(utf8.decode(bytes)) case final Map<String, dynamic> b) {
+          requests.add(b);
+        }
+      }
+    }
+
     if (_answer.status == 0) {
       throw DioException.connectionError(
         requestOptions: options,

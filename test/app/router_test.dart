@@ -83,6 +83,22 @@ void main() {
     expect(redirect, isNull);
   });
 
+  // AF-02b and AF-02e — the challenge is gone, so the screen behind it is a
+  // dead end and sign-in has to start over.
+  test('GivenNoChallenge_WhenVisitingTheChallenge_ThenRedirectsToLogin', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(
+      session: session,
+      location: '/login/two-factor',
+    );
+
+    // Then
+    expect(redirect, '/login');
+  });
+
   test('GivenAuthenticated_WhenVisitingLogin_ThenRedirectsHome', () {
     // Given / When
     final redirect = redirectFor(session: authenticated, location: '/login');
