@@ -3,12 +3,20 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/email_verification_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// A token naming a User, for the flows that need a session to correct.
+const String _jwt =
+    'header.'
+    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
+    'signature';
 
 void main() {
   late _MockAuthRepository repository;
@@ -18,6 +26,9 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        // A successful verification corrects the session's own answer, so the
+        // controller reaches the store even with nobody signed in.
+        tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
       ],
     );
     addTearDown(container.dispose);
@@ -86,6 +97,73 @@ void main() {
     expect((currentState().verification as Verified).messages, <String>[
       'This address was already verified.',
     ]);
+  });
+
+  // AF-05e — verifying in this session does not get a new token from the API,
+  // so the session's own answer is corrected and the prompt stops.
+  test('GivenAnUnverifiedSession_WhenVerified_ThenThePromptEnds', () async {
+    // Given
+    answerVerifyWith(const Success<List<String>>(<String>[]));
+    final store = InMemoryTokenStore();
+    await store.write(
+      AuthToken(
+        value: _jwt,
+        expiresAt: DateTime.utc(2030),
+        emailVerified: false,
+      ),
+    );
+    container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // When
+    await container
+        .read(emailVerificationControllerProvider.notifier)
+        .verify('verification-token');
+
+    // Then
+    final session = container.read(sessionControllerProvider) as Authenticated;
+    expect(session.principal.emailVerified, isTrue);
+  });
+
+  // A refused token verified nothing, so the prompt has to stay.
+  test('GivenARejectedToken_WhenVerified_ThenThePromptStays', () async {
+    // Given
+    answerVerifyWith(
+      const FailureResult<List<String>>(
+        Failure(kind: FailureKind.validation, errors: <String>['No good.']),
+      ),
+    );
+    final store = InMemoryTokenStore();
+    await store.write(
+      AuthToken(
+        value: _jwt,
+        expiresAt: DateTime.utc(2030),
+        emailVerified: false,
+      ),
+    );
+    container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // When
+    await container
+        .read(emailVerificationControllerProvider.notifier)
+        .verify('stale');
+
+    // Then
+    final session = container.read(sessionControllerProvider) as Authenticated;
+    expect(session.principal.emailVerified, isFalse);
   });
 
   // AF-05a — no token means no request.

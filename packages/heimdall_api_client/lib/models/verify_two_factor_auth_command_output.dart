@@ -8,7 +8,11 @@ part 'verify_two_factor_auth_command_output.g.dart';
 
 @JsonSerializable()
 class VerifyTwoFactorAuthCommandOutput {
-  const VerifyTwoFactorAuthCommandOutput({this.token, this.expiresAt});
+  const VerifyTwoFactorAuthCommandOutput({
+    this.token,
+    this.expiresAt,
+    this.emailVerified,
+  });
 
   factory VerifyTwoFactorAuthCommandOutput.fromJson(
     Map<String, Object?> json,
@@ -16,6 +20,7 @@ class VerifyTwoFactorAuthCommandOutput {
 
   final String? token;
   final DateTime? expiresAt;
+  final bool? emailVerified;
 
   Map<String, Object?> toJson() =>
       _$VerifyTwoFactorAuthCommandOutputToJson(this);

@@ -93,6 +93,58 @@ void main() {
     expect(restored.viaGoogle, isTrue);
   });
 
+  // AF-05e — the API reports this with the token, and a restored session needs
+  // it as much as a fresh one does.
+  test('GivenAnUnverifiedToken_WhenRoundTrippedThroughJson_ThenItStays', () {
+    // Given
+    final token = AuthToken(
+      value: 'jwt',
+      expiresAt: DateTime.utc(2030),
+      emailVerified: false,
+    );
+
+    // When
+    final restored = AuthToken.fromJson(token.toJson());
+
+    // Then
+    expect(restored.emailVerified, isFalse);
+  });
+
+  // A token stored before the API reported it says nothing, which is not the
+  // same as saying the address is unverified.
+  test('GivenAStoredTokenWithoutTheAnswer_WhenRead_ThenItIsVerified', () {
+    // Given
+    final json = <String, dynamic>{
+      'value': 'jwt',
+      'expiresAt': '2030-01-01T00:00:00.000Z',
+    };
+
+    // When
+    final restored = AuthToken.fromJson(json);
+
+    // Then
+    expect(restored.emailVerified, isTrue);
+  });
+
+  test('GivenAnUnverifiedToken_WhenMarkedVerified_ThenOnlyThatChanges', () {
+    // Given
+    final token = AuthToken(
+      value: 'jwt',
+      expiresAt: DateTime.utc(2030),
+      viaGoogle: true,
+      emailVerified: false,
+    );
+
+    // When
+    final verified = token.asVerified();
+
+    // Then
+    expect(verified.emailVerified, isTrue);
+    expect(verified.value, token.value);
+    expect(verified.expiresAt, token.expiresAt);
+    expect(verified.viaGoogle, isTrue);
+  });
+
   // Anything written before UI-06 was password-only and carries no such key.
   test('GivenAStoredTokenWithoutTheFlag_WhenRead_ThenItIsNotGoogle', () {
     // Given

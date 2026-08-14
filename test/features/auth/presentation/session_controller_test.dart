@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -611,12 +609,14 @@ void main() {
     },
   );
 
-  // AF-05e — the claim the unverified-address prompt is decided by.
-  test('GivenUnverifiedClaim_WhenPrincipalRead_ThenEmailIsUnverified', () {
+  // AF-05e — the API reports this with the token, so that is where the
+  // principal reads it from. The JWT says nothing about it.
+  test('GivenAnUnverifiedToken_WhenPrincipalRead_ThenEmailIsUnverified', () {
     // Given
     final token = AuthToken(
-      value: _jwtWith(<String, dynamic>{'emailVerified': false}),
+      value: _systemAdminJwt,
       expiresAt: DateTime.utc(2030),
+      emailVerified: false,
     );
 
     // When
@@ -626,12 +626,10 @@ void main() {
     expect(principal.emailVerified, isFalse);
   });
 
-  // Absent is not the same as false: a token that says nothing about
-  // verification must not raise the prompt.
-  test('GivenNoVerificationClaim_WhenPrincipalRead_ThenEmailIsVerified', () {
+  test('GivenAVerifiedToken_WhenPrincipalRead_ThenEmailIsVerified', () {
     // Given
     final token = AuthToken(
-      value: _jwtWith(<String, dynamic>{}),
+      value: _systemAdminJwt,
       expiresAt: DateTime.utc(2030),
     );
 
@@ -641,16 +639,64 @@ void main() {
     // Then
     expect(principal.emailVerified, isTrue);
   });
-}
 
-/// Builds a JWT whose payload is the standard User claims plus [extra].
-String _jwtWith(Map<String, dynamic> extra) {
-  final claims = <String, dynamic>{
-    'sub': 'id',
-    'email': 'a@b.c',
-    'role': 3,
-    ...extra,
-  };
+  // AF-05e — verifying in this session does not get a new token from the API,
+  // so the session's own answer is corrected rather than left stale.
+  test(
+    'GivenAnUnverifiedSession_WhenMarkedVerified_ThenThePromptEnds',
+    () async {
+      // Given
+      await store.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          emailVerified: false,
+        ),
+      );
+      final container = containerWith();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
 
-  return 'header.${base64Url.encode(utf8.encode(jsonEncode(claims)))}.signature';
+      // When
+      await controller.markEmailVerified();
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Authenticated).principal.emailVerified, isTrue);
+    },
+  );
+
+  // And it survives a restart, or the prompt would return on the next launch.
+  test('GivenAnUnverifiedSession_WhenMarkedVerified_ThenItIsStored', () async {
+    // Given
+    await store.write(
+      AuthToken(
+        value: _systemAdminJwt,
+        expiresAt: DateTime.utc(2030),
+        emailVerified: false,
+      ),
+    );
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.markEmailVerified();
+
+    // Then
+    expect((await store.read())?.emailVerified, isTrue);
+  });
+
+  test('GivenNoSession_WhenMarkedVerified_ThenNothingIsStored', () async {
+    // Given
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.markEmailVerified();
+
+    // Then
+    expect(await store.read(), isNull);
+  });
 }

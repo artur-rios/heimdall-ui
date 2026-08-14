@@ -65,7 +65,15 @@ class ApiAuthRepository implements AuthRepository {
         return const FailureResult<AuthToken>(_incompleteResponse);
       }
 
-      return Success<AuthToken>(AuthToken(value: token, expiresAt: expiresAt));
+      return Success<AuthToken>(
+        AuthToken(
+          value: token,
+          expiresAt: expiresAt,
+          // AF-05e: the API reports this with the token. A response that omits
+          // it is not saying the address is unverified.
+          emailVerified: data?.emailVerified ?? true,
+        ),
+      );
     } on DioException catch (error) {
       return FailureResult<AuthToken>(failureFromDioException(error));
     }
@@ -194,7 +202,12 @@ class ApiAuthRepository implements AuthRepository {
       }
 
       return Success<AuthToken>(
-        AuthToken(value: token, expiresAt: expiresAt, viaGoogle: true),
+        AuthToken(
+          value: token,
+          expiresAt: expiresAt,
+          viaGoogle: true,
+          emailVerified: data?.emailVerified ?? true,
+        ),
       );
     } on DioException catch (error) {
       return FailureResult<AuthToken>(failureFromDioException(error));
@@ -262,7 +275,13 @@ class ApiAuthRepository implements AuthRepository {
     }
 
     return Success<LoginOutcome>(
-      LoggedIn(AuthToken(value: token, expiresAt: expiresAt)),
+      LoggedIn(
+        AuthToken(
+          value: token,
+          expiresAt: expiresAt,
+          emailVerified: data.emailVerified ?? true,
+        ),
+      ),
     );
   }
 }

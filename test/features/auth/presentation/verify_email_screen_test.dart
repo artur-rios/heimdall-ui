@@ -14,17 +14,12 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-/// A token whose payload names a verified User, which is all this screen needs
-/// to decide that a session exists.
+/// A token naming a User, which is all this screen needs to decide that a
+/// session exists.
 String _jwt() {
   final payload = base64Url.encode(
     utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'id',
-        'email': 'a@b.c',
-        'role': 3,
-        'emailVerified': true,
-      }),
+      jsonEncode(<String, dynamic>{'sub': 'id', 'email': 'a@b.c', 'role': 3}),
     ),
   );
 

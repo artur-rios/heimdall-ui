@@ -8,13 +8,18 @@ part 'google_sign_in_command_output.g.dart';
 
 @JsonSerializable()
 class GoogleSignInCommandOutput {
-  const GoogleSignInCommandOutput({this.token, this.expiresAt});
+  const GoogleSignInCommandOutput({
+    this.token,
+    this.expiresAt,
+    this.emailVerified,
+  });
 
   factory GoogleSignInCommandOutput.fromJson(Map<String, Object?> json) =>
       _$GoogleSignInCommandOutputFromJson(json);
 
   final String? token;
   final DateTime? expiresAt;
+  final bool? emailVerified;
 
   Map<String, Object?> toJson() => _$GoogleSignInCommandOutputToJson(this);
 }

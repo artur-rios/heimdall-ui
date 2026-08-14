@@ -13,30 +13,33 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-/// A token naming a User, with [verified] deciding the claim AF-05e reads.
-/// Pass `null` to leave the claim out entirely.
-String jwtWith({bool? verified}) {
-  final claims = <String, dynamic>{'sub': 'id', 'email': 'a@b.c', 'role': 3};
-
-  if (verified != null) {
-    claims['emailVerified'] = verified;
-  }
-
-  return 'header.${base64Url.encode(utf8.encode(jsonEncode(claims)))}.signature';
-}
+/// A token naming a User. The JWT says nothing about verification — the API
+/// reports that alongside the token, which is where AF-05e reads it from.
+final String _jwt =
+    'header.'
+    '${base64Url.encode(utf8.encode(jsonEncode(<String, dynamic>{'sub': 'id', 'email': 'a@b.c', 'role': 3})))}'
+    '.signature';
 
 void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
   late ProviderContainer container;
 
+  /// [emailVerified] is what the API said when it issued the token; `null`
+  /// stands for no session at all.
   Future<void> pump(
     WidgetTester tester, {
-    String? jwt,
+    bool? emailVerified,
     ThemeData? theme,
   }) async {
-    if (jwt != null) {
-      await store.write(AuthToken(value: jwt, expiresAt: DateTime.utc(2030)));
+    if (emailVerified != null) {
+      await store.write(
+        AuthToken(
+          value: _jwt,
+          expiresAt: DateTime.utc(2030),
+          emailVerified: emailVerified,
+        ),
+      );
     }
 
     container = ProviderContainer(
@@ -73,7 +76,7 @@ void main() {
     tester,
   ) async {
     // Given / When
-    await pump(tester, jwt: jwtWith(verified: false));
+    await pump(tester, emailVerified: false);
 
     // Then
     expect(
@@ -86,7 +89,7 @@ void main() {
     tester,
   ) async {
     // Given / When
-    await pump(tester, jwt: jwtWith(verified: true));
+    await pump(tester, emailVerified: true);
 
     // Then
     expect(find.text('Your email address is not verified yet.'), findsNothing);
@@ -100,23 +103,35 @@ void main() {
     expect(find.text('Your email address is not verified yet.'), findsNothing);
   });
 
-  // An absent claim is not evidence of an unverified address, so it stays
-  // quiet rather than nagging on data it does not have.
-  testWidgets('GivenNoVerificationClaim_WhenRendered_ThenNothingIsShown', (
-    tester,
-  ) async {
-    // Given / When
-    await pump(tester, jwt: jwtWith());
+  // A response that said nothing is not evidence of an unverified address, so
+  // the prompt stays quiet rather than nagging on data it does not have.
+  testWidgets(
+    'GivenATokenStoredBeforeTheApiReportedIt_WhenRendered_ThenNothingIsShown',
+    (tester) async {
+      // Given
+      await store.write(
+        AuthToken.fromJson(<String, dynamic>{
+          'value': _jwt,
+          'expiresAt': '2030-01-01T00:00:00.000Z',
+        }),
+      );
 
-    // Then
-    expect(find.text('Your email address is not verified yet.'), findsNothing);
-  });
+      // When
+      await pump(tester);
+
+      // Then
+      expect(
+        find.text('Your email address is not verified yet.'),
+        findsNothing,
+      );
+    },
+  );
 
   testWidgets('GivenThePrompt_WhenResendTapped_ThenTheApiIsCalled', (
     tester,
   ) async {
     // Given
-    await pump(tester, jwt: jwtWith(verified: false));
+    await pump(tester, emailVerified: false);
 
     // When
     await tester.tap(find.widgetWithText(TextButton, 'Resend'));
@@ -130,7 +145,7 @@ void main() {
     tester,
   ) async {
     // Given
-    await pump(tester, jwt: jwtWith(verified: false));
+    await pump(tester, emailVerified: false);
 
     // When
     await tester.tap(find.widgetWithText(TextButton, 'Resend'));
@@ -155,7 +170,7 @@ void main() {
         ),
       ),
     );
-    await pump(tester, jwt: jwtWith(verified: false));
+    await pump(tester, emailVerified: false);
 
     // When
     await tester.tap(find.widgetWithText(TextButton, 'Resend'));
@@ -168,7 +183,7 @@ void main() {
   // AF-05e — and it is dismissible.
   testWidgets('GivenThePrompt_WhenDismissed_ThenItIsGone', (tester) async {
     // Given
-    await pump(tester, jwt: jwtWith(verified: false));
+    await pump(tester, emailVerified: false);
 
     // When
     await tester.tap(find.byIcon(Icons.close));
@@ -182,7 +197,7 @@ void main() {
     tester,
   ) async {
     // Given / When
-    await pump(tester, jwt: jwtWith(verified: false), theme: buildDarkTheme());
+    await pump(tester, emailVerified: false, theme: buildDarkTheme());
 
     // Then
     expect(
