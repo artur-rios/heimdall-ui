@@ -10,6 +10,7 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/profile/presentation/profile_screen.dart';
 import 'route_access.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -108,6 +109,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         // the screen, which explains and offers the resend.
         builder: (context, state) =>
             VerifyEmailScreen(token: state.uri.queryParameters['token']),
+      ),
+      GoRoute(
+        path: '/profile',
+        builder: (context, state) => const ProfileScreen(),
       ),
       GoRoute(
         path: '/not-available',
