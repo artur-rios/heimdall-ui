@@ -22,6 +22,26 @@ abstract interface class ScopePermissionRepository {
     required String description,
     required bool includeAsJwtClaim,
   });
+
+  /// Reads one permission.
+  ///
+  /// [includeDeleted] is on by default for the detail screen: AF-26d shows a
+  /// logically deleted permission read-only, and it cannot do that if the API
+  /// is asked to pretend it is gone.
+  Future<Result<ScopePermission>> getById({
+    required String scopeId,
+    required String id,
+    bool includeDeleted = true,
+  });
+
+  /// Updates a permission's name, description, and claim flag.
+  Future<Result<ScopePermission>> update({
+    required String scopeId,
+    required String id,
+    required String name,
+    required String description,
+    required bool includeAsJwtClaim,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests
