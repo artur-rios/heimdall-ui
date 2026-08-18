@@ -3,10 +3,16 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/layout/app_shell.dart';
+import '../../../core/result/result.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/failure_banner.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 import '../domain/google_user.dart';
 import 'google_avatar.dart';
 import 'google_user_detail_controller.dart';
+import 'google_user_list_controller.dart';
 
 /// UI-28 — one Google user, read-only.
 ///
@@ -47,6 +53,19 @@ class _GoogleUserDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/google-users';
 
+    // A deleted Google user returns to the listing, which is now stale.
+    ref.listen<GoogleUserDetailState>(
+      googleUserDetailControllerProvider(_ref),
+      (previous, next) {
+        if (next is GoogleUserDeleted) {
+          ref
+              .read(googleUserListControllerProvider(widget.scopeId).notifier)
+              .load();
+          context.go(backToListing);
+        }
+      },
+    );
+
     return AppShell(
       currentRoute: '/scopes',
       title: Text(switch (state) {
@@ -86,13 +105,67 @@ class _GoogleUserDetailScreenState
           failure: failure,
           onRetry: controller.load,
         ),
-        GoogleUserDetailLoaded(:final user) => _detail(user),
+        // The listing is where a deleted record leaves the user; this is the
+        // frame in between.
+        GoogleUserDeleted() => const Center(child: CircularProgressIndicator()),
+        final GoogleUserDetailLoaded loaded => _detail(loaded),
       },
     );
   }
 
-  Widget _detail(GoogleUser user) {
+  /// AF-29d — only a System Admin erases a Google user permanently.
+  bool get _maySeeHardDelete {
+    final session = ref.watch(sessionControllerProvider);
+
+    return session is Authenticated && session.principal.isSystemAdmin;
+  }
+
+  /// AF-29a — a dialog the user closes sends nothing.
+  ///
+  /// AF-29e: deleting the record does not stop the person signing in again,
+  /// which the message says rather than letting it be assumed otherwise.
+  Future<void> _confirmDelete(GoogleUser user) async {
+    final confirmed = await showConfirm(
+      context: context,
+      title: 'Delete ${user.name}?',
+      message:
+          '${user.name} will be marked deleted. The record is kept and '
+          'the API can restore it. While this scope has Google Sign-In on, '
+          'they can sign in again and a new record will appear.',
+      confirmLabel: 'Delete',
+    );
+
+    if (confirmed && mounted) {
+      await ref
+          .read(googleUserDetailControllerProvider(_ref).notifier)
+          .delete();
+    }
+  }
+
+  /// AF-29c — the confirm control stays disabled until the address matches.
+  Future<void> _confirmDeletePermanently(GoogleUser user) async {
+    final confirmed = await showTypeToConfirm(
+      context: context,
+      title: 'Delete ${user.name} permanently?',
+      message:
+          'Their record is erased. This cannot be undone — though while '
+          'this scope has Google Sign-In on, they can sign in again and a new '
+          'record will appear. Type their email address to confirm:',
+      confirmationValue: user.email,
+      fieldLabel: 'Email address',
+      confirmLabel: 'Delete permanently',
+    );
+
+    if (confirmed && mounted) {
+      await ref
+          .read(googleUserDetailControllerProvider(_ref).notifier)
+          .deletePermanently();
+    }
+  }
+
+  Widget _detail(GoogleUserDetailLoaded state) {
     final theme = Theme.of(context);
+    final user = state.user;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -162,8 +235,100 @@ class _GoogleUserDetailScreenState
                   ),
                 ),
               ),
+              // A deleted record has nothing left to delete.
+              if (!user.isDeleted) ...<Widget>[
+                const SizedBox(height: 24),
+                _DangerZone(
+                  user: user,
+                  deleting: state.deleting,
+                  failure: state.deleteFailure,
+                  mayDeletePermanently: _maySeeHardDelete,
+                  onDelete: _confirmDelete,
+                  onDeletePermanently: _confirmDeletePermanently,
+                ),
+              ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The two deletions, kept apart from the rest of the screen because neither
+/// is an ordinary edit.
+class _DangerZone extends StatelessWidget {
+  const _DangerZone({
+    required this.user,
+    required this.deleting,
+    required this.failure,
+    required this.mayDeletePermanently,
+    required this.onDelete,
+    required this.onDeletePermanently,
+  });
+
+  final GoogleUser user;
+  final bool deleting;
+  final Failure? failure;
+
+  /// AF-29d — a Scope Admin never sees the permanent deletion.
+  final bool mayDeletePermanently;
+
+  final Future<void> Function(GoogleUser user) onDelete;
+  final Future<void> Function(GoogleUser user) onDeletePermanently;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Delete this Google user',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 8),
+            // AF-29e — deleting is not a way to keep somebody out, and saying
+            // so here is what stops it being used as one.
+            Text(
+              'Deleting keeps the record and can be undone by the API; '
+              'deleting permanently erases it. Neither stops them signing in '
+              'again while this scope has Google Sign-In on.',
+              style: TextStyle(color: theme.colorScheme.onErrorContainer),
+            ),
+            // AF-29b — the API refused, and the record is still open.
+            if (failure case final refusal?) ...<Widget>[
+              const SizedBox(height: 16),
+              ErrorBanner(failure: refusal),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: deleting ? null : () => onDelete(user),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete Google user'),
+                ),
+                if (mayDeletePermanently)
+                  FilledButton.icon(
+                    onPressed: deleting
+                        ? null
+                        : () => onDeletePermanently(user),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Delete permanently'),
+                  ),
+              ],
+            ),
+          ],
         ),
       ),
     );
