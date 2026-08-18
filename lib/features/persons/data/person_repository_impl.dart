@@ -185,6 +185,30 @@ class ApiPersonRepository implements PersonRepository {
   }
 
   @override
+  Future<Result<void>> delete(String id) async {
+    try {
+      final response = await _client.personDelete(id: id);
+
+      // AF-19b: the API refuses a person it will not delete — the last owner
+      // of a scope, for instance — and its own strings say why.
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> hardDelete(String id) async {
+    try {
+      final response = await _client.personHardDelete(id: id);
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<Page<Person>>> listScopeOwners({
     required String scopeId,
     String? name,
