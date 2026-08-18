@@ -9,6 +9,9 @@ import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/persons/domain/person.dart';
+import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
+import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_create_screen.dart';
@@ -17,6 +20,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
+
+class _MockPersonRepository extends Mock implements PersonRepository {}
 
 String _jwt() {
   final payload = base64Url.encode(
@@ -39,12 +44,26 @@ const _created = Scope(
   ownerIds: <String>['person-1'],
 );
 
+/// The Scope Admins the picker offers.
+const _ada = PersonSummary(
+  id: 'person-1',
+  name: 'Ada',
+  email: 'ada@example.com',
+);
+
+const _grace = PersonSummary(
+  id: 'person-2',
+  name: 'Grace',
+  email: 'grace@example.com',
+);
+
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
 
 void main() {
   late _MockScopeRepository repository;
+  late _MockPersonRepository persons;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -63,6 +82,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         scopeRepositoryProvider.overrideWithValue(repository),
+        personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -111,23 +131,51 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  /// Opens the picker and chooses [who] from it.
+  Future<void> addOwner(WidgetTester tester, String who) async {
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add owner'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, who));
+    await tester.pumpAndSettle();
+  }
+
   Future<void> fillIn(
     WidgetTester tester, {
     String name = 'Acme',
-    String owner = 'person-1',
+    bool withOwner = true,
   }) async {
     await tester.enterText(find.widgetWithText(TextFormField, 'Name'), name);
-    await tester.enterText(
-      find.widgetWithText(TextField, 'Scope Admin identifier'),
-      owner,
-    );
     await tester.pumpAndSettle();
+
+    if (withOwner) {
+      await addOwner(tester, 'Ada');
+    }
   }
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockScopeRepository();
+    persons = _MockPersonRepository();
     store = InMemoryTokenStore();
+    when(
+      () => persons.listScopeAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        excludeOwnersOfScopeId: any(named: 'excludeOwnersOfScopeId'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const Success<envelope.Page<PersonSummary>>(
+        envelope.Page<PersonSummary>(
+          items: <PersonSummary>[_ada, _grace],
+          pageNumber: 1,
+          pageSize: 50,
+          totalItems: 2,
+          totalPages: 1,
+        ),
+      ),
+    );
     when(
       () => repository.list(
         name: any(named: 'name'),
@@ -212,7 +260,7 @@ void main() {
     // Given
     answerCreateWith(const Success<Scope>(_created));
     await pump(tester);
-    await fillIn(tester, owner: '');
+    await fillIn(tester, withOwner: false);
 
     // When
     await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
@@ -232,7 +280,7 @@ void main() {
     // Given
     answerCreateWith(const Success<Scope>(_created));
     await pump(tester);
-    await fillIn(tester, owner: '');
+    await fillIn(tester, withOwner: false);
 
     // When
     await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
@@ -242,36 +290,74 @@ void main() {
     expect(find.text('No owners added yet.'), findsOneWidget);
   });
 
-  testWidgets('GivenAnOwnerIdentifier_WhenAdded_ThenAChipIsShown', (
+  testWidgets('GivenAChosenScopeAdmin_WhenAdded_ThenAChipNamesThem', (
     tester,
   ) async {
     // Given
     answerCreateWith(const Success<Scope>(_created));
     await pump(tester);
-    await fillIn(tester, owner: 'person-7');
 
     // When
-    await tester.tap(find.byTooltip('Add owner'));
-    await tester.pumpAndSettle();
+    await addOwner(tester, 'Ada');
 
     // Then
-    expect(find.widgetWithText(InputChip, 'person-7'), findsOneWidget);
+    expect(find.widgetWithText(InputChip, 'Ada'), findsOneWidget);
   });
 
   testWidgets('GivenAnAddedOwner_WhenRemoved_ThenTheChipGoes', (tester) async {
     // Given
     answerCreateWith(const Success<Scope>(_created));
     await pump(tester);
-    await fillIn(tester, owner: 'person-7');
-    await tester.tap(find.byTooltip('Add owner'));
-    await tester.pumpAndSettle();
+    await addOwner(tester, 'Ada');
 
     // When
     await tester.tap(find.byTooltip('Remove owner'));
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.widgetWithText(InputChip, 'person-7'), findsNothing);
+    expect(find.widgetWithText(InputChip, 'Ada'), findsNothing);
+  });
+
+  // The scope does not exist yet, so the API cannot leave out the owners
+  // already chosen here — the form does it.
+  testWidgets('GivenAnAddedOwner_WhenPickingAgain_ThenTheyAreNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester);
+    await addOwner(tester, 'Ada');
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add owner'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(ListTile, 'Ada'), findsNothing);
+    expect(find.widgetWithText(ListTile, 'Grace'), findsOneWidget);
+  });
+
+  testWidgets('GivenTwoChosenOwners_WhenSubmitted_ThenBothAreSent', (
+    tester,
+  ) async {
+    // Given
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester);
+    await fillIn(tester);
+    await addOwner(tester, 'Grace');
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.create(
+        name: 'Acme',
+        description: '',
+        ownerIds: <String>['person-1', 'person-2'],
+      ),
+    ).called(1);
   });
 
   // AF-11b — the API's own errors, with the form left as it was.

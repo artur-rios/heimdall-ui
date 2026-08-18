@@ -184,6 +184,125 @@ void main() {
     // Then
     expect(result.failureOrNull?.kind, FailureKind.network);
   });
+
+  test(
+    'GivenAScopeAdminListing_WhenRead_ThenTheSummariesAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'person-1',
+                'name': 'Ada',
+                'email': 'ada@example.com',
+              },
+            ],
+            'pageNumber': 1,
+            'pageSize': 50,
+            'totalItems': 1,
+            'totalPages': 1,
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.listScopeAdmins(pageSize: 50);
+
+      // Then
+      expect(result.valueOrNull?.items.single.name, 'Ada');
+      expect(result.valueOrNull?.items.single.email, 'ada@example.com');
+    },
+  );
+
+  // AF-14c depends on this filter reaching the API, because the exclusion is
+  // the API's to apply — the client does not know who owns what.
+  test('GivenAnExcludedScope_WhenListed_ThenTheFilterIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[],
+        },
+      ),
+    );
+
+    // When
+    await repository.listScopeAdmins(excludeOwnersOfScopeId: 'scope-1');
+
+    // Then
+    expect(adapter.queries.single['ExcludeOwnersOfScopeId'], 'scope-1');
+  });
+
+  // An empty filter is no filter: sent, it would ask the API to match the
+  // empty string rather than to stop narrowing.
+  test('GivenABlankQuery_WhenListed_ThenNoFilterIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[],
+        },
+      ),
+    );
+
+    // When
+    await repository.listScopeAdmins(name: '   ', excludeOwnersOfScopeId: '');
+
+    // Then
+    expect(adapter.queries.single.containsKey('Name'), isFalse);
+    expect(
+      adapter.queries.single.containsKey('ExcludeOwnersOfScopeId'),
+      isFalse,
+    );
+  });
+
+  test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(const _Answer(status: 0));
+
+    // When
+    final result = await repository.listScopeAdmins();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test('GivenASecondFactor_WhenReadById_ThenItIsCarried', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'person-1',
+            'name': 'Ada',
+            'email': 'ada@example.com',
+            'role': 2,
+            'twoFactorEnabled': true,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.getById('person-1');
+
+    // Then
+    expect(result.valueOrNull?.twoFactorEnabled, isTrue);
+  });
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that
@@ -205,12 +324,18 @@ class _StubAdapter implements HttpClientAdapter {
   /// travelled in.
   final List<Map<String, dynamic>> requests = <Map<String, dynamic>>[];
 
+  /// The query strings it was asked for, so a test can assert which filters
+  /// reached the API and which were left off.
+  final List<Map<String, String>> queries = <Map<String, String>>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
     Stream<Uint8List>? requestStream,
     Future<void>? cancelFuture,
   ) async {
+    queries.add(options.uri.queryParameters);
+
     if (requestStream != null) {
       final bytes = <int>[];
 

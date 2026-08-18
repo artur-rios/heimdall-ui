@@ -13,6 +13,7 @@ class Person {
     required this.email,
     required this.role,
     this.emailVerified = true,
+    this.twoFactorEnabled = false,
     this.isDeleted = false,
     this.scopeId,
     this.ownedScopeIds = const <String>[],
@@ -30,6 +31,11 @@ class Person {
   /// an unverified address.
   final bool emailVerified;
 
+  /// Whether the person has a second factor configured. Defaults to `false`:
+  /// the endpoints that do not report it are the ones where nobody could have
+  /// configured one yet.
+  final bool twoFactorEnabled;
+
   /// Whether the person has been logically deleted. The listings show these
   /// only when the user asks for them.
   final bool isDeleted;
@@ -42,4 +48,42 @@ class Person {
 
   final DateTime? createdAt;
   final DateTime? updatedAt;
+
+  /// The same person carrying a second-factor state read elsewhere.
+  ///
+  /// The update endpoint answers with a shape that does not report one, and an
+  /// edit to a name and an address cannot have turned anybody's second factor
+  /// on or off — so what was already read still holds, and `false` would be a
+  /// guess rather than a fact.
+  Person withTwoFactorEnabled(bool enabled) => Person(
+    id: id,
+    name: name,
+    email: email,
+    role: role,
+    emailVerified: emailVerified,
+    twoFactorEnabled: enabled,
+    isDeleted: isDeleted,
+    scopeId: scopeId,
+    ownedScopeIds: ownedScopeIds,
+    createdAt: createdAt,
+    updatedAt: updatedAt,
+  );
+}
+
+/// A Scope Admin as the owner listing projects one: enough to recognise and to
+/// name, and nothing else.
+///
+/// The endpoint behind it answers with its own shape rather than with a person,
+/// because choosing an owner needs a name and an address, not a role, a scope,
+/// or a deletion state.
+class PersonSummary {
+  const PersonSummary({
+    required this.id,
+    required this.name,
+    required this.email,
+  });
+
+  final String id;
+  final String name;
+  final String email;
 }

@@ -72,6 +72,20 @@ abstract interface class PersonRepository {
     int pageSize = 20,
   });
 
+  /// Lists the system's Scope Admins, projected to what an owner picker shows.
+  ///
+  /// [excludeOwnersOfScopeId] leaves out the people who already own that
+  /// scope, which is what makes UI-14's AF-14c true of the selector rather
+  /// than only of the API's answer afterwards. UI-11 has no scope to exclude
+  /// from — it is creating one.
+  Future<Result<Page<PersonSummary>>> listScopeAdmins({
+    String? name,
+    String? email,
+    String? excludeOwnersOfScopeId,
+    int pageNumber = 1,
+    int pageSize = 20,
+  });
+
   /// Adds an existing Scope Admin as a co-owner of a scope.
   ///
   /// Whether that person is a usable Scope Admin, and whether they already own

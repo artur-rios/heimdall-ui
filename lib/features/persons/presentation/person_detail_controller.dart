@@ -136,7 +136,13 @@ class PersonDetailController extends FamilyNotifier<PersonDetailState, String> {
         .update(id: arg, name: name, email: email);
 
     state = result.fold(
-      onSuccess: (person) => PersonDetailLoaded(person, saved: true),
+      // The update endpoint does not report a second factor, and this edit
+      // cannot have changed one — so the state already read is carried over
+      // rather than being replaced by a default.
+      onSuccess: (person) => PersonDetailLoaded(
+        person.withTwoFactorEnabled(current.person.twoFactorEnabled),
+        saved: true,
+      ),
       // AF-18c: the refusal is kept as it came back, and the record on screen
       // is still the one the API last confirmed.
       onFailure: (failure) =>

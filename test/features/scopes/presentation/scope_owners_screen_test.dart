@@ -55,6 +55,13 @@ const _alan = Person(
   role: Role.user,
 );
 
+/// A Scope Admin the picker offers, who does not already own the scope.
+const _hedy = PersonSummary(
+  id: 'person-7',
+  name: 'Hedy',
+  email: 'hedy@example.com',
+);
+
 envelope.Page<Person> _page(List<Person> items) => envelope.Page<Person>(
   items: items,
   pageNumber: 1,
@@ -62,6 +69,15 @@ envelope.Page<Person> _page(List<Person> items) => envelope.Page<Person>(
   totalItems: items.length,
   totalPages: 1,
 );
+
+envelope.Page<PersonSummary> _candidates(List<PersonSummary> items) =>
+    envelope.Page<PersonSummary>(
+      items: items,
+      pageNumber: 1,
+      pageSize: 50,
+      totalItems: items.length,
+      totalPages: 1,
+    );
 
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
@@ -153,6 +169,26 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerAdminsWith(Result<envelope.Page<PersonSummary>> result) {
+    when(
+      () => repository.listScopeAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        excludeOwnersOfScopeId: any(named: 'excludeOwnersOfScopeId'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  /// Opens the picker and chooses [name] from it.
+  Future<void> choose(WidgetTester tester, String name) async {
+    await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(ListTile, name));
+    await tester.pumpAndSettle();
+  }
+
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockPersonRepository();
@@ -161,6 +197,11 @@ void main() {
       Success<envelope.Page<Person>>(_page(<Person>[_ada, _grace])),
     );
     answerUsersWith(Success<envelope.Page<Person>>(_page(<Person>[_alan])));
+    answerAdminsWith(
+      Success<envelope.Page<PersonSummary>>(
+        _candidates(<PersonSummary>[_hedy]),
+      ),
+    );
     when(
       () => repository.addScopeOwner(
         scopeId: any(named: 'scopeId'),
@@ -209,21 +250,42 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Promote'), findsOneWidget);
   });
 
-  testWidgets('GivenAnIdentifier_WhenAdded_ThenTheApiIsAsked', (tester) async {
+  testWidgets('GivenAChosenScopeAdmin_WhenAdded_ThenTheApiIsAsked', (
+    tester,
+  ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
-    await tester.pumpAndSettle();
 
     // When
-    await tester.enterText(find.byType(TextField), 'person-7');
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Add owner'));
-    await tester.pumpAndSettle();
+    await choose(tester, 'Hedy');
 
     // Then
     verify(
       () => repository.addScopeOwner(scopeId: 'scope-1', personId: 'person-7'),
+    ).called(1);
+  });
+
+  // AF-14c — the people who already own the scope are left out of the listing
+  // by the API, so the picker cannot offer one of them.
+  testWidgets('GivenThePicker_WhenOpened_ThenCurrentOwnersAreExcluded', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.listScopeAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        excludeOwnersOfScopeId: 'scope-1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
     ).called(1);
   });
 
@@ -267,14 +329,9 @@ void main() {
       ),
     );
     await pump(tester);
-    await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
-    await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextField), 'person-7');
-    await tester.pumpAndSettle();
 
     // When
-    await tester.tap(find.widgetWithText(FilledButton, 'Add owner'));
-    await tester.pumpAndSettle();
+    await choose(tester, 'Hedy');
 
     // Then
     expect(find.text('person-7 is not a Scope Admin.'), findsOneWidget);

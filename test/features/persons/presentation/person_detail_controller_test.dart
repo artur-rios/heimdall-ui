@@ -168,6 +168,43 @@ void main() {
     ).called(1);
   });
 
+  // The update endpoint reports no second factor, and renaming somebody cannot
+  // have turned theirs off.
+  test('GivenASecondFactor_WhenSaved_ThenItSurvivesTheEdit', () async {
+    // Given
+    answerGetWith(
+      const Success<Person>(
+        Person(
+          id: 'person-1',
+          name: 'Ada',
+          email: 'ada@example.com',
+          role: Role.user,
+          twoFactorEnabled: true,
+        ),
+      ),
+    );
+    answerUpdateWith(
+      const Success<Person>(
+        Person(
+          id: 'person-1',
+          name: 'Ada L',
+          email: 'ada@example.com',
+          role: Role.user,
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.save(name: 'Ada L', email: 'ada@example.com');
+
+    // Then
+    final state = currentState() as PersonDetailLoaded;
+    expect(state.person.name, 'Ada L');
+    expect(state.person.twoFactorEnabled, isTrue);
+  });
+
   // AF-18e — the role is never part of what this screen sends.
   test('GivenAnEdit_WhenSaved_ThenNoRoleIsSent', () async {
     // Given

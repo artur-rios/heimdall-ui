@@ -5,14 +5,16 @@ import 'package:go_router/go_router.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../persons/domain/person.dart';
+import '../../persons/presentation/scope_admin_picker.dart';
 import 'scope_create_controller.dart';
 import 'scope_list_controller.dart';
 
 /// UI-11 — the create-scope form.
 ///
-/// Owners are named by their person identifier. The API has no endpoint that
-/// lists the Scope Admins an anonymous new scope could choose from, so the
-/// identifiers are typed and the API judges them (AF-11c).
+/// Owners are chosen from the Scope Admins the API lists. Whether each one is
+/// still usable by the time the scope is created remains the API's to say, so
+/// AF-11c is still what its refusal looks like.
 class ScopeCreateScreen extends ConsumerStatefulWidget {
   const ScopeCreateScreen({super.key});
 
@@ -24,14 +26,12 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _description = TextEditingController();
-  final _owner = TextEditingController();
-  final List<String> _ownerIds = <String>[];
+  final List<PersonSummary> _owners = <PersonSummary>[];
 
   @override
   void dispose() {
     _name.dispose();
     _description.dispose();
-    _owner.dispose();
     super.dispose();
   }
 
@@ -40,20 +40,19 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
   bool get _isDirty =>
       _name.text.trim().isNotEmpty ||
       _description.text.trim().isNotEmpty ||
-      _owner.text.trim().isNotEmpty ||
-      _ownerIds.isNotEmpty;
+      _owners.isNotEmpty;
 
-  void _addOwner() {
-    final id = _owner.text.trim();
+  /// The scope does not exist yet, so there are no owners for the API to leave
+  /// out — only the ones already chosen here, which it cannot know about.
+  Future<void> _addOwner() async {
+    final chosen = await showScopeAdminPicker(
+      context: context,
+      excludeIds: _owners.map((owner) => owner.id).toSet(),
+    );
 
-    if (id.isEmpty || _ownerIds.contains(id)) {
-      return;
+    if (chosen != null && mounted) {
+      setState(() => _owners.add(chosen));
     }
-
-    setState(() {
-      _ownerIds.add(id);
-      _owner.clear();
-    });
   }
 
   Future<void> _submit() async {
@@ -62,12 +61,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
       return;
     }
 
-    // AF-11a: neither does a scope with nobody to own it. The unadded text in
-    // the owner field counts, so a user who typed one and did not press add is
-    // not told they forgot.
-    _addOwner();
-
-    if (_ownerIds.isEmpty) {
+    // AF-11a: neither does a scope with nobody to own it.
+    if (_owners.isEmpty) {
       setState(() {});
 
       return;
@@ -78,7 +73,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
         .create(
           name: _name.text.trim(),
           description: _description.text.trim(),
-          ownerIds: List<String>.unmodifiable(_ownerIds),
+          ownerIds: _owners.map((owner) => owner.id).toList(growable: false),
         );
   }
 
@@ -185,30 +180,16 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                   const SizedBox(height: 24),
                   Text('Owners', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  Row(
-                    children: <Widget>[
-                      Expanded(
-                        child: TextField(
-                          controller: _owner,
-                          decoration: const InputDecoration(
-                            labelText: 'Scope Admin identifier',
-                            helperText:
-                                'The person id of an existing Scope '
-                                'Admin.',
-                          ),
-                          onSubmitted: (_) => _addOwner(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.filledTonal(
-                        tooltip: 'Add owner',
-                        icon: const Icon(Icons.add),
-                        onPressed: sending ? null : _addOwner,
-                      ),
-                    ],
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: OutlinedButton.icon(
+                      onPressed: sending ? null : _addOwner,
+                      icon: const Icon(Icons.person_add_alt),
+                      label: const Text('Add owner'),
+                    ),
                   ),
                   const SizedBox(height: 12),
-                  if (_ownerIds.isEmpty)
+                  if (_owners.isEmpty)
                     Text(
                       'No owners added yet.',
                       style: theme.textTheme.bodySmall,
@@ -218,14 +199,14 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                       spacing: 8,
                       runSpacing: 8,
                       children: <Widget>[
-                        for (final id in _ownerIds)
+                        for (final owner in _owners)
                           InputChip(
-                            label: Text(id),
+                            label: Text(owner.name),
                             deleteIcon: const Icon(Icons.close),
                             deleteButtonTooltipMessage: 'Remove owner',
                             onDeleted: sending
                                 ? null
-                                : () => setState(() => _ownerIds.remove(id)),
+                                : () => setState(() => _owners.remove(owner)),
                           ),
                       ],
                     ),

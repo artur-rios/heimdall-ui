@@ -9,6 +9,7 @@ import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
+import '../../persons/presentation/scope_admin_picker.dart';
 import 'scope_owners_controller.dart';
 
 /// UI-14 — the owners of one scope, and the four ways the list changes.
@@ -43,14 +44,16 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     return session is Authenticated ? session.principal.id : null;
   }
 
+  /// AF-14c — the API leaves this scope's current owners out of the listing,
+  /// so somebody who already owns it is never offered in the first place.
   Future<void> _addExisting() async {
-    final personId = await showDialog<String>(
+    final chosen = await showScopeAdminPicker(
       context: context,
-      builder: (context) => const _AddOwnerDialog(),
+      excludeOwnersOfScopeId: widget.scopeId,
     );
 
-    if (personId != null && personId.isNotEmpty && mounted) {
-      await _controller.addOwner(personId);
+    if (chosen != null && mounted) {
+      await _controller.addOwner(chosen.id);
     }
   }
 
@@ -228,54 +231,6 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
       ],
     );
   }
-}
-
-/// Names an existing Scope Admin to add.
-///
-/// As in UI-11, the API publishes no listing of Scope Admins outside a scope,
-/// so the identifier is typed and the API judges it (AF-14b, AF-14c).
-class _AddOwnerDialog extends StatefulWidget {
-  const _AddOwnerDialog();
-
-  @override
-  State<_AddOwnerDialog> createState() => _AddOwnerDialogState();
-}
-
-class _AddOwnerDialogState extends State<_AddOwnerDialog> {
-  final _personId = TextEditingController();
-
-  @override
-  void dispose() {
-    _personId.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Add an existing Scope Admin'),
-    content: TextField(
-      controller: _personId,
-      autofocus: true,
-      decoration: const InputDecoration(
-        labelText: 'Person identifier',
-        helperText: 'The person id of an existing Scope Admin.',
-      ),
-      onChanged: (_) => setState(() {}),
-      onSubmitted: (value) => Navigator.of(context).pop(value.trim()),
-    ),
-    actions: <Widget>[
-      TextButton(
-        onPressed: () => Navigator.of(context).pop(),
-        child: const Text('Cancel'),
-      ),
-      FilledButton(
-        onPressed: _personId.text.trim().isEmpty
-            ? null
-            : () => Navigator.of(context).pop(_personId.text.trim()),
-        child: const Text('Add owner'),
-      ),
-    ],
-  );
 }
 
 /// What the create-a-co-owner dialog collects.
