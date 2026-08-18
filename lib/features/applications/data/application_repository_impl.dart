@@ -62,6 +62,54 @@ class ApiApplicationRepository implements ApplicationRepository {
     }
   }
 
+  @override
+  Future<Result<Application>> create({
+    required String scopeId,
+    required String name,
+    required String ownerId,
+  }) async {
+    try {
+      final response = await _client.applicationCreate(
+        scopeId: scopeId,
+        body: CreateApplicationCommand(name: name, ownerId: ownerId),
+      );
+
+      if (response.success != true) {
+        // AF-21b and AF-21c: a duplicate name and an owner who is not of this
+        // scope both arrive here, told apart by the API's own strings.
+        return FailureResult<Application>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Application>(
+          Failure(
+            kind: FailureKind.unknown,
+            errors: <String>['The API returned an incomplete response.'],
+          ),
+        );
+      }
+
+      return Success<Application>(
+        Application(
+          id: data.id ?? '',
+          name: data.name ?? name,
+          ownerId: data.ownerId ?? ownerId,
+          scopeId: data.scopeId ?? scopeId,
+          createdAt: data.createdAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Application>(failureFromDioException(error));
+    }
+  }
+
   static String? _filter(String? value) =>
       (value?.trim().isEmpty ?? true) ? null : value!.trim();
 }

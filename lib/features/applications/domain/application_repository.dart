@@ -15,6 +15,16 @@ abstract interface class ApplicationRepository {
     int pageNumber = 1,
     int pageSize = 20,
   });
+
+  /// Creates an application within a scope.
+  ///
+  /// Whether [ownerId] names a person of that scope is the API's question —
+  /// AF-21c is what its answer looks like when they are not.
+  Future<Result<Application>> create({
+    required String scopeId,
+    required String name,
+    required String ownerId,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests
