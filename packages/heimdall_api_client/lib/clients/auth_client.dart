@@ -23,6 +23,7 @@ import '../models/regenerate_recovery_codes_command_output_data_output.dart';
 import '../models/resend_verification_email_command_output_data_output.dart';
 import '../models/reset_password_command.dart';
 import '../models/reset_password_command_output_data_output.dart';
+import '../models/two_factor_status_output_data_output.dart';
 import '../models/verify_email_command.dart';
 import '../models/verify_email_command_output_data_output.dart';
 import '../models/verify_two_factor_auth_command.dart';
@@ -237,4 +238,20 @@ abstract class AuthClient {
   @POST('/api/auth/2fa/recovery-codes/regenerate')
   Future<RegenerateRecoveryCodesCommandOutputDataOutput>
   authRegenerateRecoveryCodes({@Body() RegenerateRecoveryCodesCommand? body});
+
+  /// Reports the caller's own two-factor authentication status (FR-2F-15): whether it is.
+  /// active, which methods are configured, and how many recovery codes remain unused. The.
+  /// person read is always the caller themselves — taken from the bearer token, the same as.
+  /// M:ArturRios.Heimdall.WebApi.Controllers.AuthController.EnableTwoFactorAuth(ArturRios.Heimdall.Command.Input.EnableTwoFactorAuthCommand) — so a configuration is never addressed by an.
+  /// identifier in a path.
+  ///
+  /// No `RoleRequirement`, for the same reason its `POST` siblings have none: the.
+  /// authorization matrix grants two-factor management to all three person roles and withholds.
+  /// it from anonymous callers, which authentication alone enforces. A caller with no.
+  /// configuration is answered 200 with every flag false; a Google User is answered 403, since.
+  /// FR-2F-01 makes them permanently ineligible.
+  ///
+  /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
+  @GET('/api/auth/2fa')
+  Future<TwoFactorStatusOutputDataOutput> authGetTwoFactorStatus();
 }

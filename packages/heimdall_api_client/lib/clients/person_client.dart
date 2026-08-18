@@ -14,6 +14,7 @@ import '../models/delete_person_command_output_data_output.dart';
 import '../models/hard_delete_person_command_output_data_output.dart';
 import '../models/person_output_data_output.dart';
 import '../models/person_output_paginated_output.dart';
+import '../models/person_summary_output_paginated_output.dart';
 import '../models/promote_scope_user_command_output_data_output.dart';
 import '../models/remove_scope_owner_command_output_data_output.dart';
 import '../models/update_person_command.dart';
@@ -168,5 +169,20 @@ abstract class PersonClient {
   @DELETE('/api/persons/{id}/hard')
   Future<HardDeletePersonCommandOutputDataOutput> personHardDelete({
     @Path('id') required String id,
+  });
+
+  /// Lists the system's `ScopeAdmin` persons (UC-07 read d, FR-PE-12), projected to.
+  /// identifier, name, and email — the source for an owner picker. A System Admin or a Scope.
+  /// Admin may call it. Optionally excludes the current owners of a named scope, in which case.
+  /// the handler requires the caller to be entitled to manage that scope.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @GET('/api/persons/scope-admins')
+  Future<PersonSummaryOutputPaginatedOutput> personListScopeAdmins({
+    @Query('Name') String? name,
+    @Query('Email') String? email,
+    @Query('ExcludeOwnersOfScopeId') String? excludeOwnersOfScopeId,
+    @Query('PageNumber') int? pageNumber,
+    @Query('PageSize') int? pageSize,
   });
 }
