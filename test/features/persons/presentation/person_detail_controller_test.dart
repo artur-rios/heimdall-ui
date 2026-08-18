@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -51,6 +53,14 @@ void main() {
         includeDeleted: any(named: 'includeDeleted'),
       ),
     ).thenAnswer((_) async => result);
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(() => repository.delete(any())).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(() => repository.hardDelete(any())).thenAnswer((_) async => result);
   }
 
   void answerUpdateWith(Result<Person> result) {
@@ -284,5 +294,95 @@ void main() {
 
     // Then
     expect((currentState() as PersonDetailLoaded).saved, isFalse);
+  });
+
+  test('GivenAnOpenPerson_WhenDeleted_ThenThePersonIsDeleted', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    verify(() => repository.delete('person-1')).called(1);
+    expect(currentState(), isA<PersonDeleted>());
+  });
+
+  test('GivenAnOpenPerson_WhenErased_ThenTheHardEndpointIsUsed', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerHardDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.deletePermanently();
+
+    // Then
+    verify(() => repository.hardDelete('person-1')).called(1);
+  });
+
+  // AF-19b — the API refused, and the person stays open.
+  test('GivenARefusedDeletion_WhenDeleted_ThenThePersonStaysOpen', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['They are the last owner of a scope.'],
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    final state = currentState() as PersonDetailLoaded;
+    expect(state.deleteFailure?.errors, <String>[
+      'They are the last owner of a scope.',
+    ]);
+  });
+
+  test('GivenAnAlreadyDeletedPerson_WhenDeleted_ThenItCountsAsDone', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    expect(currentState(), isA<PersonDeleted>());
+  });
+
+  test('GivenADeletionInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    final pending = Completer<Result<void>>();
+    when(() => repository.delete(any())).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final first = controller.delete();
+    final second = controller.delete();
+    pending.complete(const Success<void>(null));
+    await Future.wait<void>(<Future<void>>[first, second]);
+
+    // Then
+    verify(() => repository.delete('person-1')).called(1);
   });
 }

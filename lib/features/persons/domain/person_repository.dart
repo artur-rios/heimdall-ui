@@ -42,6 +42,13 @@ abstract interface class PersonRepository {
     required Role role,
   });
 
+  /// Logically deletes a person. The record is kept and the API can restore it.
+  Future<Result<void>> delete(String id);
+
+  /// Permanently deletes a person and everything that belonged to them. Only a
+  /// System Admin may, which is why UI-19 shows the control to nobody else.
+  Future<Result<void>> hardDelete(String id);
+
   /// Lists the Scope Admins who own a scope.
   Future<Result<Page<Person>>> listScopeOwners({
     required String scopeId,

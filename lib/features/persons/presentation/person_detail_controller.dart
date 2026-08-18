@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/result/result.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
+import '../domain/person_repository.dart';
 
 /// How far the person detail has got.
 sealed class PersonDetailState {
@@ -24,6 +25,11 @@ final class PersonDetailUnavailable extends PersonDetailState {
   bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
+/// The person is gone, and the screen returns to the listing.
+final class PersonDeleted extends PersonDetailState {
+  const PersonDeleted();
+}
+
 /// The record is on screen.
 final class PersonDetailLoaded extends PersonDetailState {
   const PersonDetailLoaded(
@@ -31,12 +37,20 @@ final class PersonDetailLoaded extends PersonDetailState {
     this.saving = false,
     this.saveFailure,
     this.saved = false,
+    this.deleting = false,
+    this.deleteFailure,
   });
 
   final Person person;
   final bool saving;
   final Failure? saveFailure;
   final bool saved;
+
+  /// A deletion is on its way. Both controls are disabled while it is.
+  final bool deleting;
+
+  /// AF-19b — the API refused to delete, and the person stays open.
+  final Failure? deleteFailure;
 
   /// AF-18d — a logically deleted person is shown, but nothing about them may
   /// be changed from here.
@@ -48,11 +62,18 @@ final class PersonDetailLoaded extends PersonDetailState {
     Failure? saveFailure,
     bool clearSaveFailure = false,
     bool? saved,
+    bool? deleting,
+    Failure? deleteFailure,
+    bool clearDeleteFailure = false,
   }) => PersonDetailLoaded(
     person ?? this.person,
     saving: saving ?? this.saving,
     saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     saved: saved ?? this.saved,
+    deleting: deleting ?? this.deleting,
+    deleteFailure: clearDeleteFailure
+        ? null
+        : (deleteFailure ?? this.deleteFailure),
   );
 }
 
@@ -127,6 +148,40 @@ class PersonDetailController extends FamilyNotifier<PersonDetailState, String> {
   void acknowledgeSave() {
     if (state case final PersonDetailLoaded loaded) {
       state = loaded.copyWith(saved: false);
+    }
+  }
+
+  /// Logically deletes the person. The record is kept and the API can restore
+  /// it, which is what the confirmation says before this is called.
+  Future<void> delete() => _delete((repository) => repository.delete(arg));
+
+  /// Permanently deletes the person and everything that belonged to them.
+  Future<void> deletePermanently() =>
+      _delete((repository) => repository.hardDelete(arg));
+
+  Future<void> _delete(
+    Future<Result<void>> Function(PersonRepository repository) send,
+  ) async {
+    final current = state;
+
+    if (current is! PersonDetailLoaded || current.deleting) {
+      return;
+    }
+
+    state = current.copyWith(deleting: true, clearDeleteFailure: true);
+
+    final result = await send(ref.read(personRepositoryProvider));
+
+    switch (result) {
+      case Success<void>():
+        state = const PersonDeleted();
+      case FailureResult<void>(:final failure):
+        // Somebody already deleted them, which is the outcome that was asked
+        // for. Reporting it as a failure would ask the user to delete a record
+        // that no longer exists.
+        state = failure.kind == FailureKind.notFound
+            ? const PersonDeleted()
+            : current.copyWith(deleting: false, deleteFailure: failure);
     }
   }
 }
