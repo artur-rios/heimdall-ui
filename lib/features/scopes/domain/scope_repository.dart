@@ -18,4 +18,15 @@ abstract interface class ScopeRepository {
     int pageNumber = 1,
     int pageSize = 20,
   });
+
+  /// Creates a scope.
+  ///
+  /// [ownerIds] names the persons who will own it. Whether each is a usable
+  /// Scope Admin is the API's question, not this layer's — AF-11c is what its
+  /// answer looks like when one is not.
+  Future<Result<Scope>> create({
+    required String name,
+    required String description,
+    required List<String> ownerIds,
+  });
 }
