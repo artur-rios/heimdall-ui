@@ -11,6 +11,7 @@ import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
+import '../features/scopes/presentation/scope_list_screen.dart';
 import 'route_access.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -113,6 +114,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
+      ),
+      GoRoute(
+        path: '/scopes',
+        builder: (context, state) => const ScopeListScreen(),
       ),
       GoRoute(
         path: '/not-available',

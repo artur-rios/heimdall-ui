@@ -256,7 +256,7 @@ the board is where an item's status changes as it moves.
 
 | Use case | Status | Issue |
 | --- | --- | --- |
-| UI-10: Browse and search scopes | ⬜ | [#10](https://github.com/artur-rios/heimdall-ui/issues/10) |
+| UI-10: Browse and search scopes | ✅ | [#10](https://github.com/artur-rios/heimdall-ui/issues/10) |
 | UI-11: Create a scope | ⬜ | [#11](https://github.com/artur-rios/heimdall-ui/issues/11) |
 | UI-12: View and update a scope | ⬜ | [#12](https://github.com/artur-rios/heimdall-ui/issues/12) |
 | UI-13: Delete a scope, logically and permanently | ⬜ | [#13](https://github.com/artur-rios/heimdall-ui/issues/13) |
