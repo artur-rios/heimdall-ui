@@ -25,6 +25,25 @@ abstract interface class ApplicationRepository {
     required String name,
     required String ownerId,
   });
+
+  /// Reads one application.
+  ///
+  /// [includeDeleted] is on by default for the detail screen: AF-22d shows a
+  /// logically deleted application read-only, and it cannot do that if the API
+  /// is asked to pretend it is gone.
+  Future<Result<Application>> getById({
+    required String scopeId,
+    required String id,
+    bool includeDeleted = true,
+  });
+
+  /// Updates an application's name and owner.
+  Future<Result<Application>> update({
+    required String scopeId,
+    required String id,
+    required String name,
+    required String ownerId,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests

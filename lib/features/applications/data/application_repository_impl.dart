@@ -88,12 +88,7 @@ class ApiApplicationRepository implements ApplicationRepository {
       final data = response.data;
 
       if (data == null) {
-        return const FailureResult<Application>(
-          Failure(
-            kind: FailureKind.unknown,
-            errors: <String>['The API returned an incomplete response.'],
-          ),
-        );
+        return const FailureResult<Application>(_incompleteResponse);
       }
 
       return Success<Application>(
@@ -110,9 +105,99 @@ class ApiApplicationRepository implements ApplicationRepository {
     }
   }
 
+  @override
+  Future<Result<Application>> getById({
+    required String scopeId,
+    required String id,
+    bool includeDeleted = true,
+  }) async {
+    try {
+      final response = await _client.applicationGetById(
+        scopeId: scopeId,
+        id: id,
+        includeDeleted: includeDeleted,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Application>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Application>(_incompleteResponse);
+      }
+
+      return Success<Application>(applicationFromOutput(data));
+    } on DioException catch (error) {
+      // AF-22a and AF-22b depend on this: a `404` and a `403` are different
+      // panels, and only the kind tells them apart.
+      return FailureResult<Application>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Application>> update({
+    required String scopeId,
+    required String id,
+    required String name,
+    required String ownerId,
+  }) async {
+    try {
+      final response = await _client.applicationUpdate(
+        scopeId: scopeId,
+        id: id,
+        body: UpdateApplicationCommand(name: name, ownerId: ownerId),
+      );
+
+      if (response.success != true) {
+        // AF-22c: a duplicate name, or an owner of another scope.
+        return FailureResult<Application>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Application>(_incompleteResponse);
+      }
+
+      // The update endpoint answers with its own output type, which carries no
+      // `isDeleted`: an application the API just updated is not a deleted one.
+      return Success<Application>(
+        Application(
+          id: data.id ?? id,
+          name: data.name ?? name,
+          ownerId: data.ownerId ?? ownerId,
+          scopeId: data.scopeId ?? scopeId,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Application>(failureFromDioException(error));
+    }
+  }
+
   static String? _filter(String? value) =>
       (value?.trim().isEmpty ?? true) ? null : value!.trim();
 }
+
+/// A successful envelope that nonetheless lacks what the flow needs. It should
+/// not happen; saying so plainly beats a null dereference if it ever does.
+const Failure _incompleteResponse = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>['The API returned an incomplete response.'],
+);
 
 /// Maps the generated output onto the domain entity.
 Application applicationFromOutput(ApplicationOutput output) => Application(
