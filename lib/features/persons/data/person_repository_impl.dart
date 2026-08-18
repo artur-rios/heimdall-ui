@@ -251,6 +251,58 @@ class ApiPersonRepository implements PersonRepository {
   );
 
   @override
+  Future<Result<Page<PersonSummary>>> listScopeAdmins({
+    String? name,
+    String? email,
+    String? excludeOwnersOfScopeId,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _client.personListScopeAdmins(
+        name: _filter(name),
+        email: _filter(email),
+        excludeOwnersOfScopeId: _filter(excludeOwnersOfScopeId),
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Page<PersonSummary>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final items = (response.data ?? const <PersonSummaryOutput>[])
+          .map(
+            (output) => PersonSummary(
+              id: output.id ?? '',
+              name: output.name ?? '',
+              email: output.email ?? '',
+            ),
+          )
+          .toList(growable: false);
+
+      return Success<Page<PersonSummary>>(
+        Page<PersonSummary>(
+          items: items,
+          pageNumber: response.pageNumber ?? pageNumber,
+          pageSize: response.pageSize ?? pageSize,
+          totalItems: response.totalItems ?? items.length,
+          totalPages: response.totalPages ?? 1,
+        ),
+      );
+    } on DioException catch (error) {
+      // A Scope Admin who may not manage the named scope is refused here, and
+      // the picker falls back to an identifier rather than to nothing.
+      return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<void>> addScopeOwner({
     required String scopeId,
     required String personId,
@@ -417,6 +469,7 @@ Person personFromOutput(PersonOutput output) => Person(
   email: output.email ?? '',
   role: roleFromValue(output.role ?? Role.user.value),
   emailVerified: output.emailVerified ?? true,
+  twoFactorEnabled: output.twoFactorEnabled ?? false,
   isDeleted: output.isDeleted ?? false,
   scopeId: output.scopeId,
   ownedScopeIds: output.ownedScopeIds ?? const <String>[],

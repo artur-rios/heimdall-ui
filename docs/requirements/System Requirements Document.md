@@ -83,10 +83,11 @@ describes the flows that satisfy these requirements; the
 | FR-PE-02 | The client shall filter the person listing and shall let the user include logically deleted persons. | UI-16 |
 | FR-PE-03 | The client shall create a person within a scope through `POST /api/scopes/{scopeId}/persons`. | UI-17 |
 | FR-PE-04 | The client shall let a System Admin create a person belonging to no scope through `POST /api/persons`. | UI-17 |
-| FR-PE-05 | The client shall show a person through `GET /api/persons/{id}`, including role, scope membership, owned scopes, and verification state. | UI-18 |
+| FR-PE-05 | The client shall show a person through `GET /api/persons/{id}`, including role, scope membership, owned scopes, verification state, and whether a second factor is configured. | UI-18 |
 | FR-PE-06 | The client shall update a person's name and email through `PUT /api/persons/{id}`. | UI-18 |
 | FR-PE-07 | The client shall logically delete a person through `DELETE /api/persons/{id}` after confirmation. | UI-19 |
 | FR-PE-08 | The client shall permanently delete a person through `DELETE /api/persons/{id}/hard` after a confirmation requiring the person's email to be typed. | UI-19 |
+| FR-PE-09 | The client shall offer the owners a scope may be given from `GET /api/persons/scope-admins`, leaving out the persons who already own the scope being managed. | UI-11, UI-14 |
 
 ### 2.4 Application management (`FR-AP`)
 

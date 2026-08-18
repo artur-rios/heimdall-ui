@@ -42,6 +42,15 @@ const _ada = Person(
   scopeId: 'scope-1',
 );
 
+const _protected = Person(
+  id: 'person-1',
+  name: 'Ada',
+  email: 'ada@example.com',
+  role: Role.user,
+  scopeId: 'scope-1',
+  twoFactorEnabled: true,
+);
+
 const _deleted = Person(
   id: 'person-1',
   name: 'Ada',
@@ -200,6 +209,31 @@ void main() {
     // Then
     expect(find.text('User'), findsOneWidget);
     expect(find.text('scope-1'), findsOneWidget);
+  });
+
+  testWidgets('GivenASecondFactor_WhenOpened_ThenItIsReported', (tester) async {
+    // Given
+    answerGetWith(const Success<Person>(_protected));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Two-factor authentication'), findsOneWidget);
+    expect(find.text('On'), findsOneWidget);
+  });
+
+  testWidgets('GivenNoSecondFactor_WhenOpened_ThenItIsReportedAsOff', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Off'), findsOneWidget);
   });
 
   testWidgets('GivenAnEdit_WhenSaved_ThenTheNewValuesAreSent', (tester) async {

@@ -337,6 +337,10 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                           value: person.emailVerified ? 'Yes' : 'No',
                         ),
                         _Fact(
+                          label: 'Two-factor authentication',
+                          value: person.twoFactorEnabled ? 'On' : 'Off',
+                        ),
+                        _Fact(
                           label: 'Scope',
                           value: person.scopeId ?? 'Not a member of a scope',
                         ),
