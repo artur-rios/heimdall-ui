@@ -100,6 +100,204 @@ class ApiPersonRepository implements PersonRepository {
       return FailureResult<Person>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<Page<Person>>> listScopeOwners({
+    required String scopeId,
+    String? name,
+    String? email,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) => _listing(
+    () => _client.personListScopeOwners(
+      scopeId: scopeId,
+      name: _filter(name),
+      email: _filter(email),
+      includeDeleted: includeDeleted,
+      pageNumber: pageNumber,
+      pageSize: pageSize,
+    ),
+    pageNumber: pageNumber,
+    pageSize: pageSize,
+  );
+
+  @override
+  Future<Result<Page<Person>>> listScopePersons({
+    required String scopeId,
+    String? name,
+    String? email,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) => _listing(
+    () => _client.personListScopePersons(
+      scopeId: scopeId,
+      name: _filter(name),
+      email: _filter(email),
+      includeDeleted: includeDeleted,
+      pageNumber: pageNumber,
+      pageSize: pageSize,
+    ),
+    pageNumber: pageNumber,
+    pageSize: pageSize,
+  );
+
+  @override
+  Future<Result<void>> addScopeOwner({
+    required String scopeId,
+    required String personId,
+  }) async {
+    try {
+      final response = await _client.personAddScopeOwner(
+        scopeId: scopeId,
+        personId: personId,
+      );
+
+      // AF-14b and AF-14c: not a Scope Admin, and already an owner, both
+      // arrive here in the API's own words.
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Person>> createScopeOwner({
+    required String scopeId,
+    required String name,
+    required String email,
+    required String password,
+  }) async {
+    try {
+      final response = await _client.personCreateScopeOwner(
+        scopeId: scopeId,
+        body: CreateScopeOwnerCommand(
+          name: name,
+          email: email,
+          password: password,
+        ),
+      );
+
+      if (response.success != true) {
+        // AF-14d: a rejected name, address, or password.
+        return FailureResult<Person>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Person>(incompleteResponse);
+      }
+
+      return Success<Person>(
+        Person(
+          id: data.id ?? '',
+          name: data.name ?? name,
+          email: data.email ?? email,
+          role: roleFromValue(data.role ?? Role.scopeAdmin.value),
+          emailVerified: data.emailVerified ?? false,
+          scopeId: data.scopeId,
+          createdAt: data.createdAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Person>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> removeScopeOwner({
+    required String scopeId,
+    required String personId,
+  }) async {
+    try {
+      final response = await _client.personRemoveScopeOwner(
+        scopeId: scopeId,
+        personId: personId,
+      );
+
+      // AF-14a: a scope may not be left without an owner, and the API is the
+      // only party that knows whether this removal would do that.
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> promoteScopeUser({
+    required String scopeId,
+    required String personId,
+  }) async {
+    try {
+      final response = await _client.personPromoteScopeUser(
+        scopeId: scopeId,
+        personId: personId,
+      );
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  /// An empty filter is no filter: sending it would ask the API to match the
+  /// empty string rather than to stop filtering.
+  static String? _filter(String? value) =>
+      (value?.trim().isEmpty ?? true) ? null : value!.trim();
+
+  /// Runs a paginated person listing and maps its envelope.
+  Future<Result<Page<Person>>> _listing(
+    Future<PersonOutputPaginatedOutput> Function() send, {
+    required int pageNumber,
+    required int pageSize,
+  }) async {
+    try {
+      final response = await send();
+
+      if (response.success != true) {
+        return FailureResult<Page<Person>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final items = (response.data ?? const <PersonOutput>[])
+          .map(personFromOutput)
+          .toList(growable: false);
+
+      return Success<Page<Person>>(
+        Page<Person>(
+          items: items,
+          pageNumber: response.pageNumber ?? pageNumber,
+          pageSize: response.pageSize ?? pageSize,
+          totalItems: response.totalItems ?? items.length,
+          totalPages: response.totalPages ?? 1,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Page<Person>>(failureFromDioException(error));
+    }
+  }
+
+  /// A command whose only interesting answer is whether it worked.
+  Result<void> _acknowledgement(bool? success, List<String>? errors) =>
+      success == true
+      ? const Success<void>(null)
+      : FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: errors ?? const <String>[],
+          ),
+        );
 }
 
 /// Maps the generated output onto the domain entity.
