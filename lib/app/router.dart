@@ -14,6 +14,7 @@ import '../features/profile/presentation/profile_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
 import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
+import '../features/scopes/presentation/scope_owners_screen.dart';
 import 'route_access.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -129,6 +130,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/scopes/:scopeId',
         builder: (context, state) =>
             ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/owners',
+        builder: (context, state) =>
+            ScopeOwnersScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
         path: '/not-available',
