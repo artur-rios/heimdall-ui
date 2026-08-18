@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_list_screen.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
@@ -139,6 +140,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/scopes/:scopeId/applications',
         builder: (context, state) =>
             ApplicationListScreen(scopeId: state.pathParameters['scopeId']!),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/applications/new',
+        builder: (context, state) =>
+            ApplicationCreateScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
         path: '/scopes/:scopeId/owners',
