@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -50,6 +52,24 @@ void main() {
         scopeId: any(named: 'scopeId'),
         id: any(named: 'id'),
         includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(
+      () => repository.hardDelete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -330,5 +350,109 @@ void main() {
     final state = currentState() as PermissionDetailLoaded;
     expect(state.saved, isFalse);
     expect(state.claimChanged, isFalse);
+  });
+
+  test('GivenAnOpenPermission_WhenDeleted_ThenItIsDeleted', () async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    answerDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    verify(
+      () => repository.delete(scopeId: 'scope-1', id: 'permission-1'),
+    ).called(1);
+    expect(currentState(), isA<PermissionDeleted>());
+  });
+
+  test('GivenAnOpenPermission_WhenErased_ThenTheHardEndpointIsUsed', () async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    answerHardDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.deletePermanently();
+
+    // Then
+    verify(
+      () => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'),
+    ).called(1);
+  });
+
+  // AF-27b — the API refused, and the permission stays open.
+  test('GivenARefusedDeletion_WhenDeleted_ThenItStaysOpen', () async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['That permission is still granted to somebody.'],
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    final state = currentState() as PermissionDetailLoaded;
+    expect(state.deleteFailure?.errors, <String>[
+      'That permission is still granted to somebody.',
+    ]);
+  });
+
+  test(
+    'GivenAnAlreadyDeletedPermission_WhenDeleted_ThenItCountsAsDone',
+    () async {
+      // Given
+      answerGetWith(const Success<ScopePermission>(_readInvoices));
+      answerDeleteWith(
+        const FailureResult<void>(
+          Failure(kind: FailureKind.notFound, errors: <String>[]),
+        ),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.delete();
+
+      // Then
+      expect(currentState(), isA<PermissionDeleted>());
+    },
+  );
+
+  test('GivenADeletionInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    final pending = Completer<Result<void>>();
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final first = controller.delete();
+    final second = controller.delete();
+    pending.complete(const Success<void>(null));
+    await Future.wait<void>(<Future<void>>[first, second]);
+
+    // Then
+    verify(
+      () => repository.delete(scopeId: 'scope-1', id: 'permission-1'),
+    ).called(1);
   });
 }

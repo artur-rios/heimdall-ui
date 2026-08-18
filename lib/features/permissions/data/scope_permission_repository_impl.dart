@@ -198,6 +198,53 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       return FailureResult<ScopePermission>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<void>> delete({
+    required String scopeId,
+    required String id,
+  }) async {
+    try {
+      final response = await _client.scopePermissionDelete(
+        scopeId: scopeId,
+        id: id,
+      );
+
+      // AF-27b: the API refuses a permission it will not delete, and its own
+      // strings say why.
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> hardDelete({
+    required String scopeId,
+    required String id,
+  }) async {
+    try {
+      final response = await _client.scopePermissionHardDelete(
+        scopeId: scopeId,
+        id: id,
+      );
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  /// A command whose only interesting answer is whether it worked.
+  static Result<void> _acknowledgement(bool? success, List<String>? errors) =>
+      success == true
+      ? const Success<void>(null)
+      : FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: errors ?? const <String>[],
+          ),
+        );
 }
 
 /// A successful envelope that nonetheless lacks what the flow needs. It should
