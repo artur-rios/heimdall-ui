@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
+import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
@@ -16,13 +17,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 
-String _jwt() {
+/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
+String _jwt({int role = 1}) {
   final payload = base64Url.encode(
     utf8.encode(
       jsonEncode(<String, dynamic>{
         'sub': 'person-9',
         'email': 'admin@example.com',
-        'role': 1,
+        'role': role,
       }),
     ),
   );
@@ -60,12 +62,18 @@ void main() {
     WidgetTester tester, {
     Size size = _expanded,
     ThemeData? theme,
+    int role = 1,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+    await store.write(
+      AuthToken(
+        value: _jwt(role: role),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
 
     container = ProviderContainer(
       overrides: <Override>[
@@ -114,6 +122,52 @@ void main() {
         includeDeleted: any(named: 'includeDeleted'),
       ),
     ).thenAnswer((_) async => result);
+  }
+
+  /// The deletion controls sit at the bottom of a scrolling detail, so they
+  /// are not on screen until the view is brought to them.
+  Future<void> tapAfterScrolling(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(
+      () => repository.hardDelete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  /// The listing behind the detail is reloaded after a deletion; what it
+  /// answers does not matter here, only that it answers.
+  void answerListWith() {
+    when(
+      () => repository.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<envelope.Page<GoogleUser>>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
   }
 
   setUp(() {
@@ -299,5 +353,291 @@ void main() {
 
     // Then
     expect(find.text('Ada Lovelace'), findsWidgets);
+  });
+
+  testWidgets('GivenASystemAdmin_WhenOpened_ThenBothDeletionsAreOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+      findsOneWidget,
+    );
+  });
+
+  // AF-29d — a Scope Admin never sees the permanent deletion.
+  testWidgets('GivenAScopeAdmin_WhenOpened_ThenOnlyTheLogicalOneIsOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('GivenADeletedGoogleUser_WhenOpened_ThenDeletionIsNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_deleted));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+      findsNothing,
+    );
+  });
+
+  // AF-29e — deleting is not a way to keep somebody out, and the screen says
+  // so before the dialog is even opened.
+  testWidgets('GivenTheDangerZone_WhenRendered_ThenSignInAgainIsExplained', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.textContaining('Neither stops them signing in again'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenTheDeleteControl_WhenTapped_ThenConfirmationIsAsked', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // Then
+    expect(find.text('Delete Ada Lovelace?'), findsOneWidget);
+  });
+
+  // AF-29e — and again in the dialog itself.
+  testWidgets('GivenTheDeleteDialog_WhenOpened_ThenSignInAgainIsExplained', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // Then
+    expect(find.textContaining('they can sign in again'), findsOneWidget);
+  });
+
+  testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheyAreDeleted', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    answerDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.delete(scopeId: 'scope-1', id: 'google-1'),
+    ).called(1);
+  });
+
+  testWidgets('GivenADeletedGoogleUser_WhenDeleted_ThenTheListingOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    answerDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // AF-29a — the dialog closes and nothing is sent.
+  testWidgets('GivenTheDeleteDialog_WhenCancelled_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    );
+  });
+
+  // AF-29b — the API refused, and the record stays open.
+  testWidgets('GivenARefusedDeletion_WhenConfirmed_ThenApiErrorsAreShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['That Google user cannot be deleted.'],
+        ),
+      ),
+    );
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('That Google user cannot be deleted.'), findsOneWidget);
+  });
+
+  // AF-29c — the confirm control stays disabled until the address matches.
+  testWidgets('GivenTheHardDeleteDialog_WhenOpened_ThenConfirmIsDisabled', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+
+    // Then
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Delete permanently').last,
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenAMistypedEmail_WhenTyped_ThenConfirmStaysDisabled', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+
+    // When
+    await tester.enterText(find.byType(TextField).last, 'ADA@example.com');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Delete permanently').last,
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenTheTypedEmail_WhenItMatches_ThenTheyAreErased', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    answerHardDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+    await tester.enterText(find.byType(TextField).last, 'ada@example.com');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Delete permanently').last,
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.hardDelete(scopeId: 'scope-1', id: 'google-1'),
+    ).called(1);
   });
 }

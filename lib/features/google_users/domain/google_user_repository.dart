@@ -35,6 +35,17 @@ abstract interface class GoogleUserRepository {
     required String id,
     bool includeDeleted = true,
   });
+
+  /// Logically deletes a Google User. The record is kept and the API can
+  /// restore it.
+  Future<Result<void>> delete({required String scopeId, required String id});
+
+  /// Permanently deletes a Google User. Only a System Admin may, which is why
+  /// UI-29 shows the control to nobody else.
+  Future<Result<void>> hardDelete({
+    required String scopeId,
+    required String id,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests

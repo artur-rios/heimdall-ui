@@ -127,6 +127,50 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
     }
   }
 
+  @override
+  Future<Result<void>> delete({
+    required String scopeId,
+    required String id,
+  }) async {
+    try {
+      final response = await _client.googleUserDelete(scopeId: scopeId, id: id);
+
+      // AF-29b: the API refuses a record it will not delete, and its own
+      // strings say why.
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> hardDelete({
+    required String scopeId,
+    required String id,
+  }) async {
+    try {
+      final response = await _client.googleUserHardDelete(
+        scopeId: scopeId,
+        id: id,
+      );
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  /// A command whose only interesting answer is whether it worked.
+  static Result<void> _acknowledgement(bool? success, List<String>? errors) =>
+      success == true
+      ? const Success<void>(null)
+      : FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: errors ?? const <String>[],
+          ),
+        );
+
   static String? _filter(String? value) =>
       (value?.trim().isEmpty ?? true) ? null : value!.trim();
 }

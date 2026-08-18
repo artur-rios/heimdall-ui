@@ -295,7 +295,7 @@ the board is where an item's status changes as it moves.
 | Use case | Status | Issue |
 | --- | --- | --- |
 | UI-28: Browse and view Google users | ✅ | [#28](https://github.com/artur-rios/heimdall-ui/issues/28) |
-| UI-29: Delete a Google user, logically and permanently | ⬜ | [#29](https://github.com/artur-rios/heimdall-ui/issues/29) |
+| UI-29: Delete a Google user, logically and permanently | ✅ | [#29](https://github.com/artur-rios/heimdall-ui/issues/29) |
 
 ### Platform
 

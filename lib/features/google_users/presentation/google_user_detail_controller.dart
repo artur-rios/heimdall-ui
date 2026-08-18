@@ -41,14 +41,42 @@ final class GoogleUserDetailUnavailable extends GoogleUserDetailState {
   bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
+/// The Google User is gone, and the screen returns to the listing.
+final class GoogleUserDeleted extends GoogleUserDetailState {
+  const GoogleUserDeleted();
+}
+
 /// The record is on screen.
 ///
 /// AF-28e: there is nothing to save here. Every field comes from Google, so
-/// the state carries no editing of any kind.
+/// the only thing this state carries beyond the record is the deletion.
 final class GoogleUserDetailLoaded extends GoogleUserDetailState {
-  const GoogleUserDetailLoaded(this.user);
+  const GoogleUserDetailLoaded(
+    this.user, {
+    this.deleting = false,
+    this.deleteFailure,
+  });
 
   final GoogleUser user;
+
+  /// A deletion is on its way. Both controls are disabled while it is.
+  final bool deleting;
+
+  /// AF-29b — the API refused to delete, and the record stays open.
+  final Failure? deleteFailure;
+
+  GoogleUserDetailLoaded copyWith({
+    GoogleUser? user,
+    bool? deleting,
+    Failure? deleteFailure,
+    bool clearDeleteFailure = false,
+  }) => GoogleUserDetailLoaded(
+    user ?? this.user,
+    deleting: deleting ?? this.deleting,
+    deleteFailure: clearDeleteFailure
+        ? null
+        : (deleteFailure ?? this.deleteFailure),
+  );
 }
 
 final NotifierProviderFamily<
@@ -81,5 +109,43 @@ class GoogleUserDetailController
       onSuccess: GoogleUserDetailLoaded.new,
       onFailure: GoogleUserDetailUnavailable.new,
     );
+  }
+
+  /// Logically deletes the Google User. The record is kept and the API can
+  /// restore it, which is what the confirmation says before this is called.
+  Future<void> delete() => _delete(
+    (repository) =>
+        repository.delete(scopeId: arg.scopeId, id: arg.googleUserId),
+  );
+
+  /// Permanently deletes the Google User.
+  Future<void> deletePermanently() => _delete(
+    (repository) =>
+        repository.hardDelete(scopeId: arg.scopeId, id: arg.googleUserId),
+  );
+
+  Future<void> _delete(
+    Future<Result<void>> Function(GoogleUserRepository repository) send,
+  ) async {
+    final current = state;
+
+    if (current is! GoogleUserDetailLoaded || current.deleting) {
+      return;
+    }
+
+    state = current.copyWith(deleting: true, clearDeleteFailure: true);
+
+    final result = await send(ref.read(googleUserRepositoryProvider));
+
+    switch (result) {
+      case Success<void>():
+        state = const GoogleUserDeleted();
+      case FailureResult<void>(:final failure):
+        // Somebody already deleted them, which is the outcome that was asked
+        // for.
+        state = failure.kind == FailureKind.notFound
+            ? const GoogleUserDeleted()
+            : current.copyWith(deleting: false, deleteFailure: failure);
+    }
   }
 }
