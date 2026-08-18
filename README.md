@@ -276,7 +276,7 @@ the board is where an item's status changes as it moves.
 
 | Use case | Status | Issue |
 | --- | --- | --- |
-| UI-20: Browse applications in a scope | ⬜ | [#20](https://github.com/artur-rios/heimdall-ui/issues/20) |
+| UI-20: Browse applications in a scope | ✅ | [#20](https://github.com/artur-rios/heimdall-ui/issues/20) |
 | UI-21: Create an application | ⬜ | [#21](https://github.com/artur-rios/heimdall-ui/issues/21) |
 | UI-22: View and update an application | ⬜ | [#22](https://github.com/artur-rios/heimdall-ui/issues/22) |
 | UI-23: Delete an application, logically and permanently | ⬜ | [#23](https://github.com/artur-rios/heimdall-ui/issues/23) |
