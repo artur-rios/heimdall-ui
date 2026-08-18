@@ -24,13 +24,14 @@ class _MockApplicationRepository extends Mock
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
-String _jwt() {
+/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
+String _jwt({int role = 1}) {
   final payload = base64Url.encode(
     utf8.encode(
       jsonEncode(<String, dynamic>{
         'sub': 'person-9',
         'email': 'admin@example.com',
-        'role': 1,
+        'role': role,
       }),
     ),
   );
@@ -90,12 +91,18 @@ void main() {
     WidgetTester tester, {
     Size size = _expanded,
     ThemeData? theme,
+    int role = 1,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+    await store.write(
+      AuthToken(
+        value: _jwt(role: role),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
 
     container = ProviderContainer(
       overrides: <Override>[
@@ -145,6 +152,52 @@ void main() {
         includeDeleted: any(named: 'includeDeleted'),
       ),
     ).thenAnswer((_) async => result);
+  }
+
+  /// The deletion controls sit at the bottom of a scrolling detail, so they
+  /// are not on screen until the view is brought to them.
+  Future<void> tapAfterScrolling(WidgetTester tester, Finder finder) async {
+    await tester.ensureVisible(finder);
+    await tester.pumpAndSettle();
+    await tester.tap(finder);
+    await tester.pumpAndSettle();
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(
+      () => applications.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(
+      () => applications.hardDelete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  /// The listing behind the detail is reloaded after a deletion; what it
+  /// answers does not matter here, only that it answers.
+  void answerListWith() {
+    when(
+      () => applications.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        ownerId: any(named: 'ownerId'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<envelope.Page<Application>>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
   }
 
   void answerUpdateWith(Result<Application> result) {
@@ -480,5 +533,256 @@ void main() {
 
     // Then
     expect(find.widgetWithText(TextFormField, 'Billing'), findsOneWidget);
+  });
+
+  testWidgets('GivenASystemAdmin_WhenOpened_ThenBothDeletionsAreOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+      findsOneWidget,
+    );
+  });
+
+  // AF-23d — a Scope Admin never sees the permanent deletion.
+  testWidgets('GivenAScopeAdmin_WhenOpened_ThenOnlyTheLogicalOneIsOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+      findsNothing,
+    );
+  });
+
+  // AF-22d — a deleted application has nothing left to delete.
+  testWidgets('GivenADeletedApplication_WhenOpened_ThenDeletionIsNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_deleted));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+      findsNothing,
+    );
+  });
+
+  testWidgets('GivenTheDeleteControl_WhenTapped_ThenConfirmationIsAsked', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+
+    // Then
+    expect(find.text('Delete Billing?'), findsOneWidget);
+  });
+
+  testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenItIsDeleted', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => applications.delete(scopeId: 'scope-1', id: 'app-1'),
+    ).called(1);
+  });
+
+  testWidgets('GivenADeletedApplication_WhenDeleted_ThenTheListingOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // AF-23a — the dialog closes and nothing is sent.
+  testWidgets('GivenTheDeleteDialog_WhenCancelled_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(
+      () => applications.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    );
+  });
+
+  // AF-23b — the API refused, and the application stays open.
+  testWidgets('GivenARefusedDeletion_WhenConfirmed_ThenApiErrorsAreShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['That application is still in use.'],
+        ),
+      ),
+    );
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('That application is still in use.'), findsOneWidget);
+  });
+
+  // AF-23c — the confirm control stays disabled until the name matches.
+  testWidgets('GivenTheHardDeleteDialog_WhenOpened_ThenConfirmIsDisabled', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+
+    // Then
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Delete permanently').last,
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenAMistypedName_WhenTyped_ThenConfirmStaysDisabled', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+
+    // When
+    await tester.enterText(find.byType(TextField).last, 'billing');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Delete permanently').last,
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenTheTypedName_WhenItMatches_ThenTheApplicationIsErased', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerHardDeleteWith(const Success<void>(null));
+    answerListWith();
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(FilledButton, 'Delete permanently'),
+    );
+    await tester.enterText(find.byType(TextField).last, 'Billing');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'Delete permanently').last,
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => applications.hardDelete(scopeId: 'scope-1', id: 'app-1'),
+    ).called(1);
   });
 }

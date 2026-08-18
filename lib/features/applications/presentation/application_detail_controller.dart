@@ -44,6 +44,11 @@ final class ApplicationDetailUnavailable extends ApplicationDetailState {
   bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
+/// The application is gone, and the screen returns to the listing.
+final class ApplicationDeleted extends ApplicationDetailState {
+  const ApplicationDeleted();
+}
+
 /// The record is on screen.
 final class ApplicationDetailLoaded extends ApplicationDetailState {
   const ApplicationDetailLoaded(
@@ -51,12 +56,20 @@ final class ApplicationDetailLoaded extends ApplicationDetailState {
     this.saving = false,
     this.saveFailure,
     this.saved = false,
+    this.deleting = false,
+    this.deleteFailure,
   });
 
   final Application application;
   final bool saving;
   final Failure? saveFailure;
   final bool saved;
+
+  /// A deletion is on its way. Both controls are disabled while it is.
+  final bool deleting;
+
+  /// AF-23b — the API refused to delete, and the application stays open.
+  final Failure? deleteFailure;
 
   /// AF-22d — a logically deleted application is shown, but nothing about it
   /// may be changed from here.
@@ -68,11 +81,18 @@ final class ApplicationDetailLoaded extends ApplicationDetailState {
     Failure? saveFailure,
     bool clearSaveFailure = false,
     bool? saved,
+    bool? deleting,
+    Failure? deleteFailure,
+    bool clearDeleteFailure = false,
   }) => ApplicationDetailLoaded(
     application ?? this.application,
     saving: saving ?? this.saving,
     saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     saved: saved ?? this.saved,
+    deleting: deleting ?? this.deleting,
+    deleteFailure: clearDeleteFailure
+        ? null
+        : (deleteFailure ?? this.deleteFailure),
   );
 }
 
@@ -156,6 +176,44 @@ class ApplicationDetailController
   void acknowledgeSave() {
     if (state case final ApplicationDetailLoaded loaded) {
       state = loaded.copyWith(saved: false);
+    }
+  }
+
+  /// Logically deletes the application. The record is kept and the API can
+  /// restore it, which is what the confirmation says before this is called.
+  Future<void> delete() => _delete(
+    (repository) =>
+        repository.delete(scopeId: arg.scopeId, id: arg.applicationId),
+  );
+
+  /// Permanently deletes the application.
+  Future<void> deletePermanently() => _delete(
+    (repository) =>
+        repository.hardDelete(scopeId: arg.scopeId, id: arg.applicationId),
+  );
+
+  Future<void> _delete(
+    Future<Result<void>> Function(ApplicationRepository repository) send,
+  ) async {
+    final current = state;
+
+    if (current is! ApplicationDetailLoaded || current.deleting) {
+      return;
+    }
+
+    state = current.copyWith(deleting: true, clearDeleteFailure: true);
+
+    final result = await send(ref.read(applicationRepositoryProvider));
+
+    switch (result) {
+      case Success<void>():
+        state = const ApplicationDeleted();
+      case FailureResult<void>(:final failure):
+        // Somebody already deleted it, which is the outcome that was asked
+        // for.
+        state = failure.kind == FailureKind.notFound
+            ? const ApplicationDeleted()
+            : current.copyWith(deleting: false, deleteFailure: failure);
     }
   }
 }
