@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -50,6 +52,24 @@ void main() {
         scopeId: any(named: 'scopeId'),
         id: any(named: 'id'),
         includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(
+      () => repository.hardDelete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -275,5 +295,105 @@ void main() {
 
     // Then
     expect(other, isA<ApplicationDetailLoading>());
+  });
+
+  test('GivenAnOpenApplication_WhenDeleted_ThenItIsDeleted', () async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'app-1')).called(1);
+    expect(currentState(), isA<ApplicationDeleted>());
+  });
+
+  test('GivenAnOpenApplication_WhenErased_ThenTheHardEndpointIsUsed', () async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerHardDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.deletePermanently();
+
+    // Then
+    verify(
+      () => repository.hardDelete(scopeId: 'scope-1', id: 'app-1'),
+    ).called(1);
+  });
+
+  // AF-23b — the API refused, and the application stays open.
+  test('GivenARefusedDeletion_WhenDeleted_ThenItStaysOpen', () async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['That application is still in use.'],
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    final state = currentState() as ApplicationDetailLoaded;
+    expect(state.deleteFailure?.errors, <String>[
+      'That application is still in use.',
+    ]);
+  });
+
+  test(
+    'GivenAnAlreadyDeletedApplication_WhenDeleted_ThenItCountsAsDone',
+    () async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      answerDeleteWith(
+        const FailureResult<void>(
+          Failure(kind: FailureKind.notFound, errors: <String>[]),
+        ),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.delete();
+
+      // Then
+      expect(currentState(), isA<ApplicationDeleted>());
+    },
+  );
+
+  test('GivenADeletionInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    final pending = Completer<Result<void>>();
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final first = controller.delete();
+    final second = controller.delete();
+    pending.complete(const Success<void>(null));
+    await Future.wait<void>(<Future<void>>[first, second]);
+
+    // Then
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'app-1')).called(1);
   });
 }

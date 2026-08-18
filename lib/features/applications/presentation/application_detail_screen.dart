@@ -5,11 +5,15 @@ import 'package:go_router/go_router.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_members.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 import '../domain/application.dart';
 import 'application_detail_controller.dart';
+import 'application_list_controller.dart';
 
 /// UI-22 — one application: what it is called and who owns it.
 class ApplicationDetailScreen extends ConsumerStatefulWidget {
@@ -75,6 +79,51 @@ class _ApplicationDetailScreenState
       _name.text.trim() != application.name ||
       (_ownerId ?? '') != application.ownerId;
 
+  /// AF-23d — only a System Admin erases an application permanently.
+  bool get _maySeeHardDelete {
+    final session = ref.watch(sessionControllerProvider);
+
+    return session is Authenticated && session.principal.isSystemAdmin;
+  }
+
+  /// AF-23a — a dialog the user closes sends nothing.
+  Future<void> _confirmDelete(Application application) async {
+    final confirmed = await showConfirm(
+      context: context,
+      title: 'Delete ${application.name}?',
+      message:
+          '${application.name} will be marked deleted. The record is '
+          'kept and the API can restore it.',
+      confirmLabel: 'Delete',
+    );
+
+    if (confirmed && mounted) {
+      await ref
+          .read(applicationDetailControllerProvider(_ref).notifier)
+          .delete();
+    }
+  }
+
+  /// AF-23c — the confirm control stays disabled until the name matches.
+  Future<void> _confirmDeletePermanently(Application application) async {
+    final confirmed = await showTypeToConfirm(
+      context: context,
+      title: 'Delete ${application.name} permanently?',
+      message:
+          'The application and everything recorded against it are '
+          'erased. This cannot be undone. Type its name to confirm:',
+      confirmationValue: application.name,
+      fieldLabel: 'Application name',
+      confirmLabel: 'Delete permanently',
+    );
+
+    if (confirmed && mounted) {
+      await ref
+          .read(applicationDetailControllerProvider(_ref).notifier)
+          .deletePermanently();
+    }
+  }
+
   Future<void> _save() async {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -98,6 +147,19 @@ class _ApplicationDetailScreenState
       applicationDetailControllerProvider(_ref).notifier,
     );
     final backToListing = '/scopes/${widget.scopeId}/applications';
+
+    // A deleted application returns to the listing, which is now stale.
+    ref.listen<ApplicationDetailState>(
+      applicationDetailControllerProvider(_ref),
+      (previous, next) {
+        if (next is ApplicationDeleted) {
+          ref
+              .read(applicationListControllerProvider(widget.scopeId).notifier)
+              .load();
+          context.go(backToListing);
+        }
+      },
+    );
 
     return AppShell(
       currentRoute: '/scopes',
@@ -139,6 +201,11 @@ class _ApplicationDetailScreenState
         ApplicationDetailUnavailable(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: controller.load,
+        ),
+        // The listing is where a deleted application leaves the user; this is
+        // the frame in between.
+        ApplicationDeleted() => const Center(
+          child: CircularProgressIndicator(),
         ),
         final ApplicationDetailLoaded loaded => _detail(loaded),
       },
@@ -221,6 +288,18 @@ class _ApplicationDetailScreenState
                   ],
                 ),
               ),
+              // AF-22d leaves a deleted application nothing left to delete.
+              if (!state.isReadOnly) ...<Widget>[
+                const SizedBox(height: 24),
+                _DangerZone(
+                  application: application,
+                  deleting: state.deleting,
+                  failure: state.deleteFailure,
+                  mayDeletePermanently: _maySeeHardDelete,
+                  onDelete: _confirmDelete,
+                  onDeletePermanently: _confirmDeletePermanently,
+                ),
+              ],
               const SizedBox(height: 24),
               Card(
                 child: Padding(
@@ -376,4 +455,81 @@ class _Fact extends StatelessWidget {
       ],
     ),
   );
+}
+
+/// The two deletions, kept apart from the rest of the screen because neither
+/// is an ordinary edit.
+class _DangerZone extends StatelessWidget {
+  const _DangerZone({
+    required this.application,
+    required this.deleting,
+    required this.failure,
+    required this.mayDeletePermanently,
+    required this.onDelete,
+    required this.onDeletePermanently,
+  });
+
+  final Application application;
+  final bool deleting;
+  final Failure? failure;
+
+  /// AF-23d — a Scope Admin never sees the permanent deletion.
+  final bool mayDeletePermanently;
+
+  final Future<void> Function(Application application) onDelete;
+  final Future<void> Function(Application application) onDeletePermanently;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      color: theme.colorScheme.errorContainer,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Delete this application',
+              style: theme.textTheme.titleMedium?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Deleting keeps the record and can be undone by the API. '
+              'Deleting permanently erases it.',
+              style: TextStyle(color: theme.colorScheme.onErrorContainer),
+            ),
+            // AF-23b — the API refused, and the application is still open.
+            if (failure case final refusal?) ...<Widget>[
+              const SizedBox(height: 16),
+              ErrorBanner(failure: refusal),
+            ],
+            const SizedBox(height: 16),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: <Widget>[
+                OutlinedButton.icon(
+                  onPressed: deleting ? null : () => onDelete(application),
+                  icon: const Icon(Icons.delete_outline),
+                  label: const Text('Delete application'),
+                ),
+                if (mayDeletePermanently)
+                  FilledButton.icon(
+                    onPressed: deleting
+                        ? null
+                        : () => onDeletePermanently(application),
+                    icon: const Icon(Icons.delete_forever_outlined),
+                    label: const Text('Delete permanently'),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
