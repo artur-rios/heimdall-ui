@@ -12,6 +12,7 @@ import '../features/auth/presentation/password_reset_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
+import '../features/health/presentation/health_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
 import '../features/google_users/presentation/google_user_list_screen.dart';
@@ -209,6 +210,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           personId: state.pathParameters['personId']!,
         ),
+      ),
+      GoRoute(
+        path: '/health',
+        builder: (context, state) => const HealthScreen(),
       ),
       GoRoute(
         path: '/not-available',
