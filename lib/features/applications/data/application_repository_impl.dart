@@ -1,0 +1,78 @@
+import 'package:dio/dio.dart';
+import 'package:heimdall_api_client/export.dart';
+
+import '../../../core/network/envelope.dart';
+import '../../../core/result/result.dart';
+import '../domain/application.dart';
+import '../domain/application_repository.dart';
+
+/// [ApplicationRepository] over the generated client.
+class ApiApplicationRepository implements ApplicationRepository {
+  const ApiApplicationRepository(this._client);
+
+  final ApplicationClient _client;
+
+  @override
+  Future<Result<Page<Application>>> list({
+    required String scopeId,
+    String? name,
+    String? ownerId,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _client.applicationList(
+        scopeId: scopeId,
+        // An empty filter is no filter: sending it would ask the API to match
+        // the empty string rather than to stop filtering.
+        name: _filter(name),
+        ownerId: _filter(ownerId),
+        includeDeleted: includeDeleted,
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Page<Application>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final items = (response.data ?? const <ApplicationOutput>[])
+          .map(applicationFromOutput)
+          .toList(growable: false);
+
+      return Success<Page<Application>>(
+        Page<Application>(
+          items: items,
+          pageNumber: response.pageNumber ?? pageNumber,
+          pageSize: response.pageSize ?? pageSize,
+          totalItems: response.totalItems ?? items.length,
+          totalPages: response.totalPages ?? 1,
+        ),
+      );
+    } on DioException catch (error) {
+      // AF-20b and AF-20c depend on this: a transport failure and a `403` are
+      // different panels, and only the kind tells them apart.
+      return FailureResult<Page<Application>>(failureFromDioException(error));
+    }
+  }
+
+  static String? _filter(String? value) =>
+      (value?.trim().isEmpty ?? true) ? null : value!.trim();
+}
+
+/// Maps the generated output onto the domain entity.
+Application applicationFromOutput(ApplicationOutput output) => Application(
+  id: output.id ?? '',
+  name: output.name ?? '',
+  ownerId: output.ownerId ?? '',
+  scopeId: output.scopeId,
+  isDeleted: output.isDeleted ?? false,
+  createdAt: output.createdAt,
+  updatedAt: output.updatedAt,
+);
