@@ -61,7 +61,62 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       );
     }
   }
+
+  @override
+  Future<Result<ScopePermission>> create({
+    required String scopeId,
+    required String name,
+    required String description,
+    required bool includeAsJwtClaim,
+  }) async {
+    try {
+      final response = await _client.scopePermissionCreate(
+        scopeId: scopeId,
+        body: CreateScopePermissionCommand(
+          name: name,
+          description: description,
+          includeAsJwtClaim: includeAsJwtClaim,
+        ),
+      );
+
+      if (response.success != true) {
+        // AF-25b: a name already used in this scope, in the API's own words.
+        return FailureResult<ScopePermission>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<ScopePermission>(_incompleteResponse);
+      }
+
+      return Success<ScopePermission>(
+        ScopePermission(
+          id: data.id ?? '',
+          name: data.name ?? name,
+          description: data.description ?? description,
+          includeAsJwtClaim: data.includeAsJwtClaim ?? includeAsJwtClaim,
+          scopeId: data.scopeId ?? scopeId,
+          createdAt: data.createdAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<ScopePermission>(failureFromDioException(error));
+    }
+  }
 }
+
+/// A successful envelope that nonetheless lacks what the flow needs. It should
+/// not happen; saying so plainly beats a null dereference if it ever does.
+const Failure _incompleteResponse = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>['The API returned an incomplete response.'],
+);
 
 /// Maps the generated output onto the domain entity.
 ScopePermission scopePermissionFromOutput(ScopePermissionOutput output) =>
