@@ -109,6 +109,95 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       return FailureResult<ScopePermission>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<ScopePermission>> getById({
+    required String scopeId,
+    required String id,
+    bool includeDeleted = true,
+  }) async {
+    try {
+      final response = await _client.scopePermissionGetById(
+        scopeId: scopeId,
+        id: id,
+        includeDeleted: includeDeleted,
+      );
+
+      if (response.success != true) {
+        return FailureResult<ScopePermission>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<ScopePermission>(_incompleteResponse);
+      }
+
+      return Success<ScopePermission>(scopePermissionFromOutput(data));
+    } on DioException catch (error) {
+      // AF-26a and AF-26b depend on this: a `404` and a `403` are different
+      // panels, and only the kind tells them apart.
+      return FailureResult<ScopePermission>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<ScopePermission>> update({
+    required String scopeId,
+    required String id,
+    required String name,
+    required String description,
+    required bool includeAsJwtClaim,
+  }) async {
+    try {
+      final response = await _client.scopePermissionUpdate(
+        scopeId: scopeId,
+        id: id,
+        body: UpdateScopePermissionCommand(
+          name: name,
+          description: description,
+          includeAsJwtClaim: includeAsJwtClaim,
+        ),
+      );
+
+      if (response.success != true) {
+        // AF-26c: a duplicate name, in the API's own words.
+        return FailureResult<ScopePermission>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<ScopePermission>(_incompleteResponse);
+      }
+
+      // The update endpoint answers with its own output type, which carries no
+      // `isDeleted`: a permission the API just updated is not a deleted one.
+      return Success<ScopePermission>(
+        ScopePermission(
+          id: data.id ?? id,
+          name: data.name ?? name,
+          description: data.description ?? description,
+          includeAsJwtClaim: data.includeAsJwtClaim ?? includeAsJwtClaim,
+          scopeId: data.scopeId ?? scopeId,
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<ScopePermission>(failureFromDioException(error));
+    }
+  }
 }
 
 /// A successful envelope that nonetheless lacks what the flow needs. It should
