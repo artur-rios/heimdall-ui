@@ -42,6 +42,17 @@ abstract interface class ScopePermissionRepository {
     required String description,
     required bool includeAsJwtClaim,
   });
+
+  /// Logically deletes a permission. The record is kept and the API can
+  /// restore it.
+  Future<Result<void>> delete({required String scopeId, required String id});
+
+  /// Permanently deletes a permission. Only a System Admin may, which is why
+  /// UI-27 shows the control to nobody else.
+  Future<Result<void>> hardDelete({
+    required String scopeId,
+    required String id,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests

@@ -44,6 +44,11 @@ final class PermissionDetailUnavailable extends PermissionDetailState {
   bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
+/// The permission is gone, and the screen returns to the listing.
+final class PermissionDeleted extends PermissionDetailState {
+  const PermissionDeleted();
+}
+
 /// The record is on screen.
 final class PermissionDetailLoaded extends PermissionDetailState {
   const PermissionDetailLoaded(
@@ -52,12 +57,20 @@ final class PermissionDetailLoaded extends PermissionDetailState {
     this.saveFailure,
     this.saved = false,
     this.claimChanged = false,
+    this.deleting = false,
+    this.deleteFailure,
   });
 
   final ScopePermission permission;
   final bool saving;
   final Failure? saveFailure;
   final bool saved;
+
+  /// A deletion is on its way. Both controls are disabled while it is.
+  final bool deleting;
+
+  /// AF-27b — the API refused to delete, and the permission stays open.
+  final Failure? deleteFailure;
 
   /// AF-26e — the claim flag differs from what it was before the save, which
   /// is what the confirmation has to explain.
@@ -74,12 +87,19 @@ final class PermissionDetailLoaded extends PermissionDetailState {
     bool clearSaveFailure = false,
     bool? saved,
     bool? claimChanged,
+    bool? deleting,
+    Failure? deleteFailure,
+    bool clearDeleteFailure = false,
   }) => PermissionDetailLoaded(
     permission ?? this.permission,
     saving: saving ?? this.saving,
     saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     saved: saved ?? this.saved,
     claimChanged: claimChanged ?? this.claimChanged,
+    deleting: deleting ?? this.deleting,
+    deleteFailure: clearDeleteFailure
+        ? null
+        : (deleteFailure ?? this.deleteFailure),
   );
 }
 
@@ -173,6 +193,44 @@ class PermissionDetailController
   void acknowledgeSave() {
     if (state case final PermissionDetailLoaded loaded) {
       state = loaded.copyWith(saved: false, claimChanged: false);
+    }
+  }
+
+  /// Logically deletes the permission. The record is kept and the API can
+  /// restore it, which is what the confirmation says before this is called.
+  Future<void> delete() => _delete(
+    (repository) =>
+        repository.delete(scopeId: arg.scopeId, id: arg.permissionId),
+  );
+
+  /// Permanently deletes the permission.
+  Future<void> deletePermanently() => _delete(
+    (repository) =>
+        repository.hardDelete(scopeId: arg.scopeId, id: arg.permissionId),
+  );
+
+  Future<void> _delete(
+    Future<Result<void>> Function(ScopePermissionRepository repository) send,
+  ) async {
+    final current = state;
+
+    if (current is! PermissionDetailLoaded || current.deleting) {
+      return;
+    }
+
+    state = current.copyWith(deleting: true, clearDeleteFailure: true);
+
+    final result = await send(ref.read(scopePermissionRepositoryProvider));
+
+    switch (result) {
+      case Success<void>():
+        state = const PermissionDeleted();
+      case FailureResult<void>(:final failure):
+        // Somebody already deleted it, which is the outcome that was asked
+        // for.
+        state = failure.kind == FailureKind.notFound
+            ? const PermissionDeleted()
+            : current.copyWith(deleting: false, deleteFailure: failure);
     }
   }
 }
