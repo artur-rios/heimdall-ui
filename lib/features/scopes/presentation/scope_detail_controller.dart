@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
 import '../domain/scope.dart';
+import '../domain/scope_repository.dart';
 import 'scope_list_controller.dart';
 
 /// How far the scope detail has got.
@@ -27,6 +28,14 @@ final class ScopeDetailUnavailable extends ScopeDetailState {
   bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
+/// The scope is gone, and the screen returns to the listing.
+///
+/// AF-13d lands here too: a `404` means somebody already deleted it, which is
+/// the outcome that was asked for rather than a failure.
+final class ScopeDeleted extends ScopeDetailState {
+  const ScopeDeleted();
+}
+
 /// The record is on screen.
 final class ScopeDetailLoaded extends ScopeDetailState {
   const ScopeDetailLoaded(
@@ -34,12 +43,21 @@ final class ScopeDetailLoaded extends ScopeDetailState {
     this.saving = false,
     this.saveFailure,
     this.saved = false,
+    this.deleting = false,
+    this.deleteFailure,
   });
 
   final Scope scope;
   final bool saving;
   final Failure? saveFailure;
   final bool saved;
+
+  /// A deletion is on its way. Both controls are disabled while it is, so a
+  /// second tap cannot send a second request.
+  final bool deleting;
+
+  /// AF-13b — the API refused to delete, and the scope stays open.
+  final Failure? deleteFailure;
 
   /// AF-12d — a logically deleted scope is shown, but nothing about it may be
   /// changed from here.
@@ -51,11 +69,18 @@ final class ScopeDetailLoaded extends ScopeDetailState {
     Failure? saveFailure,
     bool clearSaveFailure = false,
     bool? saved,
+    bool? deleting,
+    Failure? deleteFailure,
+    bool clearDeleteFailure = false,
   }) => ScopeDetailLoaded(
     scope ?? this.scope,
     saving: saving ?? this.saving,
     saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     saved: saved ?? this.saved,
+    deleting: deleting ?? this.deleting,
+    deleteFailure: clearDeleteFailure
+        ? null
+        : (deleteFailure ?? this.deleteFailure),
   );
 }
 
@@ -127,6 +152,40 @@ class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
   void acknowledgeSave() {
     if (state case final ScopeDetailLoaded loaded) {
       state = loaded.copyWith(saved: false);
+    }
+  }
+
+  /// Logically deletes the scope. The record is kept and the API can restore
+  /// it, which is what the confirmation says before this is called.
+  Future<void> delete() => _delete((repository) => repository.delete(arg));
+
+  /// Permanently deletes the scope and everything it holds.
+  Future<void> deletePermanently() =>
+      _delete((repository) => repository.hardDelete(arg));
+
+  Future<void> _delete(
+    Future<Result<void>> Function(ScopeRepository repository) send,
+  ) async {
+    final current = state;
+
+    if (current is! ScopeDetailLoaded || current.deleting) {
+      return;
+    }
+
+    state = current.copyWith(deleting: true, clearDeleteFailure: true);
+
+    final result = await send(ref.read(scopeRepositoryProvider));
+
+    switch (result) {
+      case Success<void>():
+        state = const ScopeDeleted();
+      case FailureResult<void>(:final failure):
+        // AF-13d: the scope is already gone, which is the outcome that was
+        // asked for. Reporting it as a failure would ask the user to delete
+        // something that no longer exists.
+        state = failure.kind == FailureKind.notFound
+            ? const ScopeDeleted()
+            : current.copyWith(deleting: false, deleteFailure: failure);
     }
   }
 }

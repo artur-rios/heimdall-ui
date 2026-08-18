@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -48,6 +50,14 @@ void main() {
         includeDeleted: any(named: 'includeDeleted'),
       ),
     ).thenAnswer((_) async => result);
+  }
+
+  void answerDeleteWith(Result<void> result) {
+    when(() => repository.delete(any())).thenAnswer((_) async => result);
+  }
+
+  void answerHardDeleteWith(Result<void> result) {
+    when(() => repository.hardDelete(any())).thenAnswer((_) async => result);
   }
 
   void answerUpdateWith(Result<Scope> result) {
@@ -261,5 +271,99 @@ void main() {
     final state = currentState() as ScopeDetailUnavailable;
     expect(state.isNotFound, isFalse);
     expect(state.isForbidden, isFalse);
+  });
+
+  test('GivenAnOpenScope_WhenDeleted_ThenTheScopeIsDeleted', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerDeleteWith(const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    verify(() => repository.delete('scope-1')).called(1);
+    expect(currentState(), isA<ScopeDeleted>());
+  });
+
+  test(
+    'GivenAnOpenScope_WhenDeletedPermanently_ThenTheHardEndpointIsUsed',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      answerHardDeleteWith(const Success<void>(null));
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.deletePermanently();
+
+      // Then
+      verify(() => repository.hardDelete('scope-1')).called(1);
+    },
+  );
+
+  // AF-13b — the API refused, and the scope stays open.
+  test('GivenARefusedDeletion_WhenDeleted_ThenTheScopeStaysOpen', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['The scope still holds users.'],
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    final state = currentState() as ScopeDetailLoaded;
+    expect(state.deleteFailure?.errors, <String>[
+      'The scope still holds users.',
+    ]);
+  });
+
+  // AF-13d — already deleted is the outcome that was asked for.
+  test('GivenAnAlreadyDeletedScope_WhenDeleted_ThenItCountsAsDone', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerDeleteWith(
+      const FailureResult<void>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.delete();
+
+    // Then
+    expect(currentState(), isA<ScopeDeleted>());
+  });
+
+  test('GivenADeletionInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<void>>();
+    when(() => repository.delete(any())).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final first = controller.delete();
+    final second = controller.delete();
+    pending.complete(const Success<void>(null));
+    await Future.wait<void>(<Future<void>>[first, second]);
+
+    // Then
+    verify(() => repository.delete('scope-1')).called(1);
   });
 }
