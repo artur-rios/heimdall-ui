@@ -1,0 +1,77 @@
+import 'package:dio/dio.dart';
+import 'package:heimdall_api_client/export.dart';
+
+import '../../../core/network/envelope.dart';
+import '../../../core/result/result.dart';
+import '../domain/scope_permission.dart';
+import '../domain/scope_permission_repository.dart';
+
+/// [ScopePermissionRepository] over the generated client.
+class ApiScopePermissionRepository implements ScopePermissionRepository {
+  const ApiScopePermissionRepository(this._client);
+
+  final ScopePermissionClient _client;
+
+  @override
+  Future<Result<Page<ScopePermission>>> list({
+    required String scopeId,
+    String? name,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _client.scopePermissionList(
+        scopeId: scopeId,
+        // An empty filter is no filter: sending it would ask the API to match
+        // the empty string rather than to stop filtering.
+        name: (name?.trim().isEmpty ?? true) ? null : name!.trim(),
+        includeDeleted: includeDeleted,
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Page<ScopePermission>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final items = (response.data ?? const <ScopePermissionOutput>[])
+          .map(scopePermissionFromOutput)
+          .toList(growable: false);
+
+      return Success<Page<ScopePermission>>(
+        Page<ScopePermission>(
+          items: items,
+          pageNumber: response.pageNumber ?? pageNumber,
+          pageSize: response.pageSize ?? pageSize,
+          totalItems: response.totalItems ?? items.length,
+          totalPages: response.totalPages ?? 1,
+        ),
+      );
+    } on DioException catch (error) {
+      // AF-24b and AF-24c depend on this: a transport failure and a `403` are
+      // different panels, and only the kind tells them apart.
+      return FailureResult<Page<ScopePermission>>(
+        failureFromDioException(error),
+      );
+    }
+  }
+}
+
+/// Maps the generated output onto the domain entity.
+ScopePermission scopePermissionFromOutput(ScopePermissionOutput output) =>
+    ScopePermission(
+      id: output.id ?? '',
+      name: output.name ?? '',
+      description: output.description ?? '',
+      includeAsJwtClaim: output.includeAsJwtClaim ?? false,
+      scopeId: output.scopeId,
+      isDeleted: output.isDeleted ?? false,
+      createdAt: output.createdAt,
+      updatedAt: output.updatedAt,
+    );

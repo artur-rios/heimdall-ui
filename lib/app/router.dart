@@ -13,6 +13,7 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/permissions/presentation/permission_list_screen.dart';
 import '../features/persons/presentation/person_create_screen.dart';
 import '../features/persons/presentation/person_detail_screen.dart';
 import '../features/persons/presentation/person_list_screen.dart';
@@ -153,6 +154,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           applicationId: state.pathParameters['applicationId']!,
         ),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/permissions',
+        builder: (context, state) =>
+            PermissionListScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
         path: '/scopes/:scopeId/owners',
