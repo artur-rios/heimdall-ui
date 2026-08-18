@@ -35,6 +35,17 @@ class AdaptiveScaffold extends StatelessWidget {
         ? AppBar(title: title, actions: actions)
         : null;
 
+    // One destination is not navigation, and both Material controls assert on
+    // fewer than two. A plain User is offered only their own profile, so this
+    // is an ordinary case rather than a defensive one.
+    if (destinations.length < 2) {
+      return Scaffold(
+        appBar: appBar,
+        body: SafeArea(child: body),
+        floatingActionButton: floatingActionButton,
+      );
+    }
+
     if (breakpoint == Breakpoint.compact) {
       return Scaffold(
         appBar: appBar,

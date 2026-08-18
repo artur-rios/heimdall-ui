@@ -249,7 +249,7 @@ the board is where an item's status changes as it moves.
 
 | Use case | Status | Issue |
 | --- | --- | --- |
-| UI-08: View and edit own profile | ⬜ | [#8](https://github.com/artur-rios/heimdall-ui/issues/8) |
+| UI-08: View and edit own profile | ✅ | [#8](https://github.com/artur-rios/heimdall-ui/issues/8) |
 | UI-09: Manage two-factor authentication | ⬜ | [#9](https://github.com/artur-rios/heimdall-ui/issues/9) |
 
 ### Scope Management
