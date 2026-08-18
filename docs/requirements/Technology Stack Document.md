@@ -46,6 +46,7 @@ versions and roles are maintained in exactly one place.
 | **flutter_secure_storage** | `^9.2.4` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted local storage on the web. |
 | **shared_preferences** | `^2.5.3` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
 | **google_sign_in** | `^7.2.0` | Obtains the Google ID token the API exchanges for a Heimdall token. |
+| **qr** | `^4.0.0` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
 
 ---
 
@@ -139,6 +140,7 @@ no test reaches the network.
 | Storage | flutter_secure_storage | `^9.2.4` |
 | Storage | shared_preferences | `^2.5.3` |
 | Authentication | google_sign_in | `^7.2.0` |
+| Encoding | qr | `^4.0.0` |
 | Generation | swagger_parser | `^1.44.1` |
 | Generation | build_runner | `^2.15.1` |
 | Generation | json_serializable | `^6.14.1` |

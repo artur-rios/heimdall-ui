@@ -14,6 +14,7 @@ class PersonOutput {
     this.email,
     this.role,
     this.emailVerified,
+    this.twoFactorEnabled,
     this.isDeleted,
     this.scopeId,
     this.ownedScopeIds,
@@ -29,6 +30,7 @@ class PersonOutput {
   final String? email;
   final int? role;
   final bool? emailVerified;
+  final bool? twoFactorEnabled;
   final bool? isDeleted;
   final String? scopeId;
   final List<String>? ownedScopeIds;

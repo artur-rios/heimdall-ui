@@ -7,6 +7,7 @@ import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 
 void main() {
   late Dio dio;
@@ -954,6 +955,305 @@ void main() {
 
       // Then
       expect(result.failureOrNull?.errors, <String>['Not a Google session.']);
+    },
+  );
+
+  test('GivenAConfiguration_WhenStatusRead_ThenTheFlagsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'isActive': true,
+            'appEnabled': true,
+            'emailEnabled': false,
+            'remainingRecoveryCodes': 7,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.twoFactorStatus();
+
+    // Then
+    expect(result.valueOrNull?.isActive, isTrue);
+    expect(result.valueOrNull?.methods, <TwoFactorMethod>[TwoFactorMethod.app]);
+    expect(result.valueOrNull?.remainingRecoveryCodes, 7);
+  });
+
+  // A Google User is refused permanently, which the screen says rather than
+  // offering a retry — so the kind has to survive.
+  test('GivenAGoogleUser_WhenStatusRead_ThenForbiddenIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 403,
+        body: <String, dynamic>{'success': false, 'errors': <String>[]},
+      ),
+    );
+
+    // When
+    final result = await repository.twoFactorStatus();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.forbidden);
+  });
+
+  test('GivenTheAppMethod_WhenEnabled_ThenItsWireValueIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'otpAuthUri': 'otpauth://totp/x?secret=A'},
+        },
+      ),
+    );
+
+    // When
+    await repository.enableTwoFactor(TwoFactorMethod.app);
+
+    // Then
+    expect(adapter.requests.single['methods'], <String>['App']);
+  });
+
+  test('GivenTheAppMethod_WhenEnabled_ThenTheUriIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'otpAuthUri': 'otpauth://totp/x?secret=JBSWY3DPEHPK3PXP',
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.enableTwoFactor(TwoFactorMethod.app);
+
+    // Then
+    expect(result.valueOrNull?.secret, 'JBSWY3DPEHPK3PXP');
+  });
+
+  test('GivenTheEmailMethod_WhenEnabled_ThenTheCodeSentFlagIsRead', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'emailCodeSent': true},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.enableTwoFactor(TwoFactorMethod.email);
+
+    // Then
+    expect(result.valueOrNull?.emailCodeSent, isTrue);
+    expect(result.valueOrNull?.otpAuthUri, isNull);
+  });
+
+  // The command takes the two methods in separate fields; the wrong one would
+  // have the API check the code against the wrong secret.
+  test('GivenAnAppCode_WhenConfirmed_ThenItTravelsAsTheAppCode', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'enabled': true,
+            'recoveryCodes': <String>['aaa', 'bbb'],
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.confirmTwoFactor(
+      method: TwoFactorMethod.app,
+      code: '123456',
+    );
+
+    // Then
+    expect(adapter.requests.single['appCode'], '123456');
+    expect(adapter.requests.single['emailCode'], isNull);
+  });
+
+  test('GivenAnEmailCode_WhenConfirmed_ThenItTravelsAsTheEmailCode', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'enabled': true,
+            'recoveryCodes': <String>['aaa'],
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.confirmTwoFactor(
+      method: TwoFactorMethod.email,
+      code: '654321',
+    );
+
+    // Then
+    expect(adapter.requests.single['emailCode'], '654321');
+    expect(adapter.requests.single['appCode'], isNull);
+  });
+
+  test('GivenAConfirmedSetup_WhenConfirmed_ThenTheCodesAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'enabled': true,
+            'recoveryCodes': <String>['aaa', 'bbb', 'ccc'],
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.confirmTwoFactor(
+      method: TwoFactorMethod.app,
+      code: '123456',
+    );
+
+    // Then
+    expect(result.valueOrNull, <String>['aaa', 'bbb', 'ccc']);
+  });
+
+  // AF-09a — the code was wrong, and the API's own words say so.
+  test('GivenAWrongCode_WhenConfirmed_ThenApiErrorsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['That code is not correct.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.confirmTwoFactor(
+      method: TwoFactorMethod.app,
+      code: '000000',
+    );
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>['That code is not correct.']);
+  });
+
+  test('GivenAPassword_WhenDisabled_ThenOnlyThatFieldIsFilled', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'disabled': true},
+        },
+      ),
+    );
+
+    // When
+    await repository.disableTwoFactor(password: 'secret');
+
+    // Then
+    expect(adapter.requests.single['password'], 'secret');
+    expect(adapter.requests.single['code'], isNull);
+    expect(adapter.requests.single['recoveryCode'], isNull);
+  });
+
+  // AF-09d — the API rejected the credential, and the feature stays on.
+  test('GivenABadCredential_WhenDisabled_ThenApiErrorsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['That password is not correct.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.disableTwoFactor(password: 'wrong');
+
+    // Then
+    expect(result.failureOrNull?.errors, <String>[
+      'That password is not correct.',
+    ]);
+  });
+
+  test(
+    'GivenARecoveryCode_WhenRegenerated_ThenTheNewCodesAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'recoveryCodes': <String>['xxx', 'yyy'],
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.regenerateRecoveryCodes(
+        recoveryCode: 'old-one',
+      );
+
+      // Then
+      expect(result.valueOrNull, <String>['xxx', 'yyy']);
+      expect(adapter.requests.single['recoveryCode'], 'old-one');
+    },
+  );
+
+  test(
+    'GivenNoConnection_WhenStatusRead_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.twoFactorStatus();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
 }

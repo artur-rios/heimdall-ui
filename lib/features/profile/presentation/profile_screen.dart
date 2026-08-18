@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -123,6 +124,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 Text('Your details', style: theme.textTheme.headlineSmall),
                 const SizedBox(height: 16),
                 _Facts(person: person),
+                const SizedBox(height: 16),
+                // UI-09 lives on its own screen: two-factor setup has states
+                // of its own that have no business interrupting an edit here.
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.shield_outlined),
+                    title: const Text('Security'),
+                    subtitle: const Text(
+                      'Two-factor authentication and recovery codes.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => context.go('/profile/security'),
+                  ),
+                ),
                 const SizedBox(height: 24),
                 if (state.saveFailure != null) ...<Widget>[
                   if (state.saveFailure!.kind == FailureKind.network)

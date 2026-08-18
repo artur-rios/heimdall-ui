@@ -12,6 +12,7 @@ PersonOutput _$PersonOutputFromJson(Map<String, dynamic> json) => PersonOutput(
   email: json['email'] as String?,
   role: (json['role'] as num?)?.toInt(),
   emailVerified: json['emailVerified'] as bool?,
+  twoFactorEnabled: json['twoFactorEnabled'] as bool?,
   isDeleted: json['isDeleted'] as bool?,
   scopeId: json['scopeId'] as String?,
   ownedScopeIds: (json['ownedScopeIds'] as List<dynamic>?)
@@ -32,6 +33,7 @@ Map<String, dynamic> _$PersonOutputToJson(PersonOutput instance) =>
       'email': instance.email,
       'role': instance.role,
       'emailVerified': instance.emailVerified,
+      'twoFactorEnabled': instance.twoFactorEnabled,
       'isDeleted': instance.isDeleted,
       'scopeId': instance.scopeId,
       'ownedScopeIds': instance.ownedScopeIds,
