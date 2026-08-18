@@ -29,4 +29,18 @@ abstract interface class ScopeRepository {
     required String description,
     required List<String> ownerIds,
   });
+
+  /// Reads one scope.
+  ///
+  /// [includeDeleted] is on by default for the detail screen: AF-12d shows a
+  /// logically deleted scope read-only, and it cannot do that if the API is
+  /// asked to pretend the scope is gone.
+  Future<Result<Scope>> getById(String id, {bool includeDeleted = true});
+
+  /// Updates a scope's name and description.
+  Future<Result<Scope>> update({
+    required String id,
+    required String name,
+    required String description,
+  });
 }
