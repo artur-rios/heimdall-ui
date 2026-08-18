@@ -15,6 +15,8 @@ import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
 import 'features/persons/data/person_repository_impl.dart';
 import 'features/profile/presentation/profile_controller.dart';
+import 'features/scopes/data/scope_repository_impl.dart';
+import 'features/scopes/presentation/scope_list_controller.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -39,6 +41,9 @@ void main() {
         ),
         personRepositoryProvider.overrideWith(
           (ref) => ApiPersonRepository(PersonClient(ref.watch(dioProvider))),
+        ),
+        scopeRepositoryProvider.overrideWith(
+          (ref) => ApiScopeRepository(ScopeClient(ref.watch(dioProvider))),
         ),
         googleSignInGatewayProvider.overrideWithValue(
           PluginGoogleSignInGateway(
