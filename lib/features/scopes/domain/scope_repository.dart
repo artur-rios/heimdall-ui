@@ -44,6 +44,15 @@ abstract interface class ScopeRepository {
     required String description,
   });
 
+  /// Turns Google Sign-In on or off for a scope.
+  ///
+  /// Returns the scope as the API now holds it, so the control settles on the
+  /// confirmed state rather than on the one it was moved to.
+  Future<Result<Scope>> setGoogleSignIn({
+    required String id,
+    required bool enabled,
+  });
+
   /// Logically deletes a scope. The record is kept and the API can restore it.
   Future<Result<void>> delete(String id);
 

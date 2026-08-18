@@ -189,6 +189,49 @@ class ApiScopeRepository implements ScopeRepository {
   }
 
   @override
+  Future<Result<Scope>> setGoogleSignIn({
+    required String id,
+    required bool enabled,
+  }) async {
+    try {
+      final response = await _client.scopeSetGoogleSignIn(
+        id: id,
+        body: SetGoogleSignInCommand(enabled: enabled),
+      );
+
+      if (response.success != true) {
+        // AF-15a: the API refused, and its own strings say why.
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(_incompleteResponse);
+      }
+
+      return Success<Scope>(
+        Scope(
+          id: data.id ?? id,
+          name: data.name ?? '',
+          description: data.description ?? '',
+          googleSignInEnabled: data.googleSignInEnabled ?? enabled,
+          ownerIds: data.ownerIds ?? const <String>[],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<void>> delete(String id) async {
     try {
       final response = await _client.scopeDelete(id: id);
