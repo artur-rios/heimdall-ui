@@ -60,6 +60,15 @@ void main() {
     when(() => repository.hardDelete(any())).thenAnswer((_) async => result);
   }
 
+  void answerToggleWith(Result<Scope> result) {
+    when(
+      () => repository.setGoogleSignIn(
+        id: any(named: 'id'),
+        enabled: any(named: 'enabled'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
   void answerUpdateWith(Result<Scope> result) {
     when(
       () => repository.update(
@@ -365,5 +374,134 @@ void main() {
 
     // Then
     verify(() => repository.delete('scope-1')).called(1);
+  });
+
+  test('GivenGoogleSignInOff_WhenTurnedOn_ThenTheApiIsAsked', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerToggleWith(
+      const Success<Scope>(
+        Scope(
+          id: 'scope-1',
+          name: 'Acme',
+          description: 'The first tenant',
+          googleSignInEnabled: true,
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.setGoogleSignIn(true);
+
+    // Then
+    verify(
+      () => repository.setGoogleSignIn(id: 'scope-1', enabled: true),
+    ).called(1);
+  });
+
+  test(
+    'GivenAConfirmedToggle_WhenItReturns_ThenTheControlSettlesOnIt',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      answerToggleWith(
+        const Success<Scope>(
+          Scope(
+            id: 'scope-1',
+            name: 'Acme',
+            description: 'The first tenant',
+            googleSignInEnabled: true,
+          ),
+        ),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.setGoogleSignIn(true);
+
+      // Then
+      final state = currentState() as ScopeDetailLoaded;
+      expect(state.scope.googleSignInEnabled, isTrue);
+      expect(state.togglingGoogleSignIn, isFalse);
+    },
+  );
+
+  // AF-15a — the control returns to where the API still has it.
+  test('GivenARefusedToggle_WhenAttempted_ThenTheStateIsUnchanged', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerToggleWith(
+      const FailureResult<Scope>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['That scope is not active.'],
+        ),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.setGoogleSignIn(true);
+
+    // Then
+    final state = currentState() as ScopeDetailLoaded;
+    expect(state.scope.googleSignInEnabled, isFalse);
+    expect(state.googleSignInFailure?.errors, <String>[
+      'That scope is not active.',
+    ]);
+  });
+
+  // AF-15c — a request in flight is not joined by a second one.
+  test('GivenAToggleInFlight_WhenToggledAgain_ThenOnlyOneIsSent', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<Scope>>();
+    when(
+      () => repository.setGoogleSignIn(
+        id: any(named: 'id'),
+        enabled: any(named: 'enabled'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final first = controller.setGoogleSignIn(true);
+    final second = controller.setGoogleSignIn(false);
+    pending.complete(const Success<Scope>(_acme));
+    await Future.wait<void>(<Future<void>>[first, second]);
+
+    // Then
+    verify(
+      () => repository.setGoogleSignIn(
+        id: any(named: 'id'),
+        enabled: any(named: 'enabled'),
+      ),
+    ).called(1);
+  });
+
+  // AF-12d — a deleted scope cannot be changed from here, and that includes
+  // this control.
+  test('GivenADeletedScope_WhenToggled_ThenNoRequestIsMade', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_deleted));
+    answerToggleWith(const Success<Scope>(_deleted));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.setGoogleSignIn(true);
+
+    // Then
+    verifyNever(
+      () => repository.setGoogleSignIn(
+        id: any(named: 'id'),
+        enabled: any(named: 'enabled'),
+      ),
+    );
   });
 }

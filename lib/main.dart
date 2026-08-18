@@ -13,6 +13,8 @@ import 'core/storage/token_store.dart';
 import 'features/auth/data/auth_repository_impl.dart';
 import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
+import 'features/google_users/data/google_user_repository_impl.dart';
+import 'features/google_users/domain/google_user_repository.dart';
 import 'features/persons/data/person_repository_impl.dart';
 import 'features/profile/presentation/profile_controller.dart';
 import 'features/scopes/data/scope_repository_impl.dart';
@@ -41,6 +43,10 @@ void main() {
         ),
         personRepositoryProvider.overrideWith(
           (ref) => ApiPersonRepository(PersonClient(ref.watch(dioProvider))),
+        ),
+        googleUserRepositoryProvider.overrideWith(
+          (ref) =>
+              ApiGoogleUserRepository(GoogleUserClient(ref.watch(dioProvider))),
         ),
         scopeRepositoryProvider.overrideWith(
           (ref) => ApiScopeRepository(ScopeClient(ref.watch(dioProvider))),

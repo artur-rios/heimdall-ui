@@ -9,6 +9,7 @@ import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
+import '../../google_users/domain/google_user_repository.dart';
 import '../domain/scope.dart';
 import 'scope_detail_controller.dart';
 import 'scope_list_controller.dart';
@@ -66,6 +67,49 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
   bool _differsFrom(Scope scope) =>
       _name.text.trim() != scope.name ||
       _description.text.trim() != scope.description;
+
+  /// UI-15 — turns Google Sign-In on or off.
+  ///
+  /// AF-15b: switching it off is explained before anything is sent, because
+  /// the Google Users already in the scope stop being able to sign in. How
+  /// many there are is read first so the warning can say; a count that cannot
+  /// be read warns anyway rather than staying quiet about it.
+  Future<void> _toggleGoogleSignIn(bool enabled) async {
+    if (!enabled) {
+      final count = await ref
+          .read(googleUserRepositoryProvider)
+          .countIn(widget.scopeId);
+      final present = count.valueOrNull;
+
+      if (!mounted) {
+        return;
+      }
+
+      if (present == null || present > 0) {
+        final confirmed = await showConfirm(
+          context: context,
+          title: 'Turn Google Sign-In off?',
+          message: present == null
+              ? 'Any Google accounts already in this scope will no longer be '
+                    'able to sign in.'
+              : present == 1
+              ? 'The 1 Google account already in this scope will no longer be '
+                    'able to sign in.'
+              : 'The $present Google accounts already in this scope will no '
+                    'longer be able to sign in.',
+          confirmLabel: 'Turn off',
+        );
+
+        if (!confirmed || !mounted) {
+          return;
+        }
+      }
+    }
+
+    await ref
+        .read(scopeDetailControllerProvider(widget.scopeId).notifier)
+        .setGoogleSignIn(enabled);
+  }
 
   /// AF-13e — only a System Admin deletes a scope.
   bool get _maySeeDeletion {
@@ -266,9 +310,30 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      Text('Google Sign-In', style: theme.textTheme.labelLarge),
-                      const SizedBox(height: 4),
-                      Text(scope.googleSignInEnabled ? 'On' : 'Off'),
+                      // UI-15 — the control reflects the confirmed state, and
+                      // a refusal leaves it where the API still has it.
+                      SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        title: const Text('Google Sign-In'),
+                        subtitle: Text(
+                          scope.googleSignInEnabled
+                              ? 'People may sign in to this scope with Google.'
+                              : 'Google sign-in is off for this scope.',
+                        ),
+                        value: scope.googleSignInEnabled,
+                        // AF-15c: disabled while the request is outstanding,
+                        // so it cannot be toggled twice.
+                        onChanged:
+                            (state.togglingGoogleSignIn || state.isReadOnly)
+                            ? null
+                            : _toggleGoogleSignIn,
+                      ),
+                      // AF-15a: the API refused; its own strings say why.
+                      if (state.googleSignInFailure
+                          case final refusal?) ...<Widget>[
+                        const SizedBox(height: 8),
+                        ErrorBanner(failure: refusal),
+                      ],
                       const SizedBox(height: 16),
                       Text('Owners', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 4),
