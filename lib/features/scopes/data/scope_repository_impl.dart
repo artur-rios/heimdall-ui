@@ -187,6 +187,43 @@ class ApiScopeRepository implements ScopeRepository {
       return FailureResult<Scope>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<void>> delete(String id) async {
+    try {
+      final response = await _client.scopeDelete(id: id);
+
+      return _deletionOutcome(response.success, response.errors);
+    } on DioException catch (error) {
+      // AF-13d: a `404` means somebody already deleted it, and the screen
+      // treats that as done rather than as a failure — which it can only do
+      // because the kind survives.
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> hardDelete(String id) async {
+    try {
+      final response = await _client.scopeHardDelete(id: id);
+
+      return _deletionOutcome(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  /// AF-13b: the API refuses a scope it will not delete — one that still holds
+  /// users, for instance — and its own strings are what say why.
+  Result<void> _deletionOutcome(bool? success, List<String>? errors) =>
+      success == true
+      ? const Success<void>(null)
+      : FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: errors ?? const <String>[],
+          ),
+        );
 }
 
 /// A successful envelope that nonetheless lacks what the flow needs. It should

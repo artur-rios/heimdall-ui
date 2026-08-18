@@ -43,4 +43,11 @@ abstract interface class ScopeRepository {
     required String name,
     required String description,
   });
+
+  /// Logically deletes a scope. The record is kept and the API can restore it.
+  Future<Result<void>> delete(String id);
+
+  /// Permanently deletes a scope and everything it holds. Nothing survives it,
+  /// which is why UI-13 makes the user type the scope's name first.
+  Future<Result<void>> hardDelete(String id);
 }
