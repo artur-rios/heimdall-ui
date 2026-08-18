@@ -268,7 +268,7 @@ the board is where an item's status changes as it moves.
 | Use case | Status | Issue |
 | --- | --- | --- |
 | UI-16: Browse and search persons in a scope | ✅ | [#16](https://github.com/artur-rios/heimdall-ui/issues/16) |
-| UI-17: Create a person | ⬜ | [#17](https://github.com/artur-rios/heimdall-ui/issues/17) |
+| UI-17: Create a person | ✅ | [#17](https://github.com/artur-rios/heimdall-ui/issues/17) |
 | UI-18: View and update a person | ⬜ | [#18](https://github.com/artur-rios/heimdall-ui/issues/18) |
 | UI-19: Delete a person, logically and permanently | ⬜ | [#19](https://github.com/artur-rios/heimdall-ui/issues/19) |
 

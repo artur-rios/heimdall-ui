@@ -102,6 +102,89 @@ class ApiPersonRepository implements PersonRepository {
   }
 
   @override
+  Future<Result<Person>> createUser({
+    required String scopeId,
+    required String name,
+    required String email,
+    required String password,
+  }) => _created(
+    () => _client.personCreateUser(
+      scopeId: scopeId,
+      body: CreateUserCommand(name: name, email: email, password: password),
+    ),
+    name: name,
+    email: email,
+    fallbackRole: Role.user,
+  );
+
+  @override
+  Future<Result<Person>> createAdmin({
+    required String name,
+    required String email,
+    required String password,
+    required Role role,
+  }) => _created(
+    () => _client.personCreateAdmin(
+      body: CreateAdminCommand(
+        name: name,
+        email: email,
+        password: password,
+        role: role.value,
+      ),
+    ),
+    name: name,
+    email: email,
+    fallbackRole: role,
+  );
+
+  /// Runs a person-creating command and maps its envelope.
+  ///
+  /// AF-17b and AF-17c both arrive as an unsuccessful envelope carrying the
+  /// API's own strings — a registered address and a password its policy
+  /// refuses are told apart by what it says, not by anything decided here.
+  Future<Result<Person>> _created(
+    Future<CreatePersonCommandOutputDataOutput> Function() send, {
+    required String name,
+    required String email,
+    required Role fallbackRole,
+  }) async {
+    try {
+      final response = await send();
+
+      if (response.success != true) {
+        return FailureResult<Person>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Person>(incompleteResponse);
+      }
+
+      return Success<Person>(
+        Person(
+          id: data.id ?? '',
+          name: data.name ?? name,
+          email: data.email ?? email,
+          role: roleFromValue(data.role ?? fallbackRole.value),
+          // A person the API just created has not verified anything yet; the
+          // verification email is on its way.
+          emailVerified: data.emailVerified ?? false,
+          scopeId: data.scopeId,
+          createdAt: data.createdAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Person>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<Page<Person>>> listScopeOwners({
     required String scopeId,
     String? name,
