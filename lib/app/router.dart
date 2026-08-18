@@ -10,6 +10,7 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/persons/presentation/person_create_screen.dart';
 import '../features/persons/presentation/person_list_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
@@ -141,6 +142,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/scopes/:scopeId/persons',
         builder: (context, state) =>
             PersonListScreen(scopeId: state.pathParameters['scopeId']!),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/persons/new',
+        builder: (context, state) =>
+            PersonCreateScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
         path: '/not-available',

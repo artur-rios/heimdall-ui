@@ -1,5 +1,6 @@
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../auth/domain/session.dart';
 import 'person.dart';
 
 /// The person operations the interface depends on.
@@ -22,6 +23,23 @@ abstract interface class PersonRepository {
     required String name,
     required String email,
     int? roleId,
+  });
+
+  /// Creates a User within a scope.
+  Future<Result<Person>> createUser({
+    required String scopeId,
+    required String name,
+    required String email,
+    required String password,
+  });
+
+  /// Creates a person who belongs to no scope — a Scope Admin or a System
+  /// Admin. Only a System Admin may.
+  Future<Result<Person>> createAdmin({
+    required String name,
+    required String email,
+    required String password,
+    required Role role,
   });
 
   /// Lists the Scope Admins who own a scope.
