@@ -60,6 +60,61 @@ class ApiScopeRepository implements ScopeRepository {
       return FailureResult<Page<Scope>>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<Scope>> create({
+    required String name,
+    required String description,
+    required List<String> ownerIds,
+  }) async {
+    try {
+      final response = await _client.scopeCreate(
+        body: CreateScopeCommand(
+          name: name,
+          description: description,
+          ownerIds: ownerIds,
+        ),
+      );
+
+      if (response.success != true) {
+        // AF-11b and AF-11c: a duplicate name and an owner who is not a Scope
+        // Admin both arrive here, and both are told apart by the API's own
+        // strings rather than by anything this layer decides.
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.unknown,
+            errors: <String>['The API returned an incomplete response.'],
+          ),
+        );
+      }
+
+      // The create endpoint answers with its own output type, which carries no
+      // `isDeleted`: a scope you just created is not a deleted one.
+      return Success<Scope>(
+        Scope(
+          id: data.id ?? '',
+          name: data.name ?? name,
+          description: data.description ?? description,
+          googleSignInEnabled: data.googleSignInEnabled ?? false,
+          ownerIds: data.ownerIds ?? ownerIds,
+          createdAt: data.createdAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
 }
 
 /// Maps the generated output onto the domain entity.
