@@ -13,6 +13,8 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
+import '../features/google_users/presentation/google_user_detail_screen.dart';
+import '../features/google_users/presentation/google_user_list_screen.dart';
 import '../features/permissions/presentation/permission_create_screen.dart';
 import '../features/permissions/presentation/permission_detail_screen.dart';
 import '../features/permissions/presentation/permission_list_screen.dart';
@@ -172,6 +174,18 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state) => PermissionDetailScreen(
           scopeId: state.pathParameters['scopeId']!,
           permissionId: state.pathParameters['permissionId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/google-users',
+        builder: (context, state) =>
+            GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/google-users/:googleUserId',
+        builder: (context, state) => GoogleUserDetailScreen(
+          scopeId: state.pathParameters['scopeId']!,
+          googleUserId: state.pathParameters['googleUserId']!,
         ),
       ),
       GoRoute(
