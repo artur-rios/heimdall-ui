@@ -14,6 +14,14 @@ abstract interface class ScopePermissionRepository {
     int pageNumber = 1,
     int pageSize = 20,
   });
+
+  /// Creates a permission within a scope.
+  Future<Result<ScopePermission>> create({
+    required String scopeId,
+    required String name,
+    required String description,
+    required bool includeAsJwtClaim,
+  });
 }
 
 /// Overridden at start-up with the client-backed implementation, and in tests

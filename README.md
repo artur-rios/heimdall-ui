@@ -286,7 +286,7 @@ the board is where an item's status changes as it moves.
 | Use case | Status | Issue |
 | --- | --- | --- |
 | UI-24: Browse scope permissions | ✅ | [#24](https://github.com/artur-rios/heimdall-ui/issues/24) |
-| UI-25: Create a scope permission | ⬜ | [#25](https://github.com/artur-rios/heimdall-ui/issues/25) |
+| UI-25: Create a scope permission | ✅ | [#25](https://github.com/artur-rios/heimdall-ui/issues/25) |
 | UI-26: View and update a scope permission | ⬜ | [#26](https://github.com/artur-rios/heimdall-ui/issues/26) |
 | UI-27: Delete a scope permission, logically and permanently | ⬜ | [#27](https://github.com/artur-rios/heimdall-ui/issues/27) |
 
