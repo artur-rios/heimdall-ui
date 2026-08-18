@@ -12,6 +12,7 @@ import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
+import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
 import 'route_access.dart';
 
@@ -123,6 +124,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/scopes/new',
         builder: (context, state) => const ScopeCreateScreen(),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId',
+        builder: (context, state) =>
+            ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
         path: '/not-available',

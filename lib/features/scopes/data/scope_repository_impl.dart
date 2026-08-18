@@ -91,12 +91,7 @@ class ApiScopeRepository implements ScopeRepository {
       final data = response.data;
 
       if (data == null) {
-        return const FailureResult<Scope>(
-          Failure(
-            kind: FailureKind.unknown,
-            errors: <String>['The API returned an incomplete response.'],
-          ),
-        );
+        return const FailureResult<Scope>(_incompleteResponse);
       }
 
       // The create endpoint answers with its own output type, which carries no
@@ -115,7 +110,91 @@ class ApiScopeRepository implements ScopeRepository {
       return FailureResult<Scope>(failureFromDioException(error));
     }
   }
+
+  @override
+  Future<Result<Scope>> getById(String id, {bool includeDeleted = true}) async {
+    try {
+      final response = await _client.scopeGetById(
+        id: id,
+        includeDeleted: includeDeleted,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(_incompleteResponse);
+      }
+
+      return Success<Scope>(scopeFromOutput(data));
+    } on DioException catch (error) {
+      // AF-12a and AF-12b depend on this: a `404` and a `403` are different
+      // panels, and only the kind tells them apart.
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Scope>> update({
+    required String id,
+    required String name,
+    required String description,
+  }) async {
+    try {
+      final response = await _client.scopeUpdate(
+        id: id,
+        body: UpdateScopeCommand(name: name, description: description),
+      );
+
+      if (response.success != true) {
+        // AF-12c: a duplicate name arrives here, in the API's own words.
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(_incompleteResponse);
+      }
+
+      // The update endpoint answers with its own output type, which carries no
+      // `isDeleted`: a scope the API just updated is not a deleted one.
+      return Success<Scope>(
+        Scope(
+          id: data.id ?? id,
+          name: data.name ?? name,
+          description: data.description ?? description,
+          googleSignInEnabled: data.googleSignInEnabled ?? false,
+          ownerIds: data.ownerIds ?? const <String>[],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
 }
+
+/// A successful envelope that nonetheless lacks what the flow needs. It should
+/// not happen; saying so plainly beats a null dereference if it ever does.
+const Failure _incompleteResponse = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>['The API returned an incomplete response.'],
+);
 
 /// Maps the generated output onto the domain entity.
 Scope scopeFromOutput(ScopeOutput output) => Scope(
