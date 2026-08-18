@@ -17,6 +17,8 @@ import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
 import 'features/google_users/data/google_user_repository_impl.dart';
 import 'features/google_users/domain/google_user_repository.dart';
+import 'features/health/data/health_repository_impl.dart';
+import 'features/health/domain/health_repository.dart';
 import 'features/permissions/data/scope_permission_repository_impl.dart';
 import 'features/permissions/domain/scope_permission_repository.dart';
 import 'features/persons/data/person_repository_impl.dart';
@@ -56,6 +58,10 @@ void main() {
         googleUserRepositoryProvider.overrideWith(
           (ref) =>
               ApiGoogleUserRepository(GoogleUserClient(ref.watch(dioProvider))),
+        ),
+        healthRepositoryProvider.overrideWith(
+          (ref) =>
+              ApiHealthRepository(HealthCheckClient(ref.watch(dioProvider))),
         ),
         scopePermissionRepositoryProvider.overrideWith(
           (ref) => ApiScopePermissionRepository(

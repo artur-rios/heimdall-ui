@@ -306,7 +306,7 @@ Not use cases, tracked separately.
 | P-01: Project scaffolding and initial infrastructure | ✅ | [#30](https://github.com/artur-rios/heimdall-ui/issues/30) |
 | P-02: Generated API client and specification drift check | ✅ | [#31](https://github.com/artur-rios/heimdall-ui/issues/31) |
 | P-03: Multi-platform build and release pipelines | ✅ | [#32](https://github.com/artur-rios/heimdall-ui/issues/32) |
-| P-04: API health and diagnostics screen | ⬜ | [#33](https://github.com/artur-rios/heimdall-ui/issues/33) |
+| P-04: API health and diagnostics screen | ✅ | [#33](https://github.com/artur-rios/heimdall-ui/issues/33) |
 
 The sign-in and home screens exist as part of P-01, so the shell is reachable at all. UI-01 and UI-07
 complete them with their alternative flows; every other screen arrives with its own use case, and
