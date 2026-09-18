@@ -1,0 +1,43 @@
+# Only what `flutter build web` reads goes into the build context:
+# pubspec.*, lib/, web/, packages/ and the Docker files.
+
+.git
+.github
+.gitignore
+.idea
+.vscode
+*.iml
+.DS_Store
+
+# Build outputs and local tool state
+build
+**/build
+.dart_tool
+**/.dart_tool
+.flutter-plugins
+.flutter-plugins-dependencies
+.pub-cache
+.pub
+coverage
+
+# Platforms other than web
+android
+ios
+linux
+macos
+windows
+
+# Not needed to compile the app
+docs
+test
+**/test
+integration_test
+tool
+api
+swagger_parser.yaml
+config/local.json
+*.log
+
+# The image recipe itself
+Dockerfile
+.dockerignore
