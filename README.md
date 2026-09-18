@@ -218,6 +218,35 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 | Linux | `build/linux/x64/release/bundle` |
 | Android | `build/app/outputs/flutter-apk` |
 
+## Container image (web)
+
+`Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.44.9, the
+version CI uses) compiles `build/web`, and `nginxinc/nginx-unprivileged:alpine` serves it as a
+non-root user on port **8080**, with a deep-link fallback to `index.html` and a `/healthz` probe.
+The server configuration is [`docker/nginx.conf`](docker/nginx.conf). It expects TLS to be
+terminated in front of it.
+
+| Build argument | Required | Meaning |
+| --- | --- | --- |
+| `HEIMDALL_API_BASE_URL` | Yes — the build fails without it | The Heimdall API root the app calls |
+| `HEIMDALL_GOOGLE_CLIENT_ID` | No | Google OAuth client id; empty hides Google Sign-In |
+| `HEIMDALL_SCOPE_ID` | No | Fallback scope when no calling application supplies one — see [The target scope](#the-target-scope) |
+| `FLUTTER_VERSION` / `FLUTTER_SHA256` | No | Override the SDK; pass both together (checksums are in Flutter's `releases_linux.json`) |
+
+```bash
+docker build -t heimdall-ui:web \
+  --build-arg HEIMDALL_API_BASE_URL=https://heimdall-api.example.com \
+  --build-arg HEIMDALL_GOOGLE_CLIENT_ID=1234567890-abc.apps.googleusercontent.com \
+  --build-arg HEIMDALL_SCOPE_ID=00000000-0000-0000-0000-000000000001 \
+  .
+docker run --rm -p 8080:8080 heimdall-ui:web
+```
+
+> [!WARNING]
+> The build arguments become `--dart-define` values, which are compiled into the JavaScript bundle
+> and readable by anyone who loads the page. They are public. Never pass a secret as a build
+> argument. Because the values are baked in, each environment needs its own image build.
+
 ## Use case status
 
 Delivery tracker for the use cases in the
