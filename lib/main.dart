@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:heimdall_api_client/export.dart';
 
@@ -27,6 +28,12 @@ import 'features/scopes/data/scope_repository_impl.dart';
 import 'features/scopes/presentation/scope_list_controller.dart';
 
 void main() {
+  // Route on the path, not the fragment. The API e-mails links such as
+  // `/password-reset?token=…`; under Flutter's default hash strategy those
+  // resolve to `/` and the guard sends the caller to sign-in, token and all.
+  // First, because the engine refuses a strategy once it has initialised; a
+  // no-op off the web.
+  usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
 
   final config = AppConfig.fromEnvironment();
