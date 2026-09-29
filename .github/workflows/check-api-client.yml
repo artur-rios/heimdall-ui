@@ -2,7 +2,7 @@ name: Check API client
 
 on:
   push:
-    branches: [main]
+    branches: [main, develop]
   pull_request:
 
 concurrency:
