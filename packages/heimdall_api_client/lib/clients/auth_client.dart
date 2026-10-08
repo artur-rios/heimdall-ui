@@ -7,22 +7,34 @@ import 'package:retrofit/retrofit.dart';
 
 import '../models/confirm_two_factor_auth_command.dart';
 import '../models/confirm_two_factor_auth_command_output_data_output.dart';
+import '../models/data_export_command_output_data_output.dart';
 import '../models/disable_two_factor_auth_command.dart';
 import '../models/disable_two_factor_auth_command_output_data_output.dart';
 import '../models/enable_two_factor_auth_command.dart';
 import '../models/enable_two_factor_auth_command_output_data_output.dart';
+import '../models/erasure_request_output_paginated_output.dart';
 import '../models/google_sign_in_command.dart';
 import '../models/google_sign_in_command_output_data_output.dart';
 import '../models/google_sign_out_command_output_data_output.dart';
+import '../models/lift_processing_restriction_command.dart';
+import '../models/lift_processing_restriction_command_output_data_output.dart';
 import '../models/login_command.dart';
 import '../models/login_command_output_data_output.dart';
 import '../models/password_recovery_command.dart';
 import '../models/password_recovery_command_output_data_output.dart';
+import '../models/reapply_erasures_command.dart';
+import '../models/reapply_erasures_command_output_data_output.dart';
 import '../models/regenerate_recovery_codes_command.dart';
 import '../models/regenerate_recovery_codes_command_output_data_output.dart';
+import '../models/request_erasure_command.dart';
+import '../models/request_erasure_command_output_data_output.dart';
+import '../models/resend_two_factor_challenge_code_command.dart';
+import '../models/resend_two_factor_challenge_code_command_output_data_output.dart';
 import '../models/resend_verification_email_command_output_data_output.dart';
 import '../models/reset_password_command.dart';
 import '../models/reset_password_command_output_data_output.dart';
+import '../models/restrict_processing_command.dart';
+import '../models/restrict_processing_command_output_data_output.dart';
 import '../models/two_factor_status_output_data_output.dart';
 import '../models/verify_email_command.dart';
 import '../models/verify_email_command_output_data_output.dart';
@@ -199,6 +211,38 @@ abstract class AuthClient {
     @Body() VerifyTwoFactorAuthCommand? body,
   });
 
+  /// Reissues the email code for a two-factor challenge that is still outstanding (UC-46,.
+  /// FR-2F-16), so someone who never received the code UC-11 mailed can ask for another.
+  /// without starting sign-in over. Open to anonymous callers and authorized by the challenge.
+  /// token alone, submitted as a request body field exactly as.
+  /// M:ArturRios.Heimdall.WebApi.Controllers.AuthController.VerifyTwoFactorAuth(ArturRios.Heimdall.Command.Input.VerifyTwoFactorAuthCommand) takes it — never as an `Authorization` header.
+  /// (FR-2F-10).
+  ///
+  /// Answers `200 OK` with the same message and no data on every path — a valid.
+  ///                     challenge, an unknown one, a forged one, an expired one, one naming a person with no.
+  ///                     email method, and one whose reissues are spent (AF-46a…AF-46e). A response that varied.
+  ///                     would tell an anonymous caller whether an address is registered and has email.
+  ///                     two-factor enabled, which is the question UC-11 and UC-38 collapse their own answers.
+  ///                     to refuse.
+  ///
+  /// The reissue lands inside the existing challenge's window and never lengthens it: a.
+  ///                     new challenge token could only be returned for a challenge that was real, which would.
+  ///                     be exactly that oracle.
+  ///
+  /// Rate-limited like every other anonymous auth route. The address is never the caller's.
+  ///                     to choose — it is read from the person the challenge token names — and FR-2F-13's cap.
+  ///                     already bounds how many codes one challenge can produce, so the limiter is not what.
+  ///                     stops this being a mail cannon. What it bounds is the unauthenticated request volume.
+  ///                     itself, which is the same thing it bounds on M:ArturRios.Heimdall.WebApi.Controllers.AuthController.Login(ArturRios.Heimdall.Command.Input.LoginCommand) and.
+  ///                     M:ArturRios.Heimdall.WebApi.Controllers.AuthController.PasswordRecovery(ArturRios.Heimdall.Command.Input.PasswordRecoveryCommand).
+  ///
+  /// **Anonymous** — no bearer token required.
+  @POST('/api/auth/2fa/challenge/resend')
+  Future<ResendTwoFactorChallengeCodeCommandOutputDataOutput>
+  authResendTwoFactorChallengeCode({
+    @Body() ResendTwoFactorChallengeCodeCommand? body,
+  });
+
   /// Turns off the caller's own two-factor authentication (UC-39, FR-2F-11), requiring both the.
   /// caller's current password and a valid second factor — an app/email code or a recovery.
   /// code — exactly as hard to satisfy as a login. On success, permanently removes the.
@@ -251,6 +295,88 @@ abstract class AuthClient {
   /// configuration is answered 200 with every flag false; a Google User is answered 403, since.
   /// FR-2F-01 makes them permanently ineligible.
   ///
+  /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
+  @POST('/api/auth/data-export')
+  Future<DataExportCommandOutputDataOutput> authExportMyData();
+
+  /// Requests erasure of the caller's own identity (UC-42, GDPR Art. 17, LGPD Art. 18 VI).
+  ///
+  /// No `RoleRequirement`: every role, and a Google User, may ask to be erased — it is.
+  ///                     a right of the data subject rather than a privilege of a role. Authentication alone.
+  ///                     enforces what matters, which is that somebody is asking for themselves.
+  ///
+  /// The subject is never named in the request. There is no path parameter and no body.
+  ///                     field for it, so the endpoint has no shape in which one identity could ask for.
+  ///                     another's erasure.
+  ///
+  /// The body carries a credential, and which one depends on the caller: a person presents.
+  ///                     their password, a Google User a freshly issued Google ID token. A bearer token alone.
+  ///                     is not enough for an irreversible operation. Because it verifies a password, this.
+  ///                     endpoint is governed by NFR-18 rather than NFR-05.
+  ///
+  /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
+  @POST('/api/auth/erasure-request')
+  Future<RequestErasureCommandOutputDataOutput> authRequestErasure({
+    @Body() RequestErasureCommand? body,
+  });
+
+  /// Restricts processing of the caller's own identity (UC-44, GDPR Art. 18, LGPD Art. 18.
+  /// III–IV) — suspended without being deleted, while something about it is disputed.
+  ///
+  /// No credential is required, unlike UC-42's erasure request. A restriction destroys.
+  /// nothing and is liftable, and somebody asking for one may be doing so precisely because.
+  /// they believe the account is compromised — demanding the password of a person in that.
+  /// position would be the wrong way round.
+  ///
+  /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
+  @POST('/api/auth/processing-restriction')
+  Future<RestrictProcessingCommandOutputDataOutput> authRestrictProcessing({
+    @Body() RestrictProcessingCommand? body,
+  });
+
+  /// Re-applies erasure to identities a database restore brought back (NFR-25). System Admin.
+  /// only.
+  ///
+  /// A step in the restore runbook rather than an everyday operation. The identifiers come.
+  /// from the erasure ledger the anonymisation pass writes to the logs, which is the only copy.
+  /// a restore cannot roll back.
+  ///
+  /// **Requires role:** System Admin.
+  @POST('/api/auth/erasure-reconciliation')
+  Future<ReapplyErasuresCommandOutputDataOutput> authReapplyErasures({
+    @Body() ReapplyErasuresCommand? body,
+  });
+
+  /// Lifts a restriction on processing (UC-45, GDPR Art. 18(3)).
+  ///
+  /// No `RoleRequirement`, because the rule is data-dependent: a subject of any role may.
+  /// lift their own, and only a System Admin may lift somebody else's. The handler decides,.
+  /// and it informs the subject first in the second case — Art. 18(3) makes that a.
+  /// precondition of the act rather than a courtesy afterwards, so a failed notification.
+  /// refuses the lift.
+  ///
+  /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
+  @POST('/api/auth/processing-restriction/lift')
+  Future<LiftProcessingRestrictionCommandOutputDataOutput>
+  authLiftProcessingRestriction({
+    @Body() LiftProcessingRestrictionCommand? body,
+  });
+
+  /// Lists the erasure requests that have not yet been carried out (UC-43). System Admin only.
+  ///
+  /// A Scope Admin is deliberately excluded, though they administer their scope's users: which.
+  /// of them has asked to be erased is not something the request entitles anyone to know, and.
+  /// most requests need no human at all. This queue exists for the ones NFR-12 blocks, which.
+  /// need an owner transferred before they can proceed.
+  ///
+  /// **Requires role:** System Admin.
+  @GET('/api/auth/erasure-requests')
+  Future<ErasureRequestOutputPaginatedOutput> authListErasureRequests({
+    @Query('OverdueOnly') bool? overdueOnly,
+    @Query('PageNumber') int? pageNumber,
+    @Query('PageSize') int? pageSize,
+  });
+
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @GET('/api/auth/2fa')
   Future<TwoFactorStatusOutputDataOutput> authGetTwoFactorStatus();

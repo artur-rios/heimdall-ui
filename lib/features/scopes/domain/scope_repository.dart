@@ -38,10 +38,16 @@ abstract interface class ScopeRepository {
   Future<Result<Scope>> getById(String id, {bool includeDeleted = true});
 
   /// Updates a scope's name and description.
+  ///
+  /// The API replaces every field it accepts, so [defaultLegalBasis] and
+  /// [privacyNoticeUri] are required: an update that left them out would clear
+  /// them. Pass the values the scope already holds to keep them.
   Future<Result<Scope>> update({
     required String id,
     required String name,
     required String description,
+    required int? defaultLegalBasis,
+    required String? privacyNoticeUri,
   });
 
   /// Turns Google Sign-In on or off for a scope.
