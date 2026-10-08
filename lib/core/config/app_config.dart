@@ -13,11 +13,12 @@ class AppConfig {
        _rawScopeId = scopeId;
 
   /// Reads the configuration from the compile-time environment, falling back to
-  /// a local API so the application runs with no flags at all.
+  /// the local API — heimdall-api's Docker Compose deployment on port 8080 — so
+  /// the application runs with no flags at all.
   factory AppConfig.fromEnvironment() => const AppConfig(
     apiBaseUrl: String.fromEnvironment(
       'HEIMDALL_API_BASE_URL',
-      defaultValue: 'http://localhost:5000',
+      defaultValue: 'http://localhost:8080',
     ),
     googleClientId: String.fromEnvironment('HEIMDALL_GOOGLE_CLIENT_ID'),
     scopeId: String.fromEnvironment('HEIMDALL_SCOPE_ID'),

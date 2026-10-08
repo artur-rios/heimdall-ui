@@ -84,7 +84,7 @@ Configuration is supplied at build time. Nothing is read from a file at runtime.
 
 | Key | Required | Default |
 | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | In any real deployment | `http://localhost:5000` |
+| `HEIMDALL_API_BASE_URL` | In any real deployment | `http://localhost:8080` — the local heimdall-api |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset — the Google control is hidden |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset — see below |
 
@@ -111,17 +111,44 @@ targets, or a web build opened directly.
 flutter run --dart-define=HEIMDALL_API_BASE_URL=https://heimdall.example.com
 ```
 
-Or keep them in `config/local.json`, which is git-ignored:
+Or keep them in `config/local.json`, which is git-ignored. Start from the tracked template, which
+holds the local values:
+
+```bash
+cp config/local.json.example config/local.json
+```
 
 ```bash
 flutter run --dart-define-from-file=config/local.json
 ```
 
+### Environments
+
+The UI runs in the same four environments as heimdall-api. It has no env file of its own: a deployed
+build's values are build arguments, kept with heimdall-api's in yggdrasil's env files on the VPS
+(`/etc/yggdrasil/<environment>/heimdall-ui.env`). `example.com` stands for the real domain.
+
+| Environment | Where | Deployed by | UI at | `HEIMDALL_API_BASE_URL` |
+| --- | --- | --- | --- | --- |
+| `local` | The developer's Windows machine, Docker Desktop | By hand — `flutter run`, or yggdrasil's `scripts/deploy.sh local heimdall-ui ...` | `http://localhost:8081` | `http://localhost:8080`, the local heimdall-api (`config/local.json.example`) |
+| `development` | The VPS, on demand | Jenkins, on every push to `develop` | `https://heimdall-dev.example.com` | `https://heimdall-dev.example.com` — same origin |
+| `homologation` | The VPS, on demand | Jenkins, on every push of a `release/x.y.z` branch | `https://heimdall-hml.example.com` | `https://heimdall-hml.example.com` — same origin |
+| `production` | The VPS, always on | Jenkins, on a green `release/x.y.z → main` pull request | `https://heimdall.example.com` | `https://heimdall.example.com` — same origin |
+
+On the VPS the API base URL is the UI's own origin: Traefik routes `/api/` on the UI's host to that
+environment's heimdall-api, so the browser makes no cross-origin request and the API needs no CORS
+entry. Locally the UI and the API are two origins, so heimdall-api's `docker/local.env.example` lists
+`http://localhost:8081` in `HEIMDALL_CORS_ALLOWED_ORIGINS`. Development and homologation run only
+while they are used: `scripts/ygg.sh env start <environment>` on the VPS turns one on.
+
 ## Run
 
 ```bash
-flutter run -d chrome --dart-define-from-file=config/local.json
+flutter run -d chrome --web-port 8081 --dart-define-from-file=config/local.json
 ```
+
+`--web-port 8081` gives the page the origin the local heimdall-api allows by CORS
+(`http://localhost:8081`); stop a local heimdall-ui container first, which serves on the same port.
 
 ```bash
 flutter run -d windows --dart-define-from-file=config/local.json
@@ -187,7 +214,8 @@ docker run --rm -p 8080:8080 heimdall-ui:web
 > [!WARNING]
 > The build arguments become `--dart-define` values, which are compiled into the JavaScript bundle
 > and readable by anyone who loads the page. They are public. Never pass a secret as a build
-> argument. Because the values are baked in, each environment needs its own image build.
+> argument. Because the values are baked in, each environment needs its own image build — yggdrasil
+> builds one per environment and tags it `<environment>-<version>`.
 
 ## Use case status
 
