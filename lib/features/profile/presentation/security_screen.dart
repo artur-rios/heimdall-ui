@@ -71,8 +71,10 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
         title: 'Turn two-factor authentication off?',
         message:
             'Your account will be protected by its password alone. '
-            'Confirm with any one of the following.',
+            'Confirm with your password and a code from your second factor '
+            'or one of your recovery codes.',
         confirmLabel: 'Turn off',
+        requirePassword: true,
       ),
     );
 
@@ -94,7 +96,6 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             'The codes you have now stop working immediately. The new '
             'set is shown once. Confirm with any one of the following.',
         confirmLabel: 'Generate',
-        allowPassword: false,
       ),
     );
 
@@ -545,7 +546,8 @@ class _RecoveryCodes extends StatelessWidget {
   }
 }
 
-/// What the disable and regenerate commands need: any one credential.
+/// What the disable and regenerate commands need: a second factor — a code
+/// or a recovery code — and, to disable, the password as well.
 class _Credential {
   const _Credential({this.password, this.code, this.recoveryCode});
 
@@ -554,25 +556,26 @@ class _Credential {
   final String? recoveryCode;
 }
 
-/// Asks for one of the credentials the API accepts.
+/// Asks for the credentials the API requires.
 ///
-/// The API takes a password, a generated code, or a recovery code in separate
-/// fields, so which one the person supplies decides where it travels.
+/// The API takes a generated code or a recovery code in separate fields, so
+/// which one the person supplies decides where it travels.
 class _CredentialDialog extends StatefulWidget {
   const _CredentialDialog({
     required this.title,
     required this.message,
     required this.confirmLabel,
-    this.allowPassword = true,
+    this.requirePassword = false,
   });
 
   final String title;
   final String message;
   final String confirmLabel;
 
-  /// Regenerating accepts only a code or a recovery code, so the password
-  /// field is not offered where the API would not take it.
-  final bool allowPassword;
+  /// Disabling requires the password *and* a second factor (UC-39: "exactly
+  /// as hard as a login"); regenerating takes only the second factor, so the
+  /// password field is not offered where the API would not take it.
+  final bool requirePassword;
 
   @override
   State<_CredentialDialog> createState() => _CredentialDialogState();
@@ -591,18 +594,25 @@ class _CredentialDialogState extends State<_CredentialDialog> {
     super.dispose();
   }
 
-  /// Exactly what was filled in, and nothing else.
+  /// What was filled in, or `null` while something the API requires is
+  /// missing. One second factor is sent: a code when one was typed, otherwise
+  /// the recovery code.
   _Credential? get _credential {
-    if (widget.allowPassword && _password.text.isNotEmpty) {
-      return _Credential(password: _password.text);
+    final password = widget.requirePassword ? _password.text : null;
+
+    if (password != null && password.isEmpty) {
+      return null;
     }
 
     if (_code.text.trim().isNotEmpty) {
-      return _Credential(code: _code.text.trim());
+      return _Credential(password: password, code: _code.text.trim());
     }
 
     if (_recoveryCode.text.trim().isNotEmpty) {
-      return _Credential(recoveryCode: _recoveryCode.text.trim());
+      return _Credential(
+        password: password,
+        recoveryCode: _recoveryCode.text.trim(),
+      );
     }
 
     return null;
@@ -621,7 +631,7 @@ class _CredentialDialogState extends State<_CredentialDialog> {
           children: <Widget>[
             Text(widget.message),
             const SizedBox(height: 16),
-            if (widget.allowPassword) ...<Widget>[
+            if (widget.requirePassword) ...<Widget>[
               TextField(
                 controller: _password,
                 obscureText: true,

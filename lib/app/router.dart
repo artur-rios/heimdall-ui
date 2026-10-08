@@ -294,6 +294,7 @@ class _RouteNotReadyScreen extends StatelessWidget {
   Widget build(BuildContext context) => Scaffold(
     appBar: AppBar(
       leading: IconButton(
+        tooltip: 'Back to home',
         icon: const Icon(Icons.arrow_back),
         onPressed: () => context.go('/'),
       ),

@@ -90,4 +90,23 @@ void main() {
       findsOneWidget,
     );
   });
+
+  // A refusal that appears without being announced is missed by anyone using
+  // a screen reader.
+  testWidgets('GivenAnError_WhenRendered_ThenItIsALiveRegion', (tester) async {
+    // Given
+    const failure = Failure(
+      kind: FailureKind.validation,
+      errors: <String>['First problem.'],
+    );
+
+    // When
+    await pump(tester, const ErrorBanner(failure: failure));
+
+    // Then
+    expect(
+      tester.getSemantics(find.text('First problem.')),
+      matchesSemantics(label: 'First problem.', isLiveRegion: true),
+    );
+  });
 }

@@ -950,4 +950,30 @@ void main() {
       isNull,
     );
   });
+
+  // The API holds scope updates to a System Admin, so a Scope Admin reads the
+  // name and description rather than being offered a save it would refuse.
+  testWidgets('GivenAScopeAdmin_WhenOpened_ThenNoSaveIsOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(find.text('Save changes'), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.widgetWithText(TextFormField, 'Name'),
+              matching: find.byType(TextField),
+            ),
+          )
+          .readOnly,
+      isTrue,
+    );
+  });
 }

@@ -41,6 +41,10 @@ sessionControllerProvider = NotifierProvider<SessionController, SessionState>(
 /// The API is the only authority on whether a token is valid; this exists so
 /// the interface can show the right navigation. Anything unreadable falls back
 /// to the least privileged role, so a malformed token can never widen access.
+///
+/// The claims are the API's own (`IdentityUserMapper`): `id` and `role`, plus
+/// `scopeId` for a User and `ownedScopeIds` — one comma-separated string — for
+/// a Scope Admin. Every value is written as a string.
 Principal principalFromToken(AuthToken token) {
   const fallback = Principal(id: '', email: '', role: Role.user);
   final segments = token.value.split('.');
@@ -49,23 +53,28 @@ Principal principalFromToken(AuthToken token) {
     return fallback;
   }
 
-  final Map<String, dynamic> payload;
+  final Object? decoded;
 
   try {
-    payload =
-        jsonDecode(
-              utf8.decode(base64Url.decode(base64Url.normalize(segments[1]))),
-            )
-            as Map<String, dynamic>;
+    decoded = jsonDecode(
+      utf8.decode(base64Url.decode(base64Url.normalize(segments[1]))),
+    );
   } on FormatException {
     return fallback;
   }
 
+  if (decoded is! Map<String, dynamic>) {
+    return fallback;
+  }
+
+  final payload = decoded;
   final rawRole = payload['role'];
+  final scopeId = payload['scopeId']?.toString();
 
   return Principal(
-    id: (payload['sub'] ?? payload['nameid'] ?? '').toString(),
+    id: (payload['id'] ?? payload['sub'] ?? payload['nameid'] ?? '').toString(),
     email: (payload['email'] ?? '').toString(),
+    name: (payload['name'] ?? '').toString(),
     role: switch (rawRole) {
       final int value => roleFromValue(value),
       final String value => roleFromValue(
@@ -73,16 +82,27 @@ Principal principalFromToken(AuthToken token) {
       ),
       _ => Role.user,
     },
-    scopeId: payload['scopeId']?.toString(),
-    ownedScopeIds:
-        (payload['ownedScopeIds'] as List<dynamic>? ?? const <dynamic>[])
-            .map((id) => id.toString())
-            .toList(growable: false),
+    scopeId: (scopeId == null || scopeId.isEmpty) ? null : scopeId,
+    ownedScopeIds: _idsFrom(payload['ownedScopeIds']),
     // AF-05e: not a claim. The API reports it alongside the token it issues,
     // and that answer travels on [AuthToken] rather than inside the JWT.
     emailVerified: token.emailVerified,
   );
 }
+
+/// Reads a list-valued claim, which the API writes as one comma-separated
+/// string. An array is accepted as well; anything else is no ids at all.
+List<String> _idsFrom(Object? claim) => switch (claim) {
+  final String joined =>
+    joined
+        .split(',')
+        .map((id) => id.trim())
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false),
+  final List<dynamic> ids =>
+    ids.map((id) => id.toString()).toList(growable: false),
+  _ => const <String>[],
+};
 
 /// Owns the session state machine: restoring → unauthenticated → challenged →
 /// authenticated.
@@ -101,10 +121,21 @@ class SessionController extends Notifier<SessionState> {
   /// Reads the stored token and settles the session. Called once at start-up,
   /// and directly by tests so they need not race the constructor.
   Future<void> restore() async {
-    final stored = await _store.read();
+    final AuthToken? stored;
+
+    try {
+      stored = await _store.read();
+    } on Object {
+      // A store the platform cannot read — a locked keyring, a key lost to a
+      // backup restore — must not hold start-up on the restoring screen for
+      // ever. There is no session to restore, which is the honest answer.
+      state = const Unauthenticated();
+
+      return;
+    }
 
     if (stored == null || stored.isExpired) {
-      await _store.clear();
+      await _clearStore();
       state = const Unauthenticated();
 
       return;
@@ -127,7 +158,7 @@ class SessionController extends Notifier<SessionState> {
       case Success<LoginOutcome>(:final value):
         switch (value) {
           case LoggedIn(:final token):
-            await _establish(token);
+            return _establish(token);
           case TwoFactorRequired(
             :final challengeToken,
             :final availableMethods,
@@ -186,9 +217,7 @@ class SessionController extends Notifier<SessionState> {
 
     switch (result) {
       case Success<AuthToken>(:final value):
-        await _establish(value);
-
-        return const Success<void>(null);
+        return _establish(value);
       case FailureResult<AuthToken>(:final failure):
         // AF-06b and AF-06d: Heimdall refused, but Google still considers the
         // user signed in. Dropping that leaves the next attempt to start from
@@ -264,9 +293,7 @@ class SessionController extends Notifier<SessionState> {
 
     switch (result) {
       case Success<AuthToken>(:final value):
-        await _establish(value);
-
-        return const Success<void>(null);
+        return _establish(value);
       case FailureResult<AuthToken>(:final failure):
         if (_endsTheChallenge(failure.kind) && state is Challenged) {
           state = const Unauthenticated();
@@ -296,18 +323,76 @@ class SessionController extends Notifier<SessionState> {
   ///
   /// AF-07e: [expired] marks a session that ended under the caller rather than
   /// one they chose to leave, so the sign-in screen can say which happened.
+  /// The API has already refused that token, so it is not sent back to the
+  /// API's sign-out — which would refuse it again.
+  ///
+  /// A sign-out already under way is not started twice. Its own call to the
+  /// API can come back 401, and that 401 reaches here again through the
+  /// interceptor; without this it would sign out again, call again, and so on.
   Future<void> signOut({bool expired = false}) async {
-    if (state case Authenticated(:final token) when token.viaGoogle) {
-      await _repository.signOutFromGoogle();
-      await _google.signOut();
+    if (_signingOut) {
+      return;
     }
 
-    await _store.clear();
-    state = Unauthenticated(sessionExpired: expired);
+    _signingOut = true;
+
+    try {
+      if (state case Authenticated(:final token) when token.viaGoogle) {
+        if (!expired && !token.isExpired) {
+          await _repository.signOutFromGoogle();
+        }
+
+        await _google.signOut();
+      }
+
+      await _clearStore();
+      state = Unauthenticated(sessionExpired: expired);
+    } finally {
+      _signingOut = false;
+    }
   }
 
-  Future<void> _establish(AuthToken token) async {
-    await _store.write(token);
+  bool _signingOut = false;
+
+  /// Drops the stored token. Best-effort: a store the platform will not touch
+  /// must not keep the person signed in here, which is the part this side
+  /// controls — the token it holds is one the next start-up cannot read anyway.
+  Future<void> _clearStore() async {
+    try {
+      await _store.clear();
+    } on Object {
+      // Nothing more to do; the session below ends regardless.
+    }
+  }
+
+  /// Stores [token] and makes it the session.
+  ///
+  /// Every request reads its bearer token back from the store, so a token the
+  /// platform refused to keep is no session at all: it is reported rather than
+  /// left to fail every request after this one — or, thrown, to leave the
+  /// screen that asked spinning for good.
+  Future<Result<void>> _establish(AuthToken token) async {
+    try {
+      await _store.write(token);
+    } on Object {
+      state = const Unauthenticated();
+
+      return const FailureResult<void>(_storeUnavailable);
+    }
+
     state = Authenticated(token: token, principal: principalFromToken(token));
+
+    return const Success<void>(null);
   }
 }
+
+/// The platform's secure storage refused the session token — on Linux, most
+/// often because no Secret Service keyring is running or it is locked.
+const Failure _storeUnavailable = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>[
+    'This device could not store your session securely, so you were not '
+        'signed in. Check that its keyring or secure storage is available, '
+        'then try again.',
+  ],
+);

@@ -485,7 +485,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Create'));
     await tester.pumpAndSettle();
@@ -496,7 +496,7 @@ void main() {
         scopeId: 'scope-1',
         name: 'Grace',
         email: 'grace@example.com',
-        password: 'secret',
+        password: 'secret-pass',
       ),
     ).called(1);
   });
@@ -539,7 +539,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
 
     // When
@@ -580,7 +580,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
 
     // When

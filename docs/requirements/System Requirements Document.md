@@ -184,7 +184,8 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Own profile and security | Full | Full | Full | Hidden |
 | Scope listing | All scopes | Owned scopes only | Hidden | Hidden |
 | Create scope | Full | Hidden | Hidden | Hidden |
-| Scope detail and update | Full | Owned scopes only | Hidden | Hidden |
+| Scope detail | Full | Owned scopes only | Hidden | Hidden |
+| Scope update (name, description) | Full | Read-only | Hidden | Hidden |
 | Logical delete scope | Full | Hidden | Hidden | Hidden |
 | Permanent delete scope | Full | Hidden | Hidden | Hidden |
 | Scope owners | Full | Owned scopes only | Hidden | Hidden |

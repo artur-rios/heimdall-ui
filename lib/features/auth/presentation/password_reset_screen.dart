@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'password_reset_controller.dart';
 
@@ -123,8 +124,10 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
               // this field, so it is marked as well as banner-ed.
               errorText: rejected ? failure.displayMessage : null,
             ),
-            validator: (value) =>
-                (value ?? '').isEmpty ? 'Enter a new password.' : null,
+            validator: (value) => validateNewPassword(
+              value,
+              emptyMessage: 'Enter a new password.',
+            ),
           ),
           const SizedBox(height: 16),
           TextFormField(

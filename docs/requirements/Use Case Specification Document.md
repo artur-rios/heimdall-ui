@@ -365,8 +365,9 @@ delivered the same way.
   decided and a loading state is shown; a slow read must not bounce the user to login.
 - **AF-07d — Role not permitted.** An authenticated caller requesting a route their role cannot use
   is shown a "not available for your role" screen, not a redirect loop.
-- **AF-07e — Token rejected mid-session.** Any `401` clears the session and redirects to login,
-  explaining that the session ended.
+- **AF-07e — Token rejected mid-session.** A `401` to a request made under the session clears it
+  and redirects to login, explaining that the session ended. A `401` that refuses a password or code
+  typed into the request (AF-02a, AF-09d) is not a rejected token, and leaves the session alone.
 - **AF-07f — Already signed in.** An authenticated caller requesting login or the challenge screen
   is redirected to the home screen.
 - **AF-07g — Expired stored token.** A token whose expiry has passed is discarded at start-up
@@ -426,7 +427,8 @@ delivered the same way.
 **Main flow — disabling**
 
 1. The user chooses to turn two-factor authentication off and confirms.
-2. The client calls `POST /api/auth/2fa/disable` with the credential the API requires.
+2. The client calls `POST /api/auth/2fa/disable` with the current password and a second factor — a
+   generated code or a recovery code. The API requires both, and refuses either alone.
 3. The section returns to the disabled state.
 
 **Main flow — regenerating recovery codes**

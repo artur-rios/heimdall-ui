@@ -15,25 +15,31 @@ class RetryBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            'Could not reach the API. Check your connection and try again.',
-            style: TextStyle(color: scheme.onErrorContainer),
-          ),
-          const SizedBox(height: 8),
-          Align(
-            alignment: Alignment.centerRight,
-            child: TextButton(onPressed: onRetry, child: const Text('Retry')),
-          ),
-        ],
+    // A live region, so a screen reader announces the failure when it appears
+    // rather than leaving it to be found.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.errorContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            Text(
+              'Could not reach the API. Check your connection and try again.',
+              style: TextStyle(color: scheme.onErrorContainer),
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: onRetry, child: const Text('Retry')),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -53,18 +59,24 @@ class ErrorBanner extends StatelessWidget {
         ? failure.errors
         : <String>[failure.displayMessage];
 
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          for (final message in messages)
-            Text(message, style: TextStyle(color: scheme.onErrorContainer)),
-        ],
+    // A live region, so a screen reader announces the API's refusal when it
+    // appears rather than leaving it to be found.
+    return Semantics(
+      liveRegion: true,
+      container: true,
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: scheme.errorContainer,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: <Widget>[
+            for (final message in messages)
+              Text(message, style: TextStyle(color: scheme.onErrorContainer)),
+          ],
+        ),
       ),
     );
   }

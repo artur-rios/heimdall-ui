@@ -11,10 +11,20 @@ import 'package:qr/qr.dart';
 /// never blocks setup, so data that cannot be encoded renders nothing and the
 /// caller shows the secret as text either way.
 class QrCodeView extends StatelessWidget {
-  const QrCodeView({required this.data, this.size = 200, super.key});
+  const QrCodeView({
+    required this.data,
+    this.size = 200,
+    this.semanticLabel =
+        'QR code for your authenticator app. The secret is shown as text '
+        'beside it.',
+    super.key,
+  });
 
   final String data;
   final double size;
+
+  /// What a screen reader announces in place of the drawing.
+  final String semanticLabel;
 
   /// The encoded matrix, or `null` when this data cannot be encoded.
   ///
@@ -50,16 +60,23 @@ class QrCodeView extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    return SizedBox.square(
-      dimension: size,
-      child: CustomPaint(
-        painter: _QrPainter(
-          image: image,
-          // The modules are painted in plain black on white rather than in the
-          // theme's colours: a scanner reads contrast, and a dark-theme code
-          // in low-contrast surface colours is a code that will not scan.
-          foreground: Colors.black,
-          background: Colors.white,
+    // A painted matrix says nothing to a screen reader. It is named rather
+    // than hidden, so the person is told a code is there and that the secret
+    // beside it is the way to enter it without scanning (AF-09e).
+    return Semantics(
+      image: true,
+      label: semanticLabel,
+      child: SizedBox.square(
+        dimension: size,
+        child: CustomPaint(
+          painter: _QrPainter(
+            image: image,
+            // The modules are painted in plain black on white rather than in the
+            // theme's colours: a scanner reads contrast, and a dark-theme code
+            // in low-contrast surface colours is a code that will not scan.
+            foreground: Colors.black,
+            background: Colors.white,
+          ),
         ),
       ),
     );

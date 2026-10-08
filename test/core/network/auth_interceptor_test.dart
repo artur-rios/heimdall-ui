@@ -99,14 +99,87 @@ void main() {
     // Then
     expect(unauthorizedCalls, 0);
   });
+
+  // AF-01a — a refused sign-in is made with no session, so there is no
+  // session to end and nothing to say ended.
+  test(
+    'GivenNoSession_WhenUnauthorizedReceived_ThenNothingIsCleared',
+    () async {
+      // Given
+      dio.httpClientAdapter = _CapturingAdapter(
+        (_) => 401,
+        body: '{"success":false,"errors":["Invalid credentials."]}',
+      );
+
+      // When
+      await expectLater(
+        dio.post<dynamic>('/api/auth/login'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    },
+  );
+
+  // AF-09d — a mistyped password or code is answered 401 by the API, and is
+  // the person's to correct, not a reason to sign them out.
+  for (final message in <String>[
+    'The current password is incorrect.',
+    'The code or recovery code is missing, incorrect, or already used.',
+  ]) {
+    test(
+      'GivenASession_WhenATypedCredentialIsRefused_ThenItSurvives: $message',
+      () async {
+        // Given
+        await store.write(
+          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        );
+        dio.httpClientAdapter = _CapturingAdapter(
+          (_) => 401,
+          body: '{"success":false,"errors":["$message"]}',
+        );
+
+        // When
+        await expectLater(
+          dio.post<dynamic>('/api/auth/2fa/disable'),
+          throwsA(isA<DioException>()),
+        );
+
+        // Then
+        expect(unauthorizedCalls, 0);
+      },
+    );
+  }
+
+  // AF-07e — a stored token past its expiry is not sent, and the 401 that
+  // answers for it still ends the session.
+  test('GivenAnExpiredSession_WhenUnauthorizedReceived_ThenItEnds', () async {
+    // Given
+    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000)));
+    dio.httpClientAdapter = _CapturingAdapter((_) => 401, body: '');
+
+    // When
+    await expectLater(
+      dio.get<dynamic>('/api/scopes'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(unauthorizedCalls, 1);
+  });
 }
 
 /// An adapter that answers locally and reports what it was asked for, so no
 /// test ever reaches the network.
 class _CapturingAdapter implements HttpClientAdapter {
-  _CapturingAdapter(this._respond);
+  _CapturingAdapter(
+    this._respond, {
+    this.body = '{"success":true,"errors":[],"data":null}',
+  });
 
   final int Function(RequestOptions options) _respond;
+  final String body;
 
   @override
   void close({bool force = false}) {}
@@ -117,7 +190,7 @@ class _CapturingAdapter implements HttpClientAdapter {
     Stream<List<int>>? requestStream,
     Future<void>? cancelFuture,
   ) async => ResponseBody.fromString(
-    '{"success":true,"errors":[],"data":null}',
+    body,
     _respond(options),
     headers: <String, List<String>>{
       Headers.contentTypeHeader: <String>[Headers.jsonContentType],

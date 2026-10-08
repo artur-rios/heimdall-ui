@@ -27,11 +27,23 @@ class Principal {
     this.scopeId,
     this.ownedScopeIds = const <String>[],
     this.emailVerified = true,
+    this.name = '',
   });
 
   final String id;
+
+  /// The address, when the token carries one. The API's own tokens do not, so
+  /// this is usually empty; [displayName] is what to show.
   final String email;
   final Role role;
+
+  /// The person's display name from the token's `name` claim, which the API
+  /// writes whenever the person has one; empty otherwise.
+  final String name;
+
+  /// What to call this person on screen: the name, else the address, else
+  /// nothing at all.
+  String get displayName => name.isNotEmpty ? name : email;
 
   /// Whether the API considers this address verified.
   ///

@@ -87,4 +87,18 @@ void main() {
     // Then
     expect(tester.getSize(find.byType(QrCodeView)), const Size(200, 200));
   });
+
+  // A painted matrix is silent to a screen reader unless it is named.
+  testWidgets('GivenACode_WhenRendered_ThenAScreenReaderIsToldItIsThere', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, _uri);
+
+    // Then
+    expect(
+      find.bySemanticsLabel(RegExp('QR code for your authenticator app')),
+      findsOneWidget,
+    );
+  });
 }

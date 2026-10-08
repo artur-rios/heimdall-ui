@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/presentation/email_verification_controller.dart';
@@ -152,6 +153,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                 ],
                 TextFormField(
+                  maxLength: nameMaxLength,
                   controller: _name,
                   decoration: const InputDecoration(labelText: 'Name'),
                   validator: (value) => (value?.trim().isEmpty ?? true)
@@ -171,7 +173,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                       return 'Enter your email address.';
                     }
 
-                    return email.contains('@')
+                    return isPlausibleEmail(email)
                         ? null
                         : 'Enter a valid email address.';
                   },

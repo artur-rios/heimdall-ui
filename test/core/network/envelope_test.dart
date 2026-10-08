@@ -171,4 +171,56 @@ void main() {
     expect(failure.kind, FailureKind.notFound);
     expect(failure.errors, isEmpty);
   });
+
+  // AF-02a and AF-09d — the API answers a mistyped code or password with 401,
+  // and that is a rejection of the input, not of the session.
+  test('GivenARefusedCredential_WhenMapped_ThenFailureKindIsValidation', () {
+    // Given
+    const message =
+        'The code or recovery code is missing, incorrect, or already used.';
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/2fa/verify'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/2fa/verify'),
+        statusCode: 401,
+        data: <String, dynamic>{
+          'success': false,
+          'errors': <String>[message],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.validation);
+    expect(failure.errors, <String>[message]);
+  });
+
+  // AF-02b — an expired challenge is still the end of it.
+  test('GivenARefusedChallenge_WhenMapped_ThenFailureKindIsUnauthorized', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/2fa/verify'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/2fa/verify'),
+        statusCode: 401,
+        data: <String, dynamic>{
+          'success': false,
+          'errors': <String>[
+            'The two-factor challenge is invalid or has expired. Log in again.',
+          ],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.unauthorized);
+  });
 }

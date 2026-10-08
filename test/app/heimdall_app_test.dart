@@ -85,6 +85,39 @@ void main() {
     expect(find.text('System Admin'), findsOneWidget);
   });
 
+  // A User is offered a single destination, which the shell does not render
+  // as navigation, so home is where their own settings are reached from. The
+  // API's token names them in `name` and carries no address.
+  testWidgets('GivenAUserSession_WhenAppStarts_ThenTheirProfileIsOffered', (
+    tester,
+  ) async {
+    // Given
+    final payload = base64Url
+        .encode(
+          utf8.encode(
+            jsonEncode(<String, String>{
+              'id': '6f1d3a00-0000-0000-0000-000000000003',
+              'role': '3',
+              'name': 'Ada Lovelace',
+            }),
+          ),
+        )
+        .replaceAll('=', '');
+    await store.write(
+      AuthToken(
+        value: 'header.$payload.signature',
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+
+    // When
+    await pumpApp(tester);
+
+    // Then
+    expect(find.text('Signed in as Ada Lovelace'), findsOneWidget);
+    expect(find.text('Your profile and security'), findsOneWidget);
+  });
+
   testWidgets('GivenEmptyPassword_WhenSubmitted_ThenNoRequestIsMade', (
     tester,
   ) async {

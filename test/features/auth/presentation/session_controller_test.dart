@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -9,6 +11,31 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// A store the platform cannot use — a locked keyring, a key lost to a backup
+/// restore.
+class _BrokenTokenStore implements TokenStore {
+  @override
+  Future<AuthToken?> read() async => throw StateError('keyring locked');
+
+  @override
+  Future<void> write(AuthToken token) async =>
+      throw StateError('keyring locked');
+
+  @override
+  Future<void> clear() async => throw StateError('keyring locked');
+}
+
+/// A JWT shaped exactly as the API mints one (`IdentityUserMapper`): every
+/// claim a string, named `id` and `role`, and owned scopes comma-separated.
+String _apiJwt(Map<String, String> claims) {
+  String segment(Map<String, Object> json) =>
+      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
+
+  return '${segment(<String, Object>{'alg': 'HS256', 'typ': 'JWT'})}.'
+      '${segment(<String, Object>{...claims, 'exp': 1893456000})}.'
+      'signature';
+}
 
 /// Google's half, faked. No test reaches Google's SDK.
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {
@@ -699,4 +726,159 @@ void main() {
     // Then
     expect(await store.read(), isNull);
   });
+
+  // The API names the person `id` and writes the role as a string.
+  test('GivenAnApiToken_WhenPrincipalRead_ThenIdAndRoleAreRead', () {
+    // Given
+    final token = AuthToken(
+      value: _apiJwt(<String, String>{
+        'id': '6f1d3a00-0000-0000-0000-000000000003',
+        'role': '3',
+        'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
+      }),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.id, '6f1d3a00-0000-0000-0000-000000000003');
+    expect(principal.role, Role.user);
+    expect(principal.scopeId, '6f1d3a00-0000-0000-0000-0000000000aa');
+  });
+
+  // A Scope Admin's owned scopes travel as one comma-separated string.
+  test('GivenAScopeAdminToken_WhenPrincipalRead_ThenOwnedScopesAreSplit', () {
+    // Given
+    final token = AuthToken(
+      value: _apiJwt(<String, String>{
+        'id': '6f1d3a00-0000-0000-0000-000000000002',
+        'role': '2',
+        'ownedScopeIds': 'scope-a,scope-b',
+      }),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.role, Role.scopeAdmin);
+    expect(principal.ownedScopeIds, <String>['scope-a', 'scope-b']);
+  });
+
+  test('GivenAStoredScopeAdminToken_WhenRestored_ThenTheSessionIsUp', () async {
+    // Given
+    await store.write(
+      AuthToken(
+        value: _apiJwt(<String, String>{
+          'id': '6f1d3a00-0000-0000-0000-000000000002',
+          'role': '2',
+          'ownedScopeIds': 'scope-a,scope-b',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+    final container = containerWith();
+
+    // When
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Authenticated).principal.isScopeAdmin, isTrue);
+  });
+
+  // AF-07c must end: a store that cannot be read is no session, not a wait.
+  test('GivenAnUnreadableStore_WhenRestored_ThenTheSessionSettles', () async {
+    // Given
+    final container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // When
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
+
+  test(
+    'GivenAnUnwritableStore_WhenSignedIn_ThenTheFailureIsReported',
+    () async {
+      // Given
+      when(
+        () => repository.login(email: 'a@b.c', password: 'secret'),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.signIn(
+        email: 'a@b.c',
+        password: 'secret',
+      );
+
+      // Then
+      expect(result.isSuccess, isFalse);
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
+
+  // Signing out ends the session here even when the platform refuses to
+  // delete the stored token.
+  test(
+    'GivenAnUnclearableStore_WhenSignedOut_ThenTheSessionStillEnds',
+    () async {
+      // Given
+      final store = _ReadableBrokenTokenStore(
+        AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut();
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
+}
+
+/// Reads a token but refuses to delete it.
+class _ReadableBrokenTokenStore implements TokenStore {
+  _ReadableBrokenTokenStore(this._token);
+
+  final AuthToken _token;
+
+  @override
+  Future<AuthToken?> read() async => _token;
+
+  @override
+  Future<void> write(AuthToken token) async {}
+
+  @override
+  Future<void> clear() async => throw StateError('keyring locked');
 }
