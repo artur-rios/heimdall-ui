@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -58,11 +59,14 @@ scopeAdminPickerControllerProvider =
 /// The family argument is the scope whose current owners are left out, or the
 /// empty string when there is none to leave out — UI-11 is creating the scope,
 /// so nobody owns it yet.
-class ScopeAdminPickerController
-    extends FamilyNotifier<ScopeAdminsState, String> {
+class ScopeAdminPickerController extends Notifier<ScopeAdminsState> {
+  ScopeAdminPickerController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  ScopeAdminsState build(String excludeOwnersOfScopeId) =>
-      const ScopeAdminsLoading();
+  ScopeAdminsState build() => const ScopeAdminsLoading();
 
   /// Reads the candidates, optionally narrowed by what was typed.
   ///

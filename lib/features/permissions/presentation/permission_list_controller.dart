@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -76,13 +77,16 @@ permissionListControllerProvider =
     >(PermissionListController.new);
 
 /// Owns one scope's permission listing.
-class PermissionListController
-    extends FamilyNotifier<PermissionListState, String> {
+class PermissionListController extends Notifier<PermissionListState> {
+  PermissionListController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   bool _inFlight = false;
 
   @override
-  PermissionListState build(String scopeId) =>
-      const PermissionListLoading(PermissionQuery());
+  PermissionListState build() => const PermissionListLoading(PermissionQuery());
 
   Future<void> load() => _fetch(state.query);
 

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -40,6 +41,10 @@ void main() {
 
   runApp(
     ProviderScope(
+      // Riverpod 3 retries a failing provider on its own. This app reports
+      // failures as values and leaves retrying to the user (FR-UX-07), so a
+      // provider that throws fails once, as it did under Riverpod 2.
+      retry: (retryCount, error) => null,
       overrides: <Override>[
         appConfigProvider.overrideWithValue(config),
         tokenStoreProvider.overrideWithValue(

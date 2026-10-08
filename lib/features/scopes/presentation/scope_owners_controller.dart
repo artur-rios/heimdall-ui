@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -80,9 +81,14 @@ scopeOwnersControllerProvider =
     );
 
 /// Owns one scope's owner list and the four things that can be done to it.
-class ScopeOwnersController extends FamilyNotifier<ScopeOwnersState, String> {
+class ScopeOwnersController extends Notifier<ScopeOwnersState> {
+  ScopeOwnersController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  ScopeOwnersState build(String scopeId) => const ScopeOwnersLoading();
+  ScopeOwnersState build() => const ScopeOwnersLoading();
 
   PersonRepository get _repository => ref.read(personRepositoryProvider);
 

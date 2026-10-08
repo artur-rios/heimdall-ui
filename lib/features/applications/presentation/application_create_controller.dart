@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/application.dart';
@@ -46,11 +47,14 @@ applicationCreateControllerProvider =
     >(ApplicationCreateController.new);
 
 /// Owns one create attempt from filled in to created.
-class ApplicationCreateController
-    extends FamilyNotifier<ApplicationCreateState, String> {
+class ApplicationCreateController extends Notifier<ApplicationCreateState> {
+  ApplicationCreateController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  ApplicationCreateState build(String scopeId) =>
-      const ApplicationCreateEditing();
+  ApplicationCreateState build() => const ApplicationCreateEditing();
 
   Future<void> create({required String name, required String ownerId}) async {
     if (state is ApplicationCreateSending) {

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/scope.dart';
@@ -109,9 +110,14 @@ scopeDetailControllerProvider =
     );
 
 /// Owns one scope's detail: reading it, and saving edits to it.
-class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
+class ScopeDetailController extends Notifier<ScopeDetailState> {
+  ScopeDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  ScopeDetailState build(String scopeId) => const ScopeDetailLoading();
+  ScopeDetailState build() => const ScopeDetailLoading();
 
   /// Reads the scope.
   ///

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -87,15 +88,19 @@ applicationListControllerProvider =
     >(ApplicationListController.new);
 
 /// Owns one scope's application listing.
-class ApplicationListController
-    extends FamilyNotifier<ApplicationListState, String> {
+class ApplicationListController extends Notifier<ApplicationListState> {
+  ApplicationListController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   bool _inFlight = false;
   late final OwnerNames _owners = OwnerNames(
     ref.read(personRepositoryProvider),
   );
 
   @override
-  ApplicationListState build(String scopeId) =>
+  ApplicationListState build() =>
       const ApplicationListLoading(ApplicationQuery());
 
   Future<void> load() => _fetch(state.query);

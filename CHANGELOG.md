@@ -16,6 +16,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   after its review fixes: `GET /api/scopes` is documented as open to Scope Admins (their own scopes), the two-factor
   status and data-export descriptions are no longer swapped, and the data subject rights endpoints say a restricted
   subject can reach them. Only documentation comments in the client change.
+- Dependency: `flutter_riverpod` 2.6.1 → 3.4.3. Family controllers take their argument through the constructor,
+  `Override` and the family types come from `flutter_riverpod/misc.dart`, and `AsyncValue.valueOrNull` becomes
+  `value`. Riverpod 3's automatic retry of failing providers is turned off for the whole app
+  (`ProviderScope(retry: …)`), so a failure is shown once and retried by the user, as before.
 
 ### Fixed
 

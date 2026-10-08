@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/scope_permission.dart';
@@ -116,11 +117,14 @@ permissionDetailControllerProvider =
     >(PermissionDetailController.new);
 
 /// Owns one permission's detail: reading it, and saving edits to it.
-class PermissionDetailController
-    extends FamilyNotifier<PermissionDetailState, PermissionRef> {
+class PermissionDetailController extends Notifier<PermissionDetailState> {
+  PermissionDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final PermissionRef arg;
+
   @override
-  PermissionDetailState build(PermissionRef ref) =>
-      const PermissionDetailLoading();
+  PermissionDetailState build() => const PermissionDetailLoading();
 
   Future<void> load() async {
     state = const PermissionDetailLoading();

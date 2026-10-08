@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
