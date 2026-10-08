@@ -37,7 +37,7 @@ dependencies:
   # Use with the CupertinoIcons class for iOS style icons.
   cupertino_icons: ^1.0.8
   dio: ^5.11.0
-  retrofit: ^4.9.2
+  retrofit: ^4.10.0
   json_annotation: ^4.12.0
   heimdall_api_client:
     path: packages/heimdall_api_client
