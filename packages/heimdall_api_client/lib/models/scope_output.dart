@@ -13,6 +13,8 @@ class ScopeOutput {
     this.name,
     this.description,
     this.googleSignInEnabled,
+    this.defaultLegalBasis,
+    this.privacyNoticeUri,
     this.isDeleted,
     this.ownerIds,
     this.createdAt,
@@ -26,6 +28,8 @@ class ScopeOutput {
   final String? name;
   final String? description;
   final bool? googleSignInEnabled;
+  final int? defaultLegalBasis;
+  final String? privacyNoticeUri;
   final bool? isDeleted;
   final List<String>? ownerIds;
   final DateTime? createdAt;

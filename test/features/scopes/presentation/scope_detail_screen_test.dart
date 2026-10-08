@@ -190,6 +190,8 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -267,6 +269,8 @@ void main() {
         id: 'scope-1',
         name: 'Acme Ltd',
         description: 'The first tenant',
+        defaultLegalBasis: null,
+        privacyNoticeUri: null,
       ),
     ).called(1);
   });

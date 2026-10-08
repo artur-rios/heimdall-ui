@@ -151,9 +151,17 @@ class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
       saved: false,
     );
 
+    // The API replaces the privacy settings on every update, so the ones the
+    // scope already holds travel with the edit to keep them.
     final result = await ref
         .read(scopeRepositoryProvider)
-        .update(id: arg, name: name, description: description);
+        .update(
+          id: arg,
+          name: name,
+          description: description,
+          defaultLegalBasis: current.scope.defaultLegalBasis,
+          privacyNoticeUri: current.scope.privacyNoticeUri,
+        );
 
     state = result.fold(
       onSuccess: (scope) => ScopeDetailLoaded(scope, saved: true),
@@ -195,8 +203,12 @@ class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
         .setGoogleSignIn(id: arg, enabled: enabled);
 
     state = result.fold(
-      onSuccess: (scope) =>
-          current.copyWith(scope: scope, togglingGoogleSignIn: false),
+      // The toggle's output carries no privacy settings; the scope keeps the
+      // ones it had, so a save after a toggle does not clear them.
+      onSuccess: (scope) => current.copyWith(
+        scope: scope.withPrivacySettingsOf(current.scope),
+        togglingGoogleSignIn: false,
+      ),
       onFailure: (failure) => current.copyWith(
         togglingGoogleSignIn: false,
         googleSignInFailure: failure,

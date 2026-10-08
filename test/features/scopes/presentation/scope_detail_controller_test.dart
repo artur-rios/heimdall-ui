@@ -18,6 +18,14 @@ const _acme = Scope(
   ownerIds: <String>['person-1'],
 );
 
+const _withPrivacySettings = Scope(
+  id: 'scope-1',
+  name: 'Acme',
+  description: 'The first tenant',
+  defaultLegalBasis: 2,
+  privacyNoticeUri: 'https://acme.example/privacy',
+);
+
 const _deleted = Scope(
   id: 'scope-1',
   name: 'Acme',
@@ -75,6 +83,8 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -161,9 +171,76 @@ void main() {
         id: 'scope-1',
         name: 'Acme Ltd',
         description: 'The first tenant',
+        defaultLegalBasis: null,
+        privacyNoticeUri: null,
       ),
     ).called(1);
   });
+
+  // The API replaces the privacy settings on every update, so an edit that
+  // left them out would clear them.
+  test(
+    'GivenAScopeWithPrivacySettings_WhenSaved_ThenTheyAreSentBackUnchanged',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_withPrivacySettings));
+      answerUpdateWith(const Success<Scope>(_withPrivacySettings));
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.save(name: 'Acme Ltd', description: 'The first tenant');
+
+      // Then
+      verify(
+        () => repository.update(
+          id: 'scope-1',
+          name: 'Acme Ltd',
+          description: 'The first tenant',
+          defaultLegalBasis: 2,
+          privacyNoticeUri: 'https://acme.example/privacy',
+        ),
+      ).called(1);
+    },
+  );
+
+  // The toggle's output carries no privacy settings; reading its answer as
+  // "none" would make the next save clear them.
+  test(
+    'GivenAToggledScope_WhenSaved_ThenThePrivacySettingsAreStillSent',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_withPrivacySettings));
+      answerToggleWith(
+        const Success<Scope>(
+          Scope(
+            id: 'scope-1',
+            name: 'Acme',
+            description: 'The first tenant',
+            googleSignInEnabled: true,
+          ),
+        ),
+      );
+      answerUpdateWith(const Success<Scope>(_withPrivacySettings));
+      final controller = controllerUnderTest();
+      await controller.load();
+      await controller.setGoogleSignIn(true);
+
+      // When
+      await controller.save(name: 'Acme Ltd', description: 'The first tenant');
+
+      // Then
+      verify(
+        () => repository.update(
+          id: 'scope-1',
+          name: 'Acme Ltd',
+          description: 'The first tenant',
+          defaultLegalBasis: 2,
+          privacyNoticeUri: 'https://acme.example/privacy',
+        ),
+      ).called(1);
+    },
+  );
 
   // AF-12c — a refusal keeps the record and carries the API's own errors.
   test('GivenARejectedUpdate_WhenSaved_ThenApiErrorsAreKept', () async {
@@ -220,6 +297,8 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
       ),
     );
   });
@@ -241,6 +320,8 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
       ),
     );
   });
