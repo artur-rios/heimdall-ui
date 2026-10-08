@@ -212,12 +212,19 @@ the committed output differs, so the two cannot drift apart.
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| `ci.yml` | Push to `main`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test` |
+| `ci.yml` | Push to `main` or `develop`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test` |
 | `build.yml` | Push to `main`, and manual dispatch | Builds web, Windows, Linux, and Android, and uploads each artifact |
-| `check-api-client.yml` | Push to `main`, and every pull request | Regenerates the client and fails if the committed output differs |
+| `check-api-client.yml` | Push to `main` or `develop`, and every pull request | Regenerates the client and fails if the committed output differs |
+| `branch-policy.yml` | Every pull request into `develop` or `main` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model) |
 
 CI never receives a real API base URL: the analyze-and-test job needs none, and the build jobs use
 the default so that no deployment address is exposed in a public log.
+
+Deployment is not part of GitHub Actions. The web container image (see the README's *Container image
+(web)*) is built and deployed by the self-hosted Jenkins in
+[yggdrasil](https://github.com/artur-rios/yggdrasil), driven by the `Jenkinsfile`: a pushed
+`release/x.y.z` branch deploys to homologation, and its pull request into `main` deploys to production
+once every check passes — see [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
 
 ---
 
@@ -226,8 +233,14 @@ the default so that no deployment address is exposed in a public log.
 - **The token is the only stored state**, held in the platform's secure storage. Signing out deletes
   it. A challenge token is never stored.
 - **Theme mode** is the only other persisted preference, in `shared_preferences`.
-- **A `401` from any request** clears the session and returns the user to sign-in; a session cannot
-  outlive the API's opinion of its token.
+- **A `401` to any request made under the session** clears it and returns the user to sign-in; a
+  session cannot outlive the API's opinion of its token. The exception is a `401` refusing a password
+  or code typed into the request (a wrong second factor, or the password asked for to disable
+  two-factor): that is the person's to correct, and the session is left alone.
+- **A secure store the platform cannot use** — on Linux, a Secret Service keyring that is not
+  running or is locked — means no session: start-up settles on sign-in, and signing in says the
+  session could not be stored. On Android the app opts out of auto backup, so a restored device never
+  holds a token it cannot decrypt.
 - **Nothing is cached across launches.** Every listing is fetched from the API, paginated by it.
 
 ---
