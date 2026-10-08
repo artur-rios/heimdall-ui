@@ -40,6 +40,21 @@ void main() {
     },
   );
 
+  const updated = _Answer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'id': 'scope-1',
+        'name': 'Acme Ltd',
+        'description': 'The first tenant',
+        'googleSignInEnabled': false,
+        'ownerIds': <String>['person-1'],
+      },
+    },
+  );
+
   setUp(() {
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'));
   });
@@ -166,6 +181,84 @@ void main() {
     // Then
     expect(result.failureOrNull?.kind, FailureKind.forbidden);
   });
+
+  test('GivenPrivacySettings_WhenRead_ThenTheyAreMapped', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'scope-1',
+            'name': 'Acme',
+            'description': 'The first tenant',
+            'defaultLegalBasis': 2,
+            'privacyNoticeUri': 'https://acme.example/privacy',
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.getById('scope-1');
+
+    // Then
+    expect(result.valueOrNull?.defaultLegalBasis, 2);
+    expect(
+      result.valueOrNull?.privacyNoticeUri,
+      'https://acme.example/privacy',
+    );
+  });
+
+  // The API replaces every field it accepts, so the privacy settings must
+  // travel with an update or they are cleared.
+  test('GivenPrivacySettings_WhenUpdated_ThenTheyTravelInTheBody', () async {
+    // Given
+    final repository = repositoryAnswering(updated);
+
+    // When
+    await repository.update(
+      id: 'scope-1',
+      name: 'Acme Ltd',
+      description: 'The first tenant',
+      defaultLegalBasis: 2,
+      privacyNoticeUri: 'https://acme.example/privacy',
+    );
+
+    // Then
+    expect(adapter.bodies.single, <String, dynamic>{
+      'name': 'Acme Ltd',
+      'description': 'The first tenant',
+      'defaultLegalBasis': 2,
+      'privacyNoticeUri': 'https://acme.example/privacy',
+    });
+  });
+
+  // The update's output does not carry the privacy settings, and the API has
+  // just stored exactly what was sent.
+  test('GivenPrivacySettings_WhenUpdated_ThenTheResultKeepsThem', () async {
+    // Given
+    final repository = repositoryAnswering(updated);
+
+    // When
+    final result = await repository.update(
+      id: 'scope-1',
+      name: 'Acme Ltd',
+      description: 'The first tenant',
+      defaultLegalBasis: 2,
+      privacyNoticeUri: 'https://acme.example/privacy',
+    );
+
+    // Then
+    expect(result.valueOrNull?.name, 'Acme Ltd');
+    expect(result.valueOrNull?.defaultLegalBasis, 2);
+    expect(
+      result.valueOrNull?.privacyNoticeUri,
+      'https://acme.example/privacy',
+    );
+  });
 }
 
 class _Answer {
@@ -185,6 +278,10 @@ class _StubAdapter implements HttpClientAdapter {
   /// actually travelled.
   final List<Map<String, dynamic>> queries = <Map<String, dynamic>>[];
 
+  /// The request bodies it was sent, as JSON, so a test can assert which
+  /// fields actually travelled.
+  final List<Object?> bodies = <Object?>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -192,6 +289,9 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     queries.add(options.queryParameters);
+    bodies.add(
+      options.data == null ? null : jsonDecode(jsonEncode(options.data)),
+    );
 
     if (_answer.status == 0) {
       throw DioException.connectionError(

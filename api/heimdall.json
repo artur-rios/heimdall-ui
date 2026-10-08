@@ -2,13 +2,13 @@
   "openapi": "3.0.4",
   "info": {
     "title": "Heimdall API",
-    "description": "A centralized identity management API with scope-based multi-tenancy.\n\nEvery identifier in a path is a **PublicId** (GUID), never an internal id. Every endpoint answers one of two envelopes — `DataOutput<T>` for a single resource, `PaginatedOutput<T>` for a listing.\n\nObtain a token from `POST /api/auth/login`, then authorize with it. A challenge token issued by a 2FA-gated login is rejected everywhere except `POST /api/auth/2fa/verify`.",
+    "description": "A centralized identity management API with scope-based multi-tenancy.\n\nEvery identifier in a path is a **PublicId** (GUID), never an internal id. Every endpoint answers one of two envelopes — `DataOutput<T>` for a single resource, `PaginatedOutput<T>` for a listing.\n\nObtain a token from `POST /api/auth/login`, then authorize with it. A challenge token issued by a 2FA-gated login is not one: no endpoint accepts it as a bearer credential, and it is read only from the `challengeToken` body field of `POST /api/auth/2fa/verify` and `POST /api/auth/2fa/challenge/resend`.",
     "contact": {
       "name": "Artur Rios",
       "url": "https://github.com/artur-rios/heimdall-api"
     },
     "license": {
-      "name": "MIT",
+      "name": "ArturRios.Heimdall — Proprietary License",
       "url": "https://github.com/artur-rios/heimdall-api/blob/main/LICENSE"
     },
     "version": "v1"
@@ -962,6 +962,58 @@
         "security": [ ]
       }
     },
+    "/api/auth/2fa/challenge/resend": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Reissues the email code for a two-factor challenge that is still outstanding (UC-46,\nFR-2F-16), so someone who never received the code UC-11 mailed can ask for another\nwithout starting sign-in over. Open to anonymous callers and authorized by the challenge\ntoken alone, submitted as a request body field exactly as\nM:ArturRios.Heimdall.WebApi.Controllers.AuthController.VerifyTwoFactorAuth(ArturRios.Heimdall.Command.Input.VerifyTwoFactorAuthCommand) takes it — never as an `Authorization` header\n(FR-2F-10).",
+        "description": "\nAnswers `200 OK` with the same message and no data on every path — a valid\n                    challenge, an unknown one, a forged one, an expired one, one naming a person with no\n                    email method, and one whose reissues are spent (AF-46a…AF-46e). A response that varied\n                    would tell an anonymous caller whether an address is registered and has email\n                    two-factor enabled, which is the question UC-11 and UC-38 collapse their own answers\n                    to refuse.\n\nThe reissue lands inside the existing challenge's window and never lengthens it: a\n                    new challenge token could only be returned for a challenge that was real, which would\n                    be exactly that oracle.\n\nRate-limited like every other anonymous auth route. The address is never the caller's\n                    to choose — it is read from the person the challenge token names — and FR-2F-13's cap\n                    already bounds how many codes one challenge can produce, so the limiter is not what\n                    stops this being a mail cannon. What it bounds is the unauthenticated request volume\n                    itself, which is the same thing it bounds on M:ArturRios.Heimdall.WebApi.Controllers.AuthController.Login(ArturRios.Heimdall.Command.Input.LoginCommand) and\n                    M:ArturRios.Heimdall.WebApi.Controllers.AuthController.PasswordRecovery(ArturRios.Heimdall.Command.Input.PasswordRecoveryCommand).\n\n**Anonymous** — no bearer token required.",
+        "operationId": "Auth_ResendTwoFactorChallengeCode",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutputDataOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
     "/api/auth/2fa/disable": {
       "post": {
         "tags": [
@@ -1080,13 +1132,359 @@
         ]
       }
     },
-    "/api/auth/2fa": {
-      "get": {
+    "/api/auth/data-export": {
+      "post": {
         "tags": [
           "Auth"
         ],
         "summary": "Reports the caller's own two-factor authentication status (FR-2F-15): whether it is\nactive, which methods are configured, and how many recovery codes remain unused. The\nperson read is always the caller themselves — taken from the bearer token, the same as\nM:ArturRios.Heimdall.WebApi.Controllers.AuthController.EnableTwoFactorAuth(ArturRios.Heimdall.Command.Input.EnableTwoFactorAuthCommand) — so a configuration is never addressed by an\nidentifier in a path.",
         "description": "No `RoleRequirement`, for the same reason its `POST` siblings have none: the\nauthorization matrix grants two-factor management to all three person roles and withholds\nit from anonymous callers, which authentication alone enforces. A caller with no\nconfiguration is answered 200 with every flag false; a Google User is answered 403, since\nFR-2F-01 makes them permanently ineligible.\n\n**Any authenticated caller** — the handler decides who may act, so no role is required at the door.",
+        "operationId": "Auth_ExportMyData",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportCommandOutputDataOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/erasure-request": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Requests erasure of the caller's own identity (UC-42, GDPR Art. 17, LGPD Art. 18 VI).",
+        "description": "\nNo `RoleRequirement`: every role, and a Google User, may ask to be erased — it is\n                    a right of the data subject rather than a privilege of a role. Authentication alone\n                    enforces what matters, which is that somebody is asking for themselves.\n\nThe subject is never named in the request. There is no path parameter and no body\n                    field for it, so the endpoint has no shape in which one identity could ask for\n                    another's erasure.\n\nThe body carries a credential, and which one depends on the caller: a person presents\n                    their password, a Google User a freshly issued Google ID token. A bearer token alone\n                    is not enough for an irreversible operation. Because it verifies a password, this\n                    endpoint is governed by NFR-18 rather than NFR-05.\n\n**Any authenticated caller** — the handler decides who may act, so no role is required at the door.",
+        "operationId": "Auth_RequestErasure",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestErasureCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestErasureCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestErasureCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErasureCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErasureCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RequestErasureCommandOutputDataOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/processing-restriction": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Restricts processing of the caller's own identity (UC-44, GDPR Art. 18, LGPD Art. 18\nIII–IV) — suspended without being deleted, while something about it is disputed.",
+        "description": "No credential is required, unlike UC-42's erasure request. A restriction destroys\nnothing and is liftable, and somebody asking for one may be doing so precisely because\nthey believe the account is compromised — demanding the password of a person in that\nposition would be the wrong way round.\n\n**Any authenticated caller** — the handler decides who may act, so no role is required at the door.",
+        "operationId": "Auth_RestrictProcessing",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictProcessingCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictProcessingCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestrictProcessingCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictProcessingCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictProcessingCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RestrictProcessingCommandOutputDataOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/erasure-reconciliation": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Re-applies erasure to identities a database restore brought back (NFR-25). System Admin\nonly.",
+        "description": "A step in the restore runbook rather than an everyday operation. The identifiers come\nfrom the erasure ledger the anonymisation pass writes to the logs, which is the only copy\na restore cannot roll back.\n\n**Requires role:** System Admin.",
+        "operationId": "Auth_ReapplyErasures",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReapplyErasuresCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReapplyErasuresCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReapplyErasuresCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReapplyErasuresCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReapplyErasuresCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReapplyErasuresCommandOutputDataOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          },
+          "403": {
+            "description": "The token is valid but the caller does not hold a required role."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/processing-restriction/lift": {
+      "post": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Lifts a restriction on processing (UC-45, GDPR Art. 18(3)).",
+        "description": "No `RoleRequirement`, because the rule is data-dependent: a subject of any role may\nlift their own, and only a System Admin may lift somebody else's. The handler decides,\nand it informs the subject first in the second case — Art. 18(3) makes that a\nprecondition of the act rather than a courtesy afterwards, so a failed notification\nrefuses the lift.\n\n**Any authenticated caller** — the handler decides who may act, so no role is required at the door.",
+        "operationId": "Auth_LiftProcessingRestriction",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftProcessingRestrictionCommand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftProcessingRestrictionCommand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/LiftProcessingRestrictionCommand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutputDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutputDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutputDataOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/erasure-requests": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "summary": "Lists the erasure requests that have not yet been carried out (UC-43). System Admin only.",
+        "description": "A Scope Admin is deliberately excluded, though they administer their scope's users: which\nof them has asked to be erased is not something the request entitles anyone to know, and\nmost requests need no human at all. This queue exists for the ones NFR-12 blocks, which\nneed an owner transferred before they can proceed.\n\n**Requires role:** System Admin.",
+        "operationId": "Auth_ListErasureRequests",
+        "parameters": [
+          {
+            "name": "OverdueOnly",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "name": "PageNumber",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          },
+          {
+            "name": "PageSize",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureRequestOutputPaginatedOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureRequestOutputPaginatedOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErasureRequestOutputPaginatedOutput"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "The token is missing, malformed, expired, or is a 2FA challenge token."
+          },
+          "403": {
+            "description": "The token is valid but the caller does not hold a required role."
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/api/auth/2fa": {
+      "get": {
+        "tags": [
+          "Auth"
+        ],
+        "description": "**Any authenticated caller** — the handler decides who may act, so no role is required at the door.",
         "operationId": "Auth_GetTwoFactorStatus",
         "responses": {
           "200": {
@@ -3827,6 +4225,381 @@
         },
         "additionalProperties": false
       },
+      "DataExportApplication": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "scopeId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isDeleted": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportAuditEntry": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "succeeded": {
+            "type": "boolean"
+          },
+          "failureReason": {
+            "type": "string",
+            "nullable": true
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportCommandOutput": {
+        "required": [
+          "processing",
+          "security",
+          "subject"
+        ],
+        "type": "object",
+        "properties": {
+          "exportedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subject": {
+            "$ref": "#/components/schemas/DataExportSubject"
+          },
+          "security": {
+            "$ref": "#/components/schemas/DataExportSecurity"
+          },
+          "processing": {
+            "$ref": "#/components/schemas/DataExportProcessing"
+          },
+          "erasure": {
+            "$ref": "#/components/schemas/DataExportErasure"
+          },
+          "scopeMemberships": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          },
+          "scopeOwnerships": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          },
+          "applications": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportApplication"
+            },
+            "nullable": true
+          },
+          "auditEntries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportAuditEntry"
+            },
+            "nullable": true
+          },
+          "auditEntriesTruncated": {
+            "type": "boolean"
+          },
+          "withheld": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportWithheld"
+            },
+            "nullable": true
+          },
+          "recipients": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportRecipient"
+            },
+            "nullable": true
+          },
+          "sources": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportSource"
+            },
+            "nullable": true
+          },
+          "retention": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DataExportRetention"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/DataExportCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportErasure": {
+        "type": "object",
+        "properties": {
+          "isDeleted": {
+            "type": "boolean"
+          },
+          "deletedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "deletionKind": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "anonymisedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "erasureRequestedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "erasureDueAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "erasureBlockedReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportProcessing": {
+        "type": "object",
+        "properties": {
+          "legalBasis": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "legalBasisName": {
+            "type": "string",
+            "nullable": true
+          },
+          "privacyNoticeVersion": {
+            "type": "string",
+            "nullable": true
+          },
+          "recordedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportRecipient": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "purpose": {
+            "type": "string",
+            "nullable": true
+          },
+          "location": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportRetention": {
+        "type": "object",
+        "properties": {
+          "category": {
+            "type": "string",
+            "nullable": true
+          },
+          "period": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportSecurity": {
+        "type": "object",
+        "properties": {
+          "passwordSet": {
+            "type": "boolean"
+          },
+          "twoFactorActive": {
+            "type": "boolean"
+          },
+          "twoFactorAppEnabled": {
+            "type": "boolean"
+          },
+          "twoFactorEmailEnabled": {
+            "type": "boolean"
+          },
+          "unusedRecoveryCodes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "failedLoginAttempts": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lockedOutUntil": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportSource": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "provides": {
+            "type": "string",
+            "nullable": true
+          },
+          "dataSentThere": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportSubject": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string",
+            "nullable": true
+          },
+          "name": {
+            "type": "string",
+            "nullable": true
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "emailVerified": {
+            "type": "boolean"
+          },
+          "role": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "googleId": {
+            "type": "string",
+            "nullable": true
+          },
+          "profilePictureUrl": {
+            "type": "string",
+            "nullable": true
+          },
+          "isDeleted": {
+            "type": "boolean"
+          },
+          "createdAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updatedAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "DataExportWithheld": {
+        "type": "object",
+        "properties": {
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "reason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
       "DeleteApplicationCommandOutput": {
         "type": "object",
         "properties": {
@@ -4168,6 +4941,86 @@
           },
           "data": {
             "$ref": "#/components/schemas/EnableTwoFactorAuthCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErasureRequestOutput": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "isGoogleUser": {
+            "type": "boolean"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "overdue": {
+            "type": "boolean"
+          },
+          "blockedReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ErasureRequestOutputPaginatedOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ErasureRequestOutput"
+            },
+            "nullable": true
+          },
+          "pageNumber": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pageSize": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalItems": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "totalPages": {
+            "type": "integer",
+            "format": "int32",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -4673,6 +5526,65 @@
         },
         "additionalProperties": false
       },
+      "LiftProcessingRestrictionCommand": {
+        "type": "object",
+        "properties": {
+          "subjectId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "LiftProcessingRestrictionCommandOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "liftedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "subjectNotified": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "LiftProcessingRestrictionCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
       "LoginCommand": {
         "type": "object",
         "properties": {
@@ -5083,6 +5995,73 @@
         },
         "additionalProperties": false
       },
+      "ReapplyErasuresCommand": {
+        "type": "object",
+        "properties": {
+          "subjectIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReapplyErasuresCommandOutput": {
+        "type": "object",
+        "properties": {
+          "anonymised": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "alreadyAnonymised": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "notFound": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ReapplyErasuresCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReapplyErasuresCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
       "RegenerateRecoveryCodesCommand": {
         "type": "object",
         "properties": {
@@ -5186,6 +6165,121 @@
         },
         "additionalProperties": false
       },
+      "RequestErasureCommand": {
+        "type": "object",
+        "properties": {
+          "password": {
+            "type": "string",
+            "nullable": true
+          },
+          "idToken": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RequestErasureCommandOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "requestedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "blockedReason": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RequestErasureCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RequestErasureCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResendTwoFactorChallengeCodeCommand": {
+        "type": "object",
+        "properties": {
+          "challengeToken": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ResendTwoFactorChallengeCodeCommandOutput": {
+        "type": "object",
+        "additionalProperties": false
+      },
+      "ResendTwoFactorChallengeCodeCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
       "ResendVerificationEmailCommandOutput": {
         "type": "object",
         "additionalProperties": false
@@ -5270,6 +6364,65 @@
         },
         "additionalProperties": false
       },
+      "RestrictProcessingCommand": {
+        "type": "object",
+        "properties": {
+          "ground": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RestrictProcessingCommandOutput": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "restrictedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "ground": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "RestrictProcessingCommandOutputDataOutput": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          },
+          "timestamp": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "success": {
+            "type": "boolean",
+            "readOnly": true
+          },
+          "data": {
+            "$ref": "#/components/schemas/RestrictProcessingCommandOutput"
+          }
+        },
+        "additionalProperties": false
+      },
       "ScopeOutput": {
         "type": "object",
         "properties": {
@@ -5287,6 +6440,15 @@
           },
           "googleSignInEnabled": {
             "type": "boolean"
+          },
+          "defaultLegalBasis": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "privacyNoticeUri": {
+            "type": "string",
+            "nullable": true
           },
           "isDeleted": {
             "type": "boolean"
@@ -5865,6 +7027,15 @@
             "nullable": true
           },
           "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultLegalBasis": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "privacyNoticeUri": {
             "type": "string",
             "nullable": true
           }

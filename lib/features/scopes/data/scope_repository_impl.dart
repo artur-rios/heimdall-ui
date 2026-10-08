@@ -147,11 +147,18 @@ class ApiScopeRepository implements ScopeRepository {
     required String id,
     required String name,
     required String description,
+    required int? defaultLegalBasis,
+    required String? privacyNoticeUri,
   }) async {
     try {
       final response = await _client.scopeUpdate(
         id: id,
-        body: UpdateScopeCommand(name: name, description: description),
+        body: UpdateScopeCommand(
+          name: name,
+          description: description,
+          defaultLegalBasis: defaultLegalBasis,
+          privacyNoticeUri: privacyNoticeUri,
+        ),
       );
 
       if (response.success != true) {
@@ -171,13 +178,17 @@ class ApiScopeRepository implements ScopeRepository {
       }
 
       // The update endpoint answers with its own output type, which carries no
-      // `isDeleted`: a scope the API just updated is not a deleted one.
+      // `isDeleted`: a scope the API just updated is not a deleted one. Nor
+      // does it carry the privacy settings, which the API has just stored
+      // exactly as they were sent.
       return Success<Scope>(
         Scope(
           id: data.id ?? id,
           name: data.name ?? name,
           description: data.description ?? description,
           googleSignInEnabled: data.googleSignInEnabled ?? false,
+          defaultLegalBasis: defaultLegalBasis,
+          privacyNoticeUri: privacyNoticeUri,
           ownerIds: data.ownerIds ?? const <String>[],
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
@@ -282,6 +293,8 @@ Scope scopeFromOutput(ScopeOutput output) => Scope(
   name: output.name ?? '',
   description: output.description ?? '',
   googleSignInEnabled: output.googleSignInEnabled ?? false,
+  defaultLegalBasis: output.defaultLegalBasis,
+  privacyNoticeUri: output.privacyNoticeUri,
   isDeleted: output.isDeleted ?? false,
   ownerIds: output.ownerIds ?? const <String>[],
   createdAt: output.createdAt,
