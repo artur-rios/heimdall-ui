@@ -20,6 +20,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `Override` and the family types come from `flutter_riverpod/misc.dart`, and `AsyncValue.valueOrNull` becomes
   `value`. Riverpod 3's automatic retry of failing providers is turned off for the whole app
   (`ProviderScope(retry: …)`), so a failure is shown once and retried by the user, as before.
+- `HEIMDALL_API_BASE_URL` defaults to `http://localhost:8080`, the local heimdall-api's Docker Compose port, instead
+  of `http://localhost:5000`. A build that sets it is unaffected.
+- Four deployment environments: `local` (Docker Desktop on Windows, by hand), and `development`, `homologation` and
+  `production`, which share one VPS and are deployed by yggdrasil — `develop` to development, `release/x.y.z` to
+  homologation, the release pull request to production. Development and homologation run on demand. Every deployed
+  build calls the API under its own origin; the README and the Operations & Infrastructure Document list each
+  environment's API base URL, and `config/local.json.example` holds the local values for `--dart-define-from-file`.
 
 ### Fixed
 

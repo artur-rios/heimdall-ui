@@ -2,7 +2,7 @@
 title: "Operations & Infrastructure Document"
 linkTitle: "Operations & Infrastructure Document"
 weight: 70
-description: "How Heimdall UI is configured, built, packaged, and released for each of its four targets."
+description: "How Heimdall UI is configured, built, packaged, and released for each of its four targets and four environments."
 ---
 
 # Operations & Infrastructure Document — Heimdall UI
@@ -27,7 +27,7 @@ runtime, and no value is baked into source.
 
 | Key | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:5000` | The API root. A trailing slash is trimmed. |
+| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:8080` | The API root. A trailing slash is trimmed. The default is the local heimdall-api (§2.2). |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset | The Google client id for the target. When unset, the Google control is hidden rather than shown broken. |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset | The `PublicId` of the scope this build acts in. See §2.1 — on the web the calling application's value wins. |
 
@@ -67,13 +67,14 @@ Supply them per command:
 flutter run --dart-define=HEIMDALL_API_BASE_URL=https://heimdall.example.com
 ```
 
-Or keep them in a file that is **not committed** — `config/local.json` is git-ignored:
+Or keep them in a file that is **not committed** — `config/local.json` is git-ignored. The tracked
+`config/local.json.example` holds the local environment's values; copy it and fill in what applies:
 
 ```json
 {
-  "HEIMDALL_API_BASE_URL": "https://heimdall.example.com",
-  "HEIMDALL_GOOGLE_CLIENT_ID": "000000000000-example.apps.googleusercontent.com",
-  "HEIMDALL_SCOPE_ID": "00000000-0000-0000-0000-000000000001"
+  "HEIMDALL_API_BASE_URL": "http://localhost:8080",
+  "HEIMDALL_GOOGLE_CLIENT_ID": "",
+  "HEIMDALL_SCOPE_ID": ""
 }
 ```
 
@@ -83,6 +84,31 @@ flutter run --dart-define-from-file=config/local.json
 
 > A Google client id is not a secret, but the API base URL of a private deployment can be. Neither
 > belongs in the repository.
+
+### 2.2 Environments
+
+The UI is deployed to the same four environments as the
+[Heimdall API](https://github.com/artur-rios/heimdall-api). It has no env file of its own: a deployed
+build's values are build arguments, kept in [yggdrasil](https://github.com/artur-rios/yggdrasil)'s env
+files on the VPS (`/etc/yggdrasil/<environment>/heimdall-ui.env`). `example.com` stands for the real
+domain.
+
+| Environment | Where | Deployed by | UI at | `HEIMDALL_API_BASE_URL` |
+| --- | --- | --- | --- | --- |
+| `local` | The developer's Windows machine, Docker Desktop | By hand — `flutter run`, or yggdrasil's `scripts/deploy.sh local heimdall-ui ...` | `http://localhost:8081` | `http://localhost:8080`, the local heimdall-api |
+| `development` | The VPS, on demand (started only when used) | Jenkins, on every push to `develop`; a stopped environment stays stopped, and `scripts/ygg.sh env start development` on the VPS turns it on | `https://heimdall-dev.example.com` | `https://heimdall-dev.example.com` |
+| `homologation` | The VPS, on demand | Jenkins, on every push of a `release/x.y.z` branch | `https://heimdall-hml.example.com` | `https://heimdall-hml.example.com` |
+| `production` | The VPS, always on | Jenkins, on a green `release/x.y.z → main` pull request, which it then merges and tags | `https://heimdall.example.com` | `https://heimdall.example.com` |
+
+**On the VPS the API base URL is the UI's own origin.** Traefik routes `/api/` on the UI's host to
+the same environment's heimdall-api, and every API route begins with `/api/`, so the browser never
+makes a cross-origin request and the API needs no CORS entry for the UI. **Locally they are two
+origins** — the UI on `8081`, the API on `8080` — so the local heimdall-api lists
+`http://localhost:8081` in `HEIMDALL_CORS_ALLOWED_ORIGINS`, and `flutter run -d chrome` takes
+`--web-port 8081` to be that origin.
+
+Because the values are compiled into the bundle, the image is built once per environment — the same
+commit, a different bundle — and tagged `<environment>-<version>` by yggdrasil.
 
 ---
 
@@ -170,7 +196,8 @@ flutter build appbundle --release --dart-define=HEIMDALL_API_BASE_URL=https://he
 1. **Single-page routing.** Unknown paths must fall back to `index.html`, or a deep link such as
    `/scopes/{id}` returns a 404 from the host instead of reaching the router.
 2. **CORS.** The API must permit the origin the bundle is served from. This is configured on the API,
-   not here.
+   not here — unless, as in the VPS environments (§2.2), the API is served under the bundle's own
+   origin, in which case there is nothing to permit.
 
 Serve the bundle under a sub-path by building with a base href:
 
@@ -222,9 +249,10 @@ the default so that no deployment address is exposed in a public log.
 
 Deployment is not part of GitHub Actions. The web container image (see the README's *Container image
 (web)*) is built and deployed by the self-hosted Jenkins in
-[yggdrasil](https://github.com/artur-rios/yggdrasil), driven by the `Jenkinsfile`: a pushed
-`release/x.y.z` branch deploys to homologation, and its pull request into `main` deploys to production
-once every check passes — see [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
+[yggdrasil](https://github.com/artur-rios/yggdrasil), driven by the `Jenkinsfile`: a push to
+`develop` deploys to development, a pushed `release/x.y.z` branch to homologation, and its pull
+request into `main` to production once every check passes (§2.2) — see
+[CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
 
 ---
 
@@ -249,7 +277,7 @@ once every check passes — see [CONTRIBUTING.md](../../CONTRIBUTING.md#releasin
 
 | Symptom | Likely cause |
 | --- | --- |
-| Every request fails on the web target while the API is reachable in a browser | The API does not permit the bundle's origin by CORS |
+| Every request fails on the web target while the API is reachable in a browser | The API does not permit the bundle's origin by CORS — locally, the page is not on `http://localhost:8081`; deployed, the base URL is not the UI's own origin (§2.2) |
 | Sign-in succeeds, then every subsequent request answers `401` | The API base URL points at a different deployment from the one that issued the token |
 | The Google control never appears | No `HEIMDALL_GOOGLE_CLIENT_ID` was supplied at build time, or the scope has Google Sign-In switched off |
 | A deep link 404s in production but works locally | The static host is not falling back to `index.html` |

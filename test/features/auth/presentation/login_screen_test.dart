@@ -48,9 +48,9 @@ void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
 
-  const withoutGoogle = AppConfig(apiBaseUrl: 'http://localhost:5000');
+  const withoutGoogle = AppConfig(apiBaseUrl: 'http://localhost:8080');
   const withGoogle = AppConfig(
-    apiBaseUrl: 'http://localhost:5000',
+    apiBaseUrl: 'http://localhost:8080',
     googleClientId: 'client-id.apps.googleusercontent.com',
   );
 

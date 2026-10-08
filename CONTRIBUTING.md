@@ -128,12 +128,30 @@ was built from.
 
 ## Releasing
 
+Four environments, listed in the README's [Environments](./README.md#environments): `local` is the
+developer's own machine, deployed by hand; `development`, `homologation` and `production` share one
+VPS and are deployed by Jenkins.
+
+| Event | Deploys to |
+|---|---|
+| Push to `develop` (every merged pull request) | **development** — left stopped if it was stopped |
+| Push of a `release/x.y.z` branch | **homologation** — likewise |
+| Pull request `release/x.y.z → main` with every check green | **production**, then merge and tag |
+
+Development and homologation are **on demand**: they run only while somebody uses them, and a deploy
+does not start a stopped one. To try a merge or a release candidate, turn the environment on, on
+the VPS — `scripts/ygg.sh env start development` (or `homologation`) — and off again with
+`scripts/ygg.sh env stop <environment>` when done. It is then at `https://heimdall-dev.example.com`
+(`-hml` for homologation), `example.com` standing for the real domain. heimdall-api is deployed to
+the same environments, and the UI calls the one beside it.
+
 Before cutting the release, finalize [CHANGELOG.md](./CHANGELOG.md) on `develop` through a normal `feature/` or
 `fix/` pull request, since the release branch can carry no commits of its own: rename `## [Unreleased]` to
 `## [1.4.0] - <yyyy-mm-dd>` above a fresh, empty `## [Unreleased]`, and update the compare links at the bottom.
 
 1. `git switch develop && git pull && git switch -c release/1.4.0 && git push -u origin release/1.4.0`
-   — Jenkins deploys the branch to **homologation**.
+   — Jenkins deploys the branch to **homologation**. Start homologation to check the release there
+   before step 2.
 2. Open a pull request `release/1.4.0 → main`.
 3. When every GitHub check on the pull request passes, Jenkins deploys to **production**. On
    success it sets the `deploy/production` status, merges the pull request with a merge commit,
@@ -145,8 +163,9 @@ The GitHub release's notes are generated from the pull requests merged since the
 CHANGELOG.md is the curated record.
 
 Follow a release in the **yggdrasil console** (`https://yggdrasil.<domain>`, or the Android app).
-The system card shows this application's version, commit, deploy time and health in each
-environment.
+The system card shows each environment — development, homologation, production — with this
+application's version, commit, deploy time and health in it; a stopped on-demand environment shows
+as *Stopped*, not as a problem.
 
 The repository owner can bypass these rules. That is for emergencies, not for routine work.
 
@@ -154,7 +173,8 @@ The repository owner can bypass these rules. That is for emergencies, not for ro
 
 Deployment is managed by [yggdrasil](https://github.com/artur-rios/yggdrasil). This repository is
 the application `heimdall-ui` in its `catalog.yaml`, which is what gives it:
-- its Jenkins deploy job
+- its Jenkins deploy job, and its place in each of the catalog's environments (`local`,
+  `development`, `homologation`, `production`)
 - its GitHub rulesets and required checks (the catalog's `checks`)
 - its health probe (`/healthz`) and its place in the console
 
@@ -162,3 +182,8 @@ It exposes no metrics, so the catalog gives it no Prometheus scrape target.
 
 If a required check is renamed or added here, update the catalog entry, then run
 `python github/rulesets.py heimdall-ui` in yggdrasil.
+
+The build arguments of the VPS environments (`HEIMDALL_API_BASE_URL`, `HEIMDALL_GOOGLE_CLIENT_ID`,
+`HEIMDALL_SCOPE_ID`) and the host Traefik serves the UI at (`UI_HOST`) live on the VPS in
+`/etc/yggdrasil/<environment>/heimdall-ui.env`. A new `--dart-define` needs adding there, to
+yggdrasil's `stacks/heimdall-ui.yml` and to the `Dockerfile`.

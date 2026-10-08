@@ -9,7 +9,7 @@ void main() {
     final config = AppConfig.fromEnvironment();
 
     // Then
-    expect(config.apiBaseUrl, 'http://localhost:5000');
+    expect(config.apiBaseUrl, 'http://localhost:8080');
     expect(config.googleClientId, isNull);
   });
 

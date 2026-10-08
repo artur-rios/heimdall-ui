@@ -40,7 +40,7 @@ void main() {
         // The sign-in screen asks the configuration whether to offer the
         // Google control, so the whole app needs one to render.
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -214,7 +214,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
         authRepositoryProvider.overrideWithValue(repository),
@@ -248,7 +248,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
         authRepositoryProvider.overrideWithValue(repository),
@@ -283,7 +283,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -317,7 +317,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -358,7 +358,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
