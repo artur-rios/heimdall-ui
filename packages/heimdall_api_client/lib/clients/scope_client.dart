@@ -30,9 +30,14 @@ abstract class ScopeClient {
     @Body() CreateScopeCommand? body,
   });
 
-  /// Lists scopes with pagination and optional filtering (UC-02). Restricted to System Admins.
+  /// Lists scopes with pagination and optional filtering (UC-02 read b). A System Admin lists.
+  /// every scope; a Scope Admin only the scopes they own, with the total counting those alone.
   ///
-  /// **Requires role:** System Admin.
+  /// Ownership is read from the database rather than the token's owned-scope claim, so an owner.
+  /// removed from a scope stops seeing it at once. A `User` has one scope and reads it by.
+  /// id, so the collection is refused to them (403).
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
   @GET('/api/scopes')
   Future<ScopeOutputPaginatedOutput> scopeList({
     @Query('Name') String? name,
