@@ -848,10 +848,10 @@ packages:
     dependency: "direct dev"
     description:
       name: swagger_parser
-      sha256: "21e69dc826a9302802f943a581eae51c8290bc4a79cc80681c914ade2538131e"
+      sha256: "9cfecfad00a2671c35b66ccde7a38435bc9099f58891d4feba4f6ecc03b440b6"
       url: "https://pub.dev"
     source: hosted
-    version: "1.44.1"
+    version: "1.45.0"
   term_glyph:
     dependency: transitive
     description:
