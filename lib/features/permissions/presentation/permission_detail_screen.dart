@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -265,6 +266,7 @@ class _PermissionDetailScreenState
                       const SizedBox(height: 16),
                     ],
                     TextFormField(
+                      maxLength: nameMaxLength,
                       controller: _name,
                       readOnly: state.isReadOnly,
                       decoration: const InputDecoration(labelText: 'Name'),
@@ -274,6 +276,7 @@ class _PermissionDetailScreenState
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
+                      maxLength: descriptionMaxLength,
                       controller: _description,
                       readOnly: state.isReadOnly,
                       minLines: 2,

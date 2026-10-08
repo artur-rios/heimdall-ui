@@ -20,7 +20,10 @@ List<AppDestination> destinationsFor(Principal principal) => <AppDestination>[
     icon: Icons.person_outline,
     route: '/profile',
   ),
-  if (principal.isSystemAdmin)
+  // Full for a System Admin, read-only for a Scope Admin (the Authorization
+  // Matrix, and `roleMayReach`): the screen already answers the detailed
+  // report's refusal for a Scope Admin with what they may see.
+  if (principal.administersAnything)
     const AppDestination(
       label: 'Health',
       icon: Icons.monitor_heart_outlined,

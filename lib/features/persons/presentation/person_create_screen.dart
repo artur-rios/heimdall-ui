@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
@@ -137,6 +138,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
                     const SizedBox(height: 16),
                   ],
                   TextFormField(
+                    maxLength: nameMaxLength,
                     controller: _name,
                     decoration: const InputDecoration(labelText: 'Name'),
                     validator: (value) => (value?.trim().isEmpty ?? true)
@@ -155,7 +157,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
                         return 'Enter an email address.';
                       }
 
-                      return email.contains('@')
+                      return isPlausibleEmail(email)
                           ? null
                           : 'Enter a valid email address.';
                     },
@@ -165,8 +167,10 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
                     controller: _password,
                     obscureText: true,
                     decoration: const InputDecoration(labelText: 'Password'),
-                    validator: (value) =>
-                        (value?.isEmpty ?? true) ? 'Enter a password.' : null,
+                    validator: (value) => validateNewPassword(
+                      value,
+                      emptyMessage: 'Enter a password.',
+                    ),
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<Role>(

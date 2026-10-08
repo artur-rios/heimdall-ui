@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'password_recovery_controller.dart';
 
@@ -56,6 +57,7 @@ class _PasswordRecoveryScreenState
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
+          tooltip: 'Back to sign in',
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/login'),
         ),
@@ -110,7 +112,7 @@ class _PasswordRecoveryScreenState
                                 return 'Enter your email address.';
                               }
 
-                              return email.contains('@')
+                              return isPlausibleEmail(email)
                                   ? null
                                   : 'Enter a valid email address.';
                             },

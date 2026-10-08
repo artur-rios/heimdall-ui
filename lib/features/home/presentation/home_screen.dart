@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../shared/layout/app_shell.dart';
 import '../../auth/domain/session.dart';
@@ -29,11 +30,22 @@ class HomeScreen extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
               Text(
-                'Signed in as ${principal.email}',
+                principal.displayName.isEmpty
+                    ? 'Signed in'
+                    : 'Signed in as ${principal.displayName}',
                 style: Theme.of(context).textTheme.titleMedium,
               ),
               const SizedBox(height: 8),
               Text(roleLabel(principal.role)),
+              const SizedBox(height: 24),
+              // A User is offered one destination, which the shell does not
+              // render as navigation — so without this their profile and
+              // security settings (UI-08, UI-09) are unreachable from here.
+              FilledButton.tonalIcon(
+                onPressed: () => context.go('/profile'),
+                icon: const Icon(Icons.person_outline),
+                label: const Text('Your profile and security'),
+              ),
             ],
           ),
         ),

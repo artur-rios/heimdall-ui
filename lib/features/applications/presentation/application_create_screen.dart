@@ -3,9 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_members.dart';
 import 'application_create_controller.dart';
@@ -79,7 +82,21 @@ class _ApplicationCreateScreenState
     final state = ref.watch(
       applicationCreateControllerProvider(widget.scopeId),
     );
-    final members = ref.watch(scopeMembersProvider(widget.scopeId));
+    final session = ref.watch(sessionControllerProvider);
+    // AF-16c at the API: a Scope Admin may only create applications they own
+    // themselves (`CannotSetAnotherOwner`), so they are the only choice offered.
+    final ownOnly = switch (session) {
+      Authenticated(:final principal) when principal.isScopeAdmin =>
+        principal.id,
+      _ => null,
+    };
+    final members = ref
+        .watch(scopeMembersProvider(widget.scopeId))
+        .whenData(
+          (people) => ownOnly == null
+              ? people
+              : people.where((person) => person.id == ownOnly).toList(),
+        );
     final sending = state is ApplicationCreateSending;
 
     ref.listen<ApplicationCreateState>(
@@ -118,7 +135,7 @@ class _ApplicationCreateScreenState
                   const SizedBox(height: 8),
                   Text(
                     'An application uses this scope for its identity, and is '
-                    'owned by one of the scope’s people.',
+                    'owned by one of the scope’s owners.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 24),
@@ -131,6 +148,7 @@ class _ApplicationCreateScreenState
                     const SizedBox(height: 16),
                   ],
                   TextFormField(
+                    maxLength: nameMaxLength,
                     controller: _name,
                     decoration: const InputDecoration(labelText: 'Name'),
                     validator: (value) => (value?.trim().isEmpty ?? true)
@@ -138,14 +156,14 @@ class _ApplicationCreateScreenState
                         : null,
                   ),
                   const SizedBox(height: 16),
-                  // AF-21c: only the scope's own people are offered, so the
+                  // AF-21c: only the scope's owners are offered, so the
                   // refusal the API would give is not invited in the first
                   // place.
                   switch (members) {
                     AsyncData<List<Person>>(:final value) when value.isEmpty =>
                       Text(
-                        'This scope has nobody who could own an application '
-                        'yet. Create a person first.',
+                        'Nobody can own an application in this scope yet: an '
+                        'owner must be one of the scope’s owners.',
                         style: theme.textTheme.bodyMedium,
                       ),
                     AsyncData<List<Person>>(:final value) =>

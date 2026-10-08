@@ -43,7 +43,7 @@ const _ada = Person(
   id: 'person-1',
   name: 'Ada',
   email: 'ada@example.com',
-  role: Role.user,
+  role: Role.scopeAdmin,
 );
 
 const _grace = Person(
@@ -221,7 +221,9 @@ void main() {
         pageNumber: any(named: 'pageNumber'),
         pageSize: any(named: 'pageSize'),
       ),
-    ).thenAnswer((_) async => Success<envelope.Page<Person>>(_people(members)));
+    ).thenAnswer(
+      (_) async => Success<envelope.Page<Person>>(_people(const <Person>[])),
+    );
     when(
       () => persons.listScopeOwners(
         scopeId: any(named: 'scopeId'),
@@ -231,9 +233,7 @@ void main() {
         pageNumber: any(named: 'pageNumber'),
         pageSize: any(named: 'pageSize'),
       ),
-    ).thenAnswer(
-      (_) async => Success<envelope.Page<Person>>(_people(const <Person>[])),
-    );
+    ).thenAnswer((_) async => Success<envelope.Page<Person>>(_people(members)));
   }
 
   setUp(() {

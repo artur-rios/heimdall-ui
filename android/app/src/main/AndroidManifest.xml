@@ -1,5 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- allowBackup is off because the session token lives in
+         flutter_secure_storage, encrypted under a Keystore key that never
+         leaves the device. A cloud backup carries the ciphertext to a device
+         that cannot decrypt it ("Failed to unwrap key"), and a bearer token
+         has no business in a backup anyway. See the plugin's README. -->
     <application
+        android:allowBackup="false"
         android:label="heimdall_ui"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">

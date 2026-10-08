@@ -265,6 +265,31 @@ void main() {
     },
   );
 
+  // The API refuses a new password under eight characters, and a refused
+  // reset would read as a dead link; the form says so before it is sent.
+  testWidgets('GivenAShortPassword_WhenSubmitted_ThenNoRequestIsMade', (
+    tester,
+  ) async {
+    // Given
+    answerWith(const Success<void>(null));
+    await pump(tester);
+
+    // When
+    await submit(tester, 'short', 'short');
+
+    // Then
+    expect(
+      find.text('Password must be at least 8 characters.'),
+      findsOneWidget,
+    );
+    verifyNever(
+      () => repository.resetPassword(
+        token: any(named: 'token'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    );
+  });
+
   // AF-04d — the policy refuses the password, and the field says so.
   testWidgets('GivenRejectedPassword_WhenSubmitted_ThenTheFieldIsMarked', (
     tester,

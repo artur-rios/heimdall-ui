@@ -188,7 +188,7 @@ class TwoFactorController extends Notifier<TwoFactorState> {
     }
   }
 
-  /// Turns the feature off with whichever credential the person supplied.
+  /// Turns the feature off with the password and the second factor supplied.
   Future<void> disable({
     String? password,
     String? code,

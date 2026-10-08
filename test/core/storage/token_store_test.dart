@@ -1,5 +1,9 @@
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:mocktail/mocktail.dart';
+
+class _MockSecureStorage extends Mock implements FlutterSecureStorage {}
 
 void main() {
   test('GivenEmptyStore_WhenRead_ThenReturnsNull', () async {
@@ -159,4 +163,30 @@ void main() {
     // Then
     expect(restored.viaGoogle, isFalse);
   });
+
+  // Well-formed JSON of the wrong shape is as unreadable as malformed JSON,
+  // and must not fail every launch from then on.
+  for (final raw in <String>['not json', '{"expiresAt":"2030-01-01"}', '[]']) {
+    test(
+      'GivenAnUnreadableStoredValue_WhenRead_ThenItIsDropped: $raw',
+      () async {
+        // Given
+        final storage = _MockSecureStorage();
+        when(
+          () => storage.read(key: 'heimdall.session.token'),
+        ).thenAnswer((_) async => raw);
+        when(
+          () => storage.delete(key: 'heimdall.session.token'),
+        ).thenAnswer((_) async {});
+        final store = SecureTokenStore(storage);
+
+        // When
+        final token = await store.read();
+
+        // Then
+        expect(token, isNull);
+        verify(() => storage.delete(key: 'heimdall.session.token')).called(1);
+      },
+    );
+  }
 }

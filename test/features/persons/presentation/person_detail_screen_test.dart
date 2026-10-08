@@ -59,6 +59,15 @@ const _deleted = Person(
   isDeleted: true,
 );
 
+/// A Scope Admin co-owning the scope: visible to another owner, but theirs
+/// alone (or a System Admin's) to change.
+const _coOwner = Person(
+  id: 'person-1',
+  name: 'Grace',
+  email: 'grace@example.com',
+  role: Role.scopeAdmin,
+);
+
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
@@ -754,5 +763,38 @@ void main() {
 
     // Then
     verify(() => repository.hardDelete('person-1')).called(1);
+  });
+
+  // The API refuses a Scope Admin's update or deletion of a co-owner, so
+  // neither is offered.
+  testWidgets('GivenACoOwner_WhenAScopeAdminOpensThem_ThenItIsReadOnly', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_coOwner));
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(find.text('Save changes'), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Delete person'), findsNothing);
+  });
+
+  testWidgets('GivenACoOwner_WhenASystemAdminOpensThem_ThenItIsEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_coOwner));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Save changes'), findsOneWidget);
+    expect(
+      find.widgetWithText(OutlinedButton, 'Delete person'),
+      findsOneWidget,
+    );
   });
 }
