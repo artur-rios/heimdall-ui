@@ -12,6 +12,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The vendored API specification and the generated client now match the Heimdall API's `develop` branch: the
   client carries the data-export, erasure, processing-restriction and two-factor code resend endpoints and a
   scope's lawful basis and privacy notice. No screen uses the new endpoints yet.
+- The vendored API specification and the generated client are synced again with the Heimdall API's `develop`
+  after its review fixes: `GET /api/scopes` is documented as open to Scope Admins (their own scopes), the two-factor
+  status and data-export descriptions are no longer swapped, and the data subject rights endpoints say a restricted
+  subject can reach them. Only documentation comments in the client change.
 
 ### Fixed
 

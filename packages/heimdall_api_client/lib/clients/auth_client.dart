@@ -283,17 +283,24 @@ abstract class AuthClient {
   Future<RegenerateRecoveryCodesCommandOutputDataOutput>
   authRegenerateRecoveryCodes({@Body() RegenerateRecoveryCodesCommand? body});
 
-  /// Reports the caller's own two-factor authentication status (FR-2F-15): whether it is.
-  /// active, which methods are configured, and how many recovery codes remain unused. The.
-  /// person read is always the caller themselves — taken from the bearer token, the same as.
-  /// M:ArturRios.Heimdall.WebApi.Controllers.AuthController.EnableTwoFactorAuth(ArturRios.Heimdall.Command.Input.EnableTwoFactorAuthCommand) — so a configuration is never addressed by an.
-  /// identifier in a path.
+  /// Returns a copy of everything held about the caller (UC-41, GDPR Art. 15 and 20, LGPD Art.
+  /// 18 II and V).
   ///
-  /// No `RoleRequirement`, for the same reason its `POST` siblings have none: the.
-  /// authorization matrix grants two-factor management to all three person roles and withholds.
-  /// it from anonymous callers, which authentication alone enforces. A caller with no.
-  /// configuration is answered 200 with every flag false; a Google User is answered 403, since.
-  /// FR-2F-01 makes them permanently ineligible.
+  /// No `RoleRequirement`: access and portability are rights of the data subject.
+  ///                     rather than privileges of a role, and a Google User has them as much as a person.
+  ///
+  /// <b>.
+  ///     `POST`, for a read.</b> Two reasons. A `GET` response is cacheable, and.
+  ///                     this one is a document containing everything about a person — exactly what must never.
+  ///                     sit in a proxy or browser cache. And the export is the highest-value action a stolen.
+  ///                     token can take, so it has to reach the audit trail, which in this codebase means.
+  ///                     being a command.
+  ///
+  /// The subject is the token's. There is no path parameter and no body field naming an.
+  ///                     identity, so one caller cannot export another's data.
+  ///
+  /// Reachable by a subject whose processing is restricted, or who is suspended pending.
+  ///                     erasure (NFR-24): the right to a copy does not depend on the account's standing.
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/data-export')
@@ -314,6 +321,10 @@ abstract class AuthClient {
   ///                     is not enough for an irreversible operation. Because it verifies a password, this.
   ///                     endpoint is governed by NFR-18 rather than NFR-05.
   ///
+  /// Reachable by a subject whose processing is restricted (NFR-24). A suspended identity.
+  ///                     reaches the handler too, and is answered by AF-42c (409) if it asked already, AF-42b.
+  ///                     (403) otherwise.
+  ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/erasure-request')
   Future<RequestErasureCommandOutputDataOutput> authRequestErasure({
@@ -326,7 +337,8 @@ abstract class AuthClient {
   /// No credential is required, unlike UC-42's erasure request. A restriction destroys.
   /// nothing and is liftable, and somebody asking for one may be doing so precisely because.
   /// they believe the account is compromised — demanding the password of a person in that.
-  /// position would be the wrong way round.
+  /// position would be the wrong way round. Reachable by a suspended subject (UC-44), and by a.
+  /// restricted one, who is answered by AF-44a (409).
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/processing-restriction')
@@ -353,7 +365,9 @@ abstract class AuthClient {
   /// lift their own, and only a System Admin may lift somebody else's. The handler decides,.
   /// and it informs the subject first in the second case — Art. 18(3) makes that a.
   /// precondition of the act rather than a courtesy afterwards, so a failed notification.
-  /// refuses the lift.
+  /// refuses the lift. The subject can reach this with a restricted identity — it is how they.
+  /// lift their own (NFR-24) — but a System Admin who is restricted or suspended may not lift.
+  /// anyone else's (AF-45c, 403).
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/processing-restriction/lift')
@@ -377,6 +391,18 @@ abstract class AuthClient {
     @Query('PageSize') int? pageSize,
   });
 
+  /// Reports the caller's own two-factor authentication status (FR-2F-15): whether it is.
+  /// active, which methods are configured, and how many recovery codes remain unused. The.
+  /// person read is always the caller themselves — taken from the bearer token, the same as.
+  /// M:ArturRios.Heimdall.WebApi.Controllers.AuthController.EnableTwoFactorAuth(ArturRios.Heimdall.Command.Input.EnableTwoFactorAuthCommand) — so a configuration is never addressed by an.
+  /// identifier in a path.
+  ///
+  /// No `RoleRequirement`, for the same reason its `POST` siblings have none: the.
+  /// authorization matrix grants two-factor management to all three person roles and withholds.
+  /// it from anonymous callers, which authentication alone enforces. A caller with no.
+  /// configuration is answered 200 with every flag false; a Google User is answered 403, since.
+  /// FR-2F-01 makes them permanently ineligible.
+  ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @GET('/api/auth/2fa')
   Future<TwoFactorStatusOutputDataOutput> authGetTwoFactorStatus();
