@@ -26,25 +26,6 @@ What each person sees follows their role — **System Admin** (governs everythin
 (governs the scopes they own), and **User** (their own account only). This is a usability decision,
 not a security one: the API remains the sole authority on what anyone may actually do.
 
-## Project structure
-
-| Path | Responsibility |
-| --- | --- |
-| `lib/app/` | Application root, router and its guard, themes |
-| `lib/core/` | Configuration, HTTP and interceptors, envelope unwrapping, result model, token storage |
-| `lib/features/<feature>/data/` | Repository implementations over the generated client |
-| `lib/features/<feature>/domain/` | Entities and repository interfaces |
-| `lib/features/<feature>/presentation/` | Screens, widgets, and controllers |
-| `lib/shared/` | Widgets with no feature knowledge — the adaptive shell, breakpoints |
-| `packages/heimdall_api_client/` | The generated API client (never hand-edited) |
-| `api/heimdall.json` | Vendored snapshot of the API's OpenAPI specification |
-| `tool/` | Specification refresh and client generation |
-| `test/` | Mirrors `lib/` one directory at a time |
-| `docs/requirements/` | The specification documents |
-
-Presentation code never imports `package:heimdall_api_client`; it depends on the domain repository
-interfaces, and only `data/` knows the generated types exist.
-
 ## Documentation
 
 The specification lives in [`docs/requirements`](docs/requirements):
@@ -96,20 +77,6 @@ git clone https://github.com/artur-rios/heimdall-ui.git
 ```bash
 flutter pub get
 ```
-
-The generated API client is committed, so no generation step is needed for a normal checkout. To
-regenerate it after the API's specification changes:
-
-```bash
-dart run tool/refresh_openapi.dart ../heimdall-api/docs/openapi/heimdall.json
-```
-
-```bash
-dart run tool/generate_api_client.dart
-```
-
-Commit the refreshed specification and the regenerated client together — CI fails when they
-disagree.
 
 ## Configure
 
@@ -167,31 +134,6 @@ flutter run -d linux --dart-define-from-file=config/local.json
 ```bash
 flutter run -d android --dart-define-from-file=config/local.json
 ```
-
-## Test
-
-```bash
-flutter test
-```
-
-```bash
-flutter test integration_test
-```
-
-```bash
-flutter test --coverage
-```
-
-The gate before every pull request is all three of these, passing:
-
-```bash
-dart format --set-exit-if-changed . && flutter analyze && flutter test
-```
-
-Tests are named `GivenSomeCondition_WhenSomeAction_ThenSomeOutput`, and each body is divided by
-`// Given`, `// When`, and `// Then` comments. No test reaches the network: HTTP is stubbed through a
-local Dio adapter, and controllers are tested against fake repositories. See the
-[Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md).
 
 ## Build
 
@@ -340,6 +282,15 @@ Not use cases, tracked separately.
 The sign-in and home screens exist as part of P-01, so the shell is reachable at all. UI-01 and UI-07
 complete them with their alternative flows; every other screen arrives with its own use case, and
 until then an unknown route says so plainly rather than throwing.
+
+## Changelog
+
+Notable changes in each release are recorded in [CHANGELOG.md](./CHANGELOG.md).
+
+## Contributing
+
+The project structure, regenerating the API client, running the tests, the branching model and the release process
+are described in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Legal
 
