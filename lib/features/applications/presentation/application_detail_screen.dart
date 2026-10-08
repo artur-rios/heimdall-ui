@@ -386,7 +386,7 @@ class _ApplicationDetailScreenState
     AsyncValue<List<Person>> members,
     Application application,
   ) {
-    for (final person in members.valueOrNull ?? const <Person>[]) {
+    for (final person in members.value ?? const <Person>[]) {
       if (person.id == application.ownerId) {
         return person.name;
       }

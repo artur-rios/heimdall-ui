@@ -41,7 +41,7 @@ dependencies:
   json_annotation: ^4.12.0
   heimdall_api_client:
     path: packages/heimdall_api_client
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: ^3.4.3
   flutter_secure_storage: ^11.2.0
   shared_preferences: ^2.5.5
   go_router: ^17.5.0

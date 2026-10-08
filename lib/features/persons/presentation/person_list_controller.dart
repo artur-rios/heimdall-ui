@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -80,7 +81,12 @@ personListControllerProvider =
 
 /// Owns one scope's person listing: the filters, the page, and the request in
 /// flight.
-class PersonListController extends FamilyNotifier<PersonListState, String> {
+class PersonListController extends Notifier<PersonListState> {
+  PersonListController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   /// Whether a request is already on its way.
   ///
   /// A field rather than a read of [state], because the first load and a later
@@ -88,8 +94,7 @@ class PersonListController extends FamilyNotifier<PersonListState, String> {
   bool _inFlight = false;
 
   @override
-  PersonListState build(String scopeId) =>
-      const PersonListLoading(PersonQuery());
+  PersonListState build() => const PersonListLoading(PersonQuery());
 
   Future<void> load() => _fetch(state.query);
 

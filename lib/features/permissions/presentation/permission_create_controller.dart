@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/scope_permission.dart';
@@ -46,11 +47,14 @@ permissionCreateControllerProvider =
     >(PermissionCreateController.new);
 
 /// Owns one create attempt from filled in to created.
-class PermissionCreateController
-    extends FamilyNotifier<PermissionCreateState, String> {
+class PermissionCreateController extends Notifier<PermissionCreateState> {
+  PermissionCreateController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  PermissionCreateState build(String scopeId) =>
-      const PermissionCreateEditing();
+  PermissionCreateState build() => const PermissionCreateEditing();
 
   Future<void> create({
     required String name,

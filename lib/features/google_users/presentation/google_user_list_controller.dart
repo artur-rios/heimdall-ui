@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -80,13 +81,16 @@ googleUserListControllerProvider =
     >(GoogleUserListController.new);
 
 /// Owns one scope's Google user listing.
-class GoogleUserListController
-    extends FamilyNotifier<GoogleUserListState, String> {
+class GoogleUserListController extends Notifier<GoogleUserListState> {
+  GoogleUserListController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   bool _inFlight = false;
 
   @override
-  GoogleUserListState build(String scopeId) =>
-      const GoogleUserListLoading(GoogleUserQuery());
+  GoogleUserListState build() => const GoogleUserListLoading(GoogleUserQuery());
 
   Future<void> load() => _fetch(state.query);
 
