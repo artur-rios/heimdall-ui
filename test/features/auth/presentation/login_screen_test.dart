@@ -284,6 +284,18 @@ void main() {
     expect(find.text('Continue with Google'), findsNothing);
   });
 
+  // Issue #73: the privacy notice sits beside the Google control.
+  testWidgets('GivenGoogleClientId_WhenRendered_ThenThePrivacyNoticeIsLinked', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, config: withGoogle);
+
+    // Then
+    expect(find.text('Continue with Google'), findsOneWidget);
+    expect(find.widgetWithText(TextButton, 'Privacy notice'), findsOneWidget);
+  });
+
   testWidgets('GivenCompactWidth_WhenRendered_ThenTheFormIsShown', (
     tester,
   ) async {

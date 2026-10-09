@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A public privacy notice at `/privacy`, linked from the sign-in screen, for Google's consent screen to name as the
+  application's privacy policy. It opens signed in or out, and shows the Heimdall API's own Privacy Notice — version
+  and date included — bundled verbatim from the API repository and refreshed with
+  `dart run tool/refresh_privacy_notice.dart`. Dependencies: `flutter_markdown_plus` 1.0.12 renders it, and
+  `url_launcher` 6.3.3 opens its links.
+
 ### Changed
 
 - Flutter 3.44.9 → 3.47.7 (Dart 3.12.2 → 3.13.5) in CI, the container image and the SDK constraint. The Dart 3.13
