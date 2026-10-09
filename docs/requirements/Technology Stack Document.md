@@ -26,8 +26,8 @@ versions and roles are maintained in exactly one place.
 
 | Concern | Choice | Notes |
 | --- | --- | --- |
-| Framework | **Flutter 3.44.9** (stable) | One codebase for every target. |
-| Language | **Dart 3.12.2** | Ships with the Flutter version above. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
+| Framework | **Flutter 3.47.7** (stable) | One codebase for every target. |
+| Language | **Dart 3.13.5** | Ships with the Flutter version above. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
 | Design system | **Material 3** | `useMaterial3: true`, with both schemes derived from one seed color. |
 | Targets | **Web, Windows, Linux, Android** | No iOS or macOS platform folder exists. |
 | Analysis | `flutter_lints`, with `strict-casts` and `strict-raw-types` enabled | Generated code is excluded from analysis. |
@@ -132,8 +132,8 @@ no test reaches the network.
 
 | Category | Package / tool | Version |
 | --- | --- | --- |
-| Framework | Flutter | `3.44.9` |
-| Language | Dart | `3.12.2` |
+| Framework | Flutter | `3.47.7` |
+| Language | Dart | `3.13.5` |
 | State | flutter_riverpod | `^3.1.1` |
 | Routing | go_router | `^17.4.0` |
 | HTTP | dio | `^5.11.0` |

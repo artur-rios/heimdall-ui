@@ -31,9 +31,9 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _notice ??= DefaultAssetBundle.of(
-      context,
-    ).loadString(privacyNoticeAsset).then(privacyNoticeBody);
+    _notice ??= DefaultAssetBundle.of(context)
+        .loadString(privacyNoticeAsset)
+        .then(privacyNoticeBody);
   }
 
   @override

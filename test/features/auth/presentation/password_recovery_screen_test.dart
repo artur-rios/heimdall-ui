@@ -46,9 +46,8 @@ void main() {
   }
 
   void answerWith(Result<void> result) {
-    when(
-      () => repository.requestPasswordRecovery(email: any(named: 'email')),
-    ).thenAnswer((_) async => result);
+    when(() => repository.requestPasswordRecovery(email: any(named: 'email')))
+        .thenAnswer((_) async => result);
   }
 
   Future<void> submit(WidgetTester tester, String email) async {
@@ -217,9 +216,8 @@ void main() {
   ) async {
     // Given
     final pending = Completer<Result<void>>();
-    when(
-      () => repository.requestPasswordRecovery(email: any(named: 'email')),
-    ).thenAnswer((_) => pending.future);
+    when(() => repository.requestPasswordRecovery(email: any(named: 'email')))
+        .thenAnswer((_) => pending.future);
     await pump(tester);
 
     // When
@@ -242,9 +240,8 @@ void main() {
   ) async {
     // Given
     final pending = Completer<Result<void>>();
-    when(
-      () => repository.requestPasswordRecovery(email: any(named: 'email')),
-    ).thenAnswer((_) => pending.future);
+    when(() => repository.requestPasswordRecovery(email: any(named: 'email')))
+        .thenAnswer((_) => pending.future);
     await pump(tester);
 
     // When

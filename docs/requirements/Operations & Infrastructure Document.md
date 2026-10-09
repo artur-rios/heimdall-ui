@@ -116,7 +116,7 @@ commit, a different bundle — and tagged `<environment>-<version>` by yggdrasil
 
 | Target | Requirements |
 | --- | --- |
-| All | Flutter 3.44.9 or newer on the stable channel |
+| All | Flutter 3.47.7 or newer on the stable channel |
 | Web | A Chromium-based browser for `flutter run -d chrome` |
 | Windows | Visual Studio (or Build Tools) with the *Desktop development with C++* workload **and the C++ ATL component** |
 | Linux | `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`, `libsecret-1-dev` |

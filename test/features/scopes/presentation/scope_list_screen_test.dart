@@ -376,9 +376,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.list(name: '', includeDeleted: true, pageNumber: 1),
-    ).called(1);
+    verify(() => repository.list(name: '', includeDeleted: true, pageNumber: 1))
+        .called(1);
   });
 
   testWidgets('GivenSeveralPages_WhenNextTapped_ThenTheNextPageIsRead', (

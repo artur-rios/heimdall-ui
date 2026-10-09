@@ -45,23 +45,20 @@ void main() {
     },
   );
 
-  test(
-    'GivenASiblingDocumentLink_WhenResolved_ThenItPointsAtTheApiRepository',
-    () {
-      // Given
-      const href = 'Data%20Protection%20Document.md';
+  test('GivenASiblingDocumentLink_WhenResolved_ThenItPointsAtTheApiRepository', () {
+    // Given
+    const href = 'Data%20Protection%20Document.md';
 
-      // When
-      final uri = resolvePrivacyNoticeLink(href);
+    // When
+    final uri = resolvePrivacyNoticeLink(href);
 
-      // Then
-      expect(
-        uri.toString(),
-        'https://github.com/artur-rios/heimdall-api/blob/main/docs/requirements/'
-        'Data%20Protection%20Document.md',
-      );
-    },
-  );
+    // Then
+    expect(
+      uri.toString(),
+      'https://github.com/artur-rios/heimdall-api/blob/main/docs/requirements/'
+      'Data%20Protection%20Document.md',
+    );
+  });
 
   test('GivenAnAbsoluteLink_WhenResolved_ThenItIsUnchanged', () {
     // Given

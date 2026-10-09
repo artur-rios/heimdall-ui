@@ -629,9 +629,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => applications.delete(scopeId: 'scope-1', id: 'app-1'),
-    ).called(1);
+    verify(() => applications.delete(scopeId: 'scope-1', id: 'app-1'))
+        .called(1);
   });
 
   testWidgets('GivenADeletedApplication_WhenDeleted_ThenTheListingOpens', (
@@ -782,8 +781,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => applications.hardDelete(scopeId: 'scope-1', id: 'app-1'),
-    ).called(1);
+    verify(() => applications.hardDelete(scopeId: 'scope-1', id: 'app-1'))
+        .called(1);
   });
 }

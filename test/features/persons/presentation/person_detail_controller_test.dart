@@ -101,9 +101,8 @@ void main() {
     await controller.load();
 
     // Then
-    verify(
-      () => repository.getById('person-1', includeDeleted: true),
-    ).called(1);
+    verify(() => repository.getById('person-1', includeDeleted: true))
+        .called(1);
   });
 
   // AF-18a — no such person.

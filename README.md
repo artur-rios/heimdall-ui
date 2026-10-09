@@ -51,7 +51,7 @@ The design this repository was built from is at
 
 ## Prerequisites
 
-- **Flutter 3.44.9** or newer, on the stable channel.
+- **Flutter 3.47.7** or newer, on the stable channel.
 - **Web** — a Chromium-based browser for `flutter run -d chrome`.
 - **Windows** — Visual Studio (or Build Tools) with the *Desktop development with C++* workload
   **and the C++ ATL component**. Without ATL the build fails on `atlstr.h`, which
@@ -189,7 +189,7 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 
 ## Container image (web)
 
-`Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.44.9, the
+`Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.47.7, the
 version CI uses) compiles `build/web`, and `nginxinc/nginx-unprivileged:alpine` serves it as a
 non-root user on port **8080**, with a deep-link fallback to `index.html` and a `/healthz` probe.
 The server configuration is [`docker/nginx.conf`](docker/nginx.conf). It expects TLS to be

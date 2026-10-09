@@ -15,6 +15,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `dart run tool/refresh_privacy_notice.dart`. Dependencies: `flutter_markdown_plus` 1.0.12 renders it, and
   `url_launcher` 6.3.3 opens its links.
 
+### Changed
+
+- Flutter 3.44.9 → 3.47.7 (Dart 3.12.2 → 3.13.5) in CI, the container image and the SDK constraint. The Dart 3.13
+  formatter reflows some existing code, and the Flutter tool now excludes the build and platform directories from
+  analysis. The generated API client is unchanged.
+
 ### Fixed
 
 - The health check calls `GET /api/healthcheck` and `GET /api/healthcheck/detailed`, where the Heimdall API now

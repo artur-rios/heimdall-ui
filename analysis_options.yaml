@@ -5,6 +5,11 @@ analyzer:
     - "packages/heimdall_api_client/lib/**"
     - "**/*.g.dart"
     - "**/*.freezed.dart"
+    - build/**
+    - android/**
+    - web/**
+    - windows/**
+    - linux/**
   language:
     strict-casts: true
     strict-raw-types: true
