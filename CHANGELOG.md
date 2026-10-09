@@ -7,6 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A public privacy notice at `/privacy`, linked from the sign-in screen, for Google's consent screen to name as the
+  application's privacy policy. It opens signed in or out, and shows the Heimdall API's own Privacy Notice — version
+  and date included — bundled verbatim from the API repository and refreshed with
+  `dart run tool/refresh_privacy_notice.dart`. Dependencies: `flutter_markdown_plus` 1.0.12 renders it, and
+  `url_launcher` 6.3.3 opens its links.
+
 ### Fixed
 
 - The health check calls `GET /api/healthcheck` and `GET /api/healthcheck/detailed`, where the Heimdall API now

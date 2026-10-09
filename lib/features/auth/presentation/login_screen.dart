@@ -161,6 +161,15 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                       const SizedBox(height: 16),
                       GoogleSignInControl(enabled: !_submitting),
                     ],
+                    const SizedBox(height: 8),
+                    // Issue #73: beside the Google control, because Google's
+                    // consent screen names this page as the privacy policy. It
+                    // stays when that control is hidden: what is held about a
+                    // person does not depend on how they sign in.
+                    TextButton(
+                      onPressed: () => context.push('/privacy'),
+                      child: const Text('Privacy notice'),
+                    ),
                   ],
                 ),
               ),

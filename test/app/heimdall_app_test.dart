@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -32,9 +33,12 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     store = InMemoryTokenStore();
     repository = _MockAuthRepository();
+    // The privacy notice is a bundled asset, and rootBundle would otherwise
+    // hand a later test the load of an earlier one, whose clock has stopped.
+    rootBundle.clear();
   });
 
-  Future<void> pumpApp(WidgetTester tester) async {
+  Future<ProviderContainer> pumpApp(WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: <Override>[
         // The sign-in screen asks the configuration whether to offer the
@@ -55,6 +59,8 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
+
+    return container;
   }
 
   testWidgets('GivenNoSession_WhenAppStarts_ThenLoginScreenIsShown', (
@@ -304,6 +310,61 @@ void main() {
 
     // Then
     expect(find.text('Not available for your role'), findsOneWidget);
+  });
+
+  // Issue #73: the login screen links the notice, and following the link
+  // must not bounce a signed-out visitor back to sign-in.
+  testWidgets(
+    'GivenNoSession_WhenThePrivacyLinkIsTapped_ThenTheNoticeIsShown',
+    (tester) async {
+      // Given
+      await pumpApp(tester);
+
+      // When
+      await tester.tap(find.widgetWithText(TextButton, 'Privacy notice'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.widgetWithText(AppBar, 'Privacy notice'), findsOneWidget);
+      expect(
+        find.textContaining('Who is responsible', findRichText: true),
+        findsOneWidget,
+      );
+    },
+  );
+
+  // Issue #73: Google's consent screen opens the address itself.
+  testWidgets(
+    'GivenNoSession_WhenPrivacyIsOpenedDirectly_ThenTheNoticeIsShown',
+    (tester) async {
+      // Given
+      final container = await pumpApp(tester);
+
+      // When
+      container.read(routerProvider).go('/privacy');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.widgetWithText(AppBar, 'Privacy notice'), findsOneWidget);
+      expect(find.text('Sign in'), findsNothing);
+    },
+  );
+
+  testWidgets('GivenASession_WhenPrivacyIsOpened_ThenTheNoticeIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+
+    // When
+    container.read(routerProvider).go('/privacy');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(AppBar, 'Privacy notice'), findsOneWidget);
   });
 
   // AF-07e — a token rejected mid-session ends it and says why.

@@ -168,6 +168,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/google-users` | Google user listing | UI-28 |
 | `/scopes/:scopeId/google-users/:googleUserId` | Google user detail | UI-29 |
 | `/health` | API health and diagnostics | P-04 |
+| `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
 
 ---
 
@@ -179,6 +180,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Screen | System Admin | Scope Admin | User | Anonymous |
 | --- | --- | --- | --- | --- |
 | Sign in, recovery, reset, verification | — | — | — | Full |
+| Privacy notice | Full | Full | Full | Full |
 | Second-factor challenge | Full | Full | Full | Held challenge only |
 | Home | Full | Full | Full | Hidden |
 | Own profile and security | Full | Full | Full | Hidden |
