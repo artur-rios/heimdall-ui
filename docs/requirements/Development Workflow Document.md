@@ -24,7 +24,7 @@ defines *how* the tests are written; this document defines *when* they happen.
 
 ```mermaid
 flowchart TD
-    A["Pick a use case<br/>(issue in Todo)"] --> B["Create branch from main<br/>feature/ui-##-use-case-name"]
+    A["Pick a use case<br/>(issue in Todo)"] --> B["Create branch from develop<br/>feature/ui-##-use-case-name"]
     B --> C["Move issue → In Progress"]
     C --> D["Implement every flow"]
     D --> E["Move issue → Testing"]
@@ -33,11 +33,11 @@ flowchart TD
     G --> H{All green?}
     H -->|No| I["Fix code / tests"]
     I --> G
-    H -->|Yes| J["Open pull request"]
+    H -->|Yes| J["Open pull request into develop"]
     J --> K["Human review"]
     K --> L{Approved?}
     L -->|Changes requested| I
-    L -->|Yes| M["Human merge to main<br/>delete branch"]
+    L -->|Yes| M["Human merge to develop<br/>delete branch"]
     M --> N["Move issue → Done, close it,<br/>tick the README tracker"]
 ```
 
@@ -52,17 +52,20 @@ carries these values, in order:
 | 1 | **Todo** | The use case has not been started (default). |
 | 2 | **In Progress** | A branch exists and implementation has begun. |
 | 3 | **Testing** | Implementation is finished; tests are being written, run, and fixed until green. |
-| 4 | **Done** | The pull request has been merged to `main`; the issue is then closed. |
+| 4 | **Done** | The pull request has been merged to `develop`; the issue is then closed. |
 
 An issue only ever moves forward during normal flow. If review requests changes, work continues on
 the same branch, still linked to the same issue.
 
 ## 4. Step-by-step
 
-### Step 1 — Branch from `main`
+### Step 1 — Branch from `develop`
+
+Every use case is implemented on its own branch, created from an up-to-date `develop` — the
+integration branch. `main` only ever receives releases (see [§5](#5-from-develop-to-a-release)).
 
 ```bash
-git switch main
+git switch develop
 git pull
 git switch -c feature/ui-01-login
 ```
@@ -82,6 +85,11 @@ feature/p-##-item-name
 | UI-01: Login | `feature/ui-01-login` |
 | UI-14: Manage scope owners | `feature/ui-14-manage-scope-owners` |
 | P-04: Health and diagnostics screen | `feature/p-04-health-and-diagnostics-screen` |
+
+A change that is not a use case — a defect, a dependency, documentation — goes on a
+`fix/<name>` or `feature/<name>` branch in the same way. Those two prefixes are the only ones the
+**Branch Policy** check accepts into `develop` (besides Dependabot's), and it also refuses a branch
+that was cut from `main` instead of `develop`.
 
 ### Step 2 — Move the issue to **In Progress**
 
@@ -123,7 +131,7 @@ narrowing a test to reach green is never a fix.
 
 ### Step 6 — Open a pull request
 
-Push the branch and open a pull request into `main`, referencing the issue with
+Push the branch and open a pull request into `develop`, referencing the issue with
 `Closes #<issue-number>`. The description states which flows were implemented and how they were
 verified.
 
@@ -131,7 +139,7 @@ verified.
 
 - A **human reviews**. Requested changes are addressed on the same branch, returning to Step 5
   whenever code changes.
-- Once approved, a **human merges** into `main`, and the branch is deleted.
+- Once approved, a **human merges** into `develop`, and the branch is deleted.
 
 > Review and merge are human actions. An agent may prepare and push the pull request, but must not
 > self-approve or merge it. The single exception is an authorized batch run — see Step 7.1.
@@ -159,23 +167,37 @@ requests, subject to all of the following:
 After the merge, set the issue to **Done**, close it, and change the use case's row in the README's
 delivery tracker from ⬜ to ✅.
 
-## 5. Definition of Done
+## 5. From `develop` to a release
+
+A merged use case is on `develop`, not yet in production: Jenkins deploys every push to `develop` to
+the **development** environment, which runs on demand — a stopped one stays stopped until
+`scripts/ygg.sh env start development` on the VPS turns it on (the four environments are listed in
+§2.2 of the [Operations & Infrastructure Document](Operations%20%26%20Infrastructure%20Document.md)).
+Releases are cut from `develop` as `release/<major>.<minor>.<patch>` branches and reach `main` only
+through a pull request that Jenkins merges itself, after deploying the release to homologation (on
+demand, like development) and then to production; it also tags the merge
+`v<major>.<minor>.<patch>`. Nobody merges into `main` by hand, and a release branch carries no
+commits of its own — a fix for a release lands on `develop` through a `fix/` branch, and a new
+release is cut. The full procedure, including finalizing the changelog before the release branch is cut, is
+in [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
+
+## 6. Definition of Done
 
 A use case is done only when **all** of the following hold:
 
-- [ ] Implemented on a `feature/ui-##-…` or `feature/p-##-…` branch created from `main`.
+- [ ] Implemented on a `feature/ui-##-…` or `feature/p-##-…` branch created from `develop`.
 - [ ] The main flow and **every** alternative flow are implemented.
 - [ ] Unit tests cover the controller and any mapping or guard logic.
 - [ ] Widget tests cover the screen at every breakpoint whose layout differs.
 - [ ] The screen was verified in **both** the light and the dark theme.
 - [ ] `dart format --set-exit-if-changed .`, `flutter analyze`, and `flutter test` all pass.
 - [ ] No presentation file imports `package:heimdall_api_client`.
-- [ ] A pull request was merged to `main` — reviewed by a human, or merged by an agent under an
+- [ ] A pull request was merged to `develop` — reviewed by a human, or merged by an agent under an
       authorized batch run.
 - [ ] The branch was deleted.
 - [ ] The issue is closed and the README tracker is ticked.
 
-## 6. References
+## 7. References
 
 - [Use Case Specification Document](Use%20Case%20Specification%20Document.md) — the use cases and their flows.
 - [Testing Specification Document](Testing%20Specification%20Document.md) — how the tests are written.

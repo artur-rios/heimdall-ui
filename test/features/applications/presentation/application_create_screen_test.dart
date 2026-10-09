@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -24,13 +25,13 @@ class _MockApplicationRepository extends Mock
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
-String _jwt() {
+String _jwt({String id = 'person-9', int role = 1}) {
   final payload = base64Url.encode(
     utf8.encode(
       jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
+        'id': id,
         'email': 'admin@example.com',
-        'role': 1,
+        'role': '$role',
       }),
     ),
   );
@@ -42,6 +43,14 @@ const _ada = Person(
   id: 'person-1',
   name: 'Ada',
   email: 'ada@example.com',
+  role: Role.scopeAdmin,
+);
+
+/// A User of the scope. The API refuses every User as an application's owner.
+const _linus = Person(
+  id: 'person-3',
+  name: 'Linus',
+  email: 'linus@example.com',
   role: Role.user,
 );
 
@@ -77,12 +86,15 @@ void main() {
     WidgetTester tester, {
     Size size = _expanded,
     ThemeData? theme,
+    String? token,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+    await store.write(
+      AuthToken(value: token ?? _jwt(), expiresAt: DateTime.utc(2030)),
+    );
 
     container = ProviderContainer(
       overrides: <Override>[
@@ -154,7 +166,7 @@ void main() {
       ),
     ).thenAnswer(
       (_) async =>
-          users ?? Success<envelope.Page<Person>>(_people(<Person>[_ada])),
+          users ?? Success<envelope.Page<Person>>(_people(<Person>[_linus])),
     );
     when(
       () => persons.listScopeOwners(
@@ -167,7 +179,8 @@ void main() {
       ),
     ).thenAnswer(
       (_) async =>
-          owners ?? Success<envelope.Page<Person>>(_people(<Person>[_grace])),
+          owners ??
+          Success<envelope.Page<Person>>(_people(<Person>[_ada, _grace])),
     );
   }
 
@@ -201,8 +214,9 @@ void main() {
     );
   });
 
-  // AF-21c — the selector lists the scope's own people, users and owners both.
-  testWidgets('GivenAScope_WhenOpened_ThenItsPeopleAreOffered', (tester) async {
+  // AF-21c — the selector lists the scope's owners: the API refuses any owner
+  // who is not a Scope Admin owning the scope, so a User is never offered.
+  testWidgets('GivenAScope_WhenOpened_ThenItsOwnersAreOffered', (tester) async {
     // Given / When
     await pump(tester);
     await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -211,6 +225,21 @@ void main() {
     // Then
     expect(find.textContaining('Ada'), findsWidgets);
     expect(find.textContaining('Grace'), findsWidgets);
+    expect(find.textContaining('Linus'), findsNothing);
+  });
+
+  // A Scope Admin may only create applications they own themselves.
+  testWidgets('GivenAScopeAdmin_WhenOpened_ThenOnlyTheyAreOffered', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, token: _jwt(id: 'person-2', role: 2));
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.textContaining('Grace'), findsWidgets);
+    expect(find.textContaining('Ada'), findsNothing);
   });
 
   testWidgets('GivenACompleteForm_WhenSubmitted_ThenTheApplicationIsCreated', (
@@ -411,31 +440,10 @@ void main() {
 
     // Then
     expect(
-      find.textContaining('nobody who could own an application'),
+      find.textContaining('Nobody can own an application'),
       findsOneWidget,
     );
   });
-
-  // Either listing failing must not hide the other.
-  testWidgets(
-    'GivenAFailedUserListing_WhenOpened_ThenTheOwnersAreStillOffered',
-    (tester) async {
-      // Given
-      answerMembersWith(
-        users: const FailureResult<envelope.Page<Person>>(
-          Failure(kind: FailureKind.forbidden, errors: <String>[]),
-        ),
-      );
-
-      // When
-      await pump(tester);
-      await tester.tap(find.byType(DropdownButtonFormField<String>));
-      await tester.pumpAndSettle();
-
-      // Then
-      expect(find.textContaining('Grace'), findsWidgets);
-    },
-  );
 
   // AF-21d — leaving a modified form asks first.
   testWidgets('GivenAModifiedForm_WhenCancelled_ThenConfirmationIsAsked', (

@@ -1,0 +1,5 @@
+{
+  "HEIMDALL_API_BASE_URL": "http://localhost:8080",
+  "HEIMDALL_GOOGLE_CLIENT_ID": "",
+  "HEIMDALL_SCOPE_ID": ""
+}

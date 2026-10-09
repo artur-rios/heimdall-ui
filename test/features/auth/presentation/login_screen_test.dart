@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
@@ -47,9 +48,9 @@ void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
 
-  const withoutGoogle = AppConfig(apiBaseUrl: 'http://localhost:5000');
+  const withoutGoogle = AppConfig(apiBaseUrl: 'http://localhost:8080');
   const withGoogle = AppConfig(
-    apiBaseUrl: 'http://localhost:5000',
+    apiBaseUrl: 'http://localhost:8080',
     googleClientId: 'client-id.apps.googleusercontent.com',
   );
 

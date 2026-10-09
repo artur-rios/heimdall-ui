@@ -26,25 +26,6 @@ What each person sees follows their role — **System Admin** (governs everythin
 (governs the scopes they own), and **User** (their own account only). This is a usability decision,
 not a security one: the API remains the sole authority on what anyone may actually do.
 
-## Project structure
-
-| Path | Responsibility |
-| --- | --- |
-| `lib/app/` | Application root, router and its guard, themes |
-| `lib/core/` | Configuration, HTTP and interceptors, envelope unwrapping, result model, token storage |
-| `lib/features/<feature>/data/` | Repository implementations over the generated client |
-| `lib/features/<feature>/domain/` | Entities and repository interfaces |
-| `lib/features/<feature>/presentation/` | Screens, widgets, and controllers |
-| `lib/shared/` | Widgets with no feature knowledge — the adaptive shell, breakpoints |
-| `packages/heimdall_api_client/` | The generated API client (never hand-edited) |
-| `api/heimdall.json` | Vendored snapshot of the API's OpenAPI specification |
-| `tool/` | Specification refresh and client generation |
-| `test/` | Mirrors `lib/` one directory at a time |
-| `docs/requirements/` | The specification documents |
-
-Presentation code never imports `package:heimdall_api_client`; it depends on the domain repository
-interfaces, and only `data/` knows the generated types exist.
-
 ## Documentation
 
 The specification lives in [`docs/requirements`](docs/requirements):
@@ -97,27 +78,13 @@ git clone https://github.com/artur-rios/heimdall-ui.git
 flutter pub get
 ```
 
-The generated API client is committed, so no generation step is needed for a normal checkout. To
-regenerate it after the API's specification changes:
-
-```bash
-dart run tool/refresh_openapi.dart ../heimdall-api/docs/openapi/heimdall.json
-```
-
-```bash
-dart run tool/generate_api_client.dart
-```
-
-Commit the refreshed specification and the regenerated client together — CI fails when they
-disagree.
-
 ## Configure
 
 Configuration is supplied at build time. Nothing is read from a file at runtime.
 
 | Key | Required | Default |
 | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | In any real deployment | `http://localhost:5000` |
+| `HEIMDALL_API_BASE_URL` | In any real deployment | `http://localhost:8080` — the local heimdall-api |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset — the Google control is hidden |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset — see below |
 
@@ -144,17 +111,44 @@ targets, or a web build opened directly.
 flutter run --dart-define=HEIMDALL_API_BASE_URL=https://heimdall.example.com
 ```
 
-Or keep them in `config/local.json`, which is git-ignored:
+Or keep them in `config/local.json`, which is git-ignored. Start from the tracked template, which
+holds the local values:
+
+```bash
+cp config/local.json.example config/local.json
+```
 
 ```bash
 flutter run --dart-define-from-file=config/local.json
 ```
 
+### Environments
+
+The UI runs in the same four environments as heimdall-api. It has no env file of its own: a deployed
+build's values are build arguments, kept with heimdall-api's in yggdrasil's env files on the VPS
+(`/etc/yggdrasil/<environment>/heimdall-ui.env`). `example.com` stands for the real domain.
+
+| Environment | Where | Deployed by | UI at | `HEIMDALL_API_BASE_URL` |
+| --- | --- | --- | --- | --- |
+| `local` | The developer's Windows machine, Docker Desktop | By hand — `flutter run`, or yggdrasil's `scripts/deploy.sh local heimdall-ui ...` | `http://localhost:8081` | `http://localhost:8080`, the local heimdall-api (`config/local.json.example`) |
+| `development` | The VPS, on demand | Jenkins, on every push to `develop` | `https://heimdall-dev.example.com` | `https://heimdall-dev.example.com` — same origin |
+| `homologation` | The VPS, on demand | Jenkins, on every push of a `release/x.y.z` branch | `https://heimdall-hml.example.com` | `https://heimdall-hml.example.com` — same origin |
+| `production` | The VPS, always on | Jenkins, on a green `release/x.y.z → main` pull request | `https://heimdall.example.com` | `https://heimdall.example.com` — same origin |
+
+On the VPS the API base URL is the UI's own origin: Traefik routes `/api/` on the UI's host to that
+environment's heimdall-api, so the browser makes no cross-origin request and the API needs no CORS
+entry. Locally the UI and the API are two origins, so heimdall-api's `docker/local.env.example` lists
+`http://localhost:8081` in `HEIMDALL_CORS_ALLOWED_ORIGINS`. Development and homologation run only
+while they are used: `scripts/ygg.sh env start <environment>` on the VPS turns one on.
+
 ## Run
 
 ```bash
-flutter run -d chrome --dart-define-from-file=config/local.json
+flutter run -d chrome --web-port 8081 --dart-define-from-file=config/local.json
 ```
+
+`--web-port 8081` gives the page the origin the local heimdall-api allows by CORS
+(`http://localhost:8081`); stop a local heimdall-ui container first, which serves on the same port.
 
 ```bash
 flutter run -d windows --dart-define-from-file=config/local.json
@@ -167,31 +161,6 @@ flutter run -d linux --dart-define-from-file=config/local.json
 ```bash
 flutter run -d android --dart-define-from-file=config/local.json
 ```
-
-## Test
-
-```bash
-flutter test
-```
-
-```bash
-flutter test integration_test
-```
-
-```bash
-flutter test --coverage
-```
-
-The gate before every pull request is all three of these, passing:
-
-```bash
-dart format --set-exit-if-changed . && flutter analyze && flutter test
-```
-
-Tests are named `GivenSomeCondition_WhenSomeAction_ThenSomeOutput`, and each body is divided by
-`// Given`, `// When`, and `// Then` comments. No test reaches the network: HTTP is stubbed through a
-local Dio adapter, and controllers are tested against fake repositories. See the
-[Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md).
 
 ## Build
 
@@ -245,7 +214,8 @@ docker run --rm -p 8080:8080 heimdall-ui:web
 > [!WARNING]
 > The build arguments become `--dart-define` values, which are compiled into the JavaScript bundle
 > and readable by anyone who loads the page. They are public. Never pass a secret as a build
-> argument. Because the values are baked in, each environment needs its own image build.
+> argument. Because the values are baked in, each environment needs its own image build — yggdrasil
+> builds one per environment and tags it `<environment>-<version>`.
 
 ## Use case status
 
@@ -340,6 +310,15 @@ Not use cases, tracked separately.
 The sign-in and home screens exist as part of P-01, so the shell is reachable at all. UI-01 and UI-07
 complete them with their alternative flows; every other screen arrives with its own use case, and
 until then an unknown route says so plainly rather than throwing.
+
+## Changelog
+
+Notable changes in each release are recorded in [CHANGELOG.md](./CHANGELOG.md).
+
+## Contributing
+
+The project structure, regenerating the API client, running the tests, the branching model and the release process
+are described in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Legal
 

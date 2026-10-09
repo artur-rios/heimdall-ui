@@ -115,8 +115,9 @@ abstract interface class AuthRepository {
 
   /// Turns two-factor authentication off.
   ///
-  /// The API accepts any one of a password, a generated code, or a recovery
-  /// code as the credential; whichever the person supplied is the one sent.
+  /// The API requires the current [password] together with a second factor —
+  /// a generated [code] or a [recoveryCode] — and refuses either half alone
+  /// (UC-39), so disabling is exactly as hard as signing in.
   Future<Result<void>> disableTwoFactor({
     String? password,
     String? code,

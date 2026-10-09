@@ -1,39 +1,26 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 
-import '../../../core/network/envelope.dart';
-import '../../../core/result/result.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
-/// Everyone associated with a scope: its users and the admins who own it.
+/// The people who may own one of a scope's applications: its owners.
 ///
 /// UI-21 and UI-22 pick an application's owner from this, and AF-21c is why it
-/// is the two listings rather than a free-text identifier — the API refuses an
-/// owner who is not of the scope, and offering only those who are is what
-/// keeps the interface from inviting the refusal.
+/// is a listing rather than a free-text identifier — the API refuses an owner
+/// who is not a Scope Admin owning the scope (FR-AP-03, `OwnerNotValidForScope`),
+/// and offering only those is what keeps the interface from inviting that
+/// refusal. The scope's Users are deliberately absent: the API refuses every
+/// one of them as an owner.
 final FutureProviderFamily<List<Person>, String> scopeMembersProvider =
     FutureProvider.family<List<Person>, String>((ref, scopeId) async {
-      final repository = ref.watch(personRepositoryProvider);
+      final result = await ref
+          .watch(personRepositoryProvider)
+          .listScopeOwners(scopeId: scopeId, pageSize: 100);
 
-      // The two listings are independent: a scope with no users still has
-      // owners, so either failing must not hide the other.
-      final results = await Future.wait<Result<Page<Person>>>(
-        <Future<Result<Page<Person>>>>[
-          repository.listScopePersons(scopeId: scopeId, pageSize: 100),
-          repository.listScopeOwners(scopeId: scopeId, pageSize: 100),
-        ],
-      );
-
-      final byId = <String, Person>{};
-
-      for (final result in results) {
-        for (final person in result.valueOrNull?.items ?? const <Person>[]) {
-          byId[person.id] = person;
-        }
-      }
-
-      final members = byId.values.toList()
-        ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+      final members = <Person>[
+        ...?result.valueOrNull?.items.where((person) => !person.isDeleted),
+      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
 
       return List<Person>.unmodifiable(members);
     });

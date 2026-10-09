@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../persons/domain/person.dart';
@@ -164,6 +165,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                     const SizedBox(height: 16),
                   ],
                   TextFormField(
+                    maxLength: nameMaxLength,
                     controller: _name,
                     decoration: const InputDecoration(labelText: 'Name'),
                     validator: (value) => (value?.trim().isEmpty ?? true)
@@ -172,6 +174,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                   ),
                   const SizedBox(height: 16),
                   TextFormField(
+                    maxLength: descriptionMaxLength,
                     controller: _description,
                     minLines: 2,
                     maxLines: 4,

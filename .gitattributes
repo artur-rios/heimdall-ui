@@ -1,0 +1,17 @@
+# Line endings are LF in the repository and in the working tree, on every
+# platform. The index is already entirely LF, so this codifies what is there
+# rather than changing it.
+#
+# It matters here because CI regenerates the API client and compares it with
+# what is committed (check-api-client.yml): a CRLF checkout on Windows would
+# report drift that is not there. Same rules as fortuna-ui.
+* text=auto eol=lf
+
+# Generated, never hand-edited. Collapsed in diffs and excluded from language
+# statistics so a review shows the change that caused them, not their output.
+packages/heimdall_api_client/lib/**  linguist-generated=true
+api/heimdall.json                    linguist-generated=true
+
+# Binaries — never converted, never diffed as text.
+*.png    binary
+*.ico    binary

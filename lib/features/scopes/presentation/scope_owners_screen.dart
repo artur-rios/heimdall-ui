@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -292,6 +293,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
         mainAxisSize: MainAxisSize.min,
         children: <Widget>[
           TextFormField(
+            maxLength: nameMaxLength,
             controller: _name,
             autofocus: true,
             decoration: const InputDecoration(labelText: 'Name'),
@@ -310,7 +312,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
                 return 'Enter an email address.';
               }
 
-              return email.contains('@')
+              return isPlausibleEmail(email)
                   ? null
                   : 'Enter a valid email address.';
             },
@@ -321,7 +323,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
             obscureText: true,
             decoration: const InputDecoration(labelText: 'Password'),
             validator: (value) =>
-                (value?.isEmpty ?? true) ? 'Enter a password.' : null,
+                validateNewPassword(value, emptyMessage: 'Enter a password.'),
           ),
         ],
       ),

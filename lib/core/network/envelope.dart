@@ -26,6 +26,30 @@ List<String> _errorsOf(Map<String, dynamic> json) =>
         .map((error) => error.toString())
         .toList(growable: false);
 
+/// The API's canonical messages for a `401` that refuses a credential typed into
+/// the request — a password or a second factor — rather than the bearer token.
+///
+/// The API answers both with the same status (its message-to-status maps put
+/// `FactorInvalid`, `PasswordMismatch`, and `CredentialNotAccepted` on `401`,
+/// next to the token refusals), so the message is the only thing that tells
+/// "you mistyped it" from "your session is over". The first must leave the
+/// session and a login challenge alone; only the second ends them.
+const Set<String> credentialRejections = <String>{
+  // TwoFactorMessages.FactorInvalid — a wrong code at sign-in (AF-02a), or
+  // when disabling (AF-09d) or regenerating recovery codes.
+  'The code or recovery code is missing, incorrect, or already used.',
+  // TwoFactorMessages.PasswordMismatch — the password given to disable.
+  'The current password is incorrect.',
+  // ErasureMessages.CredentialNotAccepted — re-authentication for erasure.
+  'The credential presented was not accepted.',
+};
+
+/// Whether [body] is an envelope refusing a credential the caller typed,
+/// rather than the token the request was made under.
+bool rejectsSubmittedCredential(Object? body) =>
+    body is Map<String, dynamic> &&
+    _errorsOf(body).any(credentialRejections.contains);
+
 /// Unwraps a `DataOutput<T>` envelope into a [Result].
 ///
 /// An envelope that reports failure carries the reason in `errors`; the HTTP
@@ -94,6 +118,9 @@ Failure failureFromDioException(DioException error) {
   return Failure(
     kind: switch (response.statusCode) {
       400 || 422 => FailureKind.validation,
+      // A mistyped password or code is a rejection of the input, which the
+      // screen lets the person correct; it says nothing about the session.
+      401 when rejectsSubmittedCredential(body) => FailureKind.validation,
       401 => FailureKind.unauthorized,
       403 => FailureKind.forbidden,
       404 => FailureKind.notFound,

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../auth/domain/session.dart';
@@ -42,9 +43,14 @@ personCreateControllerProvider =
     );
 
 /// Owns one create attempt from filled in to created.
-class PersonCreateController extends FamilyNotifier<PersonCreateState, String> {
+class PersonCreateController extends Notifier<PersonCreateState> {
+  PersonCreateController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  PersonCreateState build(String scopeId) => const PersonCreateEditing();
+  PersonCreateState build() => const PersonCreateEditing();
 
   /// Creates the person.
   ///

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -112,7 +113,15 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
   }
 
   /// AF-13e — only a System Admin deletes a scope.
-  bool get _maySeeDeletion {
+  bool get _maySeeDeletion => _isSystemAdmin;
+
+  /// Only a System Admin updates a scope's name and description: the API
+  /// holds `PUT /api/scopes/{id}` to that role alone, so a Scope Admin is
+  /// shown them read-only rather than offered a save it would refuse. The
+  /// Google Sign-In switch is theirs as well, and stays live below.
+  bool get _mayUpdate => _isSystemAdmin;
+
+  bool get _isSystemAdmin {
     final session = ref.watch(sessionControllerProvider);
 
     return session is Authenticated && session.principal.isSystemAdmin;
@@ -267,8 +276,9 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     TextFormField(
+                      maxLength: nameMaxLength,
                       controller: _name,
-                      readOnly: state.isReadOnly,
+                      readOnly: state.isReadOnly || !_mayUpdate,
                       decoration: const InputDecoration(labelText: 'Name'),
                       validator: (value) => (value?.trim().isEmpty ?? true)
                           ? 'Enter a name for the scope.'
@@ -276,8 +286,9 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                     ),
                     const SizedBox(height: 16),
                     TextFormField(
+                      maxLength: descriptionMaxLength,
                       controller: _description,
-                      readOnly: state.isReadOnly,
+                      readOnly: state.isReadOnly || !_mayUpdate,
                       minLines: 2,
                       maxLines: 4,
                       decoration: const InputDecoration(
@@ -285,7 +296,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    if (!state.isReadOnly)
+                    if (!state.isReadOnly && _mayUpdate)
                       FilledButton(
                         // AF-12e: nothing to save is not an action.
                         onPressed: (state.saving || !_differsFrom(scope))

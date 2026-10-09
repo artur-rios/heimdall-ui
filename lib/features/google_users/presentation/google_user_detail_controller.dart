@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/google_user.dart';
@@ -92,11 +93,14 @@ googleUserDetailControllerProvider =
     >(GoogleUserDetailController.new);
 
 /// Owns one Google user's detail. Reading it is all there is to do.
-class GoogleUserDetailController
-    extends FamilyNotifier<GoogleUserDetailState, GoogleUserRef> {
+class GoogleUserDetailController extends Notifier<GoogleUserDetailState> {
+  GoogleUserDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final GoogleUserRef arg;
+
   @override
-  GoogleUserDetailState build(GoogleUserRef ref) =>
-      const GoogleUserDetailLoading();
+  GoogleUserDetailState build() => const GoogleUserDetailLoading();
 
   Future<void> load() async {
     state = const GoogleUserDetailLoading();

@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/application.dart';
@@ -109,11 +110,14 @@ applicationDetailControllerProvider =
     >(ApplicationDetailController.new);
 
 /// Owns one application's detail: reading it, and saving edits to it.
-class ApplicationDetailController
-    extends FamilyNotifier<ApplicationDetailState, ApplicationRef> {
+class ApplicationDetailController extends Notifier<ApplicationDetailState> {
+  ApplicationDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final ApplicationRef arg;
+
   @override
-  ApplicationDetailState build(ApplicationRef ref) =>
-      const ApplicationDetailLoading();
+  ApplicationDetailState build() => const ApplicationDetailLoading();
 
   Future<void> load() async {
     state = const ApplicationDetailLoading();

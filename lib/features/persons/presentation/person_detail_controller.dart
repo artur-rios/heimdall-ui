@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../profile/presentation/profile_controller.dart';
@@ -86,9 +87,14 @@ personDetailControllerProvider =
     );
 
 /// Owns one person's detail: reading it, and saving edits to it.
-class PersonDetailController extends FamilyNotifier<PersonDetailState, String> {
+class PersonDetailController extends Notifier<PersonDetailState> {
+  PersonDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  PersonDetailState build(String personId) => const PersonDetailLoading();
+  PersonDetailState build() => const PersonDetailLoading();
 
   /// Reads the person.
   ///

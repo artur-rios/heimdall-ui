@@ -100,10 +100,16 @@ class SecureTokenStore implements TokenStore {
 
     try {
       return AuthToken.fromJson(jsonDecode(raw) as Map<String, dynamic>);
-    } on FormatException {
+    } on Object {
       // A stored value we cannot read is worse than none: drop it rather than
-      // failing every launch from here on.
-      await clear();
+      // failing every launch from here on. Not only malformed JSON lands here
+      // — well-formed JSON of the wrong shape throws a TypeError, which is
+      // just as unreadable.
+      try {
+        await clear();
+      } on Object {
+        // Dropping it is best-effort; reading it as absent is what matters.
+      }
 
       return null;
     }

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/field_rules.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -86,6 +87,19 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
 
     return session is Authenticated && session.principal.isSystemAdmin;
   }
+
+  /// Whether the API would take an update to [person] from the caller: a
+  /// System Admin may update anyone, anybody may update themselves, and a
+  /// Scope Admin may update the Users of a scope they own — never a co-owner
+  /// they can see but not change (UC-08's `NotAuthorizedToUpdatePerson`).
+  bool _mayUpdate(Person person) =>
+      _maySeeHardDelete || _isSelf || person.role == Role.user;
+
+  /// Whether the API would take a logical delete of [person] from the caller:
+  /// a System Admin, or a Scope Admin deleting a User (UC-09's
+  /// `NotAuthorizedToDeletePerson`).
+  bool _mayDelete(Person person) =>
+      _maySeeHardDelete || person.role == Role.user;
 
   /// AF-19a — a dialog the user closes sends nothing.
   Future<void> _confirmDelete(Person person) async {
@@ -265,8 +279,9 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     TextFormField(
+                      maxLength: nameMaxLength,
                       controller: _name,
-                      readOnly: state.isReadOnly,
+                      readOnly: state.isReadOnly || !_mayUpdate(person),
                       decoration: const InputDecoration(labelText: 'Name'),
                       validator: (value) => (value?.trim().isEmpty ?? true)
                           ? 'Enter a name.'
@@ -275,7 +290,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                     const SizedBox(height: 16),
                     TextFormField(
                       controller: _email,
-                      readOnly: state.isReadOnly,
+                      readOnly: state.isReadOnly || !_mayUpdate(person),
                       keyboardType: TextInputType.emailAddress,
                       decoration: const InputDecoration(labelText: 'Email'),
                       validator: (value) {
@@ -285,13 +300,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                           return 'Enter an email address.';
                         }
 
-                        return email.contains('@')
+                        return isPlausibleEmail(email)
                             ? null
                             : 'Enter a valid email address.';
                       },
                     ),
                     const SizedBox(height: 16),
-                    if (!state.isReadOnly)
+                    if (!state.isReadOnly && _mayUpdate(person))
                       FilledButton(
                         onPressed: (state.saving || !_differsFrom(person))
                             ? null
@@ -310,7 +325,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               ),
               // AF-19d — the controls are disabled on your own record, and
               // AF-18d leaves a deleted person nothing left to delete.
-              if (!state.isReadOnly) ...<Widget>[
+              if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[
                 const SizedBox(height: 24),
                 _DangerZone(
                   person: person,

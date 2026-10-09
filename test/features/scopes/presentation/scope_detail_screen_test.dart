@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -190,6 +191,8 @@ void main() {
         id: any(named: 'id'),
         name: any(named: 'name'),
         description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -267,6 +270,8 @@ void main() {
         id: 'scope-1',
         name: 'Acme Ltd',
         description: 'The first tenant',
+        defaultLegalBasis: null,
+        privacyNoticeUri: null,
       ),
     ).called(1);
   });
@@ -948,6 +953,32 @@ void main() {
     expect(
       tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
       isNull,
+    );
+  });
+
+  // The API holds scope updates to a System Admin, so a Scope Admin reads the
+  // name and description rather than being offered a save it would refuse.
+  testWidgets('GivenAScopeAdmin_WhenOpened_ThenNoSaveIsOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(find.text('Save changes'), findsNothing);
+    expect(
+      tester
+          .widget<TextField>(
+            find.descendant(
+              of: find.widgetWithText(TextFormField, 'Name'),
+              matching: find.byType(TextField),
+            ),
+          )
+          .readOnly,
+      isTrue,
     );
   });
 }

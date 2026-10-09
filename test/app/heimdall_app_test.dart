@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
@@ -39,7 +40,7 @@ void main() {
         // The sign-in screen asks the configuration whether to offer the
         // Google control, so the whole app needs one to render.
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -83,6 +84,39 @@ void main() {
     // Then
     expect(find.text('Signed in as admin@example.com'), findsOneWidget);
     expect(find.text('System Admin'), findsOneWidget);
+  });
+
+  // A User is offered a single destination, which the shell does not render
+  // as navigation, so home is where their own settings are reached from. The
+  // API's token names them in `name` and carries no address.
+  testWidgets('GivenAUserSession_WhenAppStarts_ThenTheirProfileIsOffered', (
+    tester,
+  ) async {
+    // Given
+    final payload = base64Url
+        .encode(
+          utf8.encode(
+            jsonEncode(<String, String>{
+              'id': '6f1d3a00-0000-0000-0000-000000000003',
+              'role': '3',
+              'name': 'Ada Lovelace',
+            }),
+          ),
+        )
+        .replaceAll('=', '');
+    await store.write(
+      AuthToken(
+        value: 'header.$payload.signature',
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+
+    // When
+    await pumpApp(tester);
+
+    // Then
+    expect(find.text('Signed in as Ada Lovelace'), findsOneWidget);
+    expect(find.text('Your profile and security'), findsOneWidget);
   });
 
   testWidgets('GivenEmptyPassword_WhenSubmitted_ThenNoRequestIsMade', (
@@ -180,7 +214,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
         authRepositoryProvider.overrideWithValue(repository),
@@ -214,7 +248,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
         authRepositoryProvider.overrideWithValue(repository),
@@ -249,7 +283,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -283,7 +317,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
@@ -324,7 +358,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
-          const AppConfig(apiBaseUrl: 'http://localhost:5000'),
+          const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),

@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -452,7 +453,11 @@ void main() {
     expect(find.textContaining('replace your previous codes'), findsOneWidget);
   });
 
-  testWidgets('GivenAPassword_WhenDisabled_ThenItIsSent', (tester) async {
+  // UC-39 — the API refuses to disable without the password *and* a second
+  // factor, so both travel together.
+  testWidgets('GivenAPasswordAndACode_WhenDisabled_ThenBothAreSent', (
+    tester,
+  ) async {
     // Given
     answerStatusWith(const Success<TwoFactorStatus>(_on));
     await pump(tester);
@@ -464,6 +469,42 @@ void main() {
       find.widgetWithText(TextField, 'Password'),
       'secret',
     );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Code from your second factor'),
+      '123456',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Turn off'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.disableTwoFactor(
+        password: 'secret',
+        code: '123456',
+        recoveryCode: null,
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenAPasswordAndARecoveryCode_WhenDisabled_ThenBothAreSent', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+    await tester.tap(find.text('Turn off two-factor'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Password'),
+      'secret',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Recovery code'),
+      'abcd-efgh',
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Turn off'));
     await tester.pumpAndSettle();
@@ -473,10 +514,38 @@ void main() {
       () => repository.disableTwoFactor(
         password: 'secret',
         code: null,
-        recoveryCode: null,
+        recoveryCode: 'abcd-efgh',
       ),
     ).called(1);
   });
+
+  // Either half alone is a request the API always refuses.
+  for (final (field, value) in <(String, String)>[
+    ('Password', 'secret'),
+    ('Code from your second factor', '123456'),
+  ]) {
+    testWidgets('GivenOneHalf_WhenDisabling_ThenConfirmIsDisabled: $field', (
+      tester,
+    ) async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      await pump(tester);
+      await tester.tap(find.text('Turn off two-factor'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.enterText(find.widgetWithText(TextField, field), value);
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(
+        tester
+            .widget<FilledButton>(find.widgetWithText(FilledButton, 'Turn off'))
+            .onPressed,
+        isNull,
+      );
+    });
+  }
 
   // Nothing filled in is nothing to send.
   testWidgets('GivenNoCredential_WhenDisabling_ThenConfirmIsDisabled', (
@@ -542,6 +611,10 @@ void main() {
 
     // When
     await tester.enterText(find.widgetWithText(TextField, 'Password'), 'wrong');
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Code from your second factor'),
+      '123456',
+    );
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Turn off'));
     await tester.pumpAndSettle();

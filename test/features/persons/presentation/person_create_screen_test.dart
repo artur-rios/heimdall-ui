@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -127,7 +128,7 @@ void main() {
     WidgetTester tester, {
     String name = 'Ada',
     String email = 'ada@example.com',
-    String password = 'secret',
+    String password = 'secret-pass',
   }) async {
     await tester.enterText(find.widgetWithText(TextFormField, 'Name'), name);
     await tester.enterText(find.widgetWithText(TextFormField, 'Email'), email);
@@ -192,7 +193,7 @@ void main() {
         scopeId: 'scope-1',
         name: 'Ada',
         email: 'ada@example.com',
-        password: 'secret',
+        password: 'secret-pass',
       ),
     ).called(1);
   });
@@ -263,6 +264,34 @@ void main() {
 
     // Then
     expect(find.text('Enter a password.'), findsOneWidget);
+  });
+
+  // The API refuses a password under eight characters, so the form does too,
+  // in the API's own words.
+  testWidgets('GivenAShortPassword_WhenSubmitted_ThenNoRequestIsMade', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await fillIn(tester, password: 'seven77');
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('Password must be at least 8 characters.'),
+      findsOneWidget,
+    );
+    verifyNever(
+      () => repository.createUser(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
   });
 
   // AF-17b — the address is already registered.
@@ -386,7 +415,7 @@ void main() {
       () => repository.createAdmin(
         name: 'Grace',
         email: 'grace@example.com',
-        password: 'secret',
+        password: 'secret-pass',
         role: Role.scopeAdmin,
       ),
     ).called(1);

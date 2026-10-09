@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -485,7 +486,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Create'));
     await tester.pumpAndSettle();
@@ -496,7 +497,7 @@ void main() {
         scopeId: 'scope-1',
         name: 'Grace',
         email: 'grace@example.com',
-        password: 'secret',
+        password: 'secret-pass',
       ),
     ).called(1);
   });
@@ -539,7 +540,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
 
     // When
@@ -580,7 +581,7 @@ void main() {
     );
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Password'),
-      'secret',
+      'secret-pass',
     );
 
     // When

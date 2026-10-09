@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../domain/scope.dart';
@@ -109,9 +110,14 @@ scopeDetailControllerProvider =
     );
 
 /// Owns one scope's detail: reading it, and saving edits to it.
-class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
+class ScopeDetailController extends Notifier<ScopeDetailState> {
+  ScopeDetailController(this.arg);
+
+  /// The family argument this controller was created for.
+  final String arg;
+
   @override
-  ScopeDetailState build(String scopeId) => const ScopeDetailLoading();
+  ScopeDetailState build() => const ScopeDetailLoading();
 
   /// Reads the scope.
   ///
@@ -151,9 +157,17 @@ class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
       saved: false,
     );
 
+    // The API replaces the privacy settings on every update, so the ones the
+    // scope already holds travel with the edit to keep them.
     final result = await ref
         .read(scopeRepositoryProvider)
-        .update(id: arg, name: name, description: description);
+        .update(
+          id: arg,
+          name: name,
+          description: description,
+          defaultLegalBasis: current.scope.defaultLegalBasis,
+          privacyNoticeUri: current.scope.privacyNoticeUri,
+        );
 
     state = result.fold(
       onSuccess: (scope) => ScopeDetailLoaded(scope, saved: true),
@@ -195,8 +209,12 @@ class ScopeDetailController extends FamilyNotifier<ScopeDetailState, String> {
         .setGoogleSignIn(id: arg, enabled: enabled);
 
     state = result.fold(
-      onSuccess: (scope) =>
-          current.copyWith(scope: scope, togglingGoogleSignIn: false),
+      // The toggle's output carries no privacy settings; the scope keeps the
+      // ones it had, so a save after a toggle does not clear them.
+      onSuccess: (scope) => current.copyWith(
+        scope: scope.withPrivacySettingsOf(current.scope),
+        togglingGoogleSignIn: false,
+      ),
       onFailure: (failure) => current.copyWith(
         togglingGoogleSignIn: false,
         googleSignInFailure: failure,
