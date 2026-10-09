@@ -278,4 +278,33 @@ void main() {
       expect(redirect, '/login?from=%2Fscopes');
     },
   );
+
+  // Issue #73: Google's consent screen links here, so it must open for
+  // someone who has never signed in.
+  test('GivenUnauthenticated_WhenVisitingPrivacy_ThenNoRedirect', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(session: session, location: '/privacy');
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  test('GivenAnyRole_WhenVisitingPrivacy_ThenNoRedirect', () {
+    for (final role in Role.values) {
+      // Given
+      final session = Authenticated(
+        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        principal: Principal(id: 'id', email: 'a@b.c', role: role),
+      );
+
+      // When
+      final redirect = redirectFor(session: session, location: '/privacy');
+
+      // Then
+      expect(redirect, isNull, reason: role.name);
+    }
+  });
 }

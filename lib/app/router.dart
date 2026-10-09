@@ -22,6 +22,7 @@ import '../features/permissions/presentation/permission_list_screen.dart';
 import '../features/persons/presentation/person_create_screen.dart';
 import '../features/persons/presentation/person_detail_screen.dart';
 import '../features/persons/presentation/person_list_screen.dart';
+import '../features/privacy/presentation/privacy_notice_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/profile/presentation/security_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
@@ -34,12 +35,15 @@ import 'route_access.dart';
 ///
 /// The recovery, reset, and verification screens are here because they are all
 /// opened from an emailed link by someone who, by definition, cannot sign in.
+/// The privacy notice is here because Google's consent screen links to it, and
+/// the person reading it there has not signed in yet.
 const Set<String> publicRoutes = <String>{
   '/login',
   '/login/two-factor',
   '/password-recovery',
   '/password-reset',
   '/verify-email',
+  '/privacy',
 };
 
 /// Decides where a caller in [session] asking for [location] should end up, or
@@ -126,6 +130,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         // the screen, which explains and offers the resend.
         builder: (context, state) =>
             VerifyEmailScreen(token: state.uri.queryParameters['token']),
+      ),
+      GoRoute(
+        path: '/privacy',
+        builder: (context, state) => const PrivacyNoticeScreen(),
       ),
       GoRoute(
         path: '/profile',

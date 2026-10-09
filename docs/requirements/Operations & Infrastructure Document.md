@@ -233,6 +233,17 @@ dart run tool/generate_api_client.dart
 Commit the refreshed specification together with the regenerated client. CI regenerates and fails if
 the committed output differs, so the two cannot drift apart.
 
+The privacy notice shown at `/privacy` is the API's own `docs/requirements/Privacy Notice.md`,
+bundled verbatim as `assets/privacy/privacy_notice.md`. When the API publishes a new version, copy it
+from the API's `main`:
+
+```bash
+dart run tool/refresh_privacy_notice.dart "https://raw.githubusercontent.com/artur-rios/heimdall-api/main/docs/requirements/Privacy%20Notice.md"
+```
+
+`https://<host>/privacy` is the **Application privacy policy link** on Google Auth Platform's
+Branding page.
+
 ---
 
 ## 8. Continuous integration
