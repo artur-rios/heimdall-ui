@@ -116,7 +116,7 @@ commit, a different bundle — and tagged `<environment>-<version>` by yggdrasil
 
 | Target | Requirements |
 | --- | --- |
-| All | Flutter 3.44.9 or newer on the stable channel |
+| All | Flutter 3.47.7 or newer on the stable channel |
 | Web | A Chromium-based browser for `flutter run -d chrome` |
 | Windows | Visual Studio (or Build Tools) with the *Desktop development with C++* workload **and the C++ ATL component** |
 | Linux | `clang`, `cmake`, `ninja-build`, `pkg-config`, `libgtk-3-dev`, `liblzma-dev`, `libstdc++-12-dev`, `libsecret-1-dev` |
@@ -232,6 +232,17 @@ dart run tool/generate_api_client.dart
 
 Commit the refreshed specification together with the regenerated client. CI regenerates and fails if
 the committed output differs, so the two cannot drift apart.
+
+The privacy notice shown at `/privacy` is the API's own `docs/requirements/Privacy Notice.md`,
+bundled verbatim as `assets/privacy/privacy_notice.md`. When the API publishes a new version, copy it
+from the API's `main`:
+
+```bash
+dart run tool/refresh_privacy_notice.dart "https://raw.githubusercontent.com/artur-rios/heimdall-api/main/docs/requirements/Privacy%20Notice.md"
+```
+
+`https://<host>/privacy` is the **Application privacy policy link** on Google Auth Platform's
+Branding page.
 
 ---
 

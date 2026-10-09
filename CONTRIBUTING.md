@@ -17,7 +17,8 @@ with `flutter doctor`. After cloning, run `flutter pub get`.
 | `lib/shared/` | Widgets with no feature knowledge — the adaptive shell, breakpoints |
 | `packages/heimdall_api_client/` | The generated API client (never hand-edited) |
 | `api/heimdall.json` | Vendored snapshot of the API's OpenAPI specification |
-| `tool/` | Specification refresh and client generation |
+| `tool/` | Specification and privacy notice refresh, and client generation |
+| `assets/privacy/` | Verbatim copy of the API's privacy notice, shown at `/privacy` |
 | `test/` | Mirrors `lib/` one directory at a time |
 | `docs/requirements/` | The specification documents |
 
@@ -39,6 +40,16 @@ dart run tool/generate_api_client.dart
 
 Commit the refreshed specification and the regenerated client together — CI fails when they
 disagree.
+
+## Privacy notice
+
+The page at `/privacy` shows the Heimdall API's own privacy notice, bundled as
+`assets/privacy/privacy_notice.md`. The API owns the text: never edit the copy. When the API's notice
+changes, copy it again from the API's `main` — the notice in force:
+
+```bash
+dart run tool/refresh_privacy_notice.dart "https://raw.githubusercontent.com/artur-rios/heimdall-api/main/docs/requirements/Privacy%20Notice.md"
+```
 
 ## Test
 

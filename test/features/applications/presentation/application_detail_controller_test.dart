@@ -324,9 +324,8 @@ void main() {
     await controller.deletePermanently();
 
     // Then
-    verify(
-      () => repository.hardDelete(scopeId: 'scope-1', id: 'app-1'),
-    ).called(1);
+    verify(() => repository.hardDelete(scopeId: 'scope-1', id: 'app-1'))
+        .called(1);
   });
 
   // AF-23b — the API refused, and the application stays open.

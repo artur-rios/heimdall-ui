@@ -7,6 +7,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-09
+
+### Added
+
+- A public privacy notice at `/privacy`, linked from the sign-in screen, for Google's consent screen to name as the
+  application's privacy policy. It opens signed in or out, and shows the Heimdall API's own Privacy Notice — version
+  and date included — bundled verbatim from the API repository and refreshed with
+  `dart run tool/refresh_privacy_notice.dart`. Dependencies: `flutter_markdown_plus` 1.0.12 renders it, and
+  `url_launcher` 6.3.3 opens its links.
+
+### Changed
+
+- Flutter 3.44.9 → 3.47.7 (Dart 3.12.2 → 3.13.5) in CI, the container image and the SDK constraint. The Dart 3.13
+  formatter reflows some existing code, and the Flutter tool now excludes the build and platform directories from
+  analysis. The generated API client is unchanged.
+
+### Fixed
+
+- The health check calls `GET /api/healthcheck` and `GET /api/healthcheck/detailed`, where the Heimdall API now
+  serves them alongside every other endpoint, instead of `/HealthCheck`. The vendored API specification and the
+  generated client carry the new routes.
+
 ## [1.1.0] - 2026-10-09
 
 ### Changed
@@ -93,7 +115,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/artur-rios/heimdall-ui/releases/tag/v1.0.0

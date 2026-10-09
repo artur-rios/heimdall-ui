@@ -172,12 +172,10 @@ void main() {
       () async {
         // Given
         final storage = _MockSecureStorage();
-        when(
-          () => storage.read(key: 'heimdall.session.token'),
-        ).thenAnswer((_) async => raw);
-        when(
-          () => storage.delete(key: 'heimdall.session.token'),
-        ).thenAnswer((_) async {});
+        when(() => storage.read(key: 'heimdall.session.token'))
+            .thenAnswer((_) async => raw);
+        when(() => storage.delete(key: 'heimdall.session.token'))
+            .thenAnswer((_) async {});
         final store = SecureTokenStore(storage);
 
         // When

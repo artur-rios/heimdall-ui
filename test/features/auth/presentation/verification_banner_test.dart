@@ -67,9 +67,8 @@ void main() {
   setUp(() {
     repository = _MockAuthRepository();
     store = InMemoryTokenStore();
-    when(
-      () => repository.resendVerificationEmail(),
-    ).thenAnswer((_) async => const Success<void>(null));
+    when(() => repository.resendVerificationEmail())
+        .thenAnswer((_) async => const Success<void>(null));
   });
 
   // AF-05e — the prompt an unverified authenticated user sees.

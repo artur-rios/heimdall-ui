@@ -484,9 +484,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.delete(scopeId: 'scope-1', id: 'google-1'),
-    ).called(1);
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'google-1'))
+        .called(1);
   });
 
   testWidgets('GivenADeletedGoogleUser_WhenDeleted_ThenTheListingOpens', (
@@ -637,8 +636,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.hardDelete(scopeId: 'scope-1', id: 'google-1'),
-    ).called(1);
+    verify(() => repository.hardDelete(scopeId: 'scope-1', id: 'google-1'))
+        .called(1);
   });
 }
