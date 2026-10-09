@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-10-09
+
 ### Added
 
 - A public privacy notice at `/privacy`, linked from the sign-in screen, for Google's consent screen to name as the
@@ -113,7 +115,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.0...v1.0.1
 [1.0.0]: https://github.com/artur-rios/heimdall-ui/releases/tag/v1.0.0
