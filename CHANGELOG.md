@@ -7,12 +7,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.3.0] - 2026-10-09
+
 ### Added
 
 - A System Admin can own a scope. The create-scope form has an **Add me** button beside **Add owner**, and the owner
   picker lists System Admins as well as Scope Admins when a System Admin opens it, so a first scope can be created
-  before any Scope Admin exists. Requires the Heimdall API release that accepts System Admin owners; the vendored
-  API specification and the generated client carry its updated descriptions.
+  before any Scope Admin exists. Requires heimdall-api 1.2.0, which accepts System Admin owners; the vendored API
+  specification and the generated client carry its updated descriptions.
 
 ### Changed
 
@@ -146,7 +148,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.1...v1.1.0
 [1.0.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.0...v1.0.1
