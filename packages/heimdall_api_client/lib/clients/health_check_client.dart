@@ -18,7 +18,7 @@ abstract class HealthCheckClient {
   /// Public — no authentication required.
   ///
   /// **Anonymous** — no bearer token required.
-  @GET('/HealthCheck')
+  @GET('/api/healthcheck')
   Future<StringDataOutput> healthCheckHelloWorld();
 
   /// Detailed health check (UC-30, FR-HC-02…07): reports the status of each verified service.
@@ -27,6 +27,6 @@ abstract class HealthCheckClient {
   /// service is down (FR-HC-07, AF-30c).
   ///
   /// **Requires role:** System Admin.
-  @GET('/HealthCheck/detailed')
+  @GET('/api/healthcheck/detailed')
   Future<HealthCheckOutputDataOutput> healthCheckDetailed();
 }

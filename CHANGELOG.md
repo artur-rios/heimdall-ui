@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The health check calls `GET /api/healthcheck` and `GET /api/healthcheck/detailed`, where the Heimdall API now
+  serves them alongside every other endpoint, instead of `/HealthCheck`. The vendored API specification and the
+  generated client carry the new routes.
+
 ## [1.1.0] - 2026-10-09
 
 ### Changed
