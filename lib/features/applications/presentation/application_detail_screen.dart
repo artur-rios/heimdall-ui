@@ -4,14 +4,15 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import '../../persons/domain/person.dart';
-import '../../persons/presentation/scope_members.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
+import '../../persons/domain/person.dart';
+import '../../persons/presentation/scope_members.dart';
 import '../domain/application.dart';
 import 'application_detail_controller.dart';
 import 'application_list_controller.dart';
@@ -126,12 +127,14 @@ class _ApplicationDetailScreenState
   }
 
   Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 
     final ownerId = _ownerId;
 
+    // The owner field's own validator has already refused this, on screen; the
+    // check only narrows the type.
     if (ownerId == null) {
       return;
     }
@@ -287,6 +290,11 @@ class _ApplicationDetailScreenState
                               )
                             : const Text('Save changes'),
                       ),
+                    // Says why Save is disabled.
+                    if (!state.isReadOnly &&
+                        !state.saving &&
+                        !_differsFrom(application))
+                      const NothingToSaveHint(),
                   ],
                 ),
               ),
@@ -359,6 +367,8 @@ class _ApplicationDetailScreenState
             : null,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Owner'),
+        validator: (_) =>
+            _ownerId == null ? 'Choose an owner for the application.' : null,
         items: <DropdownMenuItem<String>>[
           for (final person in value)
             DropdownMenuItem<String>(

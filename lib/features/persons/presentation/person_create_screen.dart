@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
@@ -49,7 +50,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
   Future<void> _submit() async {
     // AF-17a: an empty name, a malformed address, or an empty password never
     // reaches the API.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 

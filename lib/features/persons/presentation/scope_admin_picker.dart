@@ -7,7 +7,10 @@ import '../../../shared/widgets/failure_banner.dart';
 import '../domain/person.dart';
 import 'scope_admin_picker_controller.dart';
 
-/// Asks for a Scope Admin, and answers with the one chosen.
+/// Asks for a scope owner, and answers with the one chosen.
+///
+/// The API offers every Scope Admin, and to a System Admin every System Admin
+/// too, since either may own a scope.
 ///
 /// [excludeOwnersOfScopeId] leaves out the people who already own that scope,
 /// which is UI-14's AF-14c. [excludeIds] leaves out the ones the calling screen
@@ -82,7 +85,7 @@ class _ScopeAdminPickerState extends ConsumerState<ScopeAdminPicker> {
     final state = ref.watch(scopeAdminPickerControllerProvider(_key));
 
     return AlertDialog(
-      title: const Text('Choose a Scope Admin'),
+      title: const Text('Choose an owner'),
       content: SizedBox(
         width: 420,
         height: 360,
@@ -151,7 +154,7 @@ class _Candidates extends StatelessWidget {
         Expanded(
           child: offered.isEmpty
               ? const CollectionEmpty(
-                  title: 'No Scope Admins to offer',
+                  title: 'Nobody to offer',
                   message:
                       'Nobody matches, or everybody who does already owns '
                       'this scope.',
@@ -213,7 +216,8 @@ class _Unavailable extends StatelessWidget {
         controller: identifier,
         decoration: const InputDecoration(
           labelText: 'Person identifier',
-          helperText: 'The person id of an existing Scope Admin.',
+          helperText:
+              'The person id of an existing Scope Admin or System Admin.',
         ),
         onSubmitted: (_) => onSubmit(),
       ),

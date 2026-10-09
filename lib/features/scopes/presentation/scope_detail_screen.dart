@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -167,7 +168,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
   }
 
   Future<void> _save() async {
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 
@@ -311,6 +312,12 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                               )
                             : const Text('Save changes'),
                       ),
+                    // Says why Save is disabled.
+                    if (!state.isReadOnly &&
+                        _mayUpdate &&
+                        !state.saving &&
+                        !_differsFrom(scope))
+                      const NothingToSaveHint(),
                   ],
                 ),
               ),
