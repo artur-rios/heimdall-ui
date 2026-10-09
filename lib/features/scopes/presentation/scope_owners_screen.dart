@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
@@ -271,7 +272,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
   void _submit() {
     // AF-14d: what the client can tell is wrong never reaches the API. What it
     // cannot — a password the API's own rules reject — comes back as an error.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 

@@ -21,7 +21,7 @@ abstract class ApplicationClient {
   factory ApplicationClient(Dio dio, {String? baseUrl}) = _ApplicationClient;
 
   /// Registers an application within a scope (UC-16, FR-AP-01/02/03). Only a System Admin or a.
-  /// Scope Admin may call it: FR-AP-03 restricts ownership to a `ScopeAdmin` who owns the.
+  /// Scope Admin may call it: FR-AP-03 restricts ownership to an administrator who owns the.
   /// scope, so a `User` has nothing to create here and the attribute refuses them. The.
   /// remaining rules depend on data the attribute cannot see and are enforced by the handler —.
   /// the acting Scope Admin must own the scope (AF-16e) and may only name themself (AF-16c),.

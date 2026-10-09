@@ -429,6 +429,26 @@ void main() {
           .onPressed,
       isNull,
     );
+    // …and says why, rather than leaving a greyed-out button to explain itself
+    expect(find.text('No changes to save yet.'), findsOneWidget);
+  });
+
+  testWidgets('GivenAnEdit_WhenTyped_ThenTheNothingToSaveHintGoes', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+
+    // When
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Acme Renamed',
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('No changes to save yet.'), findsNothing);
   });
 
   testWidgets('GivenAnEdit_WhenTyped_ThenSaveIsEnabled', (tester) async {
