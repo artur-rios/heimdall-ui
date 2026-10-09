@@ -307,7 +307,7 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(find.text('No Scope Admins to offer'), findsOneWidget);
+    expect(find.text('Nobody to offer'), findsOneWidget);
   });
 
   testWidgets('GivenAQuery_WhenSubmitted_ThenTheListingIsNarrowed', (

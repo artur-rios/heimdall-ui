@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A System Admin can own a scope. The create-scope form has an **Add me** button beside **Add owner**, and the owner
+  picker lists System Admins as well as Scope Admins when a System Admin opens it, so a first scope can be created
+  before any Scope Admin exists. Requires the Heimdall API release that accepts System Admin owners; the vendored
+  API specification and the generated client carry its updated descriptions.
+
 ### Changed
 
 - Dependencies on their latest stable versions: `go_router` 17.5.0 → 18.0.2, `dio` 5.11.0 → 5.11.1,
@@ -21,6 +28,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - CI: `actions/upload-artifact` v6 → v7.
 - The Technology Stack Document's dependency tables match `pubspec.yaml` again; several constraints there had
   fallen behind.
+
+### Fixed
+
+- Submitting the create-scope form without an owner did nothing: no request, and no message. The form now says
+  "Add at least one owner — a Scope Admin, or yourself." under the owners, and clears it once one is added.
+- Every form says what is stopping it from being submitted. The first refused field is scrolled into view with its
+  message, so an error above the fold no longer looks like a dead button. The application forms refuse a missing
+  owner on screen, including when the scope has nobody who could own one. Each edit screen's disabled **Save
+  changes** button now says "No changes to save yet."
 
 ## [1.2.0] - 2026-10-09
 

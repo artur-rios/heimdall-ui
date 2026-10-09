@@ -491,16 +491,21 @@ delivered the same way.
 **Main flow**
 
 1. The user opens the create-scope form from the scopes screen.
-2. The user enters a name and a description, and selects at least one owner.
+2. The user enters a name and a description, and selects at least one owner — a Scope Admin, a
+   System Admin, or themselves through **Add me**, which is what makes a first scope possible before
+   any Scope Admin exists.
 3. The client calls `POST /api/scopes`.
 4. The API creates the scope. The client shows a confirmation and opens the new scope's detail.
 
 **Alternative flows**
 
-- **AF-11a — Client-side validation fails.** An empty name, or no owner selected, blocks submission.
+- **AF-11a — Client-side validation fails.** An empty name, or no owner selected, blocks submission,
+  and the form says which: each refused field shows its message, and the first one is scrolled into
+  view.
 - **AF-11b — Name already exists.** The API answers unsuccessfully. The client shows the returned
   errors against the name field and keeps the rest of the form.
-- **AF-11c — Owner rejected.** The API rejects an owner that is not a Scope Admin. The client shows
+- **AF-11c — Owner rejected.** The API rejects an owner that is neither a Scope Admin nor a System
+  Admin. The client shows
   the returned errors against the owner selector.
 - **AF-11d — Cancelled with changes.** Leaving a modified form asks for confirmation first.
 - **AF-11e — Request fails.** A transport failure leaves the form filled in and offers a retry.
@@ -576,7 +581,8 @@ delivered the same way.
 
 1. The user opens the owners section of a scope, which lists the current owners.
 2. The client calls `GET /api/scopes/{scopeId}/owners`.
-3. The user adds an existing Scope Admin as a co-owner, and the client calls
+3. The user adds an existing Scope Admin (or, as a System Admin, a System Admin) as a co-owner, and
+   the client calls
    `POST /api/scopes/{scopeId}/owners/{personId}`.
 4. The user creates a brand-new Scope Admin as a co-owner, and the client calls
    `POST /api/scopes/{scopeId}/owners`.

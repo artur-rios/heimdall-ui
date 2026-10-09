@@ -71,7 +71,7 @@ abstract class PersonClient {
     @Body() CreateScopeOwnerCommand? body,
   });
 
-  /// Lists the `ScopeAdmin` owners of a scope (UC-07, FR-PE-04). A System Admin or an.
+  /// Lists the owners of a scope (UC-07, FR-PE-04). A System Admin or an.
   /// owner of the scope may call it; the ownership check (AF-07b) is enforced by the handler.
   /// from the acting user.
   ///
@@ -86,12 +86,12 @@ abstract class PersonClient {
     @Query('PageSize') int? pageSize,
   });
 
-  /// Adds an existing `ScopeAdmin` person as an additional owner of a scope (UC-21,.
-  /// FR-SC-08/FR-SC-09). The attribute keeps a `User` out — they can never be a System.
-  /// Admin nor an existing owner — while the rules that depend on data it cannot see are the.
-  /// handler's: whether the acting Scope Admin owns this scope (AF-21c), whether the scope is.
-  /// active (AF-21a), whether the named person is a usable `ScopeAdmin` (AF-21b), and.
-  /// whether they already own it (AF-21d).
+  /// Adds an existing `ScopeAdmin` or `SystemAdmin` person as an additional owner.
+  /// of a scope (UC-21, FR-SC-08/FR-SC-09). The attribute keeps a `User` out — they can.
+  /// never be a System Admin nor an existing owner — while the rules that depend on data it.
+  /// cannot see are the handler's: whether the acting Scope Admin owns this scope (AF-21c),.
+  /// whether the scope is active (AF-21a), whether the named person is a usable administrator.
+  /// (AF-21b), and whether they already own it (AF-21d).
   ///
   /// **Requires role:** System Admin or Scope Admin.
   @POST('/api/scopes/{scopeId}/owners/{personId}')
@@ -171,8 +171,9 @@ abstract class PersonClient {
     @Path('id') required String id,
   });
 
-  /// Lists the system's `ScopeAdmin` persons (UC-07 read d, FR-PE-12), projected to.
-  /// identifier, name, and email — the source for an owner picker. A System Admin or a Scope.
+  /// Lists the administrators who may own a scope (UC-07 read d, FR-PE-12) — every.
+  /// `ScopeAdmin`, and for a System Admin caller every `SystemAdmin` too — projected to.
+  /// identifier, name, and email: the source for an owner picker. A System Admin or a Scope.
   /// Admin may call it. Optionally excludes the current owners of a named scope, in which case.
   /// the handler requires the caller to be entitled to manage that scope.
   ///

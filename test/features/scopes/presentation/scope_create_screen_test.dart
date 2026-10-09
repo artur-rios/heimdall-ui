@@ -58,6 +58,10 @@ const _grace = PersonSummary(
   email: 'grace@example.com',
 );
 
+/// What the form says when it is submitted with nobody to own the scope.
+const String _ownerRequired =
+    'Add at least one owner — a Scope Admin, or yourself.';
+
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
@@ -282,13 +286,99 @@ void main() {
     answerCreateWith(const Success<Scope>(_created));
     await pump(tester);
     await fillIn(tester, withOwner: false);
+    expect(find.text(_ownerRequired), findsNothing);
 
     // When
     await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
     await tester.pumpAndSettle();
 
+    // Then — a refusal the user can see, not a button that does nothing
+    expect(find.text(_ownerRequired), findsOneWidget);
+  });
+
+  testWidgets('GivenTheNoOwnerError_WhenAnOwnerIsAdded_ThenTheErrorClears', (
+    tester,
+  ) async {
+    // Given
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester);
+    await fillIn(tester, withOwner: false);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
+    await tester.pumpAndSettle();
+
+    // When
+    await addOwner(tester, 'Grace');
+
     // Then
-    expect(find.text('No owners added yet.'), findsOneWidget);
+    expect(find.text(_ownerRequired), findsNothing);
+  });
+
+  // A System Admin may own the scope they create, which is what makes a first
+  // scope possible before any Scope Admin exists.
+  testWidgets('GivenASystemAdmin_WhenAddMeIsTapped_ThenTheyAreAnOwner', (
+    tester,
+  ) async {
+    // Given
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester);
+    await fillIn(tester, withOwner: false);
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add me'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
+    await tester.pumpAndSettle();
+
+    // Then — the signed-in System Admin is the owner sent
+    verify(
+      () => repository.create(
+        name: 'Acme',
+        description: '',
+        ownerIds: <String>['person-1'],
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenTheSignedInAdminIsAnOwner_WhenRendered_ThenAddMeIsGone', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add me'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(InputChip, 'admin@example.com'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Add me'), findsNothing);
+  });
+
+  testWidgets('GivenNoNameOnACompactWindow_WhenSubmitted_ThenTheErrorIsShown', (
+    tester,
+  ) async {
+    // Given a window short enough that the name field scrolls out of view
+    // before the button is reached
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester, size: const Size(400, 420));
+    await tester.ensureVisible(find.widgetWithText(OutlinedButton, 'Add me'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Add me'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(
+      find.widgetWithText(FilledButton, 'Create scope'),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create scope'));
+    await tester.pumpAndSettle();
+
+    // Then — the refused field is brought back into view with its message
+    expect(
+      find.text('Enter a name for the scope.').hitTestable(),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAChosenScopeAdmin_WhenAdded_ThenAChipNamesThem', (
