@@ -29,7 +29,7 @@ class _HealthCheckClient implements HealthCheckClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/HealthCheck',
+            '/api/healthcheck',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -56,7 +56,7 @@ class _HealthCheckClient implements HealthCheckClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/HealthCheck/detailed',
+            '/api/healthcheck/detailed',
             queryParameters: queryParameters,
             data: _data,
           )
