@@ -602,9 +602,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.delete(scopeId: 'scope-1', id: 'permission-1'),
-    ).called(1);
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
+        .called(1);
   });
 
   testWidgets('GivenADeletedPermission_WhenDeleted_ThenTheListingOpens', (
@@ -758,8 +757,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'),
-    ).called(1);
+    verify(() => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'))
+        .called(1);
   });
 }

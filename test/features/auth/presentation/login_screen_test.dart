@@ -104,22 +104,20 @@ void main() {
     'GivenLoginScreen_WhenSubmittedWithValidInput_ThenControllerIsCalled',
     (tester) async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => Success<LoginOutcome>(
-          LoggedIn(AuthToken(value: _jwt, expiresAt: DateTime.utc(2030))),
-        ),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async => Success<LoginOutcome>(
+              LoggedIn(AuthToken(value: _jwt, expiresAt: DateTime.utc(2030))),
+            ),
+          );
       await pump(tester);
 
       // When
       await fillAndSubmit(tester);
 
       // Then
-      verify(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).called(1);
+      verify(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .called(1);
     },
   );
 
@@ -243,9 +241,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.login(email: 'a@b.c', password: 'secret'),
-    ).called(2);
+    verify(() => repository.login(email: 'a@b.c', password: 'secret'))
+        .called(2);
   });
 
   // AF-01e — the Google control, offered only when the build configures it.

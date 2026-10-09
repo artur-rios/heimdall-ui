@@ -784,9 +784,8 @@ void main() {
     await tapAfterScrolling(tester, find.byType(SwitchListTile));
 
     // Then
-    verify(
-      () => repository.setGoogleSignIn(id: 'scope-1', enabled: true),
-    ).called(1);
+    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: true))
+        .called(1);
   });
 
   // AF-15b — the accounts already in the scope are named before anything is
@@ -844,9 +843,8 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(
-      () => repository.setGoogleSignIn(id: 'scope-1', enabled: false),
-    ).called(1);
+    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: false))
+        .called(1);
   });
 
   testWidgets('GivenTheWarning_WhenCancelled_ThenNothingIsSent', (
@@ -886,9 +884,8 @@ void main() {
     await tapAfterScrolling(tester, find.byType(SwitchListTile));
 
     // Then
-    verify(
-      () => repository.setGoogleSignIn(id: 'scope-1', enabled: false),
-    ).called(1);
+    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: false))
+        .called(1);
   });
 
   // A count that cannot be read warns anyway rather than staying quiet.

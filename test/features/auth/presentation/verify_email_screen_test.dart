@@ -95,15 +95,13 @@ void main() {
   }
 
   void answerVerifyWith(Result<List<String>> result) {
-    when(
-      () => repository.verifyEmail(token: any(named: 'token')),
-    ).thenAnswer((_) async => result);
+    when(() => repository.verifyEmail(token: any(named: 'token')))
+        .thenAnswer((_) async => result);
   }
 
   void answerResendWith(Result<void> result) {
-    when(
-      () => repository.resendVerificationEmail(),
-    ).thenAnswer((_) async => result);
+    when(() => repository.resendVerificationEmail())
+        .thenAnswer((_) async => result);
   }
 
   setUp(() {

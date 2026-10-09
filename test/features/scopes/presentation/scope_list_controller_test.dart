@@ -140,9 +140,8 @@ void main() {
     await controller.setIncludeDeleted(true);
 
     // Then
-    verify(
-      () => repository.list(name: '', includeDeleted: true, pageNumber: 1),
-    ).called(1);
+    verify(() => repository.list(name: '', includeDeleted: true, pageNumber: 1))
+        .called(1);
   });
 
   test('GivenAPageChange_WhenRequested_ThenThatPageIsRead', () async {

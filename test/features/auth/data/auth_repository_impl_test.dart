@@ -787,21 +787,18 @@ void main() {
     },
   );
 
-  test(
-    'GivenTransportFailure_WhenSigningInWithGoogle_ThenNetworkFailureIsReturned',
-    () async {
-      // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+  test('GivenTransportFailure_WhenSigningInWithGoogle_ThenNetworkFailureIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(const _Answer(status: 0));
 
-      // When
-      final result = await repository.signInWithGoogle(
-        idToken: 'google-id-token',
-      );
+    // When
+    final result = await repository.signInWithGoogle(
+      idToken: 'google-id-token',
+    );
 
-      // Then
-      expect(result.failureOrNull?.kind, FailureKind.network);
-    },
-  );
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
 
   // The sign-out takes no body: the Google User comes from the bearer token.
   test('GivenAGoogleSession_WhenSigningOut_ThenNoBodyIsSent', () async {

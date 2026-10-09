@@ -478,9 +478,8 @@ void main() {
     await controller.setGoogleSignIn(true);
 
     // Then
-    verify(
-      () => repository.setGoogleSignIn(id: 'scope-1', enabled: true),
-    ).called(1);
+    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: true))
+        .called(1);
   });
 
   test(

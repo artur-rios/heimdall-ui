@@ -328,9 +328,8 @@ void main() {
         ),
       ),
     );
-    when(
-      () => auth.resendVerificationEmail(),
-    ).thenAnswer((_) async => const Success<void>(null));
+    when(() => auth.resendVerificationEmail())
+        .thenAnswer((_) async => const Success<void>(null));
     await pump(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'ada@example.com'),

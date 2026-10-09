@@ -39,9 +39,8 @@ void main() {
   }
 
   void answerEnableWith(Result<TwoFactorSetup> result) {
-    when(
-      () => repository.enableTwoFactor(any()),
-    ).thenAnswer((_) async => result);
+    when(() => repository.enableTwoFactor(any()))
+        .thenAnswer((_) async => result);
   }
 
   void answerConfirmWith(Result<List<String>> result) {

@@ -27,9 +27,8 @@ void main() {
   }
 
   void answerWith(Result<void> result) {
-    when(
-      () => repository.requestPasswordRecovery(email: any(named: 'email')),
-    ).thenAnswer((_) async => result);
+    when(() => repository.requestPasswordRecovery(email: any(named: 'email')))
+        .thenAnswer((_) async => result);
   }
 
   setUp(() {
@@ -62,9 +61,8 @@ void main() {
       await controller.request('a@b.c');
 
       // Then
-      verify(
-        () => repository.requestPasswordRecovery(email: 'a@b.c'),
-      ).called(1);
+      verify(() => repository.requestPasswordRecovery(email: 'a@b.c'))
+          .called(1);
     },
   );
 
@@ -138,9 +136,8 @@ void main() {
     () async {
       // Given
       final pending = Completer<Result<void>>();
-      when(
-        () => repository.requestPasswordRecovery(email: any(named: 'email')),
-      ).thenAnswer((_) => pending.future);
+      when(() => repository.requestPasswordRecovery(email: any(named: 'email')))
+          .thenAnswer((_) => pending.future);
       final controller = controllerUnderTest();
 
       // When
@@ -150,9 +147,8 @@ void main() {
       await Future.wait<void>(<Future<void>>[first, second]);
 
       // Then
-      verify(
-        () => repository.requestPasswordRecovery(email: 'a@b.c'),
-      ).called(1);
+      verify(() => repository.requestPasswordRecovery(email: 'a@b.c'))
+          .called(1);
     },
   );
 

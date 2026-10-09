@@ -128,9 +128,9 @@ void main() {
         .search();
 
     // Then
-    final state =
-        container.read(scopeAdminPickerControllerProvider(''))
-            as ScopeAdminsLoaded;
+    final state = container.read(
+      scopeAdminPickerControllerProvider(''),
+    ) as ScopeAdminsLoaded;
     expect(state.candidates, hasLength(2));
   });
 

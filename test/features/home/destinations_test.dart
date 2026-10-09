@@ -12,9 +12,9 @@ void main() {
       final principal = Principal(id: 'p', email: '', role: role);
 
       // When
-      final routes = destinationsFor(
-        principal,
-      ).map((destination) => destination.route).toSet();
+      final routes = destinationsFor(principal)
+          .map((destination) => destination.route)
+          .toSet();
 
       // Then
       for (final route in <String>['/scopes', '/profile', '/health']) {

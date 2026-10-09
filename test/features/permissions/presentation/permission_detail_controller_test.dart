@@ -364,9 +364,8 @@ void main() {
     await controller.delete();
 
     // Then
-    verify(
-      () => repository.delete(scopeId: 'scope-1', id: 'permission-1'),
-    ).called(1);
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
+        .called(1);
     expect(currentState(), isA<PermissionDeleted>());
   });
 
@@ -381,9 +380,8 @@ void main() {
     await controller.deletePermanently();
 
     // Then
-    verify(
-      () => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'),
-    ).called(1);
+    verify(() => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'))
+        .called(1);
   });
 
   // AF-27b — the API refused, and the permission stays open.
@@ -452,8 +450,7 @@ void main() {
     await Future.wait<void>(<Future<void>>[first, second]);
 
     // Then
-    verify(
-      () => repository.delete(scopeId: 'scope-1', id: 'permission-1'),
-    ).called(1);
+    verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
+        .called(1);
   });
 }

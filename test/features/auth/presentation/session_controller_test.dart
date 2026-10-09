@@ -119,11 +119,11 @@ void main() {
     'GivenValidCredentials_WhenSignedIn_ThenSessionIsAuthenticated',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async =>
+                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+          );
       final container = containerWith();
 
       // When
@@ -168,13 +168,12 @@ void main() {
     'GivenTransportFailure_WhenSignedIn_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => const FailureResult<LoginOutcome>(
-          Failure(kind: FailureKind.network, errors: <String>[]),
-        ),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async => const FailureResult<LoginOutcome>(
+              Failure(kind: FailureKind.network, errors: <String>[]),
+            ),
+          );
       final container = containerWith();
 
       // When
@@ -193,16 +192,15 @@ void main() {
     'GivenChallengedSession_WhenCodeAccepted_ThenSessionIsAuthenticated',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => const Success<LoginOutcome>(
-          TwoFactorRequired(
-            challengeToken: 'challenge',
-            availableMethods: <String>['Totp'],
-          ),
-        ),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async => const Success<LoginOutcome>(
+              TwoFactorRequired(
+                challengeToken: 'challenge',
+                availableMethods: <String>['Totp'],
+              ),
+            ),
+          );
       when(
         () => repository.verifySecondFactor(
           challengeToken: 'challenge',
@@ -249,16 +247,15 @@ void main() {
     'GivenInvalidCredentials_WhenSignedIn_ThenSessionStaysUnauthenticated',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'wrong'),
-      ).thenAnswer(
-        (_) async => const FailureResult<LoginOutcome>(
-          Failure(
-            kind: FailureKind.validation,
-            errors: <String>['Invalid credentials'],
-          ),
-        ),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'wrong'))
+          .thenAnswer(
+            (_) async => const FailureResult<LoginOutcome>(
+              Failure(
+                kind: FailureKind.validation,
+                errors: <String>['Invalid credentials'],
+              ),
+            ),
+          );
       final container = containerWith();
 
       // When
@@ -453,11 +450,11 @@ void main() {
     'GivenAuthenticatedSession_WhenAbandonCalled_ThenSessionStands',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async =>
+                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+          );
       final container = containerWith();
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.signIn(email: 'a@b.c', password: 'secret');
@@ -546,9 +543,8 @@ void main() {
       ),
     );
     final repository = _MockAuthRepository();
-    when(
-      () => repository.signOutFromGoogle(),
-    ).thenAnswer((_) async => const Success<void>(null));
+    when(() => repository.signOutFromGoogle())
+        .thenAnswer((_) async => const Success<void>(null));
     final container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
@@ -813,11 +809,11 @@ void main() {
     'GivenAnUnwritableStore_WhenSignedIn_ThenTheFailureIsReported',
     () async {
       // Given
-      when(
-        () => repository.login(email: 'a@b.c', password: 'secret'),
-      ).thenAnswer(
-        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-      );
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async =>
+                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+          );
       final container = ProviderContainer(
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
