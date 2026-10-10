@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/presentation/email_verification_controller.dart';
@@ -68,7 +69,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   Future<void> _save() async {
     // AF-08a: an empty name or a malformed address never reaches the API.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 
@@ -191,6 +192,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                         )
                       : const Text('Save changes'),
                 ),
+                // Says why Save is disabled.
+                if (!state.saving && !_differsFrom(person))
+                  const NothingToSaveHint(),
               ],
             ),
           ),

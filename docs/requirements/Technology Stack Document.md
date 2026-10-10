@@ -38,13 +38,13 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
-| **flutter_riverpod** | `^3.1.1` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
-| **go_router** | `^17.4.0` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
-| **dio** | `^5.11.0` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. |
-| **retrofit** | `^4.9.2` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
+| **flutter_riverpod** | `^3.4.3` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
+| **go_router** | `^18.0.2` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
+| **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. |
+| **retrofit** | `^4.10.0` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
 | **json_annotation** | `^4.12.0` | The generated models' runtime, paired with `json_serializable` at build time. |
-| **flutter_secure_storage** | `^9.2.4` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted local storage on the web. |
-| **shared_preferences** | `^2.5.3` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
+| **flutter_secure_storage** | `^11.2.0` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted local storage on the web. |
+| **shared_preferences** | `^2.5.6` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
 | **google_sign_in** | `^7.2.0` | Obtains the Google ID token the API exchanges for a Heimdall token. |
 | **qr** | `^4.0.0` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
 | **flutter_markdown_plus** | `^1.0.12` | Renders the privacy notice at `/privacy`, which is the Heimdall API's Markdown file bundled verbatim. The maintained fork of `flutter_markdown`, which Google discontinued. |
@@ -56,10 +56,10 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
-| **swagger_parser** | `^1.44.1` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
-| **build_runner** | `^2.15.1` | Runs the generators. |
+| **swagger_parser** | `^1.45.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
+| **build_runner** | `^2.16.2` | Runs the generators. |
 | **json_serializable** | `^6.14.1` | Emits the `fromJson`/`toJson` bodies for the generated models. |
-| **retrofit_generator** | `^10.2.8` | Emits the client implementations. |
+| **retrofit_generator** | `^10.2.11` | Emits the client implementations. |
 
 ### 4.1 The generation pipeline
 
@@ -109,7 +109,7 @@ named after their area — `AuthClient`, `ScopeClient`, `PersonClient`, `Applica
 | --- | --- | --- |
 | **flutter_test** | SDK | The test framework for unit and widget tests. |
 | **integration_test** | SDK | Drives end-to-end flows against a stubbed API. |
-| **mocktail** | `^1.0.4` | The single mocking library, for repositories and other collaborators. Chosen over `mockito` because it needs no code generation. Do not introduce a second one. |
+| **mocktail** | `^1.0.5` | The single mocking library, for repositories and other collaborators. Chosen over `mockito` because it needs no code generation. Do not introduce a second one. |
 
 How tests are written — naming, structure, and what each use case must cover — is defined in the
 [Testing Specification Document](Testing%20Specification%20Document.md).
@@ -134,22 +134,22 @@ no test reaches the network.
 | --- | --- | --- |
 | Framework | Flutter | `3.47.7` |
 | Language | Dart | `3.13.5` |
-| State | flutter_riverpod | `^3.1.1` |
-| Routing | go_router | `^17.4.0` |
-| HTTP | dio | `^5.11.0` |
-| HTTP | retrofit | `^4.9.2` |
+| State | flutter_riverpod | `^3.4.3` |
+| Routing | go_router | `^18.0.2` |
+| HTTP | dio | `^5.11.1` |
+| HTTP | retrofit | `^4.10.0` |
 | Serialization | json_annotation | `^4.12.0` |
-| Storage | flutter_secure_storage | `^9.2.4` |
-| Storage | shared_preferences | `^2.5.3` |
+| Storage | flutter_secure_storage | `^11.2.0` |
+| Storage | shared_preferences | `^2.5.6` |
 | Authentication | google_sign_in | `^7.2.0` |
 | Encoding | qr | `^4.0.0` |
 | Rendering | flutter_markdown_plus | `^1.0.12` |
 | Platform | url_launcher | `^6.3.3` |
-| Generation | swagger_parser | `^1.44.1` |
-| Generation | build_runner | `^2.15.1` |
+| Generation | swagger_parser | `^1.45.0` |
+| Generation | build_runner | `^2.16.2` |
 | Generation | json_serializable | `^6.14.1` |
-| Generation | retrofit_generator | `^10.2.8` |
-| Testing | mocktail | `^1.0.4` |
+| Generation | retrofit_generator | `^10.2.11` |
+| Testing | mocktail | `^1.0.5` |
 | Lints | flutter_lints | `^6.0.0` |
 
 > The exact resolved versions are in `pubspec.lock`, which is committed. When a constraint here and

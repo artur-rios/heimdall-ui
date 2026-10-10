@@ -332,6 +332,52 @@ void main() {
     );
   });
 
+  testWidgets('GivenNoOwner_WhenSubmitted_ThenTheFormSaysSo', (tester) async {
+    // Given
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Billing',
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Choose an owner for the application.'), findsNothing);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create application'));
+    await tester.pumpAndSettle();
+
+    // Then — a refusal the user can see, not a button that does nothing
+    expect(find.text('Choose an owner for the application.'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScopeWithNobodyInIt_WhenSubmitted_ThenTheFormSaysWhy', (
+    tester,
+  ) async {
+    // Given
+    answerMembersWith(
+      users: Success<envelope.Page<Person>>(_people(const <Person>[])),
+      owners: Success<envelope.Page<Person>>(_people(const <Person>[])),
+    );
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Billing',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create application'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text(
+        'An application needs an owner, and nobody here can own one yet.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenNoOwner_WhenRendered_ThenTheFormSaysSo', (tester) async {
     // Given / When
     await pump(tester);

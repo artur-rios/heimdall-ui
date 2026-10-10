@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'password_reset_controller.dart';
 
@@ -43,7 +44,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
     }
 
     // AF-04c: the confirmation must match before anything is sent.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 

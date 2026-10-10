@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
@@ -43,7 +44,7 @@ class _PermissionCreateScreenState
 
   Future<void> _submit() async {
     // AF-25a: an empty name never reaches the API.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 

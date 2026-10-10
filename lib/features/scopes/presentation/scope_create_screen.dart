@@ -4,8 +4,11 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_admin_picker.dart';
 import 'scope_create_controller.dart';
@@ -13,9 +16,12 @@ import 'scope_list_controller.dart';
 
 /// UI-11 — the create-scope form.
 ///
-/// Owners are chosen from the Scope Admins the API lists. Whether each one is
-/// still usable by the time the scope is created remains the API's to say, so
-/// AF-11c is still what its refusal looks like.
+/// Owners are chosen from the administrators the API lists — Scope Admins, and
+/// for a System Admin the System Admins too — or a System Admin adds
+/// themselves, which is what makes a first scope possible before any Scope
+/// Admin exists. Whether each one is still usable by the time the scope is
+/// created remains the API's to say, so AF-11c is still what its refusal looks
+/// like.
 class ScopeCreateScreen extends ConsumerStatefulWidget {
   const ScopeCreateScreen({super.key});
 
@@ -28,6 +34,10 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
   final _name = TextEditingController();
   final _description = TextEditingController();
   final List<PersonSummary> _owners = <PersonSummary>[];
+
+  /// The owner list as a form field, so AF-11a's "at least one owner" is
+  /// refused on screen the way an empty name is, instead of not at all.
+  final _ownersField = GlobalKey<FormFieldState<List<PersonSummary>>>();
 
   @override
   void dispose() {
@@ -52,20 +62,42 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
     );
 
     if (chosen != null && mounted) {
-      setState(() => _owners.add(chosen));
+      _changeOwners(() => _owners.add(chosen));
+    }
+  }
+
+  /// The signed-in person as an owner, when they are a System Admin — the
+  /// only administrator who can be creating a scope.
+  PersonSummary? get _me {
+    final session = ref.watch(sessionControllerProvider);
+
+    if (session is! Authenticated || !session.principal.isSystemAdmin) {
+      return null;
+    }
+
+    final principal = session.principal;
+
+    return PersonSummary(
+      id: principal.id,
+      name: principal.displayName,
+      email: principal.email,
+    );
+  }
+
+  /// Applies [change] to the owner list, and lets an "owner required" error
+  /// already on screen go as soon as it no longer applies.
+  void _changeOwners(VoidCallback change) {
+    setState(change);
+
+    if (_ownersField.currentState?.hasError ?? false) {
+      _ownersField.currentState?.validate();
     }
   }
 
   Future<void> _submit() async {
-    // AF-11a: an empty name never reaches the API.
-    if (!(_formKey.currentState?.validate() ?? false)) {
-      return;
-    }
-
-    // AF-11a: neither does a scope with nobody to own it.
-    if (_owners.isEmpty) {
-      setState(() {});
-
+    // AF-11a: an empty name, or a scope with nobody to own it, never reaches
+    // the API — and the form says which.
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 
@@ -118,6 +150,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
     final theme = Theme.of(context);
     final state = ref.watch(scopeCreateControllerProvider);
     final sending = state is ScopeCreateSending;
+    final me = _me;
 
     // The new scope's detail is where the flow ends. Listening rather than
     // reacting in the build keeps the navigation out of a widget build.
@@ -150,7 +183,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'A scope is one tenant. It needs a name and at least one '
-                    'Scope Admin to own it.',
+                    'owner — a Scope Admin, or you.',
                     style: theme.textTheme.bodyMedium,
                   ),
                   const SizedBox(height: 24),
@@ -183,36 +216,66 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
                   const SizedBox(height: 24),
                   Text('Owners', style: theme.textTheme.titleMedium),
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerLeft,
-                    child: OutlinedButton.icon(
-                      onPressed: sending ? null : _addOwner,
-                      icon: const Icon(Icons.person_add_alt),
-                      label: const Text('Add owner'),
-                    ),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: <Widget>[
+                      OutlinedButton.icon(
+                        onPressed: sending ? null : _addOwner,
+                        icon: const Icon(Icons.person_add_alt),
+                        label: const Text('Add owner'),
+                      ),
+                      if (me != null &&
+                          !_owners.any((owner) => owner.id == me.id))
+                        OutlinedButton.icon(
+                          onPressed: sending
+                              ? null
+                              : () => _changeOwners(() => _owners.add(me)),
+                          icon: const Icon(Icons.how_to_reg_outlined),
+                          label: const Text('Add me'),
+                        ),
+                    ],
                   ),
                   const SizedBox(height: 12),
-                  if (_owners.isEmpty)
-                    Text(
-                      'No owners added yet.',
-                      style: theme.textTheme.bodySmall,
-                    )
-                  else
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
+                  FormField<List<PersonSummary>>(
+                    key: _ownersField,
+                    validator: (_) => _owners.isEmpty
+                        ? 'Add at least one owner — a Scope Admin, or '
+                              'yourself.'
+                        : null,
+                    builder: (field) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: <Widget>[
-                        for (final owner in _owners)
-                          InputChip(
-                            label: Text(owner.name),
-                            deleteIcon: const Icon(Icons.close),
-                            deleteButtonTooltipMessage: 'Remove owner',
-                            onDeleted: sending
-                                ? null
-                                : () => setState(() => _owners.remove(owner)),
+                        if (_owners.isEmpty)
+                          Text(
+                            'No owners added yet.',
+                            style: theme.textTheme.bodySmall,
+                          )
+                        else
+                          Wrap(
+                            spacing: 8,
+                            runSpacing: 8,
+                            children: <Widget>[
+                              for (final owner in _owners)
+                                InputChip(
+                                  label: Text(owner.name),
+                                  deleteIcon: const Icon(Icons.close),
+                                  deleteButtonTooltipMessage: 'Remove owner',
+                                  onDeleted: sending
+                                      ? null
+                                      : () => _changeOwners(
+                                          () => _owners.remove(owner),
+                                        ),
+                                ),
+                            ],
                           ),
+                        if (field.errorText case final error?) ...<Widget>[
+                          const SizedBox(height: 8),
+                          FormRequirementError(error),
+                        ],
                       ],
                     ),
+                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: sending ? null : _submit,

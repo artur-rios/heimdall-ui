@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
+import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
@@ -41,16 +42,17 @@ class _ApplicationCreateScreenState
   bool get _isDirty => _name.text.trim().isNotEmpty || _ownerId != null;
 
   Future<void> _submit() async {
-    // AF-21a: an empty name, or no owner, never reaches the API.
-    if (!(_formKey.currentState?.validate() ?? false)) {
+    // AF-21a: an empty name, or no owner, never reaches the API — and the form
+    // says which.
+    if (!validateAndReveal(_formKey)) {
       return;
     }
 
     final ownerId = _ownerId;
 
+    // The owner field's own validator has already refused this; the check
+    // only narrows the type.
     if (ownerId == null) {
-      setState(() {});
-
       return;
     }
 
@@ -74,6 +76,50 @@ class _ApplicationCreateScreenState
     if (leave && mounted) {
       context.go('/scopes/${widget.scopeId}/applications');
     }
+  }
+
+  /// The owner selector, or what stands in for it while there is nothing to
+  /// select from.
+  Widget _ownerChoice(
+    ThemeData theme,
+    AsyncValue<List<Person>> members,
+    bool sending,
+  ) {
+    return switch (members) {
+      AsyncData<List<Person>>(:final value) when value.isEmpty => Text(
+        'Nobody can own an application in this scope yet: an '
+        'owner must be one of the scope’s owners.',
+        style: theme.textTheme.bodyMedium,
+      ),
+      AsyncData<List<Person>>(:final value) => DropdownButtonFormField<String>(
+        initialValue: _ownerId,
+        // A person's name and address together are wider than
+        // a narrow window, so the field takes the width it has
+        // and the label gives way rather than overflowing.
+        isExpanded: true,
+        decoration: const InputDecoration(labelText: 'Owner'),
+        items: <DropdownMenuItem<String>>[
+          for (final person in value)
+            DropdownMenuItem<String>(
+              value: person.id,
+              child: Text(
+                '${person.name} (${person.email})',
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+        ],
+        onChanged: sending ? null : (id) => setState(() => _ownerId = id),
+      ),
+      AsyncError<List<Person>>() => Text(
+        'The people of this scope could not be read, so there '
+        'is nobody to choose from.',
+        style: theme.textTheme.bodyMedium,
+      ),
+      _ => const Padding(
+        padding: EdgeInsets.symmetric(vertical: 12),
+        child: LinearProgressIndicator(),
+      ),
+    };
   }
 
   @override
@@ -158,53 +204,36 @@ class _ApplicationCreateScreenState
                   const SizedBox(height: 16),
                   // AF-21c: only the scope's owners are offered, so the
                   // refusal the API would give is not invited in the first
-                  // place.
-                  switch (members) {
-                    AsyncData<List<Person>>(:final value) when value.isEmpty =>
-                      Text(
-                        'Nobody can own an application in this scope yet: an '
-                        'owner must be one of the scope’s owners.',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    AsyncData<List<Person>>(:final value) =>
-                      DropdownButtonFormField<String>(
-                        initialValue: _ownerId,
-                        // A person's name and address together are wider than
-                        // a narrow window, so the field takes the width it has
-                        // and the label gives way rather than overflowing.
-                        isExpanded: true,
-                        decoration: const InputDecoration(labelText: 'Owner'),
-                        items: <DropdownMenuItem<String>>[
-                          for (final person in value)
-                            DropdownMenuItem<String>(
-                              value: person.id,
-                              child: Text(
-                                '${person.name} (${person.email})',
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
+                  // place. The field refuses a submission with no owner chosen
+                  // and says why, including when there is nobody to choose.
+                  FormField<String>(
+                    validator: (_) => _ownerId != null
+                        ? null
+                        : switch (members) {
+                            AsyncData<List<Person>>(:final value)
+                                when value.isNotEmpty =>
+                              'Choose an owner for the application.',
+                            _ =>
+                              'An application needs an owner, and nobody here '
+                                  'can own one yet.',
+                          },
+                    builder: (field) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        _ownerChoice(theme, members, sending),
+                        if (field.errorText case final error?) ...<Widget>[
+                          const SizedBox(height: 8),
+                          FormRequirementError(error),
+                        ] else if (_ownerId == null) ...<Widget>[
+                          const SizedBox(height: 8),
+                          Text(
+                            'No owner selected yet.',
+                            style: theme.textTheme.bodySmall,
+                          ),
                         ],
-                        onChanged: sending
-                            ? null
-                            : (id) => setState(() => _ownerId = id),
-                      ),
-                    AsyncError<List<Person>>() => Text(
-                      'The people of this scope could not be read, so there '
-                      'is nobody to choose from.',
-                      style: theme.textTheme.bodyMedium,
+                      ],
                     ),
-                    _ => const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: LinearProgressIndicator(),
-                    ),
-                  },
-                  if (_ownerId == null) ...<Widget>[
-                    const SizedBox(height: 8),
-                    Text(
-                      'No owner selected yet.',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                  ],
+                  ),
                   const SizedBox(height: 24),
                   FilledButton(
                     onPressed: sending ? null : _submit,
