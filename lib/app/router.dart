@@ -12,6 +12,7 @@ import '../features/auth/presentation/password_reset_screen.dart';
 import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
+import '../features/data_rights/presentation/restricted_session_screen.dart';
 import '../features/health/presentation/health_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
@@ -46,6 +47,14 @@ const Set<String> publicRoutes = <String>{
   '/privacy',
 };
 
+/// The one screen a restricted session (UI-30) is given.
+const String restrictedRoute = '/restricted';
+
+/// What a restricted session may reach besides [restrictedRoute]: the public
+/// pages that are of use to a signed-in person. The privacy notice is the one
+/// that matters here — it says what the rights on that screen are.
+const Set<String> _restrictedSessionPublicRoutes = <String>{'/privacy'};
+
 /// Decides where a caller in [session] asking for [location] should end up, or
 /// `null` when they may stay.
 ///
@@ -66,6 +75,18 @@ String? redirectFor({required SessionState session, required String location}) {
     Unauthenticated() when path == '/login/two-factor' => '/login',
     Unauthenticated() when isPublic => null,
     Unauthenticated() => '/login?from=${Uri.encodeComponent(location)}',
+    // UI-30: a subject-rights-only token is refused everywhere but the rights
+    // endpoints, whatever its role, so every other screen would only fail.
+    // Ahead of the sign-in redirect, which would otherwise send a person who
+    // has just signed in somewhere they cannot use; and the screen it sends
+    // them to is let through, so this cannot loop.
+    Authenticated(:final principal) when principal.subjectRightsOnly =>
+      path == restrictedRoute || _restrictedSessionPublicRoutes.contains(path)
+          ? null
+          : restrictedRoute,
+    // A full session has nothing to do on the restricted screen: lifting a
+    // restriction it does not have would only be refused.
+    Authenticated() when path == restrictedRoute => '/',
     Authenticated() when path == '/login' || path == '/login/two-factor' =>
       _returnTo(uri.queryParameters['from']),
     // AF-07d: a screen this role is not offered answers plainly. Sending them
@@ -227,6 +248,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/health',
         builder: (context, state) => const HealthScreen(),
+      ),
+      GoRoute(
+        path: restrictedRoute,
+        builder: (context, state) => const RestrictedSessionScreen(),
       ),
       GoRoute(
         path: '/not-available',

@@ -94,7 +94,23 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     // beats leaving the user to wonder why their work stopped.
                     if (ref.watch(sessionControllerProvider)
                         case Unauthenticated(sessionExpired: true)) ...<Widget>[
-                      const _SessionEndedBanner(),
+                      const _NoticeBanner(
+                        'Your session ended. Sign in again to pick up where '
+                        'you left off.',
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    // UI-30: the restriction was lifted from a token that stays
+                    // confined to the rights endpoints, so a fresh sign-in is
+                    // what brings full access back.
+                    if (ref.watch(sessionControllerProvider)
+                        case Unauthenticated(
+                          restrictionLifted: true,
+                        )) ...<Widget>[
+                      const _NoticeBanner(
+                        'The restriction on processing your account is lifted. '
+                        'Sign in again for full access.',
+                      ),
                       const SizedBox(height: 16),
                     ],
                     if (_failure case final Failure failure) ...<Widget>[
@@ -182,10 +198,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// AF-07e — says that the session ended rather than that sign-in failed. It is
-/// not an error banner: nothing the user did was wrong.
-class _SessionEndedBanner extends StatelessWidget {
-  const _SessionEndedBanner();
+/// Says why the person is back at sign-in — the session ended (AF-07e), or a
+/// restriction was lifted (UI-30). It is not an error banner: nothing the user
+/// did was wrong.
+class _NoticeBanner extends StatelessWidget {
+  const _NoticeBanner(this.message);
+
+  final String message;
 
   @override
   Widget build(BuildContext context) {
@@ -198,7 +217,7 @@ class _SessionEndedBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
       ),
       child: Text(
-        'Your session ended. Sign in again to pick up where you left off.',
+        message,
         style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );

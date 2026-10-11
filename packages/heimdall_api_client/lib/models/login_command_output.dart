@@ -15,6 +15,7 @@ class LoginCommandOutput {
     this.requiresTwoFactor,
     this.challengeToken,
     this.availableMethods,
+    this.processingRestricted,
   });
 
   factory LoginCommandOutput.fromJson(Map<String, Object?> json) =>
@@ -26,6 +27,7 @@ class LoginCommandOutput {
   final bool? requiresTwoFactor;
   final String? challengeToken;
   final List<String>? availableMethods;
+  final bool? processingRestricted;
 
   Map<String, Object?> toJson() => _$LoginCommandOutputToJson(this);
 }

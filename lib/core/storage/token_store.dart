@@ -9,6 +9,7 @@ class AuthToken {
     required this.expiresAt,
     this.viaGoogle = false,
     this.emailVerified = true,
+    this.processingRestricted = false,
   });
 
   factory AuthToken.fromJson(Map<String, dynamic> json) => AuthToken(
@@ -19,6 +20,9 @@ class AuthToken {
     // Absent in anything written before the API reported it. Absent is not
     // evidence of an unverified address, so it reads as verified.
     emailVerified: json['emailVerified'] as bool? ?? true,
+    // Absent in anything written before UI-30, when no restricted subject
+    // could sign in at all.
+    processingRestricted: json['processingRestricted'] as bool? ?? false,
   );
 
   final String value;
@@ -38,6 +42,15 @@ class AuthToken {
   /// the token itself says where it came from.
   final bool viaGoogle;
 
+  /// Whether the API said, alongside the token, that processing of this
+  /// identity is restricted — and so that the token is a subject-rights-only
+  /// one (UI-30).
+  ///
+  /// The token's own `subjectRightsOnly` claim says the same thing and is what
+  /// a restored session is read from; this is kept as well because it is what
+  /// the API actually answered at sign-in.
+  final bool processingRestricted;
+
   bool get isExpired => DateTime.now().toUtc().isAfter(expiresAt.toUtc());
 
   /// The same token with its address now known to be verified, for after the
@@ -47,6 +60,7 @@ class AuthToken {
     expiresAt: expiresAt,
     viaGoogle: viaGoogle,
     emailVerified: true,
+    processingRestricted: processingRestricted,
   );
 
   Map<String, dynamic> toJson() => <String, dynamic>{
@@ -54,6 +68,7 @@ class AuthToken {
     'expiresAt': expiresAt.toUtc().toIso8601String(),
     'viaGoogle': viaGoogle,
     'emailVerified': emailVerified,
+    'processingRestricted': processingRestricted,
   };
 }
 

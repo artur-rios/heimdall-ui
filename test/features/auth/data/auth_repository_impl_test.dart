@@ -1253,6 +1253,87 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  /// A token response carrying the restricted flag, as AF-11i, AF-25e and
+  /// UC-38 answer for a person whose processing is restricted.
+  const restrictedToken = _Answer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'token': 'jwt',
+        'expiresAt': '2030-01-01T00:00:00Z',
+        'requiresTwoFactor': false,
+        'processingRestricted': true,
+      },
+    },
+  );
+
+  // UI-30 — AF-11i.
+  test('GivenARestrictedPerson_WhenLoggingIn_ThenTheTokenSaysSo', () async {
+    // Given
+    repository = repositoryAnswering(restrictedToken);
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect(
+      (result.valueOrNull! as LoggedIn).token.processingRestricted,
+      isTrue,
+    );
+  });
+
+  test('GivenAnUnflaggedResponse_WhenLoggingIn_ThenTheTokenIsFull', () async {
+    // Given
+    repository = repositoryAnswering(acceptedChallenge);
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect(
+      (result.valueOrNull! as LoggedIn).token.processingRestricted,
+      isFalse,
+    );
+  });
+
+  // UI-30 — UC-38 ends the same way for a restricted person.
+  test(
+    'GivenARestrictedPerson_WhenVerifyingTheChallenge_ThenTheTokenSaysSo',
+    () async {
+      // Given
+      repository = repositoryAnswering(restrictedToken);
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      expect(result.valueOrNull?.processingRestricted, isTrue);
+    },
+  );
+
+  // UI-30 — AF-25e.
+  test(
+    'GivenARestrictedGoogleUser_WhenSigningInWithGoogle_ThenTheTokenSaysSo',
+    () async {
+      // Given
+      repository = repositoryAnswering(restrictedToken);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+        scopeId: 'scope-public-id',
+      );
+
+      // Then
+      expect(result.valueOrNull?.processingRestricted, isTrue);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

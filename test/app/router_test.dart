@@ -307,4 +307,129 @@ void main() {
       expect(redirect, isNull, reason: role.name);
     }
   });
+
+  /// A subject-rights-only session (UI-30) holding [role].
+  Authenticated restricted({Role role = Role.systemAdmin}) => Authenticated(
+    token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+    principal: Principal(
+      id: 'id',
+      email: 'a@b.c',
+      role: role,
+      subjectRightsOnly: true,
+    ),
+  );
+
+  // UI-30 — every other screen would only answer 403, whatever the role.
+  test('GivenARestrictedSession_WhenVisitingAnyRoute_ThenRedirectsToIt', () {
+    for (final role in Role.values) {
+      for (final location in <String>['/', '/scopes', '/profile', '/health']) {
+        // Given
+        final session = restricted(role: role);
+
+        // When
+        final redirect = redirectFor(session: session, location: location);
+
+        // Then
+        expect(redirect, restrictedRoute, reason: '${role.name} $location');
+      }
+    }
+  });
+
+  // UI-30 — the redirect must stop at the screen it sends to.
+  test('GivenARestrictedSession_WhenOnTheRestrictedScreen_ThenNoRedirect', () {
+    // Given
+    final session = restricted();
+
+    // When
+    final redirect = redirectFor(session: session, location: restrictedRoute);
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  // UI-30 — the privacy notice says what the rights on that screen are.
+  test('GivenARestrictedSession_WhenVisitingPrivacy_ThenNoRedirect', () {
+    // Given
+    final session = restricted();
+
+    // When
+    final redirect = redirectFor(session: session, location: '/privacy');
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  // UI-30 — signing in with a restricted token lands on its screen, not on the
+  // screen the person first asked for.
+  test('GivenARestrictedSession_WhenOnLoginWithAFrom_ThenRedirectsToIt', () {
+    // Given
+    final session = restricted();
+
+    // When
+    final redirect = redirectFor(
+      session: session,
+      location: '/login?from=%2Fscopes',
+    );
+
+    // Then
+    expect(redirect, restrictedRoute);
+  });
+
+  test('GivenARestrictedSession_WhenOnNotAvailable_ThenRedirectsToIt', () {
+    // Given
+    final session = restricted(role: Role.user);
+
+    // When
+    final redirect = redirectFor(session: session, location: '/not-available');
+
+    // Then
+    expect(redirect, restrictedRoute);
+  });
+
+  // UI-30 — a full session has no restriction to lift.
+  test('GivenAFullSession_WhenVisitingTheRestrictedScreen_ThenGoesHome', () {
+    // Given
+    final session = authenticated;
+
+    // When
+    final redirect = redirectFor(session: session, location: restrictedRoute);
+
+    // Then
+    expect(redirect, '/');
+  });
+
+  test('GivenUnauthenticated_WhenVisitingTheRestrictedScreen_ThenToLogin', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(session: session, location: restrictedRoute);
+
+    // Then
+    expect(redirect, '/login?from=%2Frestricted');
+  });
+
+  // Following the guard from any route must settle, never bounce.
+  test('GivenARestrictedSession_WhenRedirectsAreFollowed_ThenTheySettle', () {
+    for (final start in <String>['/', '/login', '/scopes/x/persons', '/x']) {
+      // Given
+      final session = restricted();
+      var location = start;
+
+      // When
+      for (var hop = 0; hop < 5; hop++) {
+        final next = redirectFor(session: session, location: location);
+
+        if (next == null) {
+          break;
+        }
+
+        location = next;
+      }
+
+      // Then
+      expect(redirectFor(session: session, location: location), isNull);
+      expect(location, restrictedRoute, reason: start);
+    }
+  });
 }
