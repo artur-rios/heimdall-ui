@@ -12,6 +12,7 @@ class VerifyTwoFactorAuthCommandOutput {
     this.token,
     this.expiresAt,
     this.emailVerified,
+    this.processingRestricted,
   });
 
   factory VerifyTwoFactorAuthCommandOutput.fromJson(
@@ -21,6 +22,7 @@ class VerifyTwoFactorAuthCommandOutput {
   final String? token;
   final DateTime? expiresAt;
   final bool? emailVerified;
+  final bool? processingRestricted;
 
   Map<String, Object?> toJson() =>
       _$VerifyTwoFactorAuthCommandOutputToJson(this);

@@ -18,6 +18,7 @@ LoginCommandOutput _$LoginCommandOutputFromJson(Map<String, dynamic> json) =>
       availableMethods: (json['availableMethods'] as List<dynamic>?)
           ?.map((e) => e as String)
           .toList(),
+      processingRestricted: json['processingRestricted'] as bool?,
     );
 
 Map<String, dynamic> _$LoginCommandOutputToJson(LoginCommandOutput instance) =>
@@ -28,4 +29,5 @@ Map<String, dynamic> _$LoginCommandOutputToJson(LoginCommandOutput instance) =>
       'requiresTwoFactor': instance.requiresTwoFactor,
       'challengeToken': instance.challengeToken,
       'availableMethods': instance.availableMethods,
+      'processingRestricted': instance.processingRestricted,
     };

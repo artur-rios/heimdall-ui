@@ -14,6 +14,7 @@ VerifyTwoFactorAuthCommandOutput _$VerifyTwoFactorAuthCommandOutputFromJson(
       ? null
       : DateTime.parse(json['expiresAt'] as String),
   emailVerified: json['emailVerified'] as bool?,
+  processingRestricted: json['processingRestricted'] as bool?,
 );
 
 Map<String, dynamic> _$VerifyTwoFactorAuthCommandOutputToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$VerifyTwoFactorAuthCommandOutputToJson(
   'token': instance.token,
   'expiresAt': instance.expiresAt?.toIso8601String(),
   'emailVerified': instance.emailVerified,
+  'processingRestricted': instance.processingRestricted,
 };

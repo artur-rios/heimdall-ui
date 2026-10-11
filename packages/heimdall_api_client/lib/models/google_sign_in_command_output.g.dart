@@ -14,6 +14,7 @@ GoogleSignInCommandOutput _$GoogleSignInCommandOutputFromJson(
       ? null
       : DateTime.parse(json['expiresAt'] as String),
   emailVerified: json['emailVerified'] as bool?,
+  processingRestricted: json['processingRestricted'] as bool?,
 );
 
 Map<String, dynamic> _$GoogleSignInCommandOutputToJson(
@@ -22,4 +23,5 @@ Map<String, dynamic> _$GoogleSignInCommandOutputToJson(
   'token': instance.token,
   'expiresAt': instance.expiresAt?.toIso8601String(),
   'emailVerified': instance.emailVerified,
+  'processingRestricted': instance.processingRestricted,
 };
