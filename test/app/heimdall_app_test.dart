@@ -447,6 +447,92 @@ void main() {
       findsNothing,
     );
   });
+
+  // UI-30 main flow — AF-11i: the sign-in answers with a restricted token, and
+  // the person lands on the only screen it can use.
+  testWidgets('GivenARestrictedLogin_WhenSubmitted_ThenTheRestrictionIsShown', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+      (_) async => Success<LoginOutcome>(
+        LoggedIn(
+          AuthToken(
+            value: _systemAdminJwt,
+            expiresAt: DateTime.utc(2030),
+            processingRestricted: true,
+          ),
+        ),
+      ),
+    );
+    await pumpApp(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'a@b.c',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'secret',
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('Processing of your account is restricted'),
+      findsOneWidget,
+    );
+    expect(find.text('Signed in as admin@example.com'), findsOneWidget);
+  });
+
+  // UI-30 AF-30a — a session restored from storage is read from its claim.
+  testWidgets('GivenAStoredRestrictedToken_WhenAppStarts_ThenItIsRestricted', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+    );
+
+    // When
+    final container = await pumpApp(tester);
+    container.read(routerProvider).go('/scopes');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('Processing of your account is restricted'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-30 — after lifting, the sign-in screen says why the person is there.
+  testWidgets('GivenALiftedRestriction_WhenSignedOut_ThenTheReasonIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signOut(restrictionLifted: true);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text(
+        'The restriction on processing your account is lifted. Sign in again '
+        'for full access.',
+      ),
+      findsOneWidget,
+    );
+  });
 }
 
 /// A token naming a User, which is the role the matrix hides the most from.
@@ -482,4 +568,19 @@ class _SlowTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async {}
+}
+
+/// A subject-rights-only token, as UI-30 restores one from storage.
+String _restrictedJwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'id': 'person-1',
+        'role': '3',
+        'subjectRightsOnly': 'true',
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
 }

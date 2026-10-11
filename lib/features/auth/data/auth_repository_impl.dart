@@ -73,6 +73,9 @@ class ApiAuthRepository implements AuthRepository {
           // AF-05e: the API reports this with the token. A response that omits
           // it is not saying the address is unverified.
           emailVerified: data?.emailVerified ?? true,
+          // UI-30: a restricted person who passed the challenge is issued a
+          // subject-rights-only token, and the response says so.
+          processingRestricted: data?.processingRestricted ?? false,
         ),
       );
     } on DioException catch (error) {
@@ -208,6 +211,7 @@ class ApiAuthRepository implements AuthRepository {
           expiresAt: expiresAt,
           viaGoogle: true,
           emailVerified: data?.emailVerified ?? true,
+          processingRestricted: data?.processingRestricted ?? false,
         ),
       );
     } on DioException catch (error) {
@@ -448,6 +452,9 @@ class ApiAuthRepository implements AuthRepository {
           value: token,
           expiresAt: expiresAt,
           emailVerified: data.emailVerified ?? true,
+          // UI-30: AF-11i answers a restricted person with a token like any
+          // other, and only this flag (and the token's claim) tells them apart.
+          processingRestricted: data.processingRestricted ?? false,
         ),
       ),
     );

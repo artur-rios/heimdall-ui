@@ -45,8 +45,19 @@ sessionControllerProvider = NotifierProvider<SessionController, SessionState>(
 /// The claims are the API's own (`IdentityUserMapper`): `id` and `role`, plus
 /// `scopeId` for a User and `ownedScopeIds` — one comma-separated string — for
 /// a Scope Admin. Every value is written as a string.
+///
+/// UI-30: a subject-rights-only token says so in its `subjectRightsOnly`
+/// claim. The sign-in response says it too, and either is enough: a token
+/// that claims to admit only the rights endpoints is treated as one even when
+/// nothing else about it can be read, since the cost of being wrong that way
+/// is one screen, and the other way is every screen failing with `403`.
 Principal principalFromToken(AuthToken token) {
-  const fallback = Principal(id: '', email: '', role: Role.user);
+  final fallback = Principal(
+    id: '',
+    email: '',
+    role: Role.user,
+    subjectRightsOnly: token.processingRestricted,
+  );
   final segments = token.value.split('.');
 
   if (segments.length != 3) {
@@ -87,8 +98,18 @@ Principal principalFromToken(AuthToken token) {
     // AF-05e: not a claim. The API reports it alongside the token it issues,
     // and that answer travels on [AuthToken] rather than inside the JWT.
     emailVerified: token.emailVerified,
+    subjectRightsOnly:
+        token.processingRestricted || _isTrue(payload['subjectRightsOnly']),
   );
 }
+
+/// Reads a flag claim, which the API writes as the string `"true"`. A JSON
+/// boolean is accepted as well; anything else is false.
+bool _isTrue(Object? claim) => switch (claim) {
+  final bool value => value,
+  final String value => value.toLowerCase() == 'true',
+  _ => false,
+};
 
 /// Reads a list-valued claim, which the API writes as one comma-separated
 /// string. An array is accepted as well; anything else is no ids at all.
@@ -329,7 +350,16 @@ class SessionController extends Notifier<SessionState> {
   /// A sign-out already under way is not started twice. Its own call to the
   /// API can come back 401, and that 401 reaches here again through the
   /// interceptor; without this it would sign out again, call again, and so on.
-  Future<void> signOut({bool expired = false}) async {
+  ///
+  /// UI-30: [restrictionLifted] marks a sign-out that follows lifting a
+  /// restriction on processing, so the sign-in screen can say why. A
+  /// subject-rights-only token is not sent to the API's Google sign-out
+  /// either: that endpoint is not one of the four such a token is admitted to,
+  /// so the call could only come back `403`.
+  Future<void> signOut({
+    bool expired = false,
+    bool restrictionLifted = false,
+  }) async {
     if (_signingOut) {
       return;
     }
@@ -337,8 +367,9 @@ class SessionController extends Notifier<SessionState> {
     _signingOut = true;
 
     try {
-      if (state case Authenticated(:final token) when token.viaGoogle) {
-        if (!expired && !token.isExpired) {
+      if (state case Authenticated(:final token, :final principal)
+          when token.viaGoogle) {
+        if (!expired && !token.isExpired && !principal.subjectRightsOnly) {
           await _repository.signOutFromGoogle();
         }
 
@@ -346,7 +377,10 @@ class SessionController extends Notifier<SessionState> {
       }
 
       await _clearStore();
-      state = Unauthenticated(sessionExpired: expired);
+      state = Unauthenticated(
+        sessionExpired: expired,
+        restrictionLifted: restrictionLifted,
+      );
     } finally {
       _signingOut = false;
     }

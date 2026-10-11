@@ -130,6 +130,54 @@ void main() {
     expect(restored.emailVerified, isTrue);
   });
 
+  // UI-30 — what the API said at sign-in survives a restart.
+  test('GivenARestrictedToken_WhenRoundTrippedThroughJson_ThenItStays', () {
+    // Given
+    final token = AuthToken(
+      value: 'jwt',
+      expiresAt: DateTime.utc(2030),
+      processingRestricted: true,
+    );
+
+    // When
+    final restored = AuthToken.fromJson(token.toJson());
+
+    // Then
+    expect(restored.processingRestricted, isTrue);
+  });
+
+  // A token stored before UI-30 was never a restricted one: no restricted
+  // subject could sign in at all.
+  test('GivenAStoredTokenWithoutTheFlag_WhenRead_ThenItIsNotRestricted', () {
+    // Given
+    final json = <String, dynamic>{
+      'value': 'jwt',
+      'expiresAt': '2030-01-01T00:00:00.000Z',
+    };
+
+    // When
+    final restored = AuthToken.fromJson(json);
+
+    // Then
+    expect(restored.processingRestricted, isFalse);
+  });
+
+  test('GivenARestrictedToken_WhenMarkedVerified_ThenItStaysRestricted', () {
+    // Given
+    final token = AuthToken(
+      value: 'jwt',
+      expiresAt: DateTime.utc(2030),
+      emailVerified: false,
+      processingRestricted: true,
+    );
+
+    // When
+    final verified = token.asVerified();
+
+    // Then
+    expect(verified.processingRestricted, isTrue);
+  });
+
   test('GivenAnUnverifiedToken_WhenMarkedVerified_ThenOnlyThatChanges', () {
     // Given
     final token = AuthToken(
