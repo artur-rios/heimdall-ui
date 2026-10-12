@@ -717,4 +717,27 @@ void main() {
     // Then
     expect(find.text('Two-factor authentication is off'), findsOneWidget);
   });
+
+  // AF-09c — the navigation is a way off the screen too, and must not throw
+  // the codes away without asking.
+  testWidgets('GivenIssuedCodes_WhenADestinationIsTapped_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await tester.tap(find.text('Authenticator app'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.text('Home'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Stay'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Your recovery codes'), findsOneWidget);
+  });
 }

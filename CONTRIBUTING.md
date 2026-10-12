@@ -125,17 +125,22 @@ against.
   optional configuration value whose default keeps the previous behaviour, support for something the API added.
 - **Patch** — fixes with no new capability: a defect, a layout or wording correction, a dependency update.
 
-The release version is not stored in the source. It is the name of the release branch: `release/1.4.0` is deployed
+The release version is the name of the release branch: `release/1.4.0` is deployed
 as the image tag `1.4.0-<short commit>`, which is what the yggdrasil console shows, and when it reaches
 production Jenkins tags the merge `v1.4.0` and creates the GitHub release of that name. The Branch Policy workflow
 refuses a release branch whose version already has a tag.
 
-The `version:` in `pubspec.yaml` is **not** the release version. It is still Flutter's template value,
-`1.0.0+1`, and is not bumped for a release — `v1.0.1` was built with it unchanged. Flutter compiles it into
-every build as the build name and build number (the Android `versionName` / `versionCode`, the Windows file
-version, the web build's `version.json`), so those fields say `1.0.0` whatever the release. To identify a deployed
-web build, use the image tag the console shows; for a desktop or Android artifact, the commit or workflow run it
-was built from.
+The app also shows the version in the footer of every screen, so it is written in the source too, in two places
+that must agree with the release branch's name:
+
+- `version:` in `pubspec.yaml`, which Flutter also compiles in as the build name (the Android `versionName`, the
+  Windows file version, the web build's `version.json`);
+- `appVersion` in `lib/app/app_version.dart`, which is what the footer shows.
+
+Both are set in the pull request that finalizes the changelog (see [Releasing](#releasing)). A test fails when
+either disagrees with the newest release heading in CHANGELOG.md, and the Branch Policy workflow refuses a
+`release/x.y.z → main` pull request whose `pubspec.yaml` does not say `x.y.z`. Releases up to `v1.5.1` were
+built with Flutter's template value `1.0.0+1` in `pubspec.yaml`.
 
 ## Releasing
 
@@ -158,7 +163,8 @@ the same environments, and the UI calls the one beside it.
 
 Before cutting the release, finalize [CHANGELOG.md](./CHANGELOG.md) on `develop` through a normal `feature/` or
 `fix/` pull request, since the release branch can carry no commits of its own: rename `## [Unreleased]` to
-`## [1.4.0] - <yyyy-mm-dd>` above a fresh, empty `## [Unreleased]`, and update the compare links at the bottom.
+`## [1.4.0] - <yyyy-mm-dd>` above a fresh, empty `## [Unreleased]`, update the compare links at the bottom, and set
+`1.4.0` as `version:` in `pubspec.yaml` and as `appVersion` in `lib/app/app_version.dart`.
 
 1. `git switch develop && git pull && git switch -c release/1.4.0 && git push -u origin release/1.4.0`
    — Jenkins deploys the branch to **homologation**. Start homologation to check the release there

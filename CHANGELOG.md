@@ -7,6 +7,65 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A home dashboard replaces the "Your profile and security" button. Everybody sees their own account: the address
+  and whether it is verified, whether two-factor authentication protects it, and their role, each one tap from where
+  it is changed. A System Admin or Scope Admin also sees an overview of the scopes they administer: how many there
+  are (and how many are deleted), the Users, applications, permissions and Google users in them, how many have Google
+  Sign-In on, and whether the API is reachable. Below it, each scope is listed with its own counts and opens with a
+  tap. The figures come from the listings the administrator could open themselves, summed over their first ten
+  scopes, and the dashboard says so when there are more. A count that cannot be read shows as "—" rather than as
+  zero. A refresh button and pull-to-refresh read them again.
+- A **Home** destination in the navigation. A User, who was offered only Profile, now has navigation too.
+- The version of the app — "Heimdall UI v1.5.1" — at the bottom of every screen, signed in or not. It is kept in
+  `pubspec.yaml` and `lib/app/app_version.dart`, which are set when a release's changelog is finalized; a test and
+  the Branch Policy workflow keep them in step with the release (see CONTRIBUTING.md).
+
+### Changed
+
+- A record's fields are read-only until **Edit** is pressed, on the scope, person, application and permission
+  detail screens and on the profile. Editing offers **Cancel**, which puts back what the API holds, and **Save
+  changes**; a successful save ends the edit. Somebody who may not change a record is not offered Edit at all.
+- The back control sits before the title, where it is expected, instead of among the actions on the right. Scope
+  detail and the create screens have one too; on a create screen it asks before discarding what was typed.
+- The navigation shows the current destination with a filled icon.
+- The scope detail screen counts the scope's owners instead of listing their identifiers, and the person and
+  application screens put the deletion controls last.
+- Form dialogs scroll instead of overflowing when a phone's keyboard is open.
+
+### Fixed
+
+- Signing out forgot nothing: the next person to sign in on the same device was first shown the previous one's
+  scopes, filters and records, and inherited their dismissed verification prompt.
+- Deleting the last item of the last page of a listing left an empty "nothing here yet" page with no pager to go
+  back with. The listing now moves to the last page that exists.
+- A search, filter or page change made while a listing was still loading was silently dropped. It is now asked as
+  soon as the first answer arrives. Returning to a listing shows the search it is still filtered by.
+- Freshly issued recovery codes were lost, with no warning, by tapping a navigation destination or signing out;
+  only the back button asked first. Every way off the security screen now asks. Leaving with the system back
+  gesture now leaves after confirming, instead of needing a second press.
+- Pressing Enter twice on the sign-in or two-factor screen sent the attempt twice.
+- The owner picker for an application said nobody could own one when the scope's owners simply could not be read,
+  and kept that answer for the whole session. It now says the list could not be read and offers a retry, and it
+  is read again after the scope's owners change.
+- On a scope or record detail screen, starting a save, a deletion or a Google Sign-In change while another was in
+  flight could leave a spinner that never stopped or a switch showing the wrong state. Each now waits for the
+  other.
+- A create form, or the password recovery screen, reopened showing the refusal or confirmation of an earlier
+  visit. They now start clean.
+- After a Scope Admin removed their own ownership, the owners screen offered a Retry that could only fail. It now
+  says the scope is not theirs and goes back to the scopes.
+- "Choose an owner for the application." stayed on screen after an owner was chosen.
+- "Saved." stayed on a record after further edits.
+- A co-owner the API refused, say for an address already taken, had to be typed again from scratch: the dialog
+  closed before the answer came. It now stays open with the refusal shown above what was typed.
+- An application's owner whose name could not be read once, for example over a dropped connection, was shown by
+  identifier for the rest of the session, and a renamed owner kept their old name. Only a definite answer is
+  remembered now, and reloading the listing reads the names again.
+- Leaving an unsaved create form or an unsaved edit through the navigation, the back control or signing out
+  dropped it without asking. Every way off the screen now asks first; only Cancel did before.
+
 ## [1.5.1] - 2026-10-12
 
 ### Fixed

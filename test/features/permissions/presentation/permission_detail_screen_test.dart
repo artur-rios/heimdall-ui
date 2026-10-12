@@ -214,6 +214,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -254,6 +256,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.tap(find.byType(SwitchListTile));
@@ -290,6 +294,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.tap(find.byType(SwitchListTile));
@@ -319,6 +325,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -403,6 +411,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -458,6 +468,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(

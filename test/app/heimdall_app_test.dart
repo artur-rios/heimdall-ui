@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
@@ -14,8 +15,12 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
+import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../support/dashboard_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -41,6 +46,7 @@ void main() {
   Future<ProviderContainer> pumpApp(WidgetTester tester) async {
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         // The sign-in screen asks the configuration whether to offer the
         // Google control, so the whole app needs one to render.
         appConfigProvider.overrideWithValue(
@@ -88,13 +94,12 @@ void main() {
     await pumpApp(tester);
 
     // Then
-    expect(find.text('Signed in as admin@example.com'), findsOneWidget);
-    expect(find.text('System Admin'), findsOneWidget);
+    expect(find.text('Welcome back, admin@example.com'), findsOneWidget);
+    expect(find.text('System Admin'), findsWidgets);
   });
 
-  // A User is offered a single destination, which the shell does not render
-  // as navigation, so home is where their own settings are reached from. The
-  // API's token names them in `name` and carries no address.
+  // Home is where a User's own settings are reached from, as well as the
+  // navigation. The API's token names them in `name` and carries no address.
   testWidgets('GivenAUserSession_WhenAppStarts_ThenTheirProfileIsOffered', (
     tester,
   ) async {
@@ -121,8 +126,8 @@ void main() {
     await pumpApp(tester);
 
     // Then
-    expect(find.text('Signed in as Ada Lovelace'), findsOneWidget);
-    expect(find.text('Your profile and security'), findsOneWidget);
+    expect(find.text('Welcome back, Ada Lovelace'), findsOneWidget);
+    expect(find.text('Your profile'), findsWidgets);
   });
 
   testWidgets('GivenEmptyPassword_WhenSubmitted_ThenNoRequestIsMade', (
@@ -205,7 +210,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Signed in as admin@example.com'), findsOneWidget);
+    expect(find.text('Welcome back, admin@example.com'), findsOneWidget);
   });
 
   // AF-07c — a slow read of the stored token must not bounce a returning user
@@ -219,6 +224,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
@@ -253,6 +259,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
@@ -274,7 +281,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Signed in as admin@example.com'), findsOneWidget);
+    expect(find.text('Welcome back, admin@example.com'), findsOneWidget);
   });
 
   // AF-07d — a role that is not offered a screen is told so, and is not
@@ -288,6 +295,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
@@ -377,6 +385,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
@@ -418,6 +427,7 @@ void main() {
     );
     final container = ProviderContainer(
       overrides: <Override>[
+        ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
@@ -532,6 +542,58 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  // The next person to sign in on this device may be somebody else, so what
+  // the last session was shown is forgotten when it ends.
+  testWidgets('GivenASignedInDashboard_WhenSignedOut_ThenItIsForgotten', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    expect(container.read(dashboardControllerProvider), isA<DashboardLoaded>());
+    expect(container.read(profileControllerProvider), isA<ProfileLoaded>());
+
+    // When
+    await container.read(sessionControllerProvider.notifier).signOut();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      container.read(dashboardControllerProvider),
+      isA<DashboardLoading>(),
+    );
+    expect(container.read(profileControllerProvider), isA<ProfileLoading>());
+  });
+
+  testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {
+    // Given no stored token
+
+    // When
+    await pumpApp(tester);
+
+    // Then
+    expect(find.text('Heimdall UI v$appVersion'), findsOneWidget);
+  });
+
+  testWidgets('GivenASession_WhenStarted_ThenHomeIsTheSelectedDestination', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+
+    // When
+    await pumpApp(tester);
+
+    // Then
+    final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
+    expect(rail.selectedIndex, 0);
+    expect(find.text('Home'), findsWidgets);
   });
 }
 

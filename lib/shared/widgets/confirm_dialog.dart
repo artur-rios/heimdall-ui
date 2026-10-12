@@ -15,6 +15,8 @@ Future<bool> showConfirm({
   final confirmed = await showDialog<bool>(
     context: context,
     builder: (context) => AlertDialog(
+      // Scrolls rather than overflowing when a phone's keyboard is open.
+      scrollable: true,
       title: Text(title),
       content: Text(message),
       actions: <Widget>[
@@ -102,6 +104,8 @@ class _TypeToConfirmDialogState extends State<_TypeToConfirmDialog> {
     final theme = Theme.of(context);
 
     return AlertDialog(
+      // Scrolls rather than overflowing when a phone's keyboard is open.
+      scrollable: true,
       title: Text(widget.title),
       content: Column(
         mainAxisSize: MainAxisSize.min,

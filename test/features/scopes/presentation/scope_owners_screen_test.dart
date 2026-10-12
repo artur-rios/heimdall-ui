@@ -590,6 +590,55 @@ void main() {
 
     // Then
     expect(find.text('That email address is already taken.'), findsOneWidget);
+    // …in the dialog, which stays open with what was typed still in it
+    expect(find.text('Create a co-owner'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Grace'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'taken@example.com'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenAnAcceptedDraft_WhenCreated_ThenTheDialogCloses', (
+    tester,
+  ) async {
+    // Given
+    when(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer(
+      (_) async => const Success<Person>(
+        Person(
+          id: 'person-7',
+          name: 'Grace',
+          email: 'grace@example.com',
+          role: Role.scopeAdmin,
+        ),
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create owner'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Grace');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'grace@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'secret-pass',
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Create a co-owner'), findsNothing);
   });
 
   testWidgets('GivenAFailedListing_WhenOpened_ThenARetryIsOffered', (
@@ -637,5 +686,25 @@ void main() {
 
     // Then
     expect(find.text('Ada'), findsOneWidget);
+  });
+
+  // A Scope Admin who removed their own ownership is refused the scope from
+  // then on, and a Retry would only be refused again.
+  testWidgets('GivenAForbiddenScope_WhenOpened_ThenTheRolePanelIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerOwnersWith(
+      const FailureResult<envelope.Page<Person>>(
+        Failure(kind: FailureKind.forbidden, errors: <String>[]),
+      ),
+    );
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Not available for your role'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
   });
 }

@@ -155,10 +155,15 @@ class ProfileController extends Notifier<ProfileState> {
     }
   }
 
-  /// Drops the "saved" acknowledgement so a later edit starts clean.
+  /// Drops the "saved" acknowledgement and any refused save, so a later edit
+  /// starts clean.
   void acknowledgeSave() {
     if (state case final ProfileLoaded loaded) {
-      state = loaded.copyWith(saved: false, emailChanged: false);
+      state = loaded.copyWith(
+        saved: false,
+        clearSaveFailure: true,
+        emailChanged: false,
+      );
     }
   }
 

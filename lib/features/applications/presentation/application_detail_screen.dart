@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/edit_mode.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -35,13 +36,17 @@ class ApplicationDetailScreen extends ConsumerStatefulWidget {
 
 class _ApplicationDetailScreenState
     extends ConsumerState<ApplicationDetailScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   String? _ownerId;
 
   /// The record the fields were last seeded from, which is what AF-22e
   /// compares against.
   Application? _seeded;
+
+  /// Whether the person has asked to change the record. The fields are
+  /// read-only until they do, and again once the change is saved or dropped.
+  bool _editing = false;
 
   ApplicationRef get _ref => ApplicationRef(
     scopeId: widget.scopeId,
@@ -73,8 +78,47 @@ class _ApplicationDetailScreenState
     }
 
     _seeded = application;
+    _restore(application);
+  }
+
+  void _restore(Application application) {
     _name.text = application.name;
     _ownerId = application.ownerId.isEmpty ? null : application.ownerId;
+  }
+
+  void _startEditing() {
+    ref
+        .read(applicationDetailControllerProvider(_ref).notifier)
+        .acknowledgeSave();
+    setState(() => _editing = true);
+  }
+
+  /// Leaving with unsaved changes — by the navigation, the back control or
+  /// signing out — asks first.
+  Future<bool> _confirmLeave() =>
+      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
+
+  bool get _hasUnsavedEdit {
+    final seeded = _seeded;
+
+    return _editing && seeded != null && _differsFrom(seeded);
+  }
+
+  /// Puts back what the API holds and leaves edit mode, dropping any refusal
+  /// along with the edit it was about.
+  void _cancelEditing() {
+    ref
+        .read(applicationDetailControllerProvider(_ref).notifier)
+        .acknowledgeSave();
+    setState(() {
+      _editing = false;
+      // A fresh key forgets the fields' validation messages too.
+      _formKey = GlobalKey<FormState>();
+
+      if (_seeded case final application?) {
+        _restore(application);
+      }
+    });
   }
 
   bool _differsFrom(Application application) =>
@@ -156,6 +200,14 @@ class _ApplicationDetailScreenState
     ref.listen<ApplicationDetailState>(
       applicationDetailControllerProvider(_ref),
       (previous, next) {
+        // A save that went through ends the edit.
+        if (previous is ApplicationDetailLoaded &&
+            previous.saving &&
+            next is ApplicationDetailLoaded &&
+            next.saved) {
+          setState(() => _editing = false);
+        }
+
         if (next is ApplicationDeleted) {
           ref
               .read(applicationListControllerProvider(widget.scopeId).notifier)
@@ -171,13 +223,9 @@ class _ApplicationDetailScreenState
         ApplicationDetailLoaded(:final application) => application.name,
         _ => 'Application',
       }),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the listing',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(backToListing),
-        ),
-      ],
+      confirmLeave: _confirmLeave,
+      backRoute: backToListing,
+      backTooltip: 'Back to the listing',
       body: switch (state) {
         ApplicationDetailLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -220,6 +268,7 @@ class _ApplicationDetailScreenState
     final theme = Theme.of(context);
     _seed(state.application);
     final application = state.application;
+    final editing = _editing && !state.isReadOnly;
     final members = ref.watch(scopeMembersProvider(widget.scopeId));
 
     return SingleChildScrollView(
@@ -263,53 +312,41 @@ class _ApplicationDetailScreenState
                       ),
                       const SizedBox(height: 16),
                     ],
-                    TextFormField(
-                      maxLength: nameMaxLength,
-                      controller: _name,
-                      readOnly: state.isReadOnly,
-                      decoration: const InputDecoration(labelText: 'Name'),
-                      validator: (value) => (value?.trim().isEmpty ?? true)
-                          ? 'Enter a name for the application.'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    _owner(state, members),
-                    const SizedBox(height: 16),
-                    if (!state.isReadOnly)
-                      FilledButton(
-                        // AF-22e: nothing to save is not an action.
-                        onPressed: (state.saving || !_differsFrom(application))
-                            ? null
-                            : _save,
-                        child: state.saving
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Save changes'),
+                    EditableSection(
+                      title: 'Details',
+                      editing: editing,
+                      mayEdit: !state.isReadOnly,
+                      saving: state.saving,
+                      // AF-22e: nothing to save is not an action.
+                      canSave: _differsFrom(application) && !state.deleting,
+                      onEdit: _startEditing,
+                      onCancel: _cancelEditing,
+                      onSave: _save,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          TextFormField(
+                            maxLength: nameMaxLength,
+                            controller: _name,
+                            readOnly: !editing,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Name',
+                              editing: editing,
+                            ),
+                            validator: (value) =>
+                                (value?.trim().isEmpty ?? true)
+                                ? 'Enter a name for the application.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          _owner(state, members, editing: editing),
+                        ],
                       ),
-                    // Says why Save is disabled.
-                    if (!state.isReadOnly &&
-                        !state.saving &&
-                        !_differsFrom(application))
-                      const NothingToSaveHint(),
+                    ),
                   ],
                 ),
               ),
-              // AF-22d leaves a deleted application nothing left to delete.
-              if (!state.isReadOnly) ...<Widget>[
-                const SizedBox(height: 24),
-                _DangerZone(
-                  application: application,
-                  deleting: state.deleting,
-                  failure: state.deleteFailure,
-                  mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
-                ),
-              ],
               const SizedBox(height: 24),
               Card(
                 child: Padding(
@@ -333,6 +370,18 @@ class _ApplicationDetailScreenState
                   ),
                 ),
               ),
+              // AF-22d leaves a deleted application nothing left to delete.
+              if (!state.isReadOnly) ...<Widget>[
+                const SizedBox(height: 24),
+                _DangerZone(
+                  application: application,
+                  deleting: state.deleting || state.saving,
+                  failure: state.deleteFailure,
+                  mayDeletePermanently: _maySeeHardDelete,
+                  onDelete: _confirmDelete,
+                  onDeletePermanently: _confirmDeletePermanently,
+                ),
+              ],
             ],
           ),
         ),
@@ -347,13 +396,21 @@ class _ApplicationDetailScreenState
   /// by identifier for the same reason UI-20's rows are (FR-AP-08).
   Widget _owner(
     ApplicationDetailLoaded state,
-    AsyncValue<List<Person>> members,
-  ) {
+    AsyncValue<List<Person>> members, {
+    required bool editing,
+  }) {
     final theme = Theme.of(context);
     final application = state.application;
 
-    if (state.isReadOnly) {
-      return _Fact(label: 'Owner', value: _ownerLabel(members, application));
+    if (!editing) {
+      return InputDecorator(
+        decoration: recordFieldDecoration(
+          context,
+          label: 'Owner',
+          editing: false,
+        ),
+        child: Text(_ownerLabel(members, application)),
+      );
     }
 
     return switch (members) {

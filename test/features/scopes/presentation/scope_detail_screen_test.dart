@@ -300,6 +300,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -392,6 +394,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -417,6 +421,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -465,6 +471,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(
@@ -501,6 +509,8 @@ void main() {
     // Given
     answerGetWith(const Success<Scope>(_acme));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -1043,5 +1053,222 @@ void main() {
           .readOnly,
       isTrue,
     );
+  });
+  TextField nameField(WidgetTester tester) => tester.widget<TextField>(
+    find.descendant(
+      of: find.widgetWithText(TextFormField, 'Name'),
+      matching: find.byType(TextField),
+    ),
+  );
+
+  // A record is read until the person asks to change it.
+  testWidgets('GivenAScope_WhenOpened_ThenItsFieldsAreReadOnly', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(nameField(tester).readOnly, isTrue);
+    expect(find.text('Edit'), findsOneWidget);
+    expect(find.text('Save changes'), findsNothing);
+  });
+
+  testWidgets('GivenEditPressed_WhenRendered_ThenTheFieldsAreEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(nameField(tester).readOnly, isFalse);
+    expect(find.widgetWithText(OutlinedButton, 'Cancel'), findsOneWidget);
+    expect(find.text('Edit'), findsNothing);
+  });
+
+  testWidgets('GivenAnEdit_WhenCancelled_ThenTheRecordIsRestored', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(nameField(tester).controller!.text, 'Acme');
+    expect(nameField(tester).readOnly, isTrue);
+    verifyNever(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
+      ),
+    );
+  });
+
+  testWidgets('GivenAnEdit_WhenSaved_ThenTheRecordIsReadOnlyAgain', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerUpdateWith(
+      const Success<Scope>(
+        Scope(id: 'scope-1', name: 'Acme Ltd', description: 'The first tenant'),
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Saved.'), findsOneWidget);
+    expect(nameField(tester).readOnly, isTrue);
+    expect(find.text('Edit'), findsOneWidget);
+  });
+
+  testWidgets('GivenARefusedSave_WhenCancelled_ThenTheRefusalGoes', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerUpdateWith(
+      const FailureResult<Scope>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['A scope with this name already exists.'],
+        ),
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Globex',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('A scope with this name already exists.'), findsNothing);
+  });
+
+  // Owner identifiers mean nothing to a reader.
+  testWidgets('GivenAnOwnedScope_WhenOpened_ThenTheOwnersAreCounted', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('1 owner. Open Owners below to see who.'), findsOneWidget);
+    expect(find.text('person-1'), findsNothing);
+  });
+
+  testWidgets('GivenAnUnsavedEdit_WhenLeavingBack_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.byTooltip('Back to scopes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+  });
+
+  testWidgets('GivenAnUnsavedEdit_WhenDiscarded_ThenTheListingOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Scopes'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // Nothing typed is nothing to lose, so leaving does not ask.
+  testWidgets('GivenAnEditWithNoChange_WhenLeavingBack_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.byTooltip('Back to scopes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
   });
 }

@@ -26,6 +26,11 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   @override
   void initState() {
     super.initState();
+    // The listing remembers its filters between visits, so the fields say
+    // what it is still filtered by rather than starting blank.
+    final query = ref.read(personListControllerProvider(widget.scopeId)).query;
+    _name.text = query.name;
+    _email.text = query.email;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => ref
           .read(personListControllerProvider(widget.scopeId).notifier)
@@ -58,13 +63,8 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Persons'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the scope',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scopes/${widget.scopeId}'),
-        ),
-      ],
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go('/scopes/${widget.scopeId}/persons/new'),
         icon: const Icon(Icons.add),

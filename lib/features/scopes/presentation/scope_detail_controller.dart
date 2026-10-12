@@ -142,7 +142,13 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
   Future<void> save({required String name, required String description}) async {
     final current = state;
 
-    if (current is! ScopeDetailLoaded || current.saving || current.isReadOnly) {
+    // One request at a time: each settles on the state it started from, so
+    // a second one in flight would be overwritten by whichever answers last.
+    if (current is! ScopeDetailLoaded ||
+        current.saving ||
+        current.deleting ||
+        current.togglingGoogleSignIn ||
+        current.isReadOnly) {
       return;
     }
 
@@ -178,10 +184,11 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
     );
   }
 
-  /// Drops the "saved" acknowledgement so a later edit starts clean.
+  /// Drops the "saved" acknowledgement and any refused save, so a later edit
+  /// starts clean.
   void acknowledgeSave() {
     if (state case final ScopeDetailLoaded loaded) {
-      state = loaded.copyWith(saved: false);
+      state = loaded.copyWith(saved: false, clearSaveFailure: true);
     }
   }
 
@@ -195,6 +202,8 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
 
     if (current is! ScopeDetailLoaded ||
         current.togglingGoogleSignIn ||
+        current.saving ||
+        current.deleting ||
         current.isReadOnly) {
       return;
     }
@@ -235,7 +244,10 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
   ) async {
     final current = state;
 
-    if (current is! ScopeDetailLoaded || current.deleting) {
+    if (current is! ScopeDetailLoaded ||
+        current.deleting ||
+        current.saving ||
+        current.togglingGoogleSignIn) {
       return;
     }
 

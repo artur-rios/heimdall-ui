@@ -1,0 +1,131 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/network/envelope.dart';
+import '../../../core/result/result.dart';
+import '../../applications/domain/application_repository.dart';
+import '../../google_users/domain/google_user_repository.dart';
+import '../../health/domain/health_repository.dart';
+import '../../permissions/domain/scope_permission_repository.dart';
+import '../../profile/presentation/profile_controller.dart';
+import '../../scopes/domain/scope.dart';
+import '../../scopes/presentation/scope_list_controller.dart';
+import '../domain/dashboard.dart';
+
+/// How far the administrator's dashboard has got.
+sealed class DashboardState {
+  const DashboardState();
+}
+
+/// Nothing has been read yet, or a fresh read is under way with nothing to
+/// show in the meantime.
+final class DashboardLoading extends DashboardState {
+  const DashboardLoading();
+}
+
+/// The scopes could not be read, so there is nothing to summarise.
+final class DashboardFailed extends DashboardState {
+  const DashboardFailed(this.failure);
+
+  final Failure failure;
+}
+
+/// The figures are on screen. [refreshing] keeps them there while a refresh
+/// is in flight, rather than blanking the dashboard for every reload.
+final class DashboardLoaded extends DashboardState {
+  const DashboardLoaded(this.stats, {this.refreshing = false});
+
+  final DashboardStats stats;
+  final bool refreshing;
+}
+
+final NotifierProvider<DashboardController, DashboardState>
+dashboardControllerProvider =
+    NotifierProvider<DashboardController, DashboardState>(
+      DashboardController.new,
+    );
+
+/// Reads what the home dashboard shows an administrator.
+///
+/// Nothing here is a new endpoint: every figure is the `totalItems` of a
+/// one-row page of a listing the administrator could open themselves, so the
+/// dashboard can never show a number the API would not.
+class DashboardController extends Notifier<DashboardState> {
+  /// Increments with every load, so an answer to a superseded load is dropped
+  /// rather than overwriting a newer one.
+  int _generation = 0;
+
+  @override
+  DashboardState build() => const DashboardLoading();
+
+  Future<void> load() async {
+    final generation = ++_generation;
+    final current = state;
+
+    state = current is DashboardLoaded
+        ? DashboardLoaded(current.stats, refreshing: true)
+        : const DashboardLoading();
+
+    final scopes = ref.read(scopeRepositoryProvider);
+    final health = ref.read(healthRepositoryProvider);
+
+    final active = scopes.list(pageSize: DashboardStats.summarisedScopeLimit);
+    final everything = scopes.list(includeDeleted: true, pageSize: 1);
+    final ping = health.ping();
+
+    final activeResult = await active;
+
+    if (generation != _generation) {
+      return;
+    }
+
+    switch (activeResult) {
+      case FailureResult<Page<Scope>>(:final failure):
+        state = DashboardFailed(failure);
+
+        return;
+      case Success<Page<Scope>>(value: final page):
+        final summaries = await Future.wait(page.items.map(_summarise));
+        final everythingTotal = (await everything).valueOrNull?.totalItems;
+        final reachable = (await ping).isSuccess;
+
+        if (generation != _generation) {
+          return;
+        }
+
+        state = DashboardLoaded(
+          DashboardStats(
+            activeScopes: page.totalItems,
+            deletedScopes: everythingTotal == null
+                ? null
+                : (everythingTotal - page.totalItems).clamp(0, everythingTotal),
+            scopes: summaries,
+            apiReachable: reachable,
+          ),
+        );
+    }
+  }
+
+  /// Reads the four counts of one scope side by side.
+  Future<ScopeSummary> _summarise(Scope scope) async {
+    final persons = ref
+        .read(personRepositoryProvider)
+        .listScopePersons(scopeId: scope.id, pageSize: 1);
+    final applications = ref
+        .read(applicationRepositoryProvider)
+        .list(scopeId: scope.id, pageSize: 1);
+    final permissions = ref
+        .read(scopePermissionRepositoryProvider)
+        .list(scopeId: scope.id, pageSize: 1);
+    final googleUsers = ref
+        .read(googleUserRepositoryProvider)
+        .countIn(scope.id);
+
+    return ScopeSummary(
+      scope: scope,
+      persons: (await persons).valueOrNull?.totalItems,
+      applications: (await applications).valueOrNull?.totalItems,
+      permissions: (await permissions).valueOrNull?.totalItems,
+      googleUsers: (await googleUsers).valueOrNull,
+    );
+  }
+}

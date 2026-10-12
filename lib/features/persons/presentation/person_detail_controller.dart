@@ -123,6 +123,7 @@ class PersonDetailController extends Notifier<PersonDetailState> {
 
     if (current is! PersonDetailLoaded ||
         current.saving ||
+        current.deleting ||
         current.isReadOnly) {
       return;
     }
@@ -156,10 +157,11 @@ class PersonDetailController extends Notifier<PersonDetailState> {
     );
   }
 
-  /// Drops the "saved" acknowledgement so a later edit starts clean.
+  /// Drops the "saved" acknowledgement and any refused save, so a later edit
+  /// starts clean.
   void acknowledgeSave() {
     if (state case final PersonDetailLoaded loaded) {
-      state = loaded.copyWith(saved: false);
+      state = loaded.copyWith(saved: false, clearSaveFailure: true);
     }
   }
 
@@ -176,7 +178,8 @@ class PersonDetailController extends Notifier<PersonDetailState> {
   ) async {
     final current = state;
 
-    if (current is! PersonDetailLoaded || current.deleting) {
+    // One request at a time: each settles on the state it started from.
+    if (current is! PersonDetailLoaded || current.deleting || current.saving) {
       return;
     }
 

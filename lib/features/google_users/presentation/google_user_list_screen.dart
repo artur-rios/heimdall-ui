@@ -28,6 +28,13 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
   @override
   void initState() {
     super.initState();
+    // The listing remembers its filters between visits, so the fields say
+    // what it is still filtered by rather than starting blank.
+    final query = ref
+        .read(googleUserListControllerProvider(widget.scopeId))
+        .query;
+    _name.text = query.name;
+    _email.text = query.email;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref
           .read(googleUserListControllerProvider(widget.scopeId).notifier)
@@ -69,13 +76,8 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Google users'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the scope',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scopes/${widget.scopeId}'),
-        ),
-      ],
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
       body: Column(
         children: <Widget>[
           _Filters(

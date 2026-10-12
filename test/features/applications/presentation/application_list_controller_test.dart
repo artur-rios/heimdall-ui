@@ -317,37 +317,121 @@ void main() {
     ).called(1);
   });
 
-  test('GivenARequestInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+  test(
+    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
+    () async {
+      // Given
+      final pending = Completer<Result<Page<Application>>>();
+      when(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+
+      // When
+      final first = controller.goToPage(2);
+      final second = controller.goToPage(3);
+
+      // Then — the second waits for the first rather than racing it
+      verify(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+
+      // …and is asked once the first is answered, rather than dropped
+      pending.complete(Success<Page<Application>>(_page()));
+      await Future.wait<void>(<Future<void>>[first, second]);
+      verify(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+    },
+  );
+
+  // A read that merely failed says nothing about the person, so it is asked
+  // again rather than pinning them to their identifier for the session.
+  test('GivenAFailedOwnerRead_WhenPaged_ThenItIsAskedAgain', () async {
     // Given
-    final pending = Completer<Result<Page<Application>>>();
-    when(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
+    answerWith(Success<Page<Application>>(_page(totalPages: 3)));
+    answerOwnerWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
       ),
-    ).thenAnswer((_) => pending.future);
+    );
     final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(const Success<Person>(_ada));
 
     // When
-    final first = controller.goToPage(2);
-    final second = controller.goToPage(3);
-    pending.complete(Success<Page<Application>>(_page()));
-    await Future.wait<void>(<Future<void>>[first, second]);
+    await controller.goToPage(2);
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+  });
+
+  // The API saying there is nobody is an answer, and is not asked again.
+  test('GivenAMissingOwner_WhenPaged_ThenTheyAreNotReadAgain', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page(totalPages: 3)));
+    answerOwnerWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.goToPage(2);
 
     // Then
     verify(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
+      () =>
+          persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
     ).called(1);
+  });
+
+  // A reload is where a renamed owner should show their new name.
+  test('GivenARenamedOwner_WhenReloaded_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(
+      const Success<Person>(
+        Person(
+          id: 'person-1',
+          name: 'Ada Lovelace',
+          email: 'ada@example.com',
+          role: Role.user,
+        ),
+      ),
+    );
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada Lovelace');
   });
 }

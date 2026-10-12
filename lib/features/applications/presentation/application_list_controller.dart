@@ -95,6 +95,10 @@ class ApplicationListController extends Notifier<ApplicationListState> {
   final String arg;
 
   bool _inFlight = false;
+
+  /// The newest query asked for while another was in flight. It is asked as
+  /// soon as that one is answered, so a search typed during a load is not lost.
+  ApplicationQuery? _queued;
   late final OwnerNames _owners = OwnerNames(
     ref.read(personRepositoryProvider),
   );
@@ -103,7 +107,14 @@ class ApplicationListController extends Notifier<ApplicationListState> {
   ApplicationListState build() =>
       const ApplicationListLoading(ApplicationQuery());
 
-  Future<void> load() => _fetch(state.query);
+  /// Reads the page the current query names, with the owners' names read
+  /// afresh: a reload is where a renamed owner should show their new name.
+  /// Moving between pages and filters keeps what was learned.
+  Future<void> load() {
+    _owners.forget();
+
+    return _fetch(state.query);
+  }
 
   /// A new search starts at the first page.
   Future<void> search(String name) =>
@@ -121,6 +132,8 @@ class ApplicationListController extends Notifier<ApplicationListState> {
 
   Future<void> _fetch(ApplicationQuery query) async {
     if (_inFlight) {
+      _queued = query;
+
       return;
     }
 
@@ -163,6 +176,25 @@ class ApplicationListController extends Notifier<ApplicationListState> {
       }
     } finally {
       _inFlight = false;
+    }
+
+    if (_queued case final queued?) {
+      _queued = null;
+      await _fetch(queued);
+
+      return;
+    }
+
+    // A page past the end — the last row of the last page was deleted, say —
+    // would show "nothing here" with no pager to go back with. The last page
+    // that still exists is asked for instead.
+    if (state case ApplicationListLoaded(:final page)
+        when page.items.isEmpty && query.pageNumber > 1) {
+      await _fetch(
+        query.copyWith(
+          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
+        ),
+      );
     }
   }
 }
