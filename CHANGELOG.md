@@ -7,6 +7,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.1] - 2026-10-12
+
+### Fixed
+
+- Password manager extensions such as Bitwarden still could not fill the sign-in form on the web. Flutter only puts
+  an input in the page while a field has focus, gives the other field no size, and removes both as soon as focus
+  moves, so an extension never found a login form. On the web the email and password are now real inputs that are
+  always in the page, at full size, in one sign-in form, and the form tells the extension when the credentials are
+  submitted so it can offer to save them. A space can be typed in either field, and Tab and the arrow keys behave as
+  in any web form.
+
 ## [1.6.0] - 2026-10-12
 
 ### Added
@@ -240,7 +251,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.4.0...v1.5.0
