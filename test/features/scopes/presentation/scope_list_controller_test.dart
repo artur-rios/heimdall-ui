@@ -254,33 +254,79 @@ void main() {
     ).called(1);
   });
 
-  test('GivenARequestInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
+  test(
+    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
+    () async {
+      // Given
+      final pending = Completer<Result<Page<Scope>>>();
+      when(
+        () => repository.list(
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+
+      // When
+      final first = controller.goToPage(2);
+      final second = controller.goToPage(3);
+
+      // Then — the second waits for the first rather than racing it
+      verify(
+        () => repository.list(
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+
+      // …and is asked once the first is answered, rather than dropped
+      pending.complete(Success<Page<Scope>>(_page()));
+      await Future.wait<void>(<Future<void>>[first, second]);
+      verify(
+        () => repository.list(
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+    },
+  );
+  // The last row of the last page was deleted: asking for that page again
+  // would show "nothing here" with no pager to go back with.
+  test('GivenAPagePastTheEnd_WhenLoaded_ThenTheLastPageIsAskedFor', () async {
     // Given
-    final pending = Completer<Result<Page<Scope>>>();
     when(
       () => repository.list(
         name: any(named: 'name'),
         includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
+        pageNumber: 2,
         pageSize: any(named: 'pageSize'),
       ),
-    ).thenAnswer((_) => pending.future);
-    final controller = controllerUnderTest();
-
-    // When
-    final first = controller.goToPage(2);
-    final second = controller.goToPage(3);
-    pending.complete(Success<Page<Scope>>(_page()));
-    await Future.wait<void>(<Future<void>>[first, second]);
-
-    // Then
-    verify(
+    ).thenAnswer(
+      (_) async =>
+          Success<Page<Scope>>(_page(items: const <Scope>[], pageNumber: 2)),
+    );
+    when(
       () => repository.list(
         name: any(named: 'name'),
         includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
+        pageNumber: 1,
         pageSize: any(named: 'pageSize'),
       ),
-    ).called(1);
+    ).thenAnswer((_) async => Success<Page<Scope>>(_page()));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.goToPage(2);
+
+    // Then
+    final state = container.read(scopeListControllerProvider);
+    expect(state.query.pageNumber, 1);
+    expect((state as ScopeListLoaded).page.items.single.name, 'Acme');
   });
 }

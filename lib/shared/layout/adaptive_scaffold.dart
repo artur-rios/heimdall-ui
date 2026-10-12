@@ -15,6 +15,7 @@ class AdaptiveScaffold extends StatelessWidget {
     required this.onDestinationSelected,
     required this.body,
     this.title,
+    this.leading,
     this.actions,
     this.floatingActionButton,
     super.key,
@@ -25,14 +26,17 @@ class AdaptiveScaffold extends StatelessWidget {
   final ValueChanged<int> onDestinationSelected;
   final Widget body;
   final Widget? title;
+
+  /// What sits before the title — a way back, on a screen below a destination.
+  final Widget? leading;
   final List<Widget>? actions;
   final Widget? floatingActionButton;
 
   @override
   Widget build(BuildContext context) {
     final breakpoint = context.breakpoint;
-    final appBar = (title != null || actions != null)
-        ? AppBar(title: title, actions: actions)
+    final appBar = (title != null || actions != null || leading != null)
+        ? AppBar(leading: leading, title: title, actions: actions)
         : null;
 
     // One destination is not navigation, and both Material controls assert on
@@ -58,6 +62,9 @@ class AdaptiveScaffold extends StatelessWidget {
             for (final destination in destinations)
               NavigationDestination(
                 icon: Icon(destination.icon),
+                selectedIcon: Icon(
+                  destination.selectedIcon ?? destination.icon,
+                ),
                 label: destination.label,
               ),
           ],
@@ -84,6 +91,9 @@ class AdaptiveScaffold extends StatelessWidget {
                 for (final destination in destinations)
                   NavigationRailDestination(
                     icon: Icon(destination.icon),
+                    selectedIcon: Icon(
+                      destination.selectedIcon ?? destination.icon,
+                    ),
                     label: Text(destination.label),
                   ),
               ],

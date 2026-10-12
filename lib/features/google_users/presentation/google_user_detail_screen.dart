@@ -72,13 +72,8 @@ class _GoogleUserDetailScreenState
         GoogleUserDetailLoaded(:final user) => user.name,
         _ => 'Google user',
       }),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the listing',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(backToListing),
-        ),
-      ],
+      backRoute: backToListing,
+      backTooltip: 'Back to the listing',
       body: switch (state) {
         GoogleUserDetailLoading() => const Center(
           child: CircularProgressIndicator(),

@@ -30,6 +30,16 @@ class ScopeCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A refused or finished attempt from an earlier visit is not this one's:
+    // the form starts clean every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ref.invalidate(scopeCreateControllerProvider),
+    );
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _description = TextEditingController();
@@ -110,7 +120,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
         );
   }
 
-  /// AF-11d — leaving a modified form asks first.
+  /// AF-11d — leaving a modified form asks first, whichever way it is left:
+  /// Cancel, the back control, the navigation, or signing out.
   Future<bool> _confirmLeave() async {
     if (!_isDirty) {
       return true;
@@ -119,6 +130,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
     final leave = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
+        // Scrolls rather than overflowing when a phone's keyboard is open.
+        scrollable: true,
         title: const Text('Discard this scope?'),
         content: const Text(
           'What you have entered has not been saved and will be lost.',
@@ -168,6 +181,9 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New scope'),
+      onBack: _cancel,
+      confirmLeave: _confirmLeave,
+      backTooltip: 'Back to scopes',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(

@@ -25,6 +25,12 @@ class _PermissionListScreenState extends ConsumerState<PermissionListScreen> {
   @override
   void initState() {
     super.initState();
+    // The listing remembers its filters between visits, so the fields say
+    // what it is still filtered by rather than starting blank.
+    final query = ref
+        .read(permissionListControllerProvider(widget.scopeId))
+        .query;
+    _search.text = query.name;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => ref
           .read(permissionListControllerProvider(widget.scopeId).notifier)
@@ -54,13 +60,8 @@ class _PermissionListScreenState extends ConsumerState<PermissionListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Permissions'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the scope',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scopes/${widget.scopeId}'),
-        ),
-      ],
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => context.go(createRoute),
         icon: const Icon(Icons.add),

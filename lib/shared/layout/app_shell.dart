@@ -22,6 +22,10 @@ class AppShell extends ConsumerWidget {
     required this.body,
     this.actions = const <Widget>[],
     this.floatingActionButton,
+    this.backRoute,
+    this.onBack,
+    this.backTooltip = 'Back',
+    this.confirmLeave,
     super.key,
   });
 
@@ -33,6 +37,26 @@ class AppShell extends ConsumerWidget {
   final Widget body;
   final List<Widget> actions;
   final Widget? floatingActionButton;
+
+  /// Where the back control leading the title goes, on a screen below a
+  /// destination. Without it, or [onBack], the screen has no back control:
+  /// the navigation is the way out of a destination.
+  final String? backRoute;
+
+  /// What the back control does when leaving needs more than a route — a
+  /// screen that must first ask whether to abandon something, say. Wins over
+  /// [backRoute].
+  final VoidCallback? onBack;
+
+  final String backTooltip;
+
+  /// Asked before the navigation, the [backRoute] control or signing out
+  /// takes the person off this screen; `false` keeps them here. For a screen
+  /// holding something that would be lost — an unsaved form, or freshly issued
+  /// recovery codes. An [onBack] callback asks for itself.
+  final Future<bool> Function()? confirmLeave;
+
+  Future<bool> _mayLeave() async => await confirmLeave?.call() ?? true;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -54,8 +78,13 @@ class AppShell extends ConsumerWidget {
       // A screen that is not itself a destination still has to select
       // something; the first entry is what the navigation highlights.
       selectedIndex: selected < 0 ? 0 : selected,
-      onDestinationSelected: (index) => context.go(destinations[index].route),
+      onDestinationSelected: (index) async {
+        if (await _mayLeave() && context.mounted) {
+          context.go(destinations[index].route);
+        }
+      },
       title: title,
+      leading: _backControl(context),
       floatingActionButton: floatingActionButton,
       actions: <Widget>[
         ...actions,
@@ -63,8 +92,11 @@ class AppShell extends ConsumerWidget {
         IconButton(
           tooltip: 'Sign out',
           icon: const Icon(Icons.logout),
-          onPressed: () =>
-              ref.read(sessionControllerProvider.notifier).signOut(),
+          onPressed: () async {
+            if (await _mayLeave()) {
+              await ref.read(sessionControllerProvider.notifier).signOut();
+            }
+          },
         ),
       ],
       body: Column(
@@ -75,6 +107,29 @@ class AppShell extends ConsumerWidget {
           Expanded(child: body),
         ],
       ),
+    );
+  }
+
+  Widget? _backControl(BuildContext context) {
+    final route = backRoute;
+    final action =
+        onBack ??
+        (route == null
+            ? null
+            : () async {
+                if (await _mayLeave() && context.mounted) {
+                  context.go(route);
+                }
+              });
+
+    if (action == null) {
+      return null;
+    }
+
+    return IconButton(
+      tooltip: backTooltip,
+      icon: const Icon(Icons.arrow_back),
+      onPressed: action,
     );
   }
 }

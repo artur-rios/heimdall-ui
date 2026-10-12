@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show FutureProviderFamily;
 
+import '../../../core/result/result.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
@@ -13,14 +14,26 @@ import '../domain/person.dart';
 /// refusal. The scope's Users are deliberately absent: the API refuses every
 /// one of them as an owner.
 final FutureProviderFamily<List<Person>, String> scopeMembersProvider =
-    FutureProvider.family<List<Person>, String>((ref, scopeId) async {
-      final result = await ref
-          .watch(personRepositoryProvider)
-          .listScopeOwners(scopeId: scopeId, pageSize: 100);
+    FutureProvider.family<List<Person>, String>(
+      (ref, scopeId) async {
+        final result = await ref
+            .watch(personRepositoryProvider)
+            .listScopeOwners(scopeId: scopeId, pageSize: 100);
 
-      final members = <Person>[
-        ...?result.valueOrNull?.items.where((person) => !person.isDeleted),
-      ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        // A listing that could not be read is an error, not an empty scope:
+        // "nobody can own an application here" would be the wrong answer.
+        final page = switch (result) {
+          Success(:final value) => value,
+          FailureResult(:final failure) => throw failure,
+        };
 
-      return List<Person>.unmodifiable(members);
-    });
+        final members = <Person>[
+          ...page.items.where((person) => !person.isDeleted),
+        ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+        return List<Person>.unmodifiable(members);
+      },
+      // A failure is reported, with its own retry, rather than retried
+      // behind the person's back (FR-UX-07).
+      retry: (retryCount, error) => null,
+    );

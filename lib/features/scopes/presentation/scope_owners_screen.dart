@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -59,20 +60,18 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     }
   }
 
-  Future<void> _createNew() async {
-    final draft = await showDialog<_OwnerDraft>(
-      context: context,
-      builder: (context) => const _CreateOwnerDialog(),
-    );
-
-    if (draft != null && mounted) {
-      await _controller.createOwner(
+  /// AF-14d — the dialog stays open until the API accepts the draft, so a
+  /// refusal is read beside what was typed rather than costing the retyping.
+  Future<void> _createNew() => showDialog<void>(
+    context: context,
+    builder: (context) => _CreateOwnerDialog(
+      onSubmit: (draft) => _controller.createOwner(
         name: draft.name,
         email: draft.email,
         password: draft.password,
-      );
-    }
-  }
+      ),
+    ),
+  );
 
   /// AF-14e — the dialog closes and nothing is sent.
   Future<void> _promote(Person user) async {
@@ -118,15 +117,23 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Scope owners'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the scope',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scopes/${widget.scopeId}'),
-        ),
-      ],
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
       body: switch (state) {
         ScopeOwnersLoading() => const CollectionLoading(rows: 4),
+        // A Scope Admin who has just removed their own ownership is refused
+        // the scope from then on; retrying would only be refused again.
+        ScopeOwnersUnavailable(:final failure)
+            when failure.kind == FailureKind.forbidden =>
+          CollectionEmpty(
+            title: 'Not available for your role',
+            message:
+                'This scope is not one you administer. Nothing is wrong '
+                'with your session.',
+            icon: Icons.lock_person_outlined,
+            actionLabel: 'Back to scopes',
+            onAction: () => context.go('/scopes'),
+          ),
         ScopeOwnersUnavailable(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: _controller.load,
@@ -249,7 +256,11 @@ class _OwnerDraft {
 }
 
 class _CreateOwnerDialog extends StatefulWidget {
-  const _CreateOwnerDialog();
+  const _CreateOwnerDialog({required this.onSubmit});
+
+  /// Sends the draft, answering with the API's refusal or `null` once the
+  /// owner exists.
+  final Future<Failure?> Function(_OwnerDraft draft) onSubmit;
 
   @override
   State<_CreateOwnerDialog> createState() => _CreateOwnerDialogState();
@@ -260,6 +271,8 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  bool _sending = false;
+  Failure? _refusal;
 
   @override
   void dispose() {
@@ -269,30 +282,56 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     // AF-14d: what the client can tell is wrong never reaches the API. What it
     // cannot — a password the API's own rules reject — comes back as an error.
-    if (!validateAndReveal(_formKey)) {
+    if (_sending || !validateAndReveal(_formKey)) {
       return;
     }
 
-    Navigator.of(context).pop(
+    setState(() {
+      _sending = true;
+      _refusal = null;
+    });
+
+    final refusal = await widget.onSubmit(
       _OwnerDraft(
         name: _name.text.trim(),
         email: _email.text.trim(),
         password: _password.text,
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (refusal == null) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _sending = false;
+        _refusal = refusal;
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    // Scrolls rather than overflowing when a phone's keyboard is open.
+    scrollable: true,
     title: const Text('Create a co-owner'),
     content: Form(
       key: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // The API's own words, with everything typed still in place.
+          if (_refusal case final refusal?) ...<Widget>[
+            ErrorBanner(failure: refusal),
+            const SizedBox(height: 12),
+          ],
           TextFormField(
             maxLength: nameMaxLength,
             controller: _name,
@@ -331,10 +370,19 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
     ),
     actions: <Widget>[
       TextButton(
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _sending ? null : () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
-      FilledButton(onPressed: _submit, child: const Text('Create')),
+      FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size(96, 40)),
+        onPressed: _sending ? null : _submit,
+        child: _sending
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Create'),
+      ),
     ],
   );
 }

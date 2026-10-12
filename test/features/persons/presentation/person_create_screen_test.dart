@@ -497,4 +497,48 @@ void main() {
     // Then
     expect(find.text('Create a person'), findsOneWidget);
   });
+
+  // The navigation is a way off the form too, and must not drop what was
+  // typed without asking.
+  testWidgets('GivenAModifiedForm_WhenADestinationIsTapped_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await fillIn(tester);
+
+    // When
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Home'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard this person?'), findsOneWidget);
+  });
+
+  testWidgets('GivenAModifiedForm_WhenKeptEditing_ThenTheFormStays', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await fillIn(tester);
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Home'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('New person'), findsOneWidget);
+  });
 }

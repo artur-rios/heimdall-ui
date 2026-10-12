@@ -25,9 +25,13 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => ref.read(twoFactorControllerProvider.notifier).load(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      // AF-09c: codes still waiting to be acknowledged are not thrown away by
+      // a fresh read on the way back to this screen.
+      if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
+        ref.read(twoFactorControllerProvider.notifier).load();
+      }
+    });
   }
 
   TwoFactorController get _controller =>
@@ -50,6 +54,18 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       confirmLabel: 'Leave anyway',
       cancelLabel: 'Stay',
     );
+  }
+
+  /// AF-09c for the navigation and sign-out: asks, and acknowledges the codes
+  /// when the person chooses to leave them behind.
+  Future<bool> _confirmLeave() async {
+    if (!await _mayLeave()) {
+      return false;
+    }
+
+    _controller.acknowledgeCodes();
+
+    return true;
   }
 
   /// Leaves for the profile, once AF-09c is satisfied.
@@ -118,18 +134,15 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       onPopInvokedWithResult: (didPop, _) async {
         if (!didPop && await _mayLeave() && mounted) {
           _controller.acknowledgeCodes();
+          this.context.go('/profile');
         }
       },
       child: AppShell(
         currentRoute: '/profile',
         title: const Text('Security'),
-        actions: <Widget>[
-          IconButton(
-            tooltip: 'Back to your profile',
-            icon: const Icon(Icons.arrow_back),
-            onPressed: _leave,
-          ),
-        ],
+        onBack: _leave,
+        backTooltip: 'Back to your profile',
+        confirmLeave: _confirmLeave,
         body: switch (state) {
           TwoFactorLoading() => const Center(
             child: CircularProgressIndicator(),

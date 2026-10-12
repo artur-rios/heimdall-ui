@@ -148,6 +148,7 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
 
     if (current is! PermissionDetailLoaded ||
         current.saving ||
+        current.deleting ||
         current.isReadOnly) {
       return;
     }
@@ -193,10 +194,15 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
     );
   }
 
-  /// Drops the "saved" acknowledgement so a later edit starts clean.
+  /// Drops the "saved" acknowledgement and any refused save, so a later edit
+  /// starts clean.
   void acknowledgeSave() {
     if (state case final PermissionDetailLoaded loaded) {
-      state = loaded.copyWith(saved: false, claimChanged: false);
+      state = loaded.copyWith(
+        saved: false,
+        clearSaveFailure: true,
+        claimChanged: false,
+      );
     }
   }
 
@@ -218,7 +224,10 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
   ) async {
     final current = state;
 
-    if (current is! PermissionDetailLoaded || current.deleting) {
+    // One request at a time: each settles on the state it started from.
+    if (current is! PermissionDetailLoaded ||
+        current.deleting ||
+        current.saving) {
       return;
     }
 

@@ -36,6 +36,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 
   Future<void> _submit() async {
+    // Enter in a field submits too, and the disabled button does not cover
+    // that path: a second press must not send a second attempt.
+    if (_submitting) {
+      return;
+    }
+
     if (!validateAndReveal(_formKey)) {
       return;
     }

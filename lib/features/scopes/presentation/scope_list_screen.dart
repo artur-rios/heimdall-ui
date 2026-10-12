@@ -28,6 +28,10 @@ class _ScopeListScreenState extends ConsumerState<ScopeListScreen> {
   @override
   void initState() {
     super.initState();
+    // The listing remembers its filters between visits, so the fields say
+    // what it is still filtered by rather than starting blank.
+    final query = ref.read(scopeListControllerProvider).query;
+    _search.text = query.name;
     WidgetsBinding.instance.addPostFrameCallback(
       (_) => ref.read(scopeListControllerProvider.notifier).load(),
     );

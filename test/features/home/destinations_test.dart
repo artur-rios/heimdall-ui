@@ -17,7 +17,7 @@ void main() {
           .toSet();
 
       // Then
-      for (final route in <String>['/scopes', '/profile', '/health']) {
+      for (final route in <String>['/', '/scopes', '/profile', '/health']) {
         expect(
           routes.contains(route),
           roleMayReach(role: role, path: route),

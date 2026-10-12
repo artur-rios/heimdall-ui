@@ -258,7 +258,7 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Billing'), findsOneWidget);
   });
 
-  testWidgets('GivenAnApplication_WhenOpened_ThenItsOwnerIsSelected', (
+  testWidgets('GivenAnApplication_WhenEdited_ThenItsOwnerIsSelected', (
     tester,
   ) async {
     // Given
@@ -266,6 +266,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(
@@ -287,6 +289,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -319,6 +323,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.tap(find.byType(DropdownButtonFormField<String>));
@@ -409,6 +415,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -462,6 +470,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(
@@ -478,6 +488,8 @@ void main() {
     // Given
     answerGetWith(const Success<Application>(_billing));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(

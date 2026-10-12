@@ -89,6 +89,10 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
 
   bool _inFlight = false;
 
+  /// The newest query asked for while another was in flight. It is asked as
+  /// soon as that one is answered, so a search typed during a load is not lost.
+  GoogleUserQuery? _queued;
+
   @override
   GoogleUserListState build() => const GoogleUserListLoading(GoogleUserQuery());
 
@@ -110,6 +114,8 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
 
   Future<void> _fetch(GoogleUserQuery query) async {
     if (_inFlight) {
+      _queued = query;
+
       return;
     }
 
@@ -137,6 +143,25 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
       );
     } finally {
       _inFlight = false;
+    }
+
+    if (_queued case final queued?) {
+      _queued = null;
+      await _fetch(queued);
+
+      return;
+    }
+
+    // A page past the end — the last row of the last page was deleted, say —
+    // would show "nothing here" with no pager to go back with. The last page
+    // that still exists is asked for instead.
+    if (state case GoogleUserListLoaded(:final page)
+        when page.items.isEmpty && query.pageNumber > 1) {
+      await _fetch(
+        query.copyWith(
+          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
+        ),
+      );
     }
   }
 }
