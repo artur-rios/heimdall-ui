@@ -29,6 +29,7 @@ and one API use case can serve several screens.
 | **Scope Admin** | Owns one or more scopes; manages the users, applications, and permissions within them |
 | **User** | Belongs to exactly one scope; manages only their own profile and security settings |
 | **Anonymous** | An unauthenticated visitor; reaches only the public screens |
+| **Restricted subject** | A person of any role, or a Google User, whose processing is restricted at their own request; signs in for their own data-protection rights only |
 | **Heimdall API** | The external system that holds all identity data and enforces all authorization |
 | **Google Identity Platform** | External system that authenticates a user and returns a signed ID token |
 
@@ -41,6 +42,7 @@ graph LR
         SCA(("Scope Admin"))
         U(("User"))
         AN(("Anonymous"))
+        RS(("Restricted subject"))
     end
 
     subgraph "Authentication & Session"
@@ -51,6 +53,7 @@ graph LR
         UI05[UI-05: Verify email]
         UI06[UI-06: Google sign-in]
         UI07[UI-07: Route guarding]
+        UI30[UI-30: Restricted session]
     end
 
     subgraph "Profile & Security"
@@ -95,6 +98,7 @@ graph LR
 
     AN --> UI01 & UI02 & UI03 & UI04 & UI05 & UI06
     SA & SCA & U --> UI07 & UI08 & UI09
+    RS --> UI30
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15
     SCA --> UI10 & UI12 & UI14 & UI15
     SA & SCA --> UI16 & UI17 & UI18 & UI19
@@ -136,6 +140,7 @@ graph LR
 | UI-27 | Delete a scope permission, logically and permanently | UC-34, UC-35 |
 | UI-28 | Browse and view Google users | UC-27 |
 | UI-29 | Delete a Google user, logically and permanently | UC-28, UC-29 |
+| UI-30 | Use a restricted session | UC-11 (AF-11i), UC-25 (AF-25e), UC-38, UC-41, UC-42, UC-45 |
 
 ### 1.5 Platform items
 
@@ -372,6 +377,9 @@ delivered the same way.
   is redirected to the home screen.
 - **AF-07g — Expired stored token.** A token whose expiry has passed is discarded at start-up
   without contacting the API.
+- **AF-07h — Restricted session.** A subject-rights-only session (UI-30), whatever its role, is
+  redirected to the restricted session screen from every route but that screen and the privacy
+  notice. A full session asking for the restricted session screen is redirected to the home screen.
 
 ---
 
@@ -992,6 +1000,92 @@ delivered the same way.
 
 ---
 
+### UI-30: Use a restricted session
+
+**Actor:** Restricted subject — a person of any role, or a Google User, whose processing is restricted
+**Traces to:** UC-11 (Login, AF-11i), UC-25 (Sign Up / Sign In via Google, AF-25e), UC-38 (Verify
+Second Factor), UC-41 (Export Own Personal Data), UC-42 (Request Erasure of Own Identity), UC-45
+(Lift a Restriction on Processing)
+**Precondition:** Processing of the signing-in identity is restricted at its subject's request
+(the API's UC-44, NFR-24).
+
+The API answers such a sign-in with a **subject-rights-only token**: it names the person and their
+role, claims no scope, and is admitted to data export, erasure, restriction and its lift — and
+refused with `403` everywhere else, even after the restriction is lifted. Without this use case a
+restricted person would land on the home screen and watch every request fail.
+
+**Main flow**
+
+1. The person signs in through UI-01 or UI-06 (and UI-02 when a second factor is configured).
+2. The API answers with a token and `processingRestricted: true`. The client stores the token and
+   establishes a session marked subject-rights-only.
+3. The route guard sends the session to the restricted session screen (AF-07h).
+4. The screen says plainly that processing of the account is restricted at the person's request and
+   that only these actions are available: lift the restriction, download their data, request
+   erasure, and sign out. It links the privacy notice.
+5. The person chooses **Lift the restriction** and confirms.
+6. The client calls `POST /api/auth/processing-restriction/lift` with an empty body, which names the
+   caller.
+7. The API lifts it. The client ends the session and returns to sign-in, which says the restriction
+   is lifted and to sign in again for full access.
+
+**Download my data**
+
+1. The person chooses **Download my data**.
+2. The client calls `POST /api/auth/data-export`.
+3. The client saves the document as an indented JSON file named
+   `heimdall-data-export-<date>-<time>.json` — offered to the browser as a download on the web, and
+   written to the downloads folder on every other target — and says where it went.
+
+**Request erasure**
+
+1. The person chooses **Request erasure**. A dialog says that erasure cannot be undone.
+2. A person confirms with their password; a Google User confirms by signing in with Google again,
+   which yields a freshly issued ID token (UC-42 step 1).
+3. The client calls `POST /api/auth/erasure-request` with that credential.
+4. The API records the request and its deadline. The client says so, gives the deadline, and
+   explains that while processing is restricted the data is kept as it is: the erasure is carried
+   out once the restriction is lifted. The session stays on the screen.
+
+**Alternative flows**
+
+- **AF-30a — Session restored from storage.** A stored token carrying the `subjectRightsOnly`
+  claim is restored as a restricted session, so a person returning to the application lands on this
+  screen rather than on screens that would only answer `403`.
+- **AF-30b — Restriction already lifted.** The lift answers `404` (the API's AF-45a) because the
+  restriction was lifted elsewhere. The outcome the person wanted holds, so the session ends exactly
+  as in step 7.
+- **AF-30c — Request refused or API unreachable.** Any action the API refuses shows the returned
+  errors; a transport failure says the API could not be reached. The session and the screen stay as
+  they were, and the person may try again.
+- **AF-30d — File cannot be saved.** The export arrived but the device would not keep the file. The
+  client says so; nothing else changes.
+- **AF-30e — Erasure credential rejected.** The API answers `401` with its credential-not-accepted
+  message (the API's AF-42a). The client shows it and keeps the session: a mistyped password is not
+  a rejected token.
+- **AF-30f — Erasure recorded but blocked.** The API answers successfully with `blocked` set (the
+  API's AF-42d), usually because the person is the last owner of a scope. The client says the
+  request is recorded and its deadline runs, and gives the API's reason for not suspending the
+  account yet.
+- **AF-30g — Erasure already requested.** The API answers `409` (the API's AF-42c). The client shows
+  the returned errors.
+- **AF-30h — Google User without Google's flow.** When the build has no Google client id or the
+  target cannot run Google's flow, a Google User cannot obtain the fresh ID token erasure needs. The
+  action is disabled, and the screen says to request it from a device where they can sign in with
+  Google.
+- **AF-30i — Lift or erasure cancelled.** Dismissing a confirmation, or backing out of Google's
+  flow, sends nothing and changes nothing.
+- **AF-30j — Sign out.** The person signs out as from any other session (UI-06 for a Google User,
+  except that the API's Google sign-out is not called: a subject-rights-only token is not admitted
+  to it).
+
+> A full session never answers `403` with the API's restriction message in practice: a token issued
+> while the identity is restricted carries the claim AF-30a reads, and a token issued before the
+> restriction is refused with `401` once the API stops admitting it, which UI-07 already handles. No
+> separate handling of that `403` exists, so it cannot loop.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1004,6 +1098,7 @@ delivered the same way.
 | UI-20 … UI-23 | FR-AP-01 … FR-AP-08 |
 | UI-24 … UI-27 | FR-PM-01 … FR-PM-08 |
 | UI-28, UI-29 | FR-GU-01 … FR-GU-05 |
+| UI-07, UI-30 | FR-AU-21 … FR-AU-25 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
@@ -1023,7 +1118,14 @@ stateDiagram-v2
     Challenged --> Authenticated: second factor verified
     Challenged --> Unauthenticated: challenge abandoned or expired
     Authenticated --> Unauthenticated: sign out, or a rejected token
+    Unauthenticated --> Restricted: login answers processingRestricted
+    Challenged --> Restricted: second factor verified, processing restricted
+    Restoring --> Restricted: stored token claims subjectRightsOnly
+    Restricted --> Unauthenticated: restriction lifted, sign out, or a rejected token
 ```
+
+`Restricted` is an authenticated session whose principal is marked subject-rights-only (UI-30); the
+route guard, not a separate session state, keeps it on its one screen.
 
 ### 4.2 Record editing lifecycle
 

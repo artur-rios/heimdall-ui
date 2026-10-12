@@ -57,6 +57,11 @@ describes the flows that satisfy these requirements; the
 | FR-AU-18 | The client shall render an `otpAuthUri` as a scannable code and shall also present the secret as selectable text. | UI-09 |
 | FR-AU-19 | The client shall display recovery codes exactly once, offer to copy or download them, and require acknowledgement before navigating away. | UI-09 |
 | FR-AU-20 | The client shall disable two-factor authentication through `POST /api/auth/2fa/disable` and regenerate recovery codes through `POST /api/auth/2fa/recovery-codes/regenerate`. | UI-09 |
+| FR-AU-21 | The client shall recognise a subject-rights-only session — one whose processing is restricted — from `processingRestricted` in the answers of `POST /api/auth/login`, `POST /api/auth/2fa/verify` and `POST /api/auth/google`, and from the token's `subjectRightsOnly` claim when a session is restored. | UI-30 |
+| FR-AU-22 | The client shall confine a subject-rights-only session, whatever its role, to the restricted session screen and the privacy notice. | UI-07, UI-30 |
+| FR-AU-23 | The client shall lift the caller's own restriction on processing through `POST /api/auth/processing-restriction/lift`, then end the session, since the token that lifted it stays confined to the rights endpoints. | UI-30 |
+| FR-AU-24 | The client shall obtain the caller's own data through `POST /api/auth/data-export` and save it as a JSON file: a browser download on the web, the downloads folder on every other target. | UI-30 |
+| FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
 
 ### 2.2 Scope management (`FR-SC`)
 
@@ -149,6 +154,7 @@ describes the flows that satisfy these requirements; the
 | `/password-recovery` | Request password reset | UI-03 |
 | `/password-reset` | Set a new password | UI-04 |
 | `/verify-email` | Verify an email address | UI-05 |
+| `/restricted` | Restricted session — lift the restriction, download one's data, request erasure | UI-30 |
 | `/` | Home | UI-07 |
 | `/profile` | Own profile | UI-08 |
 | `/profile/security` | Two-factor and recovery codes | UI-09 |
@@ -182,6 +188,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Sign in, recovery, reset, verification | — | — | — | Full |
 | Privacy notice | Full | Full | Full | Full |
 | Second-factor challenge | Full | Full | Full | Held challenge only |
+| Restricted session | Restricted session only | Restricted session only | Restricted session only | Hidden |
 | Home | Full | Full | Full | Hidden |
 | Own profile and security | Full | Full | Full | Hidden |
 | Scope listing | All scopes | Owned scopes only | Hidden | Hidden |
@@ -205,6 +212,12 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Logical delete Google user | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete Google user | Full | Hidden | Hidden | Hidden |
 | Health and diagnostics | Full | Read-only | Hidden | Hidden |
+
+A **restricted session** — one holding the subject-rights-only token the API issues to an identity
+whose processing is restricted (UI-30) — is offered the restricted session screen and the privacy
+notice, whatever its role, and nothing else: the API refuses that token everywhere but the data
+export, erasure, restriction and lift endpoints. A full session is not offered the restricted
+session screen.
 
 ---
 

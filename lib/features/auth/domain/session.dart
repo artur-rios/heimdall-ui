@@ -28,6 +28,7 @@ class Principal {
     this.ownedScopeIds = const <String>[],
     this.emailVerified = true,
     this.name = '',
+    this.subjectRightsOnly = false,
   });
 
   final String id;
@@ -59,6 +60,15 @@ class Principal {
   /// The scopes a Scope Admin owns; empty for the other roles.
   final List<String> ownedScopeIds;
 
+  /// Whether the token admits only the subject's own data-protection rights.
+  ///
+  /// UI-30: the API issues such a token to an identity whose processing is
+  /// restricted. It names the person and their role but claims no scope, and
+  /// every endpoint except the four rights endpoints refuses it with a `403` —
+  /// whatever the role says. So the role is not what decides where this
+  /// session may go; this is.
+  final bool subjectRightsOnly;
+
   bool get isSystemAdmin => role == Role.systemAdmin;
   bool get isScopeAdmin => role == Role.scopeAdmin;
 
@@ -80,7 +90,10 @@ final class SessionRestoring extends SessionState {
 
 /// No valid session exists.
 final class Unauthenticated extends SessionState {
-  const Unauthenticated({this.sessionExpired = false});
+  const Unauthenticated({
+    this.sessionExpired = false,
+    this.restrictionLifted = false,
+  });
 
   /// Whether this state was reached by a session ending under the caller
   /// rather than by never having had one.
@@ -88,6 +101,13 @@ final class Unauthenticated extends SessionState {
   /// AF-07e: being returned to sign-in mid-task needs an explanation, and
   /// "your session ended" is a different message from "please sign in".
   final bool sessionExpired;
+
+  /// Whether this state was reached by lifting a restriction on processing.
+  ///
+  /// UI-30: the token that lifted it stays confined to the rights endpoints,
+  /// so the person is signed out to sign in again for full access — and the
+  /// sign-in screen says that this is why, rather than leaving them to guess.
+  final bool restrictionLifted;
 }
 
 /// Credentials were accepted but a second factor is still outstanding. The

@@ -7,6 +7,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-10-11
+
+### Added
+
+- A restricted session (UI-30). A person or Google User whose processing is restricted at their own request can
+  sign in again, and the API answers with a token that admits only their own data-protection rights. Instead of
+  landing on screens that would all fail with `403`, they reach a single screen at `/restricted` — and the privacy
+  notice — that says plainly why, and offers four actions: **Lift the restriction** (they are then signed out, and
+  the sign-in screen says to sign in again for full access), **Download my data** (a JSON file: a browser download
+  on the web, the downloads folder elsewhere), **Request erasure** (confirmed with the password, or by signing in
+  with Google again for a Google User), and **Sign out**. The session is recognised from the sign-in answer's
+  `processingRestricted` flag and, when restored from storage, from the token's `subjectRightsOnly` claim.
+  Requires heimdall-api 1.3.0 (artur-rios/heimdall-api#162); the vendored API specification and the generated client
+  carry the new flag. Dependency: `path_provider` 2.1.6, already in the tree, is now a direct one.
+
 ## [1.3.0] - 2026-10-09
 
 ### Added
@@ -148,7 +163,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.0.1...v1.1.0

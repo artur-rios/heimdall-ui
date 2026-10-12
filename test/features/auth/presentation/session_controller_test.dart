@@ -862,6 +862,198 @@ void main() {
       expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
     },
   );
+
+  // UI-30 — the API marks a subject-rights-only token with a string claim.
+  test('GivenASubjectRightsOnlyClaim_WhenPrincipalRead_ThenItIsRestricted', () {
+    // Given
+    final token = AuthToken(
+      value: _apiJwt(<String, String>{
+        'id': '6f1d3a00-0000-0000-0000-000000000003',
+        'role': '1',
+        'subjectRightsOnly': 'true',
+      }),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.subjectRightsOnly, isTrue);
+  });
+
+  test('GivenAFullToken_WhenPrincipalRead_ThenItIsNotRestricted', () {
+    // Given
+    final token = AuthToken(
+      value: _apiJwt(<String, String>{
+        'id': '6f1d3a00-0000-0000-0000-000000000003',
+        'role': '1',
+      }),
+      expiresAt: DateTime.utc(2030),
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.subjectRightsOnly, isFalse);
+  });
+
+  // UI-30 — what the sign-in response said is enough on its own, even for a
+  // token whose payload cannot be read.
+  test('GivenARestrictedResponseFlag_WhenPrincipalRead_ThenItIsRestricted', () {
+    // Given
+    final token = AuthToken(
+      value: 'not-a-jwt',
+      expiresAt: DateTime.utc(2030),
+      processingRestricted: true,
+    );
+
+    // When
+    final principal = principalFromToken(token);
+
+    // Then
+    expect(principal.subjectRightsOnly, isTrue);
+  });
+
+  // UI-30 main flow — AF-11i answers a password login with a restricted token.
+  test(
+    'GivenARestrictedPerson_WhenSignedIn_ThenTheSessionIsRestricted',
+    () async {
+      // Given
+      when(() => repository.login(email: 'a@b.c', password: 'secret'))
+          .thenAnswer(
+            (_) async => Success<LoginOutcome>(
+              LoggedIn(
+                AuthToken(
+                  value: _systemAdminJwt,
+                  expiresAt: DateTime.utc(2030),
+                  processingRestricted: true,
+                ),
+              ),
+            ),
+          );
+      final container = containerWith();
+
+      // When
+      await container
+          .read(sessionControllerProvider.notifier)
+          .signIn(email: 'a@b.c', password: 'secret');
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Authenticated).principal.subjectRightsOnly, isTrue);
+    },
+  );
+
+  // UI-30 — a restricted person with two-factor authentication passes the
+  // challenge first, and UC-38 then issues the restricted token.
+  test(
+    'GivenARestrictedPersonWithTwoFactor_WhenVerified_ThenItIsRestricted',
+    () async {
+      // Given
+      final container = await challengedContainer();
+      when(
+        () => repository.verifySecondFactor(
+          challengeToken: 'challenge',
+          code: '123456',
+          isRecoveryCode: false,
+        ),
+      ).thenAnswer(
+        (_) async => Success<AuthToken>(
+          AuthToken(
+            value: _systemAdminJwt,
+            expiresAt: DateTime.utc(2030),
+            processingRestricted: true,
+          ),
+        ),
+      );
+
+      // When
+      await container
+          .read(sessionControllerProvider.notifier)
+          .submitSecondFactor('123456');
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Authenticated).principal.subjectRightsOnly, isTrue);
+    },
+  );
+
+  // UI-30 AF-30a — a session restored from storage is read from its claim.
+  test('GivenAStoredRestrictedToken_WhenRestored_ThenItIsRestricted', () async {
+    // Given
+    await store.write(
+      AuthToken(
+        value: _apiJwt(<String, String>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+    final container = containerWith();
+
+    // When
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Authenticated).principal.subjectRightsOnly, isTrue);
+  });
+
+  // UI-30 — the sign-in screen says why the person is back there.
+  test('GivenALiftedRestriction_WhenSignedOut_ThenTheReasonIsKept', () async {
+    // Given
+    await store.write(tokenFor(_systemAdminJwt));
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut(restrictionLifted: true);
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Unauthenticated).restrictionLifted, isTrue);
+    expect(state.sessionExpired, isFalse);
+  });
+
+  // UI-30 — the API's Google sign-out is not one of the four endpoints a
+  // restricted token is admitted to, so it is not asked; Google still is.
+  test(
+    'GivenARestrictedGoogleSession_WhenSignedOut_ThenTheApiIsNotCalled',
+    () async {
+      // Given
+      final gateway = _FakeGoogleSignInGateway();
+      await store.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          viaGoogle: true,
+          processingRestricted: true,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut();
+
+      // Then
+      verifyNever(() => repository.signOutFromGoogle());
+      expect(gateway.signOuts, 1);
+    },
+  );
 }
 
 /// Reads a token but refuses to delete it.

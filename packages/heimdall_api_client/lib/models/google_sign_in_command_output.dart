@@ -12,6 +12,7 @@ class GoogleSignInCommandOutput {
     this.token,
     this.expiresAt,
     this.emailVerified,
+    this.processingRestricted,
   });
 
   factory GoogleSignInCommandOutput.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,7 @@ class GoogleSignInCommandOutput {
   final String? token;
   final DateTime? expiresAt;
   final bool? emailVerified;
+  final bool? processingRestricted;
 
   Map<String, Object?> toJson() => _$GoogleSignInCommandOutputToJson(this);
 }

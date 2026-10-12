@@ -49,6 +49,7 @@ versions and roles are maintained in exactly one place.
 | **qr** | `^4.0.0` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
 | **flutter_markdown_plus** | `^1.0.12` | Renders the privacy notice at `/privacy`, which is the Heimdall API's Markdown file bundled verbatim. The maintained fork of `flutter_markdown`, which Google discontinued. |
 | **url_launcher** | `^6.3.3` | Opens the privacy notice's links — the contact address in the mail client, the rest in the browser. |
+| **path_provider** | `^2.1.6` | Finds the downloads folder a data export (UI-30) is saved to off the web; the web hands the file to the browser as a download instead. Already in the tree through `flutter_secure_storage`; depended on directly because the application now calls it. |
 
 ---
 
@@ -145,6 +146,7 @@ no test reaches the network.
 | Encoding | qr | `^4.0.0` |
 | Rendering | flutter_markdown_plus | `^1.0.12` |
 | Platform | url_launcher | `^6.3.3` |
+| Platform | path_provider | `^2.1.6` |
 | Generation | swagger_parser | `^1.45.0` |
 | Generation | build_runner | `^2.16.2` |
 | Generation | json_serializable | `^6.14.1` |

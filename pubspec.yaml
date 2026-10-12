@@ -51,6 +51,7 @@ dependencies:
   qr: ^4.0.0
   flutter_markdown_plus: ^1.0.12
   url_launcher: ^6.3.3
+  path_provider: ^2.1.6
 
 dev_dependencies:
   flutter_test:
