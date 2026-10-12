@@ -28,6 +28,17 @@ class ApplicationCreateScreen extends ConsumerStatefulWidget {
 
 class _ApplicationCreateScreenState
     extends ConsumerState<ApplicationCreateScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A refused or finished attempt from an earlier visit is not this one's:
+    // the form starts clean every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) =>
+          ref.invalidate(applicationCreateControllerProvider(widget.scopeId)),
+    );
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   String? _ownerId;
@@ -59,6 +70,18 @@ class _ApplicationCreateScreenState
     await ref
         .read(applicationCreateControllerProvider(widget.scopeId).notifier)
         .create(name: _name.text.trim(), ownerId: ownerId);
+  }
+
+  /// The owner requirement, so choosing one can clear its refusal at once
+  /// rather than at the next submission.
+  final _ownerField = GlobalKey<FormFieldState<String>>();
+
+  void _chooseOwner(String? id) {
+    setState(() => _ownerId = id);
+
+    if (_ownerField.currentState?.hasError ?? false) {
+      _ownerField.currentState!.validate();
+    }
   }
 
   /// AF-21d — leaving a modified form asks first.
@@ -108,12 +131,23 @@ class _ApplicationCreateScreenState
               ),
             ),
         ],
-        onChanged: sending ? null : (id) => setState(() => _ownerId = id),
+        onChanged: sending ? null : _chooseOwner,
       ),
-      AsyncError<List<Person>>() => Text(
-        'The people of this scope could not be read, so there '
-        'is nobody to choose from.',
-        style: theme.textTheme.bodyMedium,
+      AsyncError<List<Person>>() => Row(
+        children: <Widget>[
+          Expanded(
+            child: Text(
+              'The people of this scope could not be read, so there '
+              'is nobody to choose from.',
+              style: theme.textTheme.bodyMedium,
+            ),
+          ),
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(scopeMembersProvider(widget.scopeId)),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
       _ => const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
@@ -163,6 +197,8 @@ class _ApplicationCreateScreenState
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New application'),
+      onBack: _cancel,
+      backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(
@@ -207,6 +243,7 @@ class _ApplicationCreateScreenState
                   // place. The field refuses a submission with no owner chosen
                   // and says why, including when there is nobody to choose.
                   FormField<String>(
+                    key: _ownerField,
                     validator: (_) => _ownerId != null
                         ? null
                         : switch (members) {

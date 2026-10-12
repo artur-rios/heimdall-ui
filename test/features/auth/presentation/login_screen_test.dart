@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -358,5 +360,41 @@ void main() {
     expect(find.text('Heimdall'), findsOneWidget);
     expect(find.text('Continue with Google'), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  // Enter in a field submits as well as the button, and the disabled button
+  // does not cover that path.
+  testWidgets('GivenASignInInFlight_WhenEnterIsPressedAgain_ThenOneIsSent', (
+    tester,
+  ) async {
+    // Given
+    final pending = Completer<Result<LoginOutcome>>();
+    when(() => repository.login(email: 'a@b.c', password: 'secret'))
+        .thenAnswer((_) => pending.future);
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'a@b.c',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'secret',
+    );
+
+    // When
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pump();
+    pending.complete(
+      const FailureResult<LoginOutcome>(
+        Failure(kind: FailureKind.validation, errors: <String>['Rejected.']),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(() => repository.login(email: 'a@b.c', password: 'secret'))
+        .called(1);
   });
 }

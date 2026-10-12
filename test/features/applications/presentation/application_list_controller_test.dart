@@ -317,37 +317,52 @@ void main() {
     ).called(1);
   });
 
-  test('GivenARequestInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {
-    // Given
-    final pending = Completer<Result<Page<Application>>>();
-    when(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => pending.future);
-    final controller = controllerUnderTest();
+  test(
+    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
+    () async {
+      // Given
+      final pending = Completer<Result<Page<Application>>>();
+      when(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
 
-    // When
-    final first = controller.goToPage(2);
-    final second = controller.goToPage(3);
-    pending.complete(Success<Page<Application>>(_page()));
-    await Future.wait<void>(<Future<void>>[first, second]);
+      // When
+      final first = controller.goToPage(2);
+      final second = controller.goToPage(3);
 
-    // Then
-    verify(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).called(1);
-  });
+      // Then — the second waits for the first rather than racing it
+      verify(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+
+      // …and is asked once the first is answered, rather than dropped
+      pending.complete(Success<Page<Application>>(_page()));
+      await Future.wait<void>(<Future<void>>[first, second]);
+      verify(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+    },
+  );
 }

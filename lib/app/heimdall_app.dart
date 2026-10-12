@@ -3,11 +3,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/session_controller.dart';
+import 'app_version.dart';
 import 'router.dart';
+import 'session_scoped_state.dart';
 import 'theme.dart';
 import 'theme_mode_controller.dart';
 
-/// The application root: theme, router, and nothing else.
+/// The application root: theme, router, and the version footer under both.
 class HeimdallApp extends ConsumerWidget {
   const HeimdallApp({super.key});
 
@@ -16,6 +18,16 @@ class HeimdallApp extends ConsumerWidget {
     final themeMode =
         ref.watch(themeModeControllerProvider).value ?? ThemeMode.system;
     final restoring = ref.watch(sessionControllerProvider) is SessionRestoring;
+
+    // A session that ends takes everything it was shown with it, so the next
+    // person to sign in on this device starts from nothing.
+    ref.listen<SessionState>(sessionControllerProvider, (previous, next) {
+      if (previous is Authenticated && next is! Authenticated) {
+        for (final provider in sessionScopedProviders) {
+          ref.invalidate(provider);
+        }
+      }
+    });
 
     return MaterialApp.router(
       title: 'Heimdall',
@@ -27,8 +39,23 @@ class HeimdallApp extends ConsumerWidget {
       // AF-07c: while the stored token is being read the guard decides nothing,
       // so this covers whatever the router built underneath rather than
       // replacing it — the requested URL survives a slow read intact.
-      builder: (context, child) =>
-          restoring ? const _RestoringScreen() : child ?? const SizedBox(),
+      builder: (context, child) => Column(
+        children: <Widget>[
+          Expanded(
+            // The footer below takes the bottom inset, so the screen above it
+            // must not leave room for it a second time.
+            child: MediaQuery.removePadding(
+              context: context,
+              removeBottom: true,
+              child: restoring
+                  ? const _RestoringScreen()
+                  : child ?? const SizedBox(),
+            ),
+          ),
+          // Every screen, signed in or not, says which release is running.
+          const AppVersionFooter(),
+        ],
+      ),
     );
   }
 }

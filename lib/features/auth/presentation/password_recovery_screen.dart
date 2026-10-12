@@ -23,6 +23,16 @@ class PasswordRecoveryScreen extends ConsumerStatefulWidget {
 
 class _PasswordRecoveryScreenState
     extends ConsumerState<PasswordRecoveryScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A refused or finished attempt from an earlier visit is not this one's:
+    // the form starts clean every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ref.invalidate(passwordRecoveryControllerProvider),
+    );
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _email = TextEditingController();
 

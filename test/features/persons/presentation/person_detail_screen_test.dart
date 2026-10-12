@@ -260,6 +260,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), 'Ada L');
@@ -347,6 +349,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -439,6 +443,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(
@@ -790,6 +796,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     expect(find.text('Save changes'), findsOneWidget);

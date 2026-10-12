@@ -146,6 +146,8 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // Then
     final button = tester.widget<FilledButton>(
@@ -158,6 +160,8 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(_ada));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -181,6 +185,8 @@ void main() {
     answerGetWith(const Success<Person>(_ada));
     answerUpdateWith(const Success<Person>(_ada));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), '');
@@ -206,6 +212,8 @@ void main() {
     answerGetWith(const Success<Person>(_ada));
     answerUpdateWith(const Success<Person>(_ada));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -235,6 +243,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -260,6 +270,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -295,6 +307,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(
@@ -331,6 +345,8 @@ void main() {
     when(() => auth.resendVerificationEmail())
         .thenAnswer((_) async => const Success<void>(null));
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
     await tester.enterText(
       find.widgetWithText(TextFormField, 'ada@example.com'),
       'new@example.com',
@@ -365,6 +381,8 @@ void main() {
       ),
     );
     await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
 
     // When
     await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), 'Ada L');
@@ -458,7 +476,8 @@ void main() {
 
   // A plain User is offered only their own profile, and one destination is not
   // navigation.
-  testWidgets('GivenAUser_WhenRendered_ThenNoNavigationIsShown', (
+  // A User has Home and Profile, which is navigation enough to show.
+  testWidgets('GivenAUser_WhenRendered_ThenHomeAndProfileAreOffered', (
     tester,
   ) async {
     // Given
@@ -468,7 +487,8 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(find.byType(NavigationBar), findsNothing);
+    expect(find.byType(NavigationBar), findsOneWidget);
+    expect(find.text('Home'), findsOneWidget);
   });
 
   testWidgets('GivenTheDarkTheme_WhenRendered_ThenTheRecordIsStillShown', (

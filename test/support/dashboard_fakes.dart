@@ -1,0 +1,186 @@
+import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:heimdall_ui/core/network/envelope.dart';
+import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/features/applications/domain/application.dart';
+import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
+import 'package:heimdall_ui/features/health/domain/health_repository.dart';
+import 'package:heimdall_ui/features/permissions/domain/scope_permission.dart';
+import 'package:heimdall_ui/features/permissions/domain/scope_permission_repository.dart';
+import 'package:heimdall_ui/features/persons/domain/person.dart';
+import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
+import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
+import 'package:mocktail/mocktail.dart';
+
+/// A page holding [items] that says the collection holds [total].
+Page<T> pageOf<T>(List<T> items, {int? total}) => Page<T>(
+  items: items,
+  pageNumber: 1,
+  pageSize: items.isEmpty ? 1 : items.length,
+  totalItems: total ?? items.length,
+  totalPages: 1,
+);
+
+/// The repositories the home dashboard reads, answering with fixed figures.
+///
+/// Every scope holds [persons] Users, [applications] applications,
+/// [permissions] permissions and [googleUsers] Google users. A `null` count
+/// answers that listing with a failure instead.
+class FakeDashboardRepositories {
+  FakeDashboardRepositories({
+    this.scopes = const <Scope>[],
+    this.activeTotal,
+    this.deletedScopes = 0,
+    this.persons = 0,
+    this.applications = 0,
+    this.permissions = 0,
+    this.googleUsers = 0,
+    this.scopesFailure,
+    this.apiReachable = true,
+    Person? me,
+  }) : me =
+           me ??
+           const Person(
+             id: 'me',
+             name: 'Me',
+             email: 'me@example.com',
+             role: Role.systemAdmin,
+           );
+
+  final List<Scope> scopes;
+  final int? activeTotal;
+  final int deletedScopes;
+  final int? persons;
+  final int? applications;
+  final int? permissions;
+  final int? googleUsers;
+  final Failure? scopesFailure;
+  final bool apiReachable;
+  final Person me;
+
+  List<Override> get overrides => <Override>[
+    scopeRepositoryProvider.overrideWithValue(_Scopes(this)),
+    personRepositoryProvider.overrideWithValue(_Persons(this)),
+    applicationRepositoryProvider.overrideWithValue(_Applications(this)),
+    scopePermissionRepositoryProvider.overrideWithValue(_Permissions(this)),
+    googleUserRepositoryProvider.overrideWithValue(_GoogleUsers(this)),
+    healthRepositoryProvider.overrideWithValue(_Health(this)),
+  ];
+}
+
+const Failure _unreadable = Failure(
+  kind: FailureKind.server,
+  errors: <String>['Unreadable'],
+);
+
+Result<Page<T>> _count<T>(int? count) => count == null
+    ? const FailureResult(_unreadable)
+    : Success<Page<T>>(pageOf<T>(<T>[], total: count));
+
+class _Scopes extends Fake implements ScopeRepository {
+  _Scopes(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<Page<Scope>>> list({
+    String? name,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    if (fakes.scopesFailure case final failure?) {
+      return FailureResult<Page<Scope>>(failure);
+    }
+
+    final active = fakes.activeTotal ?? fakes.scopes.length;
+
+    return Success<Page<Scope>>(
+      pageOf<Scope>(
+        fakes.scopes.take(pageSize).toList(),
+        total: includeDeleted ? active + fakes.deletedScopes : active,
+      ),
+    );
+  }
+}
+
+class _Persons extends Fake implements PersonRepository {
+  _Persons(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<Person>> getById(
+    String id, {
+    bool includeDeleted = false,
+  }) async => Success<Person>(fakes.me);
+
+  @override
+  Future<Result<Page<Person>>> listScopePersons({
+    required String scopeId,
+    String? name,
+    String? email,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async => _count<Person>(fakes.persons);
+}
+
+class _Applications extends Fake implements ApplicationRepository {
+  _Applications(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<Page<Application>>> list({
+    required String scopeId,
+    String? name,
+    String? ownerId,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async => _count<Application>(fakes.applications);
+}
+
+class _Permissions extends Fake implements ScopePermissionRepository {
+  _Permissions(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<Page<ScopePermission>>> list({
+    required String scopeId,
+    String? name,
+    bool includeDeleted = false,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async => _count<ScopePermission>(fakes.permissions);
+}
+
+class _GoogleUsers extends Fake implements GoogleUserRepository {
+  _GoogleUsers(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<int>> countIn(String scopeId) async => fakes.googleUsers == null
+      ? const FailureResult<int>(_unreadable)
+      : Success<int>(fakes.googleUsers!);
+}
+
+class _Health extends Fake implements HealthRepository {
+  _Health(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  @override
+  Future<Result<String>> ping() async => fakes.apiReachable
+      ? const Success<String>('Healthy')
+      : const FailureResult<String>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        );
+}

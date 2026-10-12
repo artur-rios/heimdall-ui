@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/edit_mode.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -16,7 +17,8 @@ import 'profile_controller.dart';
 ///
 /// Read and edit in one screen: the record is what the API returned, and the
 /// form starts from it, so there is never a version of the person on screen
-/// that the API has not confirmed.
+/// that the API has not confirmed. The fields stay read-only until **Edit** is
+/// pressed.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -25,13 +27,17 @@ class ProfileScreen extends ConsumerStatefulWidget {
 }
 
 class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
 
   /// The record the fields were last seeded from, which is what AF-08d
   /// compares against to decide whether anything actually differs.
   Person? _seeded;
+
+  /// Whether the person has asked to change their details. The fields are
+  /// read-only until they do, and again once the change is saved or dropped.
+  bool _editing = false;
 
   @override
   void initState() {
@@ -60,8 +66,32 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     }
 
     _seeded = person;
+    _restore(person);
+  }
+
+  void _restore(Person person) {
     _name.text = person.name;
     _email.text = person.email;
+  }
+
+  void _startEditing() {
+    ref.read(profileControllerProvider.notifier).acknowledgeSave();
+    setState(() => _editing = true);
+  }
+
+  /// Puts back what the API holds and leaves edit mode, dropping any refusal
+  /// along with the edit it was about.
+  void _cancelEditing() {
+    ref.read(profileControllerProvider.notifier).acknowledgeSave();
+    setState(() {
+      _editing = false;
+      // A fresh key forgets the fields' validation messages too.
+      _formKey = GlobalKey<FormState>();
+
+      if (_seeded case final person?) {
+        _restore(person);
+      }
+    });
   }
 
   bool _differsFrom(Person person) =>
@@ -81,6 +111,16 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(profileControllerProvider);
+
+    // A save that went through ends the edit.
+    ref.listen<ProfileState>(profileControllerProvider, (previous, next) {
+      if (previous is ProfileLoaded &&
+          previous.saving &&
+          next is ProfileLoaded &&
+          next.saved) {
+        setState(() => _editing = false);
+      }
+    });
 
     // AF-08e: the session is already gone, so the shell has no navigation to
     // draw and would show a spinner over the explanation the user is owed.
@@ -106,7 +146,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   }
 
   Widget _form(ProfileLoaded state) {
-    final theme = Theme.of(context);
     _seed(state.person);
     final person = state.person;
 
@@ -123,7 +162,70 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: <Widget>[
-                Text('Your details', style: theme.textTheme.headlineSmall),
+                if (state.saveFailure != null) ...<Widget>[
+                  if (state.saveFailure!.kind == FailureKind.network)
+                    RetryBanner(onRetry: state.saving ? null : _save)
+                  else
+                    // AF-08b: the API's strings, as returned.
+                    ErrorBanner(failure: state.saveFailure!),
+                  const SizedBox(height: 16),
+                ],
+                if (state.saved) ...<Widget>[
+                  _SaveConfirmation(emailChanged: state.emailChanged),
+                  const SizedBox(height: 16),
+                ],
+                EditableSection(
+                  title: 'Your details',
+                  editing: _editing,
+                  mayEdit: true,
+                  saving: state.saving,
+                  // AF-08d: nothing to save is not an action.
+                  canSave: _differsFrom(person),
+                  onEdit: _startEditing,
+                  onCancel: _cancelEditing,
+                  onSave: _save,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      TextFormField(
+                        maxLength: nameMaxLength,
+                        controller: _name,
+                        readOnly: !_editing,
+                        decoration: recordFieldDecoration(
+                          context,
+                          label: 'Name',
+                          editing: _editing,
+                        ),
+                        validator: (value) => (value?.trim().isEmpty ?? true)
+                            ? 'Enter your name.'
+                            : null,
+                      ),
+                      const SizedBox(height: 16),
+                      TextFormField(
+                        controller: _email,
+                        readOnly: !_editing,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: recordFieldDecoration(
+                          context,
+                          label: 'Email',
+                          editing: _editing,
+                        ),
+                        onFieldSubmitted: _editing ? (_) => _save() : null,
+                        validator: (value) {
+                          final email = value?.trim() ?? '';
+
+                          if (email.isEmpty) {
+                            return 'Enter your email address.';
+                          }
+
+                          return isPlausibleEmail(email)
+                              ? null
+                              : 'Enter a valid email address.';
+                        },
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 16),
                 _Facts(person: person),
                 const SizedBox(height: 16),
@@ -140,61 +242,6 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     onTap: () => context.go('/profile/security'),
                   ),
                 ),
-                const SizedBox(height: 24),
-                if (state.saveFailure != null) ...<Widget>[
-                  if (state.saveFailure!.kind == FailureKind.network)
-                    RetryBanner(onRetry: state.saving ? null : _save)
-                  else
-                    // AF-08b: the API's strings, as returned.
-                    ErrorBanner(failure: state.saveFailure!),
-                  const SizedBox(height: 16),
-                ],
-                if (state.saved) ...<Widget>[
-                  _SaveConfirmation(emailChanged: state.emailChanged),
-                  const SizedBox(height: 16),
-                ],
-                TextFormField(
-                  maxLength: nameMaxLength,
-                  controller: _name,
-                  decoration: const InputDecoration(labelText: 'Name'),
-                  validator: (value) => (value?.trim().isEmpty ?? true)
-                      ? 'Enter your name.'
-                      : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _email,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(labelText: 'Email'),
-                  onFieldSubmitted: (_) => _save(),
-                  validator: (value) {
-                    final email = value?.trim() ?? '';
-
-                    if (email.isEmpty) {
-                      return 'Enter your email address.';
-                    }
-
-                    return isPlausibleEmail(email)
-                        ? null
-                        : 'Enter a valid email address.';
-                  },
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  // AF-08d: nothing to save is not an action.
-                  onPressed: (state.saving || !_differsFrom(person))
-                      ? null
-                      : _save,
-                  child: state.saving
-                      ? const SizedBox.square(
-                          dimension: 20,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : const Text('Save changes'),
-                ),
-                // Says why Save is disabled.
-                if (!state.saving && !_differsFrom(person))
-                  const NothingToSaveHint(),
               ],
             ),
           ),

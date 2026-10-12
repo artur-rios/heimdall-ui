@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/edit_mode.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -32,13 +33,17 @@ class PersonDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
 
   /// The record the fields were last seeded from, which is what decides
   /// whether anything actually differs.
   Person? _seeded;
+
+  /// Whether the person has asked to change the record. The fields are
+  /// read-only until they do, and again once the change is saved or dropped.
+  bool _editing = false;
 
   @override
   void initState() {
@@ -67,8 +72,36 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     }
 
     _seeded = person;
+    _restore(person);
+  }
+
+  void _restore(Person person) {
     _name.text = person.name;
     _email.text = person.email;
+  }
+
+  void _startEditing() {
+    ref
+        .read(personDetailControllerProvider(widget.personId).notifier)
+        .acknowledgeSave();
+    setState(() => _editing = true);
+  }
+
+  /// Puts back what the API holds and leaves edit mode, dropping any refusal
+  /// along with the edit it was about.
+  void _cancelEditing() {
+    ref
+        .read(personDetailControllerProvider(widget.personId).notifier)
+        .acknowledgeSave();
+    setState(() {
+      _editing = false;
+      // A fresh key forgets the fields' validation messages too.
+      _formKey = GlobalKey<FormState>();
+
+      if (_seeded case final person?) {
+        _restore(person);
+      }
+    });
   }
 
   bool _differsFrom(Person person) =>
@@ -163,6 +196,14 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     ref.listen<PersonDetailState>(
       personDetailControllerProvider(widget.personId),
       (previous, next) {
+        // A save that went through ends the edit.
+        if (previous is PersonDetailLoaded &&
+            previous.saving &&
+            next is PersonDetailLoaded &&
+            next.saved) {
+          setState(() => _editing = false);
+        }
+
         if (next is PersonDeleted) {
           ref
               .read(personListControllerProvider(widget.scopeId).notifier)
@@ -178,13 +219,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         PersonDetailLoaded(:final person) => person.name,
         _ => 'Person',
       }),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the listing',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(backToListing),
-        ),
-      ],
+      backRoute: backToListing,
+      backTooltip: 'Back to the listing',
       body: switch (state) {
         PersonDetailLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -225,6 +261,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     final theme = Theme.of(context);
     _seed(state.person);
     final person = state.person;
+    final mayEdit = !state.isReadOnly && _mayUpdate(person);
+    final editing = _editing && mayEdit;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -279,71 +317,60 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                       ),
                       const SizedBox(height: 16),
                     ],
-                    TextFormField(
-                      maxLength: nameMaxLength,
-                      controller: _name,
-                      readOnly: state.isReadOnly || !_mayUpdate(person),
-                      decoration: const InputDecoration(labelText: 'Name'),
-                      validator: (value) => (value?.trim().isEmpty ?? true)
-                          ? 'Enter a name.'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _email,
-                      readOnly: state.isReadOnly || !_mayUpdate(person),
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
+                    EditableSection(
+                      title: 'Details',
+                      editing: editing,
+                      mayEdit: mayEdit,
+                      saving: state.saving,
+                      canSave: _differsFrom(person) && !state.deleting,
+                      onEdit: _startEditing,
+                      onCancel: _cancelEditing,
+                      onSave: _save,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          TextFormField(
+                            maxLength: nameMaxLength,
+                            controller: _name,
+                            readOnly: !editing,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Name',
+                              editing: editing,
+                            ),
+                            validator: (value) =>
+                                (value?.trim().isEmpty ?? true)
+                                ? 'Enter a name.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            controller: _email,
+                            readOnly: !editing,
+                            keyboardType: TextInputType.emailAddress,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Email',
+                              editing: editing,
+                            ),
+                            validator: (value) {
+                              final email = value?.trim() ?? '';
 
-                        if (email.isEmpty) {
-                          return 'Enter an email address.';
-                        }
+                              if (email.isEmpty) {
+                                return 'Enter an email address.';
+                              }
 
-                        return isPlausibleEmail(email)
-                            ? null
-                            : 'Enter a valid email address.';
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    if (!state.isReadOnly && _mayUpdate(person))
-                      FilledButton(
-                        onPressed: (state.saving || !_differsFrom(person))
-                            ? null
-                            : _save,
-                        child: state.saving
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Save changes'),
+                              return isPlausibleEmail(email)
+                                  ? null
+                                  : 'Enter a valid email address.';
+                            },
+                          ),
+                        ],
                       ),
-                    // Says why Save is disabled.
-                    if (!state.isReadOnly &&
-                        _mayUpdate(person) &&
-                        !state.saving &&
-                        !_differsFrom(person))
-                      const NothingToSaveHint(),
+                    ),
                   ],
                 ),
               ),
-              // AF-19d — the controls are disabled on your own record, and
-              // AF-18d leaves a deleted person nothing left to delete.
-              if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[
-                const SizedBox(height: 24),
-                _DangerZone(
-                  person: person,
-                  deleting: state.deleting,
-                  failure: state.deleteFailure,
-                  isSelf: _isSelf,
-                  mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
-                ),
-              ],
               const SizedBox(height: 24),
               Card(
                 child: Padding(
@@ -377,6 +404,20 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                   ),
                 ),
               ),
+              // AF-19d — the controls are disabled on your own record, and
+              // AF-18d leaves a deleted person nothing left to delete.
+              if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[
+                const SizedBox(height: 24),
+                _DangerZone(
+                  person: person,
+                  deleting: state.deleting || state.saving,
+                  failure: state.deleteFailure,
+                  isSelf: _isSelf,
+                  mayDeletePermanently: _maySeeHardDelete,
+                  onDelete: _confirmDelete,
+                  onDeletePermanently: _confirmDeletePermanently,
+                ),
+              ],
             ],
           ),
         ),

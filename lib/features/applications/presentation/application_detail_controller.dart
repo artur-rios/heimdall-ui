@@ -142,6 +142,7 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
 
     if (current is! ApplicationDetailLoaded ||
         current.saving ||
+        current.deleting ||
         current.isReadOnly) {
       return;
     }
@@ -176,10 +177,11 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
     );
   }
 
-  /// Drops the "saved" acknowledgement so a later edit starts clean.
+  /// Drops the "saved" acknowledgement and any refused save, so a later edit
+  /// starts clean.
   void acknowledgeSave() {
     if (state case final ApplicationDetailLoaded loaded) {
-      state = loaded.copyWith(saved: false);
+      state = loaded.copyWith(saved: false, clearSaveFailure: true);
     }
   }
 
@@ -201,7 +203,10 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
   ) async {
     final current = state;
 
-    if (current is! ApplicationDetailLoaded || current.deleting) {
+    // One request at a time: each settles on the state it started from.
+    if (current is! ApplicationDetailLoaded ||
+        current.deleting ||
+        current.saving) {
       return;
     }
 

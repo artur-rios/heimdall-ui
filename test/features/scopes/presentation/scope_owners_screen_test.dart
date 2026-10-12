@@ -638,4 +638,24 @@ void main() {
     // Then
     expect(find.text('Ada'), findsOneWidget);
   });
+
+  // A Scope Admin who removed their own ownership is refused the scope from
+  // then on, and a Retry would only be refused again.
+  testWidgets('GivenAForbiddenScope_WhenOpened_ThenTheRolePanelIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerOwnersWith(
+      const FailureResult<envelope.Page<Person>>(
+        Failure(kind: FailureKind.forbidden, errors: <String>[]),
+      ),
+    );
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Not available for your role'), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
 }

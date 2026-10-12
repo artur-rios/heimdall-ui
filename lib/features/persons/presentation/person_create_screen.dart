@@ -25,6 +25,16 @@ class PersonCreateScreen extends ConsumerStatefulWidget {
 }
 
 class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // A refused or finished attempt from an earlier visit is not this one's:
+    // the form starts clean every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ref.invalidate(personCreateControllerProvider(widget.scopeId)),
+    );
+  }
+
   final _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
@@ -110,6 +120,8 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New person'),
+      onBack: _cancel,
+      backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Center(

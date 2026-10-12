@@ -5,6 +5,7 @@ import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/domain/person_repository.dart';
+import '../../persons/presentation/scope_members.dart';
 import '../../profile/presentation/profile_controller.dart';
 
 /// How far the owners section has got.
@@ -165,6 +166,9 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
 
     switch (result) {
       case Success<void>():
+        // The owners are who an application may be given to, so the
+        // selector that offers them must not keep the old list.
+        ref.invalidate(scopeMembersProvider(arg));
         await load();
       case FailureResult<void>(:final failure):
         state = current.copyWith(busy: false, failure: failure);

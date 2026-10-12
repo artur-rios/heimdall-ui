@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/edit_mode.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -33,7 +34,7 @@ class PermissionDetailScreen extends ConsumerStatefulWidget {
 
 class _PermissionDetailScreenState
     extends ConsumerState<PermissionDetailScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _description = TextEditingController();
   bool _includeAsJwtClaim = false;
@@ -41,6 +42,10 @@ class _PermissionDetailScreenState
   /// The record the fields were last seeded from, which is what AF-26e
   /// compares against.
   ScopePermission? _seeded;
+
+  /// Whether the person has asked to change the record. The fields are
+  /// read-only until they do, and again once the change is saved or dropped.
+  bool _editing = false;
 
   PermissionRef get _ref =>
       PermissionRef(scopeId: widget.scopeId, permissionId: widget.permissionId);
@@ -70,9 +75,37 @@ class _PermissionDetailScreenState
     }
 
     _seeded = permission;
+    _restore(permission);
+  }
+
+  void _restore(ScopePermission permission) {
     _name.text = permission.name;
     _description.text = permission.description;
     _includeAsJwtClaim = permission.includeAsJwtClaim;
+  }
+
+  void _startEditing() {
+    ref
+        .read(permissionDetailControllerProvider(_ref).notifier)
+        .acknowledgeSave();
+    setState(() => _editing = true);
+  }
+
+  /// Puts back what the API holds and leaves edit mode, dropping any refusal
+  /// along with the edit it was about.
+  void _cancelEditing() {
+    ref
+        .read(permissionDetailControllerProvider(_ref).notifier)
+        .acknowledgeSave();
+    setState(() {
+      _editing = false;
+      // A fresh key forgets the fields' validation messages too.
+      _formKey = GlobalKey<FormState>();
+
+      if (_seeded case final permission?) {
+        _restore(permission);
+      }
+    });
   }
 
   bool _differsFrom(ScopePermission permission) =>
@@ -152,6 +185,14 @@ class _PermissionDetailScreenState
     ref.listen<PermissionDetailState>(
       permissionDetailControllerProvider(_ref),
       (previous, next) {
+        // A save that went through ends the edit.
+        if (previous is PermissionDetailLoaded &&
+            previous.saving &&
+            next is PermissionDetailLoaded &&
+            next.saved) {
+          setState(() => _editing = false);
+        }
+
         if (next is PermissionDeleted) {
           ref
               .read(permissionListControllerProvider(widget.scopeId).notifier)
@@ -167,13 +208,8 @@ class _PermissionDetailScreenState
         PermissionDetailLoaded(:final permission) => permission.name,
         _ => 'Permission',
       }),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the listing',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go(backToListing),
-        ),
-      ],
+      backRoute: backToListing,
+      backTooltip: 'Back to the listing',
       body: switch (state) {
         PermissionDetailLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -213,6 +249,7 @@ class _PermissionDetailScreenState
   Widget _detail(PermissionDetailLoaded state) {
     _seed(state.permission);
     final permission = state.permission;
+    final editing = _editing && !state.isReadOnly;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -266,62 +303,67 @@ class _PermissionDetailScreenState
                       ),
                       const SizedBox(height: 16),
                     ],
-                    TextFormField(
-                      maxLength: nameMaxLength,
-                      controller: _name,
-                      readOnly: state.isReadOnly,
-                      decoration: const InputDecoration(labelText: 'Name'),
-                      validator: (value) => (value?.trim().isEmpty ?? true)
-                          ? 'Enter a name for the permission.'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      maxLength: descriptionMaxLength,
-                      controller: _description,
-                      readOnly: state.isReadOnly,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                    EditableSection(
+                      title: 'Details',
+                      editing: editing,
+                      mayEdit: !state.isReadOnly,
+                      saving: state.saving,
+                      canSave: _differsFrom(permission) && !state.deleting,
+                      onEdit: _startEditing,
+                      onCancel: _cancelEditing,
+                      onSave: _save,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          TextFormField(
+                            maxLength: nameMaxLength,
+                            controller: _name,
+                            readOnly: !editing,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Name',
+                              editing: editing,
+                            ),
+                            validator: (value) =>
+                                (value?.trim().isEmpty ?? true)
+                                ? 'Enter a name for the permission.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            maxLength: descriptionMaxLength,
+                            controller: _description,
+                            readOnly: !editing,
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Description',
+                              editing: editing,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          // FR-PM-04 — what the flag means, wherever it is
+                          // shown.
+                          SwitchListTile(
+                            contentPadding: EdgeInsets.zero,
+                            title: const Text('Include in tokens'),
+                            subtitle: const Text(
+                              'Every token this scope issues from now on '
+                              'carries this permission as a claim. Tokens '
+                              'already issued are unaffected until they '
+                              'expire.',
+                            ),
+                            value: _includeAsJwtClaim,
+                            onChanged: (state.saving || !editing)
+                                ? null
+                                : (value) => setState(
+                                    () => _includeAsJwtClaim = value,
+                                  ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    // FR-PM-04 — what the flag means, wherever it is shown.
-                    SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      title: const Text('Include in tokens'),
-                      subtitle: const Text(
-                        'Every token this scope issues from now on carries '
-                        'this permission as a claim. Tokens already issued are '
-                        'unaffected until they expire.',
-                      ),
-                      value: _includeAsJwtClaim,
-                      onChanged: (state.saving || state.isReadOnly)
-                          ? null
-                          : (value) =>
-                                setState(() => _includeAsJwtClaim = value),
-                    ),
-                    const SizedBox(height: 16),
-                    if (!state.isReadOnly)
-                      FilledButton(
-                        onPressed: (state.saving || !_differsFrom(permission))
-                            ? null
-                            : _save,
-                        child: state.saving
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Save changes'),
-                      ),
-                    // Says why Save is disabled.
-                    if (!state.isReadOnly &&
-                        !state.saving &&
-                        !_differsFrom(permission))
-                      const NothingToSaveHint(),
                   ],
                 ),
               ),
@@ -330,7 +372,7 @@ class _PermissionDetailScreenState
                 const SizedBox(height: 24),
                 _DangerZone(
                   permission: permission,
-                  deleting: state.deleting,
+                  deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
                   mayDeletePermanently: _maySeeHardDelete,
                   onDelete: _confirmDelete,

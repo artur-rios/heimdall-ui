@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/forms/edit_mode.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -28,13 +29,17 @@ class ScopeDetailScreen extends ConsumerStatefulWidget {
 }
 
 class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
-  final _formKey = GlobalKey<FormState>();
+  var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _description = TextEditingController();
 
   /// The record the fields were last seeded from, which is what AF-12e
   /// compares against to decide whether anything actually differs.
   Scope? _seeded;
+
+  /// Whether the person has asked to change the record. The fields are
+  /// read-only until they do, and again once the change is saved or dropped.
+  bool _editing = false;
 
   @override
   void initState() {
@@ -63,8 +68,36 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     }
 
     _seeded = scope;
+    _restore(scope);
+  }
+
+  void _restore(Scope scope) {
     _name.text = scope.name;
     _description.text = scope.description;
+  }
+
+  void _startEditing() {
+    ref
+        .read(scopeDetailControllerProvider(widget.scopeId).notifier)
+        .acknowledgeSave();
+    setState(() => _editing = true);
+  }
+
+  /// Puts back what the API holds and leaves edit mode, dropping any refusal
+  /// along with the edit it was about.
+  void _cancelEditing() {
+    ref
+        .read(scopeDetailControllerProvider(widget.scopeId).notifier)
+        .acknowledgeSave();
+    setState(() {
+      _editing = false;
+      // A fresh key forgets the fields' validation messages too.
+      _formKey = GlobalKey<FormState>();
+
+      if (_seeded case final scope?) {
+        _restore(scope);
+      }
+    });
   }
 
   bool _differsFrom(Scope scope) =>
@@ -189,6 +222,14 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     ref.listen<ScopeDetailState>(
       scopeDetailControllerProvider(widget.scopeId),
       (previous, next) {
+        // A save that went through ends the edit.
+        if (previous is ScopeDetailLoaded &&
+            previous.saving &&
+            next is ScopeDetailLoaded &&
+            next.saved) {
+          setState(() => _editing = false);
+        }
+
         if (next is ScopeDeleted) {
           ref.read(scopeListControllerProvider.notifier).load();
           context.go('/scopes');
@@ -198,6 +239,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
 
     return AppShell(
       currentRoute: '/scopes',
+      backRoute: '/scopes',
+      backTooltip: 'Back to scopes',
       title: Text(switch (state) {
         ScopeDetailLoaded(:final scope) => scope.name,
         _ => 'Scope',
@@ -243,6 +286,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     final theme = Theme.of(context);
     _seed(state.scope);
     final scope = state.scope;
+    final mayEdit = !state.isReadOnly && _mayUpdate;
+    final editing = _editing && mayEdit;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -279,48 +324,52 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       const _SavedNotice(),
                       const SizedBox(height: 16),
                     ],
-                    TextFormField(
-                      maxLength: nameMaxLength,
-                      controller: _name,
-                      readOnly: state.isReadOnly || !_mayUpdate,
-                      decoration: const InputDecoration(labelText: 'Name'),
-                      validator: (value) => (value?.trim().isEmpty ?? true)
-                          ? 'Enter a name for the scope.'
-                          : null,
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      maxLength: descriptionMaxLength,
-                      controller: _description,
-                      readOnly: state.isReadOnly || !_mayUpdate,
-                      minLines: 2,
-                      maxLines: 4,
-                      decoration: const InputDecoration(
-                        labelText: 'Description',
+                    EditableSection(
+                      title: 'Details',
+                      editing: editing,
+                      mayEdit: mayEdit,
+                      saving: state.saving,
+                      // AF-12e: nothing to save is not an action.
+                      canSave:
+                          _differsFrom(scope) &&
+                          !state.togglingGoogleSignIn &&
+                          !state.deleting,
+                      onEdit: _startEditing,
+                      onCancel: _cancelEditing,
+                      onSave: _save,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: <Widget>[
+                          TextFormField(
+                            maxLength: nameMaxLength,
+                            controller: _name,
+                            readOnly: !editing,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Name',
+                              editing: editing,
+                            ),
+                            validator: (value) =>
+                                (value?.trim().isEmpty ?? true)
+                                ? 'Enter a name for the scope.'
+                                : null,
+                          ),
+                          const SizedBox(height: 16),
+                          TextFormField(
+                            maxLength: descriptionMaxLength,
+                            controller: _description,
+                            readOnly: !editing,
+                            minLines: 2,
+                            maxLines: 4,
+                            decoration: recordFieldDecoration(
+                              context,
+                              label: 'Description',
+                              editing: editing,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    if (!state.isReadOnly && _mayUpdate)
-                      FilledButton(
-                        // AF-12e: nothing to save is not an action.
-                        onPressed: (state.saving || !_differsFrom(scope))
-                            ? null
-                            : _save,
-                        child: state.saving
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Save changes'),
-                      ),
-                    // Says why Save is disabled.
-                    if (!state.isReadOnly &&
-                        _mayUpdate &&
-                        !state.saving &&
-                        !_differsFrom(scope))
-                      const NothingToSaveHint(),
                   ],
                 ),
               ),
@@ -345,7 +394,10 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                         // AF-15c: disabled while the request is outstanding,
                         // so it cannot be toggled twice.
                         onChanged:
-                            (state.togglingGoogleSignIn || state.isReadOnly)
+                            (state.togglingGoogleSignIn ||
+                                state.saving ||
+                                state.deleting ||
+                                state.isReadOnly)
                             ? null
                             : _toggleGoogleSignIn,
                       ),
@@ -358,11 +410,14 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       const SizedBox(height: 16),
                       Text('Owners', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 4),
-                      Text(
-                        scope.ownerIds.isEmpty
-                            ? 'No owners recorded.'
-                            : scope.ownerIds.join(', '),
-                      ),
+                      // Identifiers mean nothing to a reader; the Owners
+                      // screen linked below names each one.
+                      Text(switch (scope.ownerCount) {
+                        0 => 'No owners recorded.',
+                        1 => '1 owner. Open Owners below to see who.',
+                        final count =>
+                          '$count owners. Open Owners below to see who.',
+                      }),
                     ],
                   ),
                 ),
@@ -378,7 +433,10 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                 const SizedBox(height: 24),
                 _DangerZone(
                   scope: scope,
-                  deleting: state.deleting,
+                  deleting:
+                      state.deleting ||
+                      state.saving ||
+                      state.togglingGoogleSignIn,
                   failure: state.deleteFailure,
                   onDelete: _confirmDelete,
                   onDeletePermanently: _confirmDeletePermanently,

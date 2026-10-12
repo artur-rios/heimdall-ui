@@ -391,6 +391,8 @@ class _PasswordErasureDialogState extends State<_PasswordErasureDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    // Scrolls rather than overflowing when a phone's keyboard is open.
+    scrollable: true,
     title: const Text('Request erasure?'),
     content: Column(
       mainAxisSize: MainAxisSize.min,
@@ -456,6 +458,8 @@ class _GoogleErasureDialogState extends ConsumerState<_GoogleErasureDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    // Scrolls rather than overflowing when a phone's keyboard is open.
+    scrollable: true,
     title: const Text('Request erasure?'),
     content: Column(
       mainAxisSize: MainAxisSize.min,

@@ -10,7 +10,7 @@ name: Branch Policy
 #   into main     only from release/<major>.<minor>.<patch>, and the release branch must be a
 #                 snapshot of develop: every commit on it is already on develop. A release carries
 #                 no changes of its own; a fix goes to develop through a fix/ branch and a new
-#                 release is cut.
+#                 release is cut. Its pubspec.yaml version must be the release's own.
 #
 # GitHub cannot restrict which branch a pull request comes from, nor branch names on a personal
 # account, which is why this is a workflow and not a ruleset rule.
@@ -71,6 +71,11 @@ jobs:
               if git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null; then
                 fail "Version $version was already released (tag v$version exists). Bump the version."
               fi
+
+              # The footer shows the version written in the source, so the source must name this release.
+              pubspec_version="$(sed -nE 's/^version:[[:space:]]*([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' pubspec.yaml)"
+              [[ "$pubspec_version" == "$version" ]] \
+                || fail "pubspec.yaml says version '$pubspec_version', but this releases $version. Set it, and appVersion in lib/app/app_version.dart, when finalizing the changelog."
               ;;
           esac
 

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
@@ -118,15 +119,23 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Scope owners'),
-      actions: <Widget>[
-        IconButton(
-          tooltip: 'Back to the scope',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/scopes/${widget.scopeId}'),
-        ),
-      ],
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
       body: switch (state) {
         ScopeOwnersLoading() => const CollectionLoading(rows: 4),
+        // A Scope Admin who has just removed their own ownership is refused
+        // the scope from then on; retrying would only be refused again.
+        ScopeOwnersUnavailable(:final failure)
+            when failure.kind == FailureKind.forbidden =>
+          CollectionEmpty(
+            title: 'Not available for your role',
+            message:
+                'This scope is not one you administer. Nothing is wrong '
+                'with your session.',
+            icon: Icons.lock_person_outlined,
+            actionLabel: 'Back to scopes',
+            onAction: () => context.go('/scopes'),
+          ),
         ScopeOwnersUnavailable(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: _controller.load,
@@ -287,6 +296,8 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
+    // Scrolls rather than overflowing when a phone's keyboard is open.
+    scrollable: true,
     title: const Text('Create a co-owner'),
     content: Form(
       key: _formKey,
