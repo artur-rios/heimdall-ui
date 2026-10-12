@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.5.1] - 2026-10-12
+
+### Fixed
+
+- Browser password managers such as Bitwarden can fill the sign-in form. On the web each credential field was its own
+  one-input form, so the email and password never appeared together and the form was not recognised as a login.
+
 ## [1.5.0] - 2026-10-11
 
 ### Added
@@ -172,7 +179,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.2.0...v1.3.0
