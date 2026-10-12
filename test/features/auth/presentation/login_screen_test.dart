@@ -121,6 +121,27 @@ void main() {
     },
   );
 
+  // Password managers fill a login form only when the username and password
+  // share one autofill context; on the web each field is otherwise its own form.
+  testWidgets(
+    'GivenLoginScreen_WhenRendered_ThenCredentialsShareOneAutofillGroup',
+    (tester) async {
+      // Given
+      await pump(tester);
+
+      // When
+      final groups = tester
+          .elementList(find.byType(EditableText))
+          .map(AutofillGroup.maybeOf)
+          .toList();
+
+      // Then
+      expect(groups, hasLength(2));
+      expect(groups.first, isNotNull);
+      expect(groups.last, same(groups.first));
+    },
+  );
+
   // AF-01a — invalid credentials.
   testWidgets('GivenRejectedLogin_WhenRendered_ThenApiErrorsAreShown', (
     tester,
