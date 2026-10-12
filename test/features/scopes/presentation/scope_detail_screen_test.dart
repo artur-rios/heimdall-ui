@@ -1201,4 +1201,74 @@ void main() {
     expect(find.text('1 owner. Open Owners below to see who.'), findsOneWidget);
     expect(find.text('person-1'), findsNothing);
   });
+
+  testWidgets('GivenAnUnsavedEdit_WhenLeavingBack_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.byTooltip('Back to scopes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+  });
+
+  testWidgets('GivenAnUnsavedEdit_WhenDiscarded_ThenTheListingOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(NavigationRail),
+        matching: find.text('Scopes'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // Nothing typed is nothing to lose, so leaving does not ask.
+  testWidgets('GivenAnEditWithNoChange_WhenLeavingBack_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.byTooltip('Back to scopes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
+  });
 }

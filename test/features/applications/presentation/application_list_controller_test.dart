@@ -365,4 +365,73 @@ void main() {
       ).called(1);
     },
   );
+
+  // A read that merely failed says nothing about the person, so it is asked
+  // again rather than pinning them to their identifier for the session.
+  test('GivenAFailedOwnerRead_WhenPaged_ThenItIsAskedAgain', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page(totalPages: 3)));
+    answerOwnerWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(const Success<Person>(_ada));
+
+    // When
+    await controller.goToPage(2);
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+  });
+
+  // The API saying there is nobody is an answer, and is not asked again.
+  test('GivenAMissingOwner_WhenPaged_ThenTheyAreNotReadAgain', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page(totalPages: 3)));
+    answerOwnerWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.goToPage(2);
+
+    // Then
+    verify(
+      () =>
+          persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
+    ).called(1);
+  });
+
+  // A reload is where a renamed owner should show their new name.
+  test('GivenARenamedOwner_WhenReloaded_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(
+      const Success<Person>(
+        Person(
+          id: 'person-1',
+          name: 'Ada Lovelace',
+          email: 'ada@example.com',
+          role: Role.user,
+        ),
+      ),
+    );
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada Lovelace');
+  });
 }

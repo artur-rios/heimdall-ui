@@ -74,19 +74,20 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
         );
   }
 
-  /// AF-17e — leaving a modified form asks first.
-  Future<void> _cancel() async {
-    final leave =
-        !_isDirty ||
-        await showConfirm(
-          context: context,
-          title: 'Discard this person?',
-          message: 'What you have entered has not been saved and will be lost.',
-          confirmLabel: 'Discard',
-          cancelLabel: 'Keep editing',
-        );
+  /// AF-17e — leaving a modified form asks first, whichever way it is left:
+  /// Cancel, the back control, the navigation, or signing out.
+  Future<bool> _confirmLeave() async =>
+      !_isDirty ||
+      await showConfirm(
+        context: context,
+        title: 'Discard this person?',
+        message: 'What you have entered has not been saved and will be lost.',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+      );
 
-    if (leave && mounted) {
+  Future<void> _cancel() async {
+    if (await _confirmLeave() && mounted) {
       context.go('/scopes/${widget.scopeId}/persons');
     }
   }
@@ -121,6 +122,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
       currentRoute: '/scopes',
       title: const Text('New person'),
       onBack: _cancel,
+      confirmLeave: _confirmLeave,
       backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

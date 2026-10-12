@@ -83,6 +83,17 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     setState(() => _editing = true);
   }
 
+  /// Leaving with unsaved changes — by the navigation, the back control or
+  /// signing out — asks first.
+  Future<bool> _confirmLeave() =>
+      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
+
+  bool get _hasUnsavedEdit {
+    final seeded = _seeded;
+
+    return _editing && seeded != null && _differsFrom(seeded);
+  }
+
   /// Puts back what the API holds and leaves edit mode, dropping any refusal
   /// along with the edit it was about.
   void _cancelEditing() {
@@ -245,6 +256,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ScopeDetailLoaded(:final scope) => scope.name,
         _ => 'Scope',
       }),
+      confirmLeave: _confirmLeave,
       body: switch (state) {
         ScopeDetailLoading() => const Center(
           child: CircularProgressIndicator(),

@@ -79,6 +79,17 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _editing = true);
   }
 
+  /// Leaving with unsaved changes — by the navigation, the back control or
+  /// signing out — asks first.
+  Future<bool> _confirmLeave() =>
+      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
+
+  bool get _hasUnsavedEdit {
+    final seeded = _seeded;
+
+    return _editing && seeded != null && _differsFrom(seeded);
+  }
+
   /// Puts back what the API holds and leaves edit mode, dropping any refusal
   /// along with the edit it was about.
   void _cancelEditing() {
@@ -134,6 +145,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return AppShell(
       currentRoute: '/profile',
       title: const Text('Profile'),
+      confirmLeave: _confirmLeave,
       body: switch (state) {
         ProfileLoading() => const Center(child: CircularProgressIndicator()),
         ProfileUnavailable(:final failure, :final sessionEnded) => _Unavailable(

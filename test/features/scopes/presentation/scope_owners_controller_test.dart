@@ -342,7 +342,8 @@ void main() {
   });
 
   // AF-14d — the API's own rejection of a name, address, or password.
-  test('GivenARejectedDraft_WhenCreated_ThenApiErrorsAreKept', () async {
+  // The refusal is the dialog's to show, beside what was typed.
+  test('GivenARejectedDraft_WhenCreated_ThenApiErrorsAreReturned', () async {
     // Given
     when(
       () => repository.createScopeOwner(
@@ -363,17 +364,17 @@ void main() {
     await controller.load();
 
     // When
-    await controller.createOwner(
+    final refusal = await controller.createOwner(
       name: 'Grace',
       email: 'taken@example.com',
       password: 'secret',
     );
 
     // Then
+    expect(refusal?.errors, <String>['That email address is already taken.']);
     final state = currentState() as ScopeOwnersLoaded;
-    expect(state.failure?.errors, <String>[
-      'That email address is already taken.',
-    ]);
+    expect(state.failure, isNull);
+    expect(state.busy, isFalse);
   });
 
   // What is on screen after a command is what the API last confirmed, not a

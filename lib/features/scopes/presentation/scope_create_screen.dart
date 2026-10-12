@@ -120,7 +120,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
         );
   }
 
-  /// AF-11d — leaving a modified form asks first.
+  /// AF-11d — leaving a modified form asks first, whichever way it is left:
+  /// Cancel, the back control, the navigation, or signing out.
   Future<bool> _confirmLeave() async {
     if (!_isDirty) {
       return true;
@@ -181,6 +182,7 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
       currentRoute: '/scopes',
       title: const Text('New scope'),
       onBack: _cancel,
+      confirmLeave: _confirmLeave,
       backTooltip: 'Back to scopes',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

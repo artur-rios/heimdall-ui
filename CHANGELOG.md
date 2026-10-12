@@ -58,6 +58,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   says the scope is not theirs and goes back to the scopes.
 - "Choose an owner for the application." stayed on screen after an owner was chosen.
 - "Saved." stayed on a record after further edits.
+- A co-owner the API refused, say for an address already taken, had to be typed again from scratch: the dialog
+  closed before the answer came. It now stays open with the refusal shown above what was typed.
+- An application's owner whose name could not be read once, for example over a dropped connection, was shown by
+  identifier for the rest of the session, and a renamed owner kept their old name. Only a definite answer is
+  remembered now, and reloading the listing reads the names again.
+- Leaving an unsaved create form or an unsaved edit through the navigation, the back control or signing out
+  dropped it without asking. Every way off the screen now asks first; only Cancel did before.
 
 ## [1.5.1] - 2026-10-12
 

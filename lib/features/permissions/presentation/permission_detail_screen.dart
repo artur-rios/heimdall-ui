@@ -91,6 +91,17 @@ class _PermissionDetailScreenState
     setState(() => _editing = true);
   }
 
+  /// Leaving with unsaved changes — by the navigation, the back control or
+  /// signing out — asks first.
+  Future<bool> _confirmLeave() =>
+      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
+
+  bool get _hasUnsavedEdit {
+    final seeded = _seeded;
+
+    return _editing && seeded != null && _differsFrom(seeded);
+  }
+
   /// Puts back what the API holds and leaves edit mode, dropping any refusal
   /// along with the edit it was about.
   void _cancelEditing() {
@@ -208,6 +219,7 @@ class _PermissionDetailScreenState
         PermissionDetailLoaded(:final permission) => permission.name,
         _ => 'Permission',
       }),
+      confirmLeave: _confirmLeave,
       backRoute: backToListing,
       backTooltip: 'Back to the listing',
       body: switch (state) {

@@ -60,20 +60,18 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     }
   }
 
-  Future<void> _createNew() async {
-    final draft = await showDialog<_OwnerDraft>(
-      context: context,
-      builder: (context) => const _CreateOwnerDialog(),
-    );
-
-    if (draft != null && mounted) {
-      await _controller.createOwner(
+  /// AF-14d — the dialog stays open until the API accepts the draft, so a
+  /// refusal is read beside what was typed rather than costing the retyping.
+  Future<void> _createNew() => showDialog<void>(
+    context: context,
+    builder: (context) => _CreateOwnerDialog(
+      onSubmit: (draft) => _controller.createOwner(
         name: draft.name,
         email: draft.email,
         password: draft.password,
-      );
-    }
-  }
+      ),
+    ),
+  );
 
   /// AF-14e — the dialog closes and nothing is sent.
   Future<void> _promote(Person user) async {
@@ -258,7 +256,11 @@ class _OwnerDraft {
 }
 
 class _CreateOwnerDialog extends StatefulWidget {
-  const _CreateOwnerDialog();
+  const _CreateOwnerDialog({required this.onSubmit});
+
+  /// Sends the draft, answering with the API's refusal or `null` once the
+  /// owner exists.
+  final Future<Failure?> Function(_OwnerDraft draft) onSubmit;
 
   @override
   State<_CreateOwnerDialog> createState() => _CreateOwnerDialogState();
@@ -269,6 +271,8 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
   final _name = TextEditingController();
   final _email = TextEditingController();
   final _password = TextEditingController();
+  bool _sending = false;
+  Failure? _refusal;
 
   @override
   void dispose() {
@@ -278,20 +282,38 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
     super.dispose();
   }
 
-  void _submit() {
+  Future<void> _submit() async {
     // AF-14d: what the client can tell is wrong never reaches the API. What it
     // cannot — a password the API's own rules reject — comes back as an error.
-    if (!validateAndReveal(_formKey)) {
+    if (_sending || !validateAndReveal(_formKey)) {
       return;
     }
 
-    Navigator.of(context).pop(
+    setState(() {
+      _sending = true;
+      _refusal = null;
+    });
+
+    final refusal = await widget.onSubmit(
       _OwnerDraft(
         name: _name.text.trim(),
         email: _email.text.trim(),
         password: _password.text,
       ),
     );
+
+    if (!mounted) {
+      return;
+    }
+
+    if (refusal == null) {
+      Navigator.of(context).pop();
+    } else {
+      setState(() {
+        _sending = false;
+        _refusal = refusal;
+      });
+    }
   }
 
   @override
@@ -303,7 +325,13 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
       key: _formKey,
       child: Column(
         mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          // The API's own words, with everything typed still in place.
+          if (_refusal case final refusal?) ...<Widget>[
+            ErrorBanner(failure: refusal),
+            const SizedBox(height: 12),
+          ],
           TextFormField(
             maxLength: nameMaxLength,
             controller: _name,
@@ -342,10 +370,19 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
     ),
     actions: <Widget>[
       TextButton(
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _sending ? null : () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
-      FilledButton(onPressed: _submit, child: const Text('Create')),
+      FilledButton(
+        style: FilledButton.styleFrom(minimumSize: const Size(96, 40)),
+        onPressed: _sending ? null : _submit,
+        child: _sending
+            ? const SizedBox.square(
+                dimension: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            : const Text('Create'),
+      ),
     ],
   );
 }

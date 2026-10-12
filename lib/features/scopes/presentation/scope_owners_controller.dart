@@ -133,11 +133,15 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
   );
 
   /// Creates a brand-new Scope Admin directly as a co-owner.
-  Future<void> createOwner({
+  ///
+  /// Answers with the API's refusal, or `null` once the owner exists. The
+  /// refusal is the dialog's to show, beside what was typed, so it is not also
+  /// put on the screen behind it.
+  Future<Failure?> createOwner({
     required String name,
     required String email,
     required String password,
-  }) => _command(() async {
+  }) => _command(reportFailure: false, () async {
     final created = await _repository.createScopeOwner(
       scopeId: arg,
       name: name,
@@ -153,11 +157,17 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
 
   /// Runs one command and reloads, so what is on screen is always what the API
   /// last confirmed rather than a guess about what the command did.
-  Future<void> _command(Future<Result<void>> Function() send) async {
+  ///
+  /// Answers with the refusal, if there was one. [reportFailure] decides
+  /// whether the screen shows it too.
+  Future<Failure?> _command(
+    Future<Result<void>> Function() send, {
+    bool reportFailure = true,
+  }) async {
     final current = state;
 
     if (current is! ScopeOwnersLoaded || current.busy) {
-      return;
+      return null;
     }
 
     state = current.copyWith(busy: true, clearFailure: true);
@@ -170,8 +180,14 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
         // selector that offers them must not keep the old list.
         ref.invalidate(scopeMembersProvider(arg));
         await load();
+
+        return null;
       case FailureResult<void>(:final failure):
-        state = current.copyWith(busy: false, failure: failure);
+        state = reportFailure
+            ? current.copyWith(busy: false, failure: failure)
+            : current.copyWith(busy: false);
+
+        return failure;
     }
   }
 }

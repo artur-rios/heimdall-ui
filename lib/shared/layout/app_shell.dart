@@ -50,9 +50,10 @@ class AppShell extends ConsumerWidget {
 
   final String backTooltip;
 
-  /// Asked before the navigation or signing out takes the person off this
-  /// screen; `false` keeps them here. For a screen holding something that
-  /// cannot be shown again, such as freshly issued recovery codes.
+  /// Asked before the navigation, the [backRoute] control or signing out
+  /// takes the person off this screen; `false` keeps them here. For a screen
+  /// holding something that would be lost — an unsaved form, or freshly issued
+  /// recovery codes. An [onBack] callback asks for itself.
   final Future<bool> Function()? confirmLeave;
 
   Future<bool> _mayLeave() async => await confirmLeave?.call() ?? true;
@@ -111,7 +112,15 @@ class AppShell extends ConsumerWidget {
 
   Widget? _backControl(BuildContext context) {
     final route = backRoute;
-    final action = onBack ?? (route == null ? null : () => context.go(route));
+    final action =
+        onBack ??
+        (route == null
+            ? null
+            : () async {
+                if (await _mayLeave() && context.mounted) {
+                  context.go(route);
+                }
+              });
 
     if (action == null) {
       return null;

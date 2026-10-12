@@ -84,19 +84,20 @@ class _ApplicationCreateScreenState
     }
   }
 
-  /// AF-21d — leaving a modified form asks first.
-  Future<void> _cancel() async {
-    final leave =
-        !_isDirty ||
-        await showConfirm(
-          context: context,
-          title: 'Discard this application?',
-          message: 'What you have entered has not been saved and will be lost.',
-          confirmLabel: 'Discard',
-          cancelLabel: 'Keep editing',
-        );
+  /// AF-21d — leaving a modified form asks first, whichever way it is left:
+  /// Cancel, the back control, the navigation, or signing out.
+  Future<bool> _confirmLeave() async =>
+      !_isDirty ||
+      await showConfirm(
+        context: context,
+        title: 'Discard this application?',
+        message: 'What you have entered has not been saved and will be lost.',
+        confirmLabel: 'Discard',
+        cancelLabel: 'Keep editing',
+      );
 
-    if (leave && mounted) {
+  Future<void> _cancel() async {
+    if (await _confirmLeave() && mounted) {
       context.go('/scopes/${widget.scopeId}/applications');
     }
   }
@@ -198,6 +199,7 @@ class _ApplicationCreateScreenState
       currentRoute: '/scopes',
       title: const Text('New application'),
       onBack: _cancel,
+      confirmLeave: _confirmLeave,
       backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

@@ -107,7 +107,14 @@ class ApplicationListController extends Notifier<ApplicationListState> {
   ApplicationListState build() =>
       const ApplicationListLoading(ApplicationQuery());
 
-  Future<void> load() => _fetch(state.query);
+  /// Reads the page the current query names, with the owners' names read
+  /// afresh: a reload is where a renamed owner should show their new name.
+  /// Moving between pages and filters keeps what was learned.
+  Future<void> load() {
+    _owners.forget();
+
+    return _fetch(state.query);
+  }
 
   /// A new search starts at the first page.
   Future<void> search(String name) =>

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../widgets/confirm_dialog.dart';
 import 'form_feedback.dart';
 
 /// How a field looks in a record's view mode and in its edit mode.
@@ -32,6 +33,21 @@ InputDecoration recordFieldDecoration(
     counterText: '',
   );
 }
+
+/// Asks before an edit with unsaved changes is left behind; `true` when there
+/// is nothing to lose or the person chose to discard it.
+Future<bool> confirmDiscardChanges(
+  BuildContext context, {
+  required bool hasChanges,
+}) async =>
+    !hasChanges ||
+    await showConfirm(
+      context: context,
+      title: 'Discard your changes?',
+      message: 'What you have changed has not been saved and will be lost.',
+      confirmLabel: 'Discard',
+      cancelLabel: 'Keep editing',
+    );
 
 /// A record's editable fields, with the control that unlocks them and the
 /// controls that end the edit.
