@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -257,6 +258,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                 const _DeletedNotice(),
                 const SizedBox(height: 16),
               ],
+              _ScopeId(scopeId: scope.id),
+              const SizedBox(height: 16),
               Form(
                 key: _formKey,
                 onChanged: () => setState(() {}),
@@ -383,6 +386,64 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               ],
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// The scope's `PublicId`, which a calling application writes under
+/// `heimdall.scopeId` before handing its users here to sign up or sign in.
+/// Nowhere else in the interface shows it, so this is where it is copied from.
+class _ScopeId extends StatelessWidget {
+  const _ScopeId({required this.scopeId});
+
+  final String scopeId;
+
+  Future<void> _copy(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    await Clipboard.setData(ClipboardData(text: scopeId));
+    messenger.showSnackBar(const SnackBar(content: Text('Scope ID copied.')));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+        child: Row(
+          children: <Widget>[
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: <Widget>[
+                  Text('Scope ID', style: theme.textTheme.labelLarge),
+                  const SizedBox(height: 4),
+                  SelectableText(
+                    scopeId,
+                    style: theme.textTheme.bodyMedium?.copyWith(
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Applications using this scope pass it to Heimdall to '
+                    'create and authenticate their users.',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              tooltip: 'Copy scope ID',
+              icon: const Icon(Icons.copy_outlined),
+              onPressed: () => _copy(context),
+            ),
+          ],
         ),
       ),
     );

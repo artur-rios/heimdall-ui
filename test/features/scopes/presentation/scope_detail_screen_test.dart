@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -214,6 +215,51 @@ void main() {
 
     // Then
     expect(find.widgetWithText(TextFormField, 'Acme'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScope_WhenOpened_ThenItsIdIsShown', (tester) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Scope ID'), findsOneWidget);
+    expect(find.widgetWithText(SelectableText, 'scope-1'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScope_WhenCopyIdTapped_ThenTheIdIsOnTheClipboard', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    String? copied;
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map<Object?, Object?>)['text'] as String?;
+        }
+
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tester.tap(find.byTooltip('Copy scope ID'));
+    await tester.pump();
+
+    // Then
+    expect(copied, 'scope-1');
+    expect(find.text('Scope ID copied.'), findsOneWidget);
   });
 
   testWidgets('GivenAScope_WhenOpened_ThenItsContentsAreLinked', (
