@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.6.0] - 2026-10-12
+
 ### Added
 
 - A home dashboard replaces the "Your profile and security" button. Everybody sees their own account: the address
@@ -18,7 +20,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   scopes, and the dashboard says so when there are more. A count that cannot be read shows as "—" rather than as
   zero. A refresh button and pull-to-refresh read them again.
 - A **Home** destination in the navigation. A User, who was offered only Profile, now has navigation too.
-- The version of the app — "Heimdall UI v1.5.1" — at the bottom of every screen, signed in or not. It is kept in
+- The version of the app — "Heimdall UI v1.6.0" — at the bottom of every screen, signed in or not. It is kept in
   `pubspec.yaml` and `lib/app/app_version.dart`, which are set when a release's changelog is finalized; a test and
   the Branch Policy workflow keep them in step with the release (see CONTRIBUTING.md).
 
@@ -238,7 +240,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...HEAD
+[1.6.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.3.0...v1.4.0
