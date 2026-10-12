@@ -9,6 +9,7 @@ import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/google_sign_in_gateway.dart';
 import '../domain/session.dart';
+import 'credential_field.dart';
 import 'google_sign_in_control.dart';
 import 'session_controller.dart';
 
@@ -45,6 +46,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     if (!validateAndReveal(_formKey)) {
       return;
     }
+
+    // Lets a password manager offer to save what was just used.
+    announceCredentialsSubmitted();
 
     setState(() {
       _submitting = true;
@@ -85,9 +89,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
-                // On the web each field is otherwise its own one-input <form>,
-                // so a password manager never sees the email and password
-                // together and cannot recognise — or fill — a login form.
+                // Off the web the platform's autofill service reads the
+                // credentials as one group. On the web the fields are real
+                // HTML inputs in one form instead: see [CredentialField].
                 child: AutofillGroup(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
@@ -134,11 +138,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           ErrorBanner(failure: failure),
                         const SizedBox(height: 16),
                       ],
-                      TextFormField(
+                      CredentialField(
+                        kind: CredentialKind.email,
                         controller: _email,
-                        autofillHints: const <String>[AutofillHints.email],
-                        keyboardType: TextInputType.emailAddress,
-                        decoration: const InputDecoration(labelText: 'Email'),
+                        label: 'Email',
+                        enabled: !_submitting,
                         validator: (value) {
                           final email = value?.trim() ?? '';
 
@@ -152,14 +156,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         },
                       ),
                       const SizedBox(height: 16),
-                      TextFormField(
+                      CredentialField(
+                        kind: CredentialKind.password,
                         controller: _password,
-                        obscureText: true,
-                        autofillHints: const <String>[AutofillHints.password],
-                        decoration: const InputDecoration(
-                          labelText: 'Password',
-                        ),
-                        onFieldSubmitted: (_) => _submit(),
+                        label: 'Password',
+                        enabled: !_submitting,
+                        onSubmitted: _submit,
                         validator: (value) => (value ?? '').isEmpty
                             ? 'Enter your password.'
                             : null,
