@@ -79,115 +79,129 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               constraints: const BoxConstraints(maxWidth: 420),
               child: Form(
                 key: _formKey,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: <Widget>[
-                    Text('Heimdall', style: theme.textTheme.headlineMedium),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Sign in to continue',
-                      style: theme.textTheme.bodyMedium,
-                    ),
-                    const SizedBox(height: 24),
-                    // AF-07e: the token was rejected mid-session. Saying so
-                    // beats leaving the user to wonder why their work stopped.
-                    if (ref.watch(sessionControllerProvider)
-                        case Unauthenticated(sessionExpired: true)) ...<Widget>[
-                      const _NoticeBanner(
-                        'Your session ended. Sign in again to pick up where '
-                        'you left off.',
+                // On the web each field is otherwise its own one-input <form>,
+                // so a password manager never sees the email and password
+                // together and cannot recognise — or fill — a login form.
+                child: AutofillGroup(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Text('Heimdall', style: theme.textTheme.headlineMedium),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Sign in to continue',
+                        style: theme.textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: 24),
+                      // AF-07e: the token was rejected mid-session. Saying so
+                      // beats leaving the user to wonder why their work stopped.
+                      if (ref.watch(sessionControllerProvider)
+                          case Unauthenticated(
+                            sessionExpired: true,
+                          )) ...<Widget>[
+                        const _NoticeBanner(
+                          'Your session ended. Sign in again to pick up where '
+                          'you left off.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      // UI-30: the restriction was lifted from a token that stays
+                      // confined to the rights endpoints, so a fresh sign-in is
+                      // what brings full access back.
+                      if (ref.watch(sessionControllerProvider)
+                          case Unauthenticated(
+                            restrictionLifted: true,
+                          )) ...<Widget>[
+                        const _NoticeBanner(
+                          'The restriction on processing your account is lifted. '
+                          'Sign in again for full access.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      if (_failure case final Failure failure) ...<Widget>[
+                        if (failure.kind == FailureKind.network)
+                          // AF-01d: nothing was rejected, so the only useful
+                          // action is to try the same submission again.
+                          RetryBanner(onRetry: _submitting ? null : _submit)
+                        else
+                          ErrorBanner(failure: failure),
+                        const SizedBox(height: 16),
+                      ],
+                      TextFormField(
+                        controller: _email,
+                        autofillHints: const <String>[AutofillHints.email],
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: const InputDecoration(labelText: 'Email'),
+                        validator: (value) {
+                          final email = value?.trim() ?? '';
+
+                          if (email.isEmpty) {
+                            return 'Enter your email address.';
+                          }
+
+                          return isPlausibleEmail(email)
+                              ? null
+                              : 'Enter a valid email address.';
+                        },
                       ),
                       const SizedBox(height: 16),
-                    ],
-                    // UI-30: the restriction was lifted from a token that stays
-                    // confined to the rights endpoints, so a fresh sign-in is
-                    // what brings full access back.
-                    if (ref.watch(sessionControllerProvider)
-                        case Unauthenticated(
-                          restrictionLifted: true,
-                        )) ...<Widget>[
-                      const _NoticeBanner(
-                        'The restriction on processing your account is lifted. '
-                        'Sign in again for full access.',
+                      TextFormField(
+                        controller: _password,
+                        obscureText: true,
+                        autofillHints: const <String>[AutofillHints.password],
+                        decoration: const InputDecoration(
+                          labelText: 'Password',
+                        ),
+                        onFieldSubmitted: (_) => _submit(),
+                        validator: (value) => (value ?? '').isEmpty
+                            ? 'Enter your password.'
+                            : null,
                       ),
-                      const SizedBox(height: 16),
-                    ],
-                    if (_failure case final Failure failure) ...<Widget>[
-                      if (failure.kind == FailureKind.network)
-                        // AF-01d: nothing was rejected, so the only useful
-                        // action is to try the same submission again.
-                        RetryBanner(onRetry: _submitting ? null : _submit)
-                      else
-                        ErrorBanner(failure: failure),
-                      const SizedBox(height: 16),
-                    ],
-                    TextFormField(
-                      controller: _email,
-                      autofillHints: const <String>[AutofillHints.email],
-                      keyboardType: TextInputType.emailAddress,
-                      decoration: const InputDecoration(labelText: 'Email'),
-                      validator: (value) {
-                        final email = value?.trim() ?? '';
-
-                        if (email.isEmpty) {
-                          return 'Enter your email address.';
-                        }
-
-                        return isPlausibleEmail(email)
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: _submitting ? null : _submit,
+                        child: _submitting
+                            ? const SizedBox.square(
+                                dimension: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Text('Sign in'),
+                      ),
+                      const SizedBox(height: 8),
+                      // UI-03 step 1: the recovery screen is reached from here,
+                      // which is the only place someone who cannot sign in is.
+                      TextButton(
+                        onPressed: _submitting
                             ? null
-                            : 'Enter a valid email address.';
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _password,
-                      obscureText: true,
-                      autofillHints: const <String>[AutofillHints.password],
-                      decoration: const InputDecoration(labelText: 'Password'),
-                      onFieldSubmitted: (_) => _submit(),
-                      validator: (value) =>
-                          (value ?? '').isEmpty ? 'Enter your password.' : null,
-                    ),
-                    const SizedBox(height: 24),
-                    FilledButton(
-                      onPressed: _submitting ? null : _submit,
-                      child: _submitting
-                          ? const SizedBox.square(
-                              dimension: 20,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Text('Sign in'),
-                    ),
-                    const SizedBox(height: 8),
-                    // UI-03 step 1: the recovery screen is reached from here,
-                    // which is the only place someone who cannot sign in is.
-                    TextButton(
-                      onPressed: _submitting
-                          ? null
-                          : () => context.go('/password-recovery'),
-                      child: const Text('Forgot your password?'),
-                    ),
-                    // AF-01e: the control the login screen offers alongside the
-                    // credentials form. AF-06a hides it when the build carries
-                    // no Google client id, and AF-06e when the target cannot
-                    // run the flow — both inside the control itself.
-                    if (ref.watch(appConfigProvider).isGoogleSignInConfigured &&
-                        ref.watch(googleSignInGatewayProvider).availability !=
-                            GoogleSignInAvailability.unsupported) ...<Widget>[
-                      const SizedBox(height: 16),
-                      GoogleSignInControl(enabled: !_submitting),
+                            : () => context.go('/password-recovery'),
+                        child: const Text('Forgot your password?'),
+                      ),
+                      // AF-01e: the control the login screen offers alongside the
+                      // credentials form. AF-06a hides it when the build carries
+                      // no Google client id, and AF-06e when the target cannot
+                      // run the flow — both inside the control itself.
+                      if (ref
+                              .watch(appConfigProvider)
+                              .isGoogleSignInConfigured &&
+                          ref.watch(googleSignInGatewayProvider).availability !=
+                              GoogleSignInAvailability.unsupported) ...<Widget>[
+                        const SizedBox(height: 16),
+                        GoogleSignInControl(enabled: !_submitting),
+                      ],
+                      const SizedBox(height: 8),
+                      // Issue #73: beside the Google control, because Google's
+                      // consent screen names this page as the privacy policy. It
+                      // stays when that control is hidden: what is held about a
+                      // person does not depend on how they sign in.
+                      TextButton(
+                        onPressed: () => context.push('/privacy'),
+                        child: const Text('Privacy notice'),
+                      ),
                     ],
-                    const SizedBox(height: 8),
-                    // Issue #73: beside the Google control, because Google's
-                    // consent screen names this page as the privacy policy. It
-                    // stays when that control is hidden: what is held about a
-                    // person does not depend on how they sign in.
-                    TextButton(
-                      onPressed: () => context.push('/privacy'),
-                      child: const Text('Privacy notice'),
-                    ),
-                  ],
+                  ),
                 ),
               ),
             ),
