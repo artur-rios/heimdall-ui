@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- The scope detail screen shows the scope's ID, with a button to copy it. A calling application passes this ID to
+  Heimdall to create and authenticate its users, and no screen showed it before.
+- A Heimdall favicon and app icons — a white shield with a keyhole on the theme blue — replace Flutter's defaults. The
+  web manifest is named "Heimdall" and uses the theme color.
+
 ## [1.4.0] - 2026-10-11
 
 ### Added
