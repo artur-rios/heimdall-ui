@@ -7,6 +7,7 @@ import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../domain/outstanding_erasure.dart';
 import 'erasure_request_list_controller.dart';
+import 'reconciliation_dialog.dart';
 
 /// UI-32 — the erasure requests the anonymisation pass has not carried out yet.
 class ErasureRequestListScreen extends ConsumerStatefulWidget {
@@ -57,11 +58,10 @@ class _ErasureRequestListScreenState
                   selected: state.query.overdueOnly,
                   onSelected: _controller.setOverdueOnly,
                 ),
-                // Task 12 wires the re-apply dialog to this button.
                 TextButton.icon(
                   icon: const Icon(Icons.restore_outlined),
                   label: const Text('Re-apply erasures'),
-                  onPressed: null,
+                  onPressed: () => showReconciliationDialog(context),
                 ),
               ],
             ),

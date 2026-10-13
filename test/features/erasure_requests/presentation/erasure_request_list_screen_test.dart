@@ -279,7 +279,7 @@ void main() {
     expect(find.text('Identifier copied.'), findsOneWidget);
   });
 
-  testWidgets('GivenRequests_WhenOpened_ThenReapplyIsOfferedButNotYetWired', (
+  testWidgets('GivenRequests_WhenOpened_ThenReapplyOpensTheDialog', (
     tester,
   ) async {
     // Given
@@ -287,9 +287,12 @@ void main() {
 
     // When
     await pump(tester);
+    await tester.tap(find.text('Re-apply erasures'));
+    await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Re-apply erasures'), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    expect(find.text('Identifiers'), findsOneWidget);
   });
 
   for (final (name, size, theme) in <(String, Size, ThemeData Function())>[
