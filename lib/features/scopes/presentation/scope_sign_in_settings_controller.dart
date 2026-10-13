@@ -131,6 +131,8 @@ class ScopeSignInSettingsController extends Notifier<SignInSettingsState> {
     if (current is SignInSettingsLoaded &&
         verification == current.scope.emailVerificationUrl &&
         reset == current.scope.passwordResetUrl) {
+      acknowledgeLinks();
+
       return;
     }
 

@@ -353,6 +353,36 @@ void main() {
     expect(loaded().linksSaved, isFalse);
   });
 
+  test(
+    'GivenAStaleLinksFailure_WhenLinksAreBackToSaved_ThenItClears',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      answerLinksWith(
+        const FailureResult<Scope>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+      await controller.saveEmailLinks(
+        emailVerificationUrl: 'https://other.example/verify',
+        passwordResetUrl: null,
+      );
+      expect(loaded().linksFailure, isNotNull);
+
+      // When
+      await controller.saveEmailLinks(
+        emailVerificationUrl: 'https://acme.example/verify-email',
+        passwordResetUrl: null,
+      );
+
+      // Then
+      expect(loaded().linksFailure, isNull);
+      expect(loaded().linksSaved, isFalse);
+    },
+  );
+
   test('GivenSavedLinks_WhenAcknowledged_ThenTheNoticeClears', () async {
     // Given
     answerGetWith(const Success<Scope>(_acme));

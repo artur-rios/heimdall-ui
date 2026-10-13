@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show MaxLengthEnforcement;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -383,6 +384,7 @@ class _ScopeSignInSettingsScreenState
                             controller: _verification,
                             readOnly: !editing,
                             maxLength: emailLinkMaxLength,
+                            maxLengthEnforcement: MaxLengthEnforcement.none,
                             keyboardType: TextInputType.url,
                             decoration: recordFieldDecoration(
                               context,
@@ -400,6 +402,7 @@ class _ScopeSignInSettingsScreenState
                             controller: _reset,
                             readOnly: !editing,
                             maxLength: emailLinkMaxLength,
+                            maxLengthEnforcement: MaxLengthEnforcement.none,
                             keyboardType: TextInputType.url,
                             decoration: recordFieldDecoration(
                               context,

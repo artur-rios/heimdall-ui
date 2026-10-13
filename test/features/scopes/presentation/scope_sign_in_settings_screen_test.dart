@@ -656,6 +656,37 @@ void main() {
     );
   });
 
+  // AF-31e
+  testWidgets('GivenAnOverlongLink_WhenSaved_ThenItIsReportedNotTruncated', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    final overlong = 'https://acme.example/${'a' * 2050}';
+
+    // When
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Verification link'),
+      overlong,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Use at most 2048 characters.'), findsOneWidget);
+    verifyNever(
+      () => repository.setEmailLinks(
+        id: any(named: 'id'),
+        emailVerificationUrl: any(named: 'emailVerificationUrl'),
+        passwordResetUrl: any(named: 'passwordResetUrl'),
+      ),
+    );
+  });
+
   // AF-31d
   testWidgets('GivenRefusedLinks_WhenSaved_ThenApiErrorsAndInputAreKept', (
     tester,
