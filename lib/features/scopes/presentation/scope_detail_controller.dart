@@ -46,8 +46,6 @@ final class ScopeDetailLoaded extends ScopeDetailState {
     this.saved = false,
     this.deleting = false,
     this.deleteFailure,
-    this.togglingGoogleSignIn = false,
-    this.googleSignInFailure,
   });
 
   final Scope scope;
@@ -62,13 +60,6 @@ final class ScopeDetailLoaded extends ScopeDetailState {
   /// AF-13b — the API refused to delete, and the scope stays open.
   final Failure? deleteFailure;
 
-  /// AF-15c — the Google Sign-In request is outstanding, so the control is
-  /// disabled and cannot be toggled twice.
-  final bool togglingGoogleSignIn;
-
-  /// AF-15a — the API refused the toggle, and the control went back.
-  final Failure? googleSignInFailure;
-
   /// AF-12d — a logically deleted scope is shown, but nothing about it may be
   /// changed from here.
   bool get isReadOnly => scope.isDeleted;
@@ -82,9 +73,6 @@ final class ScopeDetailLoaded extends ScopeDetailState {
     bool? deleting,
     Failure? deleteFailure,
     bool clearDeleteFailure = false,
-    bool? togglingGoogleSignIn,
-    Failure? googleSignInFailure,
-    bool clearGoogleSignInFailure = false,
   }) => ScopeDetailLoaded(
     scope ?? this.scope,
     saving: saving ?? this.saving,
@@ -94,10 +82,6 @@ final class ScopeDetailLoaded extends ScopeDetailState {
     deleteFailure: clearDeleteFailure
         ? null
         : (deleteFailure ?? this.deleteFailure),
-    togglingGoogleSignIn: togglingGoogleSignIn ?? this.togglingGoogleSignIn,
-    googleSignInFailure: clearGoogleSignInFailure
-        ? null
-        : (googleSignInFailure ?? this.googleSignInFailure),
   );
 }
 
@@ -147,7 +131,6 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
     if (current is! ScopeDetailLoaded ||
         current.saving ||
         current.deleting ||
-        current.togglingGoogleSignIn ||
         current.isReadOnly) {
       return;
     }
@@ -192,47 +175,6 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
     }
   }
 
-  /// UI-15 — turns Google Sign-In on or off.
-  ///
-  /// The control settles on what the API confirmed, not on what it was moved
-  /// to: a refusal leaves the scope exactly as the API still holds it
-  /// (AF-15a), and the request in flight disables the control (AF-15c).
-  Future<void> setGoogleSignIn(bool enabled) async {
-    final current = state;
-
-    if (current is! ScopeDetailLoaded ||
-        current.togglingGoogleSignIn ||
-        current.saving ||
-        current.deleting ||
-        current.isReadOnly) {
-      return;
-    }
-
-    state = current.copyWith(
-      togglingGoogleSignIn: true,
-      clearGoogleSignInFailure: true,
-    );
-
-    final result = await ref
-        .read(scopeRepositoryProvider)
-        .setGoogleSignIn(id: arg, enabled: enabled);
-
-    state = result.fold(
-      // The toggle's output carries no privacy settings; the scope keeps the
-      // ones it had, so a save after a toggle does not clear them.
-      onSuccess: (scope) => current.copyWith(
-        scope: scope
-            .withPrivacySettingsOf(current.scope)
-            .withSelfRegistrationOf(current.scope),
-        togglingGoogleSignIn: false,
-      ),
-      onFailure: (failure) => current.copyWith(
-        togglingGoogleSignIn: false,
-        googleSignInFailure: failure,
-      ),
-    );
-  }
-
   /// Logically deletes the scope. The record is kept and the API can restore
   /// it, which is what the confirmation says before this is called.
   Future<void> delete() => _delete((repository) => repository.delete(arg));
@@ -246,10 +188,7 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
   ) async {
     final current = state;
 
-    if (current is! ScopeDetailLoaded ||
-        current.deleting ||
-        current.saving ||
-        current.togglingGoogleSignIn) {
+    if (current is! ScopeDetailLoaded || current.deleting || current.saving) {
       return;
     }
 

@@ -13,10 +13,10 @@ import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
-import '../../google_users/domain/google_user_repository.dart';
 import '../domain/scope.dart';
 import 'scope_detail_controller.dart';
 import 'scope_list_controller.dart';
+import 'scope_sign_in_settings_screen.dart' show signInSettingsSummary;
 
 /// UI-12 — one scope: what it is, who owns it, and what it contains.
 class ScopeDetailScreen extends ConsumerStatefulWidget {
@@ -114,49 +114,6 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
   bool _differsFrom(Scope scope) =>
       _name.text.trim() != scope.name ||
       _description.text.trim() != scope.description;
-
-  /// UI-15 — turns Google Sign-In on or off.
-  ///
-  /// AF-15b: switching it off is explained before anything is sent, because
-  /// the Google Users already in the scope stop being able to sign in. How
-  /// many there are is read first so the warning can say; a count that cannot
-  /// be read warns anyway rather than staying quiet about it.
-  Future<void> _toggleGoogleSignIn(bool enabled) async {
-    if (!enabled) {
-      final count = await ref
-          .read(googleUserRepositoryProvider)
-          .countIn(widget.scopeId);
-      final present = count.valueOrNull;
-
-      if (!mounted) {
-        return;
-      }
-
-      if (present == null || present > 0) {
-        final confirmed = await showConfirm(
-          context: context,
-          title: 'Turn Google Sign-In off?',
-          message: present == null
-              ? 'Any Google accounts already in this scope will no longer be '
-                    'able to sign in.'
-              : present == 1
-              ? 'The 1 Google account already in this scope will no longer be '
-                    'able to sign in.'
-              : 'The $present Google accounts already in this scope will no '
-                    'longer be able to sign in.',
-          confirmLabel: 'Turn off',
-        );
-
-        if (!confirmed || !mounted) {
-          return;
-        }
-      }
-    }
-
-    await ref
-        .read(scopeDetailControllerProvider(widget.scopeId).notifier)
-        .setGoogleSignIn(enabled);
-  }
 
   /// AF-13e — only a System Admin deletes a scope.
   bool get _maySeeDeletion => _isSystemAdmin;
@@ -342,10 +299,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       mayEdit: mayEdit,
                       saving: state.saving,
                       // AF-12e: nothing to save is not an action.
-                      canSave:
-                          _differsFrom(scope) &&
-                          !state.togglingGoogleSignIn &&
-                          !state.deleting,
+                      canSave: _differsFrom(scope) && !state.deleting,
                       onEdit: _startEditing,
                       onCancel: _cancelEditing,
                       onSave: _save,
@@ -392,34 +346,6 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: <Widget>[
-                      // UI-15 — the control reflects the confirmed state, and
-                      // a refusal leaves it where the API still has it.
-                      SwitchListTile(
-                        contentPadding: EdgeInsets.zero,
-                        title: const Text('Google Sign-In'),
-                        subtitle: Text(
-                          scope.googleSignInEnabled
-                              ? 'People may sign in to this scope with Google.'
-                              : 'Google sign-in is off for this scope.',
-                        ),
-                        value: scope.googleSignInEnabled,
-                        // AF-15c: disabled while the request is outstanding,
-                        // so it cannot be toggled twice.
-                        onChanged:
-                            (state.togglingGoogleSignIn ||
-                                state.saving ||
-                                state.deleting ||
-                                state.isReadOnly)
-                            ? null
-                            : _toggleGoogleSignIn,
-                      ),
-                      // AF-15a: the API refused; its own strings say why.
-                      if (state.googleSignInFailure
-                          case final refusal?) ...<Widget>[
-                        const SizedBox(height: 8),
-                        ErrorBanner(failure: refusal),
-                      ],
-                      const SizedBox(height: 16),
                       Text('Owners', style: theme.textTheme.labelLarge),
                       const SizedBox(height: 4),
                       // Identifiers mean nothing to a reader; the Owners
@@ -437,7 +363,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               const SizedBox(height: 24),
               Text('In this scope', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
-              _Links(scopeId: scope.id),
+              _Links(scope: scope),
               // AF-13e — a Scope Admin never sees either control. The API
               // refuses them either way; showing them would only promise
               // something that cannot happen.
@@ -445,10 +371,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                 const SizedBox(height: 24),
                 _DangerZone(
                   scope: scope,
-                  deleting:
-                      state.deleting ||
-                      state.saving ||
-                      state.togglingGoogleSignIn,
+                  deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
                   onDelete: _confirmDelete,
                   onDeletePermanently: _confirmDeletePermanently,
@@ -523,34 +446,59 @@ class _ScopeId extends StatelessWidget {
 /// Where the scope's contents live. Each target arrives with its own use case;
 /// until then the router says so rather than throwing.
 class _Links extends StatelessWidget {
-  const _Links({required this.scopeId});
+  const _Links({required this.scope});
 
-  final String scopeId;
+  final Scope scope;
 
   @override
   Widget build(BuildContext context) => Card(
     child: Column(
       children: <Widget>[
-        for (final link in <({String label, IconData icon, String path})>[
-          (label: 'Owners', icon: Icons.shield_outlined, path: 'owners'),
-          (label: 'Persons', icon: Icons.people_outline, path: 'persons'),
-          (
-            label: 'Applications',
-            icon: Icons.apps_outlined,
-            path: 'applications',
-          ),
-          (label: 'Permissions', icon: Icons.key_outlined, path: 'permissions'),
-          (
-            label: 'Google users',
-            icon: Icons.account_circle_outlined,
-            path: 'google-users',
-          ),
-        ])
+        for (final link
+            in <({String label, IconData icon, String path, String? subtitle})>[
+              (
+                label: 'Owners',
+                icon: Icons.shield_outlined,
+                path: 'owners',
+                subtitle: null,
+              ),
+              (
+                label: 'Sign-in & sign-up',
+                icon: Icons.login_outlined,
+                path: 'sign-in-settings',
+                subtitle: signInSettingsSummary(scope),
+              ),
+              (
+                label: 'Persons',
+                icon: Icons.people_outline,
+                path: 'persons',
+                subtitle: null,
+              ),
+              (
+                label: 'Applications',
+                icon: Icons.apps_outlined,
+                path: 'applications',
+                subtitle: null,
+              ),
+              (
+                label: 'Permissions',
+                icon: Icons.key_outlined,
+                path: 'permissions',
+                subtitle: null,
+              ),
+              (
+                label: 'Google users',
+                icon: Icons.account_circle_outlined,
+                path: 'google-users',
+                subtitle: null,
+              ),
+            ])
           ListTile(
             leading: Icon(link.icon),
             title: Text(link.label),
+            subtitle: link.subtitle == null ? null : Text(link.subtitle!),
             trailing: const Icon(Icons.chevron_right),
-            onTap: () => context.go('/scopes/$scopeId/${link.path}'),
+            onTap: () => context.go('/scopes/${scope.id}/${link.path}'),
           ),
       ],
     ),
