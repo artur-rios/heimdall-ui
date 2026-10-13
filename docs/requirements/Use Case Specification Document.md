@@ -207,7 +207,7 @@ delivered the same way.
 ### UI-02: Complete two-factor challenge at login
 
 **Actor:** Anonymous (holding a challenge)
-**Traces to:** UC-38 (Verify Second Factor)
+**Traces to:** UC-38 (Verify Second Factor), UC-46 (Resend Second-Factor Email Code)
 **Precondition:** The session is in the `challenged` state with a challenge token and a list of available methods.
 
 **Main flow**

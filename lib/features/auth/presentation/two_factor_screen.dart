@@ -74,6 +74,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
 
     setState(() {
       _resending = true;
+      _resent = false;
       _resendFailure = null;
     });
 

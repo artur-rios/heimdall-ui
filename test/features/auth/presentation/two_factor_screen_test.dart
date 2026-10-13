@@ -584,6 +584,100 @@ void main() {
     expect(find.byType(ErrorBanner), findsOneWidget);
   });
 
+  testWidgets('GivenFailedResends_WhenSendsSucceedAfter_ThenOnlyTheyCount', (
+    tester,
+  ) async {
+    // Given
+    final results = <Result<void>>[
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+      const Success<void>(null),
+      const Success<void>(null),
+      const Success<void>(null),
+    ];
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => results.removeAt(0));
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    for (var send = 0; send < 4; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // Then: two failures and two successes leave one send in hand.
+    expect(sendButton(), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsNothing);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // Then
+    expect(sendButton(), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsOneWidget);
+  });
+
+  testWidgets('GivenASentCode_WhenALaterSendFails_ThenTheNoteIsGone', (
+    tester,
+  ) async {
+    // Given
+    final results = <Result<void>>[
+      const Success<void>(null),
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    ];
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => results.removeAt(0));
+    await pump(tester, methods: const <String>['Email']);
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.byType(ErrorBanner), findsOneWidget);
+    expect(find.textContaining('a new code is on its way'), findsNothing);
+  });
+
+  testWidgets('GivenSendsOnEmail_WhenTheMethodIsSwitched_ThenTheyStillCount', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Totp', 'Email']);
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // When
+    await tester.tap(find.text('Authenticator'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+    for (var send = 0; send < 2; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // Then
+    expect(sendButton(), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsOneWidget);
+  });
+
   testWidgets('GivenATypedCode_WhenResent_ThenItIsKept', (tester) async {
     // Given
     answerResendWith(const Success<void>(null));
