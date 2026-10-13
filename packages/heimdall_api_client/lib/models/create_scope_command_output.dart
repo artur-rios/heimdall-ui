@@ -13,6 +13,9 @@ class CreateScopeCommandOutput {
     this.name,
     this.description,
     this.googleSignInEnabled,
+    this.selfRegistrationEnabled,
+    this.emailVerificationUrl,
+    this.passwordResetUrl,
     this.ownerIds,
     this.createdAt,
   });
@@ -24,6 +27,9 @@ class CreateScopeCommandOutput {
   final String? name;
   final String? description;
   final bool? googleSignInEnabled;
+  final bool? selfRegistrationEnabled;
+  final String? emailVerificationUrl;
+  final String? passwordResetUrl;
   final List<String>? ownerIds;
   final DateTime? createdAt;
 
