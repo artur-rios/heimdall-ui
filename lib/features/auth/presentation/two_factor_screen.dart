@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -6,6 +8,19 @@ import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/session.dart';
 import 'session_controller.dart';
+
+/// How long the resend control waits after each send.
+const Duration resendCooldown = Duration(seconds: 30);
+
+/// The API's reissue cap for one challenge (FR-2F-13). Further sends would be
+/// answered alike and send nothing, so the control stops offering them.
+const int maxCodeResends = 3;
+
+/// Whether [method] is the email method, whatever the API called it.
+bool _isEmail(String? method) => switch (method?.toLowerCase()) {
+  'email' || 'mail' => true,
+  _ => false,
+};
 
 /// The second-factor challenge screen.
 ///
@@ -27,8 +42,18 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
   bool _submitting = false;
   bool _useRecoveryCode = false;
 
+  // The resend count belongs to the challenge, not to the method or the
+  // recovery-code toggle, so nothing below resets it.
+  int _sends = 0;
+  int _cooldownLeft = 0;
+  Timer? _cooldown;
+  bool _resending = false;
+  bool _resent = false;
+  Failure? _resendFailure;
+
   @override
   void dispose() {
+    _cooldown?.cancel();
     _code.dispose();
     super.dispose();
   }
@@ -37,6 +62,59 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
   /// for a return, because it was never persisted in the first place.
   void _abandon() {
     ref.read(sessionControllerProvider.notifier).abandonChallenge();
+  }
+
+  /// UI-02 — another email code for this challenge. The API answers alike
+  /// whether or not it sent one, so the confirmation never claims more than
+  /// that; a failure to reach it is not a send and costs nothing (AF-02h).
+  Future<void> _resend() async {
+    if (_resending || _cooldownLeft > 0 || _sends >= maxCodeResends) {
+      return;
+    }
+
+    setState(() {
+      _resending = true;
+      _resendFailure = null;
+    });
+
+    final result = await ref
+        .read(sessionControllerProvider.notifier)
+        .resendSecondFactorCode();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _resending = false;
+
+      if (result.failureOrNull case final Failure failure) {
+        _resendFailure = failure;
+
+        return;
+      }
+
+      _sends++;
+      _resent = true;
+      _cooldownLeft = resendCooldown.inSeconds;
+    });
+
+    if (result.isSuccess) {
+      _cooldown?.cancel();
+      _cooldown = Timer.periodic(const Duration(seconds: 1), (timer) {
+        if (!mounted) {
+          timer.cancel();
+
+          return;
+        }
+
+        setState(() => _cooldownLeft--);
+
+        if (_cooldownLeft <= 0) {
+          timer.cancel();
+        }
+      });
+    }
   }
 
   Future<void> _submit() async {
@@ -212,6 +290,46 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                         },
                       ),
                       const SizedBox(height: 24),
+                      if (_isEmail(method) && !_useRecoveryCode) ...<Widget>[
+                        if (_resent) ...<Widget>[
+                          Text(
+                            'If your sign-in is still open, a new code is on '
+                            'its way. Codes sent before it no longer work.',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        if (_resendFailure
+                            case final Failure failure) ...<Widget>[
+                          ErrorBanner(failure: failure),
+                          const SizedBox(height: 8),
+                        ],
+                        // AF-02g: past the API's cap a send would do nothing,
+                        // so the way to a new code is a new sign-in.
+                        if (_sends >= maxCodeResends) ...<Widget>[
+                          Text(
+                            'For another code, sign in again.',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                          const SizedBox(height: 8),
+                          OutlinedButton(
+                            onPressed: _submitting ? null : _abandon,
+                            child: const Text('Start over'),
+                          ),
+                        ] else
+                          TextButton(
+                            onPressed:
+                                (_submitting || _resending || _cooldownLeft > 0)
+                                ? null
+                                : _resend,
+                            child: Text(
+                              _cooldownLeft > 0
+                                  ? 'Send a new code (${_cooldownLeft}s)'
+                                  : 'Send a new code',
+                            ),
+                          ),
+                        const SizedBox(height: 16),
+                      ],
                       FilledButton(
                         onPressed: _submitting ? null : _submit,
                         child: _submitting
