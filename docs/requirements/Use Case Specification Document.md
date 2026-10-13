@@ -112,7 +112,7 @@ graph LR
 | ID | Use case | Traces to |
 | --- | --- | --- |
 | UI-01 | Login | UC-11 |
-| UI-02 | Complete two-factor challenge at login | UC-38 |
+| UI-02 | Complete two-factor challenge at login | UC-38, UC-46 |
 | UI-03 | Request password recovery | UC-12 |
 | UI-04 | Reset password | UC-13 |
 | UI-05 | Verify email and resend verification | UC-14, UC-15 |
@@ -215,9 +215,14 @@ delivered the same way.
 1. The client shows the challenge screen, naming the method in use.
 2. The user enters the code from their authenticator application, from the email the API sent, or a
    recovery code.
-3. The client calls `POST /api/auth/2fa/verify` with the challenge token and the code.
-4. The API answers with a token and its expiry.
-5. The client stores the token, establishes the session, and redirects onward.
+3. While the method in use is email and no recovery code is being entered, the user may choose
+   **Send a new code**. The client calls `POST /api/auth/2fa/challenge/resend` with the challenge
+   token and shows "If your sign-in is still open, a new code is on its way. Codes sent before it no
+   longer work." The button is disabled for 30 seconds, counting down in its label, and a challenge
+   allows three sends. The code the user typed is kept.
+4. The client calls `POST /api/auth/2fa/verify` with the challenge token and the code.
+5. The API answers with a token and its expiry.
+6. The client stores the token, establishes the session, and redirects onward.
 
 **Alternative flows**
 
@@ -231,6 +236,13 @@ delivered the same way.
   success the client reminds them that the code is now spent, and points at UI-09.
 - **AF-02e — Abandoned challenge.** The user leaves the screen. The challenge token is discarded and
   the session returns to unauthenticated; it is never persisted.
+- **AF-02f — No resend control.** The method in use is the authenticator app, or a recovery code is
+  being entered. The client shows no **Send a new code** button.
+- **AF-02g — Third send made.** After the third send for the challenge, **Send a new code** is
+  replaced by **Start over** and the note "For another code, sign in again." Choosing **Start over**
+  discards the challenge and returns to UI-01.
+- **AF-02h — Transport or server failure.** The client shows an error banner. The send is not
+  counted and the countdown does not start.
 
 ---
 
@@ -1099,6 +1111,7 @@ restricted person would land on the home screen and watch every request fail.
 | UI-24 … UI-27 | FR-PM-01 … FR-PM-08 |
 | UI-28, UI-29 | FR-GU-01 … FR-GU-05 |
 | UI-07, UI-30 | FR-AU-21 … FR-AU-25 |
+| UI-02 | FR-AU-26 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the

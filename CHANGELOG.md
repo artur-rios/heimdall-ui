@@ -7,6 +7,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- **Send a new code** on the two-step verification screen when the code comes by email. It waits 30 seconds between
+  sends and, after three, offers to start the sign-in again, matching the API's limit.
+
 ## [1.6.1] - 2026-10-12
 
 ### Fixed
