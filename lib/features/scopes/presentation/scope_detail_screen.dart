@@ -120,8 +120,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
 
   /// Only a System Admin updates a scope's name and description: the API
   /// holds `PUT /api/scopes/{id}` to that role alone, so a Scope Admin is
-  /// shown them read-only rather than offered a save it would refuse. The
-  /// Google Sign-In switch is theirs as well, and stays live below.
+  /// shown them read-only rather than offered a save it would refuse.
   bool get _mayUpdate => _isSystemAdmin;
 
   bool get _isSystemAdmin {

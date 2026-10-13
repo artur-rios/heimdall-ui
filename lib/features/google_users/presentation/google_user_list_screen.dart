@@ -149,7 +149,8 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
 
   /// AF-28a — nobody has signed in with Google here, which is a different
   /// thing from a search that matched nothing. When the scope has the feature
-  /// switched off, that is the reason, and UI-31's screen is where it is switched on.
+  /// switched off, that is the reason, and UI-31's screen is where it is
+  /// switched on.
   Widget _empty(GoogleUserQuery query) {
     if (query.isFiltered) {
       return CollectionEmpty(

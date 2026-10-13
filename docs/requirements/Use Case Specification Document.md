@@ -630,7 +630,7 @@ delivered the same way.
 
 **Main flow**
 
-1. The scope detail shows a control reflecting the current `googleSignInEnabled` state.
+1. The **Sign-in & sign-up** screen (UI-31) shows a control reflecting the current `googleSignInEnabled` state.
 2. The user toggles it.
 3. The client calls `PUT /api/scopes/{id}/google-signin` with the new value.
 4. The control settles on the confirmed state.
@@ -967,7 +967,8 @@ delivered the same way.
 **Alternative flows**
 
 - **AF-28a — Empty result.** The empty state explains that Google users appear only after someone
-  signs in with Google, and links to UI-15 when the scope has the feature switched off.
+  signs in with Google, and opens the **Sign-in & sign-up** screen (UI-31), where UI-15's switch lives, when the scope has the
+  feature switched off.
 - **AF-28b — Request fails.** An error panel shows the returned errors and offers a retry.
 - **AF-28c — Forbidden.** The not-available-for-your-role panel is shown.
 - **AF-28d — Picture unavailable.** A missing or unreachable picture falls back to an initials
@@ -1089,6 +1090,8 @@ restricted person would land on the home screen and watch every request fail.
 > while the identity is restricted carries the claim AF-30a reads, and a token issued before the
 > restriction is refused with `401` once the API stops admitting it, which UI-07 already handles. No
 > separate handling of that `403` exists, so it cannot loop.
+
+---
 
 ### UI-31: Configure a scope's sign-in and sign-up
 
