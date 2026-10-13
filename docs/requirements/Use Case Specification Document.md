@@ -531,8 +531,9 @@ delivered the same way.
 **Main flow**
 
 1. The user opens a scope from the listing, or by URL.
-2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, its Google Sign-In
-   state, and links to its persons, applications, permissions, and Google users.
+2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, a summary of its
+   sign-in and sign-up settings, and an **In this scope** list linking to its persons, applications,
+   permissions, Google users, and **Sign-in & sign-up** (UI-31).
 3. The user edits the name or description and saves.
 4. The client calls `PUT /api/scopes/{id}` and shows the updated record.
 
