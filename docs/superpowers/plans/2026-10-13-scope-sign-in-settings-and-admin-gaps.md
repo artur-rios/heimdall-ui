@@ -10,6 +10,31 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-13-scope-sign-in-settings-and-admin-gaps-design.md`
 
+## Status and handoff
+
+Kept current so the work can be resumed from any machine: clone `artur-rios/heimdall-ui`, then
+`git switch feature/ui-31-scope-sign-in-settings`, and read the spec and this plan. Nothing else is needed — no
+local state carries over (an executor's progress ledger under `.superpowers/` is git-ignored, so progress is read
+from this section and `git log`).
+
+| Item | State |
+| --- | --- |
+| Spec | Approved 2026-10-13 (`a609b9b`) |
+| Plan | Written 2026-10-13; awaiting review and the choice of execution method (subagent-driven recommended) |
+| Branch 1 — [#121](https://github.com/artur-rios/heimdall-ui/issues/121) UI-31 | `feature/ui-31-scope-sign-in-settings`, pushed; holds the spec and plan; Tasks 1–6 not started |
+| Branch 2 — [#122](https://github.com/artur-rios/heimdall-ui/issues/122) UI-02 resend | Not cut yet (cut from `develop`); Tasks 7–9 not started |
+| Branch 3 — [#123](https://github.com/artur-rios/heimdall-ui/issues/123) UI-32 | Not cut yet (cut from `develop`); Tasks 10–13 not started |
+| API gaps (spec §8) | artur-rios/heimdall-api#174 audit trail, #175 pending self-registrations, #176 System Admin list, #177 admin-initiated verification and reset — each needs its own design |
+
+All three issues are on the [Heimdall UI Delivery board](https://github.com/users/artur-rios/projects/11) as
+**Todo**; move each to **In Progress** when its first task starts.
+
+**Downstream — Fortuna going live.** This screen is how the Fortuna scope gets configured. Already done: Heimdall
+1.4.0 and fortuna-api 2.1.0 are in production, and the shared trusted-caller key is set on both. Once Heimdall UI
+1.7.0 is deployed: (1) on the Fortuna scope's **Sign-in & sign-up** screen set the verification link to
+`https://<fortuna-ui host>/verify-email` and the password-reset link to `https://<fortuna-ui host>/password-reset`;
+(2) release fortuna-ui 1.1.0 (on hold until then); (3) open **Self-registration** for the Fortuna scope.
+
 ## Global Constraints
 
 - Repository: `D:\Repositories\heimdall-ui`. All paths below are relative to it.
@@ -3729,4 +3754,4 @@ git commit -m "docs: specify ui-32 erasure requests" -m "Co-Authored-By: Claude 
 
 ## After all tasks
 
-Not part of any task; done by the controller with the user's approval, per the Development Workflow Document: a GitHub issue per branch (UI-31, the UI-02 amendment, UI-32), the README backlog rows (UI-31 and UI-32 under their sections; the four API gaps of spec §8 as new rows), pushing each branch, and a PR into `develop` for each. Then the 1.7.0 changelog PR and the release.
+Not part of any task; done by the controller with the user's approval, per the Development Workflow Document. The issues exist (#121, #122, #123 here; heimdall-api#174–#177 for the API gaps). Remaining: on each branch, the README tracker row (UI-31 and UI-32 under their sections as 🚧 with their issue links; a row for the UI-02 resend linking #122), pushing it, and a PR into `develop` that closes its issue. Then the 1.7.0 changelog PR and the release, then the Fortuna steps under "Status and handoff".
