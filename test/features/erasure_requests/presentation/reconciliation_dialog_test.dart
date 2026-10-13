@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -8,6 +10,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
 import 'package:heimdall_ui/features/erasure_requests/presentation/reconciliation_dialog.dart';
+import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockErasureRequestRepository extends Mock
@@ -242,6 +245,71 @@ void main() {
         findsOneWidget,
       );
       expect(find.text(_a), findsOneWidget);
+    },
+  );
+
+  // AF-32h
+  testWidgets(
+    'GivenATransportFailure_WhenConfirmed_ThenTheBannerAndPasteStay',
+    (tester) async {
+      // Given
+      when(() => repository.reapply(any())).thenAnswer(
+        (_) async => const FailureResult<ReconciliationOutcome>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      await open(tester);
+      await paste(tester, _a);
+      await submit(tester);
+
+      // When
+      await tester.tap(confirmReapply());
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(ErrorBanner), findsOneWidget);
+      expect(find.text(_a), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenARunInFlight_WhenDismissed_ThenTheDialogStaysAndRefreshes',
+    (tester) async {
+      // Given
+      final pending = Completer<Result<ReconciliationOutcome>>();
+      when(() => repository.reapply(any())).thenAnswer((_) => pending.future);
+      await open(tester);
+      await paste(tester, _a);
+      await submit(tester);
+      await tester.tap(confirmReapply());
+      await tester.pumpAndSettle();
+
+      // When
+      final cancel = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Cancel'),
+      );
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pump();
+      await tester.binding.handlePopRoute();
+      await tester.pump();
+
+      // Then
+      expect(cancel.onPressed, isNull);
+      expect(find.byType(AlertDialog), findsOneWidget);
+
+      pending.complete(
+        const Success<ReconciliationOutcome>(
+          ReconciliationOutcome(
+            anonymised: 1,
+            alreadyAnonymised: 0,
+            notFound: <String>[],
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Anonymised: 1'), findsOneWidget);
+      verify(() => repository.list(overdueOnly: false, pageNumber: 1))
+          .called(1);
     },
   );
 

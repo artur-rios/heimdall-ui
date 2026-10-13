@@ -80,18 +80,23 @@ class ReconciliationController extends Notifier<ReconciliationState> {
 
     state = const ReconciliationSending();
 
+    // Taken before the await: the run is real once the API has it, so the
+    // queue is refreshed whether or not this provider outlives the call.
+    final list = ref.read(erasureRequestListControllerProvider.notifier);
     final result = await ref
         .read(erasureRequestRepositoryProvider)
         .reapply(ids);
 
-    state = result.fold<ReconciliationState>(
-      onSuccess: ReconciliationDone.new,
-      onFailure: (failure) => ReconciliationEditing(failure: failure),
-    );
+    if (ref.mounted) {
+      state = result.fold<ReconciliationState>(
+        onSuccess: ReconciliationDone.new,
+        onFailure: (failure) => ReconciliationEditing(failure: failure),
+      );
+    }
 
     // A restored identity anonymised again leaves the queue; show it gone.
     if (result.isSuccess) {
-      await ref.read(erasureRequestListControllerProvider.notifier).load();
+      await list.load();
     }
   }
 }

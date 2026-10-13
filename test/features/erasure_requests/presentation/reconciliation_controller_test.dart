@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -134,4 +136,33 @@ void main() {
     // Then
     expect((currentState() as ReconciliationEditing).failure, same(refusal));
   });
+
+  test(
+    'GivenTheProviderDisposed_WhenTheRunReturns_ThenTheListStillRefreshes',
+    () async {
+      // Given
+      final pending = Completer<Result<ReconciliationOutcome>>();
+      when(() => repository.reapply(any())).thenAnswer((_) => pending.future);
+      answerListWith(Success<Page<OutstandingErasure>>(_page()));
+      final controller = controllerUnderTest();
+      final sending = controller.send(<String>[_a]);
+      container.invalidate(reconciliationControllerProvider);
+
+      // When
+      pending.complete(
+        const Success<ReconciliationOutcome>(
+          ReconciliationOutcome(
+            anonymised: 1,
+            alreadyAnonymised: 0,
+            notFound: <String>[],
+          ),
+        ),
+      );
+      await sending;
+
+      // Then
+      verify(() => repository.list(overdueOnly: false, pageNumber: 1))
+          .called(1);
+    },
+  );
 }

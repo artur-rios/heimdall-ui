@@ -71,31 +71,38 @@ class _ReconciliationDialogState extends ConsumerState<_ReconciliationDialog> {
   Widget build(BuildContext context) {
     final state = ref.watch(reconciliationControllerProvider);
 
-    return AlertDialog(
-      scrollable: true,
-      title: const Text('Re-apply erasures'),
-      content: switch (state) {
-        ReconciliationDone(:final outcome) => _result(context, outcome),
-        _ => _form(state),
-      },
-      actions: switch (state) {
-        ReconciliationDone() => <Widget>[
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Done'),
-          ),
-        ],
-        _ => <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: state is ReconciliationSending ? null : _submit,
-            child: const Text('Re-apply'),
-          ),
-        ],
-      },
+    // A run in flight cannot be walked away from: the dialog is the only
+    // place its outcome is shown.
+    return PopScope(
+      canPop: state is! ReconciliationSending,
+      child: AlertDialog(
+        scrollable: true,
+        title: const Text('Re-apply erasures'),
+        content: switch (state) {
+          ReconciliationDone(:final outcome) => _result(context, outcome),
+          _ => _form(state),
+        },
+        actions: switch (state) {
+          ReconciliationDone() => <Widget>[
+            FilledButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('Done'),
+            ),
+          ],
+          _ => <Widget>[
+            TextButton(
+              onPressed: state is ReconciliationSending
+                  ? null
+                  : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: state is ReconciliationSending ? null : _submit,
+              child: const Text('Re-apply'),
+            ),
+          ],
+        },
+      ),
     );
   }
 
