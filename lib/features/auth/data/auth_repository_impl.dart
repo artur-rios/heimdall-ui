@@ -84,6 +84,32 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
+  Future<Result<void>> resendSecondFactorCode({
+    required String challengeToken,
+  }) async {
+    try {
+      final response = await _client.authResendTwoFactorChallengeCode(
+        body: ResendTwoFactorChallengeCodeCommand(
+          challengeToken: challengeToken,
+        ),
+      );
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<void>> requestPasswordRecovery({required String email}) async {
     try {
       final response = await _client.authPasswordRecovery(

@@ -324,6 +324,25 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// UI-02 — a new email code for the challenge this session holds. The
+  /// challenge is not changed: the API never extends or reissues it.
+  Future<Result<void>> resendSecondFactorCode() async {
+    final current = state;
+
+    if (current is! Challenged) {
+      return const FailureResult<void>(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>['There is no sign-in to send a code for.'],
+        ),
+      );
+    }
+
+    return _repository.resendSecondFactorCode(
+      challengeToken: current.challengeToken,
+    );
+  }
+
   /// Whether a failure means the challenge itself is gone rather than the code
   /// being wrong. The envelope carries no code of its own for this, so the
   /// status is the signal: a challenge the API will not accept from anyone
