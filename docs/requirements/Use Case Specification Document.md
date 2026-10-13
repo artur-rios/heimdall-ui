@@ -1111,7 +1111,7 @@ destination shown only to a System Admin, and the route is refused for a Scope A
    when expanded (FR-UX-04). The soonest deadline comes first.
 3. Above the list, the line "Names and email addresses are not shown: these people have asked to be
    erased." and an **Overdue only** filter chip.
-4. Each row shows the subject id in monospace with a copy button (it says "Identifier copied."), the
+4. Each row shows the subject id (in the default face) with a copy button (it says "Identifier copied."), the
    kind (**Person** or **Google user**), the **Requested** and **Due** dates, an **Overdue** chip or
    "Within deadline", and the blocked reason when there is one. The blocked rows are those that need
    an administrator, usually to transfer a scope's ownership.
