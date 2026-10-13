@@ -221,7 +221,9 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
       // The toggle's output carries no privacy settings; the scope keeps the
       // ones it had, so a save after a toggle does not clear them.
       onSuccess: (scope) => current.copyWith(
-        scope: scope.withPrivacySettingsOf(current.scope),
+        scope: scope
+            .withPrivacySettingsOf(current.scope)
+            .withSelfRegistrationOf(current.scope),
         togglingGoogleSignIn: false,
       ),
       onFailure: (failure) => current.copyWith(
