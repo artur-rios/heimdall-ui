@@ -13,6 +13,7 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/data_rights/presentation/restricted_session_screen.dart';
+import '../features/erasure_requests/presentation/erasure_request_list_screen.dart';
 import '../features/health/presentation/health_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
@@ -244,6 +245,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           personId: state.pathParameters['personId']!,
         ),
+      ),
+      GoRoute(
+        path: '/erasure-requests',
+        builder: (context, state) => const ErasureRequestListScreen(),
       ),
       GoRoute(
         path: '/health',

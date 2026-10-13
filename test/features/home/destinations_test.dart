@@ -17,7 +17,13 @@ void main() {
           .toSet();
 
       // Then
-      for (final route in <String>['/', '/scopes', '/profile', '/health']) {
+      for (final route in <String>[
+        '/',
+        '/scopes',
+        '/profile',
+        '/health',
+        '/erasure-requests',
+      ]) {
         expect(
           routes.contains(route),
           roleMayReach(role: role, path: route),
@@ -26,4 +32,29 @@ void main() {
       }
     });
   }
+
+  test(
+    'GivenASystemAdmin_WhenNavigationIsBuilt_ThenErasureRequestsIsOffered',
+    () {
+      // Given
+      const principal = Principal(id: 'p', email: '', role: Role.systemAdmin);
+
+      // When
+      final routes = destinationsFor(principal).map((d) => d.route);
+
+      // Then
+      expect(routes, contains('/erasure-requests'));
+    },
+  );
+
+  test('GivenAScopeAdmin_WhenNavigationIsBuilt_ThenErasureRequestsIsNot', () {
+    // Given
+    const principal = Principal(id: 'p', email: '', role: Role.scopeAdmin);
+
+    // When
+    final routes = destinationsFor(principal).map((d) => d.route);
+
+    // Then
+    expect(routes, isNot(contains('/erasure-requests')));
+  });
 }
