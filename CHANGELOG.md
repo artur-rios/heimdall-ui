@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- An **Erasure requests** screen for System Admins: the erasure requests not yet carried out, soonest deadline first,
+  with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
+  post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
+
 ## [1.6.1] - 2026-10-12
 
 ### Fixed

@@ -91,6 +91,10 @@ graph LR
         UI27[UI-27: Delete permission]
     end
 
+    subgraph "Data Subject Administration"
+        UI32[UI-32: Erasure requests]
+    end
+
     subgraph "Google Users"
         UI28[UI-28: Browse & view Google users]
         UI29[UI-29: Delete Google user]
@@ -105,6 +109,7 @@ graph LR
     SA & SCA --> UI20 & UI21 & UI22 & UI23
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
+    SA --> UI32
 ```
 
 ### 1.4 Inventory and traceability
@@ -141,6 +146,7 @@ graph LR
 | UI-28 | Browse and view Google users | UC-27 |
 | UI-29 | Delete a Google user, logically and permanently | UC-28, UC-29 |
 | UI-30 | Use a restricted session | UC-11 (AF-11i), UC-25 (AF-25e), UC-38, UC-41, UC-42, UC-45 |
+| UI-32 | Review outstanding erasure requests | UC-43 |
 
 ### 1.5 Platform items
 
@@ -1086,6 +1092,67 @@ restricted person would land on the home screen and watch every request fail.
 
 ---
 
+### UI-32: Review outstanding erasure requests
+
+**Actor:** System Admin only. A Scope Admin is deliberately excluded (UC-43): who has asked to be
+erased is not theirs to know.
+**Traces to:** UC-43 (List Outstanding Erasure Requests) and the API's erasure reconciliation
+endpoint (`POST /api/auth/erasure-reconciliation`), which has no use case number
+**Precondition:** The user is signed in as a System Admin.
+
+The screen is the route `/erasure-requests`, titled **Erasure requests**. It is a navigation
+destination shown only to a System Admin, and the route is refused for a Scope Admin and a User.
+
+**Main flow**
+
+1. The System Admin opens **Erasure requests**.
+2. The client calls `GET /api/auth/erasure-requests` with `PageNumber`, `PageSize` and `OverdueOnly`,
+   and renders the answer as every collection is rendered: cards when compact, a paginated table
+   when expanded (FR-UX-04). The soonest deadline comes first.
+3. Above the list, the line "Names and email addresses are not shown: these people have asked to be
+   erased." and an **Overdue only** filter chip.
+4. Each row shows the subject id in monospace with a copy button (it says "Identifier copied."), the
+   kind (**Person** or **Google user**), the **Requested** and **Due** dates, an **Overdue** chip or
+   "Within deadline", and the blocked reason when there is one. The blocked rows are those that need
+   an administrator, usually to transfer a scope's ownership.
+
+**Re-apply erasures after a restore**
+
+A **Re-apply erasures** action opens a dialog for the Operations runbook step that follows a database
+restore.
+
+1. The dialog explains: "Paste the identifiers the anonymisation pass logged since the backup was
+   taken. Commas, spaces and new lines all separate them."
+2. The System Admin pastes them into the **Identifiers** field. Entries are split on commas,
+   whitespace and new lines, trimmed and de-duplicated without regard to case.
+3. Each entry must be an identifier (a UUID); an empty list is refused.
+4. The System Admin chooses **Re-apply**, and the dialog asks "Re-apply erasure to N identifier(s)?",
+   N being the count after de-duplication.
+5. On confirmation the client calls `POST /api/auth/erasure-reconciliation` with
+   `{"subjectIds": [...]}`. The dialog cannot be dismissed while the run is in progress.
+6. The dialog shows **Anonymised: N**, **Already anonymised: N** and **Not found: N** with the list,
+   a **Copy** button for it, and the note "Not found is the ordinary case for most of the ledger."
+7. **Done** closes the dialog, and the list refreshes after a run.
+
+**Alternative flows**
+
+- **AF-32a — No outstanding requests.** The list says "No outstanding erasure requests." (FR-UX-06).
+- **AF-32b — Overdue only, none overdue.** The list says "Nothing is overdue." with a **Show all**
+  action (FR-UX-06).
+- **AF-32c — List refused.** The API answers `401` or `403`. The returned errors are shown; the `401`
+  path is the shell's usual session handling (UI-07).
+- **AF-32d — Pasted entries are not identifiers.** The dialog says "These are not identifiers: …" and
+  lists them. Nothing is sent.
+- **AF-32e — The paste is empty.** The dialog says "Paste at least one identifier." Nothing is sent
+  (the API refuses an empty list too, deliberately).
+- **AF-32f — Confirmation cancelled.** Nothing is sent and the paste is kept.
+- **AF-32g — Reconciliation refused.** The returned errors are shown in the dialog and the paste is
+  kept.
+- **AF-32h — Transport failure.** The list shows the retryable error state (FR-UX-07); the dialog
+  shows an error banner and keeps the paste.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1099,6 +1166,7 @@ restricted person would land on the home screen and watch every request fail.
 | UI-24 … UI-27 | FR-PM-01 … FR-PM-08 |
 | UI-28, UI-29 | FR-GU-01 … FR-GU-05 |
 | UI-07, UI-30 | FR-AU-21 … FR-AU-25 |
+| UI-32 | FR-DA-01, FR-DA-02 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
