@@ -10,11 +10,15 @@ import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
+import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
+import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
@@ -23,6 +27,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/dashboard_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockErasureRequestRepository extends Mock
+    implements ErasureRequestRepository {}
 
 const String _systemAdminJwt =
     'header.'
@@ -43,7 +50,10 @@ void main() {
     rootBundle.clear();
   });
 
-  Future<ProviderContainer> pumpApp(WidgetTester tester) async {
+  Future<ProviderContainer> pumpApp(
+    WidgetTester tester, {
+    List<Override> overrides = const <Override>[],
+  }) async {
     final container = ProviderContainer(
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
@@ -54,6 +64,7 @@ void main() {
         ),
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(repository),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);
@@ -568,6 +579,56 @@ void main() {
     );
     expect(container.read(profileControllerProvider), isA<ProfileLoading>());
   });
+
+  testWidgets(
+    'GivenAnErasureListing_WhenSignedOut_ThenItsFilterAndPageAreForgotten',
+    (tester) async {
+      // Given
+      final erasures = _MockErasureRequestRepository();
+      when(
+        () => erasures.list(
+          overdueOnly: any(named: 'overdueOnly'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<envelope.Page<OutstandingErasure>>(
+          envelope.Page<OutstandingErasure>(
+            items: <OutstandingErasure>[],
+            pageNumber: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 1,
+          ),
+        ),
+      );
+      await store.write(
+        AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+      );
+      final container = await pumpApp(
+        tester,
+        overrides: <Override>[
+          erasureRequestRepositoryProvider.overrideWithValue(erasures),
+        ],
+      );
+      await container
+          .read(erasureRequestListControllerProvider.notifier)
+          .setOverdueOnly(true);
+      expect(
+        container.read(erasureRequestListControllerProvider),
+        isA<ErasureRequestListLoaded>(),
+      );
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+      await tester.pumpAndSettle();
+
+      // Then
+      final state = container.read(erasureRequestListControllerProvider);
+      expect(state, isA<ErasureRequestListLoading>());
+      expect(state.query.overdueOnly, isFalse);
+    },
+  );
 
   testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {
     // Given no stored token

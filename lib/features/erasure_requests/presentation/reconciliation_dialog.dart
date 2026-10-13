@@ -125,6 +125,9 @@ class _ReconciliationDialogState extends ConsumerState<_ReconciliationDialog> {
           maxLines: 12,
           decoration: InputDecoration(
             labelText: 'Identifiers',
+            // Every entry that is not an identifier is listed (AF-32d), so the
+            // message wraps instead of ending in an ellipsis.
+            errorMaxLines: 1000,
             errorText: editing == null
                 ? null
                 : editing.empty

@@ -5,6 +5,7 @@ import '../features/applications/presentation/application_detail_controller.dart
 import '../features/applications/presentation/application_list_controller.dart';
 import '../features/auth/presentation/email_verification_controller.dart';
 import '../features/auth/presentation/verification_banner.dart';
+import '../features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import '../features/google_users/presentation/google_user_detail_controller.dart';
 import '../features/google_users/presentation/google_user_list_controller.dart';
 import '../features/health/presentation/health_controller.dart';
@@ -59,4 +60,5 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   permissionDetailControllerProvider,
   googleUserListControllerProvider,
   googleUserDetailControllerProvider,
+  erasureRequestListControllerProvider,
 ];

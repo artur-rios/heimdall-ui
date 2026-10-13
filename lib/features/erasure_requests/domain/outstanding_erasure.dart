@@ -54,11 +54,12 @@ final RegExp _uuid = RegExp(
 );
 
 /// Splits [text] on commas and whitespace, keeps each identifier once
-/// (lowercased, in first-seen order), and lists every entry that is not one.
+/// (lowercased, in first-seen order), and lists every entry that is not one (also once each).
 ParsedSubjectIds parseSubjectIds(String text) {
   final ids = <String>[];
   final seen = <String>{};
   final invalid = <String>[];
+  final seenInvalid = <String>{};
 
   for (final entry in text.split(RegExp(r'[\s,]+'))) {
     if (entry.isEmpty) {
@@ -66,7 +67,9 @@ ParsedSubjectIds parseSubjectIds(String text) {
     }
 
     if (!_uuid.hasMatch(entry)) {
-      invalid.add(entry);
+      if (seenInvalid.add(entry)) {
+        invalid.add(entry);
+      }
 
       continue;
     }

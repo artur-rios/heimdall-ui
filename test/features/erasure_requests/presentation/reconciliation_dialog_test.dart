@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -22,8 +23,12 @@ const _b = '7a2d3c0f-1e5b-4d2f-8b4c-3a7e9f8b2c1d';
 void main() {
   late _MockErasureRequestRepository repository;
 
-  Future<void> open(WidgetTester tester, {ThemeData? theme}) async {
-    tester.view.physicalSize = const Size(800, 900);
+  Future<void> open(
+    WidgetTester tester, {
+    ThemeData? theme,
+    Size size = const Size(800, 900),
+  }) async {
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -117,6 +122,32 @@ void main() {
     // Then
     expect(find.text('Paste at least one identifier.'), findsOneWidget);
     verifyNever(() => repository.reapply(any()));
+  });
+
+  // AF-32d
+  testWidgets('GivenSeveralLongInvalidEntries_WhenSubmitted_ThenEachIsShown', (
+    tester,
+  ) async {
+    // Given
+    final entries = <String>[
+      for (var i = 0; i < 6; i++) 'not-an-identifier-$i-${'x' * 40}',
+    ];
+    await open(tester, size: const Size(400, 900));
+    await paste(tester, '$_a ${entries.join(' ')}');
+
+    // When
+    await submit(tester);
+
+    // Then
+    final error = find.textContaining('These are not identifiers:');
+    expect(error, findsOneWidget);
+    final text = tester.widget<Text>(error).data!;
+    for (final entry in entries) {
+      expect(text, contains(entry));
+    }
+    final paragraph = tester.renderObject<RenderParagraph>(error);
+    expect(paragraph.didExceedMaxLines, isFalse);
+    expect(tester.takeException(), isNull);
   });
 
   // AF-32d
@@ -312,6 +343,26 @@ void main() {
           .called(1);
     },
   );
+
+  testWidgets('GivenTheCompactWidth_WhenOpened_ThenItRenders', (tester) async {
+    // When
+    await open(tester, size: const Size(400, 900));
+
+    // Then
+    expect(find.text('Re-apply erasures'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GivenTheExpandedWidth_WhenOpened_ThenItRenders', (tester) async {
+    // When
+    await open(tester, size: const Size(1400, 900));
+
+    // Then
+    expect(find.text('Re-apply erasures'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('GivenTheDarkTheme_WhenOpened_ThenItRenders', (tester) async {
     // When

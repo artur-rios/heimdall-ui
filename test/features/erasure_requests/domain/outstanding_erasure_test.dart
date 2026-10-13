@@ -39,6 +39,14 @@ void main() {
     expect(parsed.invalid, <String>['not-an-id', '1234']);
   });
 
+  test('GivenRepeatedInvalidEntries_WhenParsed_ThenEachIsListedOnce', () {
+    // Given / When
+    final parsed = parseSubjectIds('bad $_a worse bad worse other');
+
+    // Then
+    expect(parsed.invalid, <String>['bad', 'worse', 'other']);
+  });
+
   test('GivenOnlyWhitespace_WhenParsed_ThenNothingIsFound', () {
     // Given / When
     final parsed = parseSubjectIds(' \n , \t ');
