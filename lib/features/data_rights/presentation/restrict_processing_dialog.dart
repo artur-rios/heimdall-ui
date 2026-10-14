@@ -51,9 +51,10 @@ class _RestrictProcessingDialog extends ConsumerWidget {
     final controller = ref.read(restrictProcessingControllerProvider.notifier);
 
     // A request in flight cannot be walked away from: the dialog is the only
-    // place its outcome is shown.
+    // place its outcome is shown. Nor can AF-33b's answer: the API already
+    // refuses this session, so keeping it would only fail at the next step.
     return PopScope(
-      canPop: !state.sending,
+      canPop: !state.sending && !state.alreadyRestricted,
       child: AlertDialog(
         // Scrolls rather than overflowing on a short window.
         scrollable: true,
@@ -97,7 +98,7 @@ class _RestrictProcessingDialog extends ConsumerWidget {
                     for (final ground in RestrictionGround.values)
                       RadioListTile<RestrictionGround>(
                         value: ground,
-                        enabled: !state.sending,
+                        enabled: !state.sending && !state.alreadyRestricted,
                         contentPadding: EdgeInsets.zero,
                         title: Text(_wording(ground).title),
                         subtitle: Text(_wording(ground).detail),
@@ -116,21 +117,38 @@ class _RestrictProcessingDialog extends ConsumerWidget {
                 // AF-33b / AF-33c: the API's own words, as returned.
                 ErrorBanner(failure: _shown(failure)),
               ],
+              if (state.alreadyRestricted) ...<Widget>[
+                const SizedBox(height: 8),
+                const Text(
+                  'This session can do nothing more. Sign out, then sign in '
+                  'again to lift the restriction, or to download or erase '
+                  'your data.',
+                ),
+              ],
             ],
           ),
         ),
         actions: <Widget>[
-          TextButton(
-            // AF-33a: closing sends nothing.
-            onPressed: state.sending ? null : () => Navigator.of(context).pop(),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: state.canConfirm
-                ? () => _restrict(context, controller)
-                : null,
-            child: const Text('Restrict processing'),
-          ),
+          if (state.alreadyRestricted)
+            FilledButton(
+              onPressed: () => _signOut(context, controller),
+              child: const Text('Sign out'),
+            )
+          else ...<Widget>[
+            TextButton(
+              // AF-33a: closing sends nothing.
+              onPressed: state.sending
+                  ? null
+                  : () => Navigator.of(context).pop(),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              onPressed: state.canConfirm
+                  ? () => _restrict(context, controller)
+                  : null,
+              child: const Text('Restrict processing'),
+            ),
+          ],
         ],
       ),
     );
@@ -145,6 +163,20 @@ class _RestrictProcessingDialog extends ConsumerWidget {
     // On success the session has ended by now, and the route guard is about
     // to replace the page beneath: the dialog goes first.
     if (await controller.restrict() && context.mounted) {
+      navigator.pop();
+    }
+  }
+
+  /// AF-33b — the session ends with the UI-33 reason; the dialog goes first,
+  /// as on success.
+  Future<void> _signOut(
+    BuildContext context,
+    RestrictProcessingController controller,
+  ) async {
+    final navigator = Navigator.of(context);
+    await controller.signOut();
+
+    if (context.mounted) {
       navigator.pop();
     }
   }

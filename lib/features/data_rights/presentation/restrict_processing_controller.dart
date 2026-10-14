@@ -24,8 +24,14 @@ class RestrictProcessingState {
   /// Why the last attempt failed, as the API or the transport said it.
   final Failure? failure;
 
+  /// AF-33b — the API says processing is already restricted, which a full
+  /// session only hears when it was restricted elsewhere. The API already
+  /// refuses this session's token on everything but the rights endpoints, so
+  /// signing out is all that is left.
+  bool get alreadyRestricted => failure?.kind == FailureKind.conflict;
+
   /// Whether the request may be sent now.
-  bool get canConfirm => ground != null && !sending;
+  bool get canConfirm => ground != null && !sending && !alreadyRestricted;
 }
 
 final NotifierProvider<RestrictProcessingController, RestrictProcessingState>
@@ -41,9 +47,10 @@ class RestrictProcessingController extends Notifier<RestrictProcessingState> {
   RestrictProcessingState build() => const RestrictProcessingState();
 
   /// Records the ground the person chose. Ignored while a request is in
-  /// flight, so what is shown is what was sent.
+  /// flight, so what is shown is what was sent, and once AF-33b leaves
+  /// nothing to send.
   void choose(RestrictionGround ground) {
-    if (state.sending) {
+    if (state.sending || state.alreadyRestricted) {
       return;
     }
 
@@ -65,7 +72,7 @@ class RestrictProcessingController extends Notifier<RestrictProcessingState> {
   Future<bool> restrict() async {
     final ground = state.ground;
 
-    if (ground == null || state.sending) {
+    if (ground == null || !state.canConfirm) {
       return false;
     }
 
@@ -86,8 +93,19 @@ class RestrictProcessingController extends Notifier<RestrictProcessingState> {
       return false;
     }
 
+    // A sign-out already under way — the interceptor's, after a request
+    // refused elsewhere — is not started twice, so its own reason wins and
+    // this note is lost. The restriction stands all the same, which is what
+    // the answer reports.
     await session.signOut(processingRestricted: true);
 
     return true;
   }
+
+  /// AF-33b — ends a session the API already refuses, with the same reason
+  /// as a restriction made here: signing in again opens the restricted
+  /// session (UI-30), and the sign-in screen says so.
+  Future<void> signOut() => ref
+      .read(sessionControllerProvider.notifier)
+      .signOut(processingRestricted: true);
 }

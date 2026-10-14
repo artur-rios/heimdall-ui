@@ -33,6 +33,11 @@ const Failure _alreadyRestricted = Failure(
   errors: <String>['Processing of this account is already restricted.'],
 );
 
+const Failure _unknownGround = Failure(
+  kind: FailureKind.validation,
+  errors: <String>['RestrictionGroundUnknown'],
+);
+
 void main() {
   late _MockDataRightsRepository repository;
   late InMemoryTokenStore store;
@@ -145,7 +150,54 @@ void main() {
       expect(currentState().failure?.errors, _alreadyRestricted.errors);
       expect(currentState().sending, isFalse);
       expect(currentState().ground, RestrictionGround.accuracyContested);
+      expect(currentState().alreadyRestricted, isTrue);
+      expect(currentState().canConfirm, isFalse);
       expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    },
+  );
+
+  // AF-33b — the session is already refused elsewhere; nothing more is sent.
+  test(
+    'GivenAnAlreadyRestrictedAccount_WhenRestrictedAgain_ThenNothingIsSent',
+    () async {
+      // Given
+      when(
+        () => repository.restrictProcessing(any()),
+      ).thenAnswer((_) async => const FailureResult<void>(_alreadyRestricted));
+      final controller = await controllerUnderTest();
+      controller.choose(RestrictionGround.accuracyContested);
+      await controller.restrict();
+
+      // When
+      controller.choose(RestrictionGround.objectionPending);
+      final restricted = await controller.restrict();
+
+      // Then
+      expect(restricted, isFalse);
+      expect(currentState().ground, RestrictionGround.accuracyContested);
+      verify(() => repository.restrictProcessing(any())).called(1);
+    },
+  );
+
+  // AF-33b — signing out carries the same reason as a restriction made here.
+  test(
+    'GivenAnAlreadyRestrictedAccount_WhenSignedOut_ThenTheReasonIsKept',
+    () async {
+      // Given
+      when(
+        () => repository.restrictProcessing(any()),
+      ).thenAnswer((_) async => const FailureResult<void>(_alreadyRestricted));
+      final controller = await controllerUnderTest();
+      controller.choose(RestrictionGround.accuracyContested);
+      await controller.restrict();
+
+      // When
+      await controller.signOut();
+
+      // Then
+      final session = container.read(sessionControllerProvider);
+      expect((session as Unauthenticated).processingRestricted, isTrue);
+      expect(await store.read(), isNull);
     },
   );
 
@@ -173,9 +225,8 @@ void main() {
     () async {
       // Given
       final pending = Completer<Result<void>>();
-      when(
-        () => repository.restrictProcessing(any()),
-      ).thenAnswer((_) async => const FailureResult<void>(_alreadyRestricted));
+      when(() => repository.restrictProcessing(any()))
+          .thenAnswer((_) async => const FailureResult<void>(_unknownGround));
       final controller = await controllerUnderTest();
       controller.choose(RestrictionGround.accuracyContested);
       await controller.restrict();

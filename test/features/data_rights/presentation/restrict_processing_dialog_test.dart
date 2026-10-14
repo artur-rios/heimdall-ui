@@ -45,7 +45,8 @@ void main() {
   late InMemoryTokenStore store;
   late ProviderContainer container;
 
-  Future<void> open(
+  /// Pumps a page that can open the dialog, signed in with a full session.
+  Future<void> host(
     WidgetTester tester, {
     ThemeData? theme,
     Size size = _medium,
@@ -83,8 +84,20 @@ void main() {
         ),
       ),
     );
+  }
+
+  Future<void> openDialog(WidgetTester tester) async {
     await tester.tap(find.text('Open'));
     await tester.pumpAndSettle();
+  }
+
+  Future<void> open(
+    WidgetTester tester, {
+    ThemeData? theme,
+    Size size = _medium,
+  }) async {
+    await host(tester, theme: theme, size: size);
+    await openDialog(tester);
   }
 
   Finder restrictButton() =>
@@ -114,8 +127,11 @@ void main() {
   testWidgets('GivenTheDialog_WhenOpened_ThenItSaysWhatARestrictionDoes', (
     tester,
   ) async {
+    // Given
+    await host(tester);
+
     // When
-    await open(tester);
+    await openDialog(tester);
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
@@ -135,8 +151,11 @@ void main() {
   testWidgets('GivenTheDialog_WhenOpened_ThenTheFourGroundsAreOffered', (
     tester,
   ) async {
+    // Given
+    await host(tester);
+
     // When
-    await open(tester);
+    await openDialog(tester);
 
     // Then
     expect(find.text(_inaccurate), findsOneWidget);
@@ -163,8 +182,11 @@ void main() {
   testWidgets('GivenNoGround_WhenOpened_ThenRestrictIsDisabled', (
     tester,
   ) async {
+    // Given
+    await host(tester);
+
     // When
-    await open(tester);
+    await openDialog(tester);
 
     // Then
     expect(tester.widget<FilledButton>(restrictButton()).onPressed, isNull);
@@ -246,7 +268,68 @@ void main() {
       // Then
       expect(find.text(_alreadyRestricted), findsOneWidget);
       expect(find.byType(AlertDialog), findsOneWidget);
+      expect(find.widgetWithText(FilledButton, 'Sign out'), findsOneWidget);
+      expect(restrictButton(), findsNothing);
+      expect(cancelButton(), findsNothing);
       expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    },
+  );
+
+  // AF-33b — the session is already refused elsewhere, so it cannot be kept
+  // by walking away from the dialog.
+  testWidgets(
+    'GivenAnAlreadyRestrictedAccount_WhenDismissed_ThenTheDialogStays',
+    (tester) async {
+      // Given
+      when(() => repository.restrictProcessing(any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.conflict,
+            errors: <String>[_alreadyRestricted],
+          ),
+        ),
+      );
+      await open(tester);
+      await choose(tester, _inaccurate);
+      await confirm(tester);
+
+      // When
+      await tester.tapAt(const Offset(5, 5));
+      await tester.pumpAndSettle();
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(AlertDialog), findsOneWidget);
+    },
+  );
+
+  // AF-33b — signing out ends the session with the UI-33 reason.
+  testWidgets(
+    'GivenAnAlreadyRestrictedAccount_WhenSignedOut_ThenTheReasonIsKept',
+    (tester) async {
+      // Given
+      when(() => repository.restrictProcessing(any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.conflict,
+            errors: <String>[_alreadyRestricted],
+          ),
+        ),
+      );
+      await open(tester);
+      await choose(tester, _inaccurate);
+      await confirm(tester);
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign out'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(AlertDialog), findsNothing);
+      final session = container.read(sessionControllerProvider);
+      expect((session as Unauthenticated).processingRestricted, isTrue);
+      verify(() => repository.restrictProcessing(any())).called(1);
     },
   );
 
@@ -330,8 +413,11 @@ void main() {
   });
 
   testWidgets('GivenTheCompactWidth_WhenOpened_ThenItRenders', (tester) async {
+    // Given
+    await host(tester, size: _compact);
+
     // When
-    await open(tester, size: _compact);
+    await openDialog(tester);
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
@@ -340,8 +426,11 @@ void main() {
   });
 
   testWidgets('GivenTheMediumWidth_WhenOpened_ThenItRenders', (tester) async {
+    // Given
+    await host(tester, size: _medium);
+
     // When
-    await open(tester, size: _medium);
+    await openDialog(tester);
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
@@ -349,8 +438,11 @@ void main() {
   });
 
   testWidgets('GivenTheExpandedWidth_WhenOpened_ThenItRenders', (tester) async {
+    // Given
+    await host(tester, size: _expanded);
+
     // When
-    await open(tester, size: _expanded);
+    await openDialog(tester);
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
@@ -358,8 +450,11 @@ void main() {
   });
 
   testWidgets('GivenTheDarkTheme_WhenOpened_ThenItRenders', (tester) async {
+    // Given
+    await host(tester, theme: buildDarkTheme());
+
     // When
-    await open(tester, theme: buildDarkTheme());
+    await openDialog(tester);
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);

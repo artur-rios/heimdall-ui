@@ -1242,7 +1242,10 @@ restore.
 
 ### UI-33: Restrict processing of my account
 
-**Actor:** System Admin, Scope Admin, User — any person signed in with a full session
+**Actor:** System Admin, Scope Admin, User — any person signed in with a full session. A Google
+User is not served yet: the profile reads `GET /api/persons/{id}`, which answers `404` for a Google
+User (AF-08e), so they never reach the entry. The session still skips the API's Google sign-out
+after a restriction (step 5), so the flow holds once they can.
 **Traces to:** UC-44 (Restrict Processing of Own Identity); UC-45 (Lift a Restriction on
 Processing) for lifting it, which UI-30 already offers
 **Precondition:** A full session exists. A restricted session (UI-30) never reaches this screen: it
@@ -1294,9 +1297,12 @@ UI-30 could only be entered by calling the API directly.
 - **AF-33a — Cancelled.** **Cancel**, the barrier or the back control closes the dialog. Nothing is
   sent and the session is unchanged.
 - **AF-33b — Already restricted.** The API answers `409` (the API's AF-44a), "Processing of this
-  account is already restricted." — typically because the restriction was asked for on another
-  device. The dialog shows the returned errors and stays open; the session is left to the API, which
-  refuses the token on its next request and so ends it through UI-07.
+  account is already restricted." A full session only hears this when the account was restricted
+  elsewhere — on another device, or directly through the API — so the API already refuses this
+  session's token on everything but the data-subject-right endpoints. The dialog shows the returned
+  errors, says the session can do nothing more, and replaces its actions with a single **Sign out**;
+  it can no longer be dismissed. **Sign out** ends the session exactly as in step 5, and the
+  sign-in screen shows the note of step 6.
 - **AF-33c — Request refused.** Any other refusal, such as `400` for an unknown ground, is shown in
   the dialog as returned. The chosen ground is kept and the person may try again or cancel.
 - **AF-33d — Transport failure.** The dialog says the API could not be reached. The chosen ground

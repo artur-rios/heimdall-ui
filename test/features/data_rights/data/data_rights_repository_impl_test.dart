@@ -241,14 +241,14 @@ void main() {
 
       for (final MapEntry(key: ground, value: number) in expected.entries) {
         final repository = repositoryAnswering(
-          const _Answer(
+          _Answer(
             status: 200,
             body: <String, dynamic>{
               'success': true,
               'data': <String, dynamic>{
                 'id': 'person-1',
                 'restrictedAt': '2026-10-14T00:00:00Z',
-                'ground': 1,
+                'ground': number,
               },
               'messages': <String>[
                 'Processing of your data is restricted. Your account is '
