@@ -28,6 +28,12 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
   @override
   void initState() {
     super.initState();
+    // The controller outlives the screen, so a filter set on an earlier visit
+    // is still applied: the fields must show it.
+    final filter = ref.read(auditLogControllerProvider).query.filter;
+    _action.text = filter.action ?? '';
+    _actor.text = filter.actorId ?? '';
+    _target.text = filter.targetId ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(auditLogControllerProvider.notifier).load();
     });
@@ -87,6 +93,10 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
           ? null
           : DateTimeRange(start: first, end: last),
     );
+
+    if (!mounted) {
+      return;
+    }
 
     if (range != null) {
       await _controller.setDays(range.start, range.end);

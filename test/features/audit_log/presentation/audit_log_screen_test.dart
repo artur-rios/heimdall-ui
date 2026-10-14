@@ -11,6 +11,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/audit_log/domain/audit_entry.dart';
 import 'package:heimdall_ui/features/audit_log/domain/audit_log_repository.dart';
+import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
@@ -69,7 +70,10 @@ void main() {
   late ProviderContainer container;
   late GoRouter router;
 
-  Future<void> pump(WidgetTester tester) async {
+  Future<void> pump(
+    WidgetTester tester, {
+    Future<void> Function(ProviderContainer container)? prepare,
+  }) async {
     tester.view.physicalSize = const Size(1400, 900);
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
@@ -84,6 +88,7 @@ void main() {
     );
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
+    await prepare?.call(container);
 
     router = GoRouter(
       initialLocation: '/audit-log',
@@ -305,5 +310,52 @@ void main() {
     // Then
     expect(find.text('The range is reversed.'), findsOneWidget);
     expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
+  });
+
+  testWidgets('GivenARetainedFilter_WhenReentered_ThenTheFieldsShowIt', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(
+      tester,
+      prepare: (container) async {
+        final controller = container.read(auditLogControllerProvider.notifier);
+        await controller.setAction('CreateScopeCommand');
+        controller.setActor(_actorId);
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.value();
+        }
+        controller.setTarget(_targetId);
+        for (var i = 0; i < 10; i++) {
+          await Future<void>.value();
+        }
+      },
+    );
+
+    // Then
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Action'))
+          .controller!
+          .text,
+      'CreateScopeCommand',
+    );
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Actor'))
+          .controller!
+          .text,
+      _actorId,
+    );
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Target'))
+          .controller!
+          .text,
+      _targetId,
+    );
   });
 }
