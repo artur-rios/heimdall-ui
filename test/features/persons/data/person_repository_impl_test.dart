@@ -303,6 +303,76 @@ void main() {
     // Then
     expect(result.valueOrNull?.twoFactorEnabled, isTrue);
   });
+
+  test(
+    'GivenAPerson_WhenAVerificationEmailIsSent_ThenTheirIdIsAddressed',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'id': 'p1'},
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.sendVerificationEmail('p1');
+
+      // Then
+      expect(result.isSuccess, isTrue);
+      expect(adapter.paths.single, '/api/persons/p1/verification-email');
+    },
+  );
+
+  test('GivenAPerson_WhenAResetIsSent_ThenTheirIdIsAddressed', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'id': 'p1'},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.sendPasswordReset('p1');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.paths.single, '/api/persons/p1/password-reset');
+  });
+
+  test('GivenACooldown_WhenAResetIsSent_ThenTheFailureIsRateLimitedWithTheApiMessage', () async {
+    // Given — AF-36a
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 429,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>[
+            'An email of this kind was sent to this person recently. Try again in a few minutes.',
+          ],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.sendPasswordReset('p1');
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.rateLimited);
+    expect(
+      result.failureOrNull!.errors.single,
+      startsWith('An email of this kind'),
+    );
+  });
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that
@@ -328,6 +398,10 @@ class _StubAdapter implements HttpClientAdapter {
   /// reached the API and which were left off.
   final List<Map<String, String>> queries = <Map<String, String>>[];
 
+  /// The paths it was asked for, so a test can assert which endpoint a call
+  /// addressed.
+  final List<String> paths = <String>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -335,6 +409,7 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     queries.add(options.uri.queryParameters);
+    paths.add(options.uri.path);
 
     if (requestStream != null) {
       final bytes = <int>[];

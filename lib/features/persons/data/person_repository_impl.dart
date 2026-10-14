@@ -406,6 +406,28 @@ class ApiPersonRepository implements PersonRepository {
     }
   }
 
+  @override
+  Future<Result<void>> sendVerificationEmail(String personId) async {
+    try {
+      final response = await _client.personSendVerificationEmail(id: personId);
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> sendPasswordReset(String personId) async {
+    try {
+      final response = await _client.personSendPasswordReset(id: personId);
+
+      return _acknowledgement(response.success, response.errors);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
   /// An empty filter is no filter: sending it would ask the API to match the
   /// empty string rather than to stop filtering.
   static String? _filter(String? value) =>
