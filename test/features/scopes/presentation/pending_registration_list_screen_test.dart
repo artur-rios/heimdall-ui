@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -364,6 +365,42 @@ void main() {
       expect(find.text('ada@example.com'), findsOneWidget);
     },
   );
+
+  testWidgets('GivenADiscardInFlight_WhenRendered_ThenEveryDiscardIsDisabled', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(
+      Success<envelope.Page<PendingRegistration>>(
+        _page(items: <PendingRegistration>[_ada, _stale]),
+      ),
+    );
+    final deleted = Completer<Result<void>>();
+    when(() => repository.discard('s1', 'r1'))
+        .thenAnswer((_) => deleted.future);
+    await pump(tester);
+    await tapAfterScrolling(
+      tester,
+      find.byTooltip('Discard the registration for ada@example.com'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pump();
+
+    // Then
+    for (final email in <String>['ada@example.com', 'grace@example.com']) {
+      final button = tester.widget<IconButton>(
+        find.ancestor(
+          of: find.byTooltip('Discard the registration for $email'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(button.onPressed, isNull);
+    }
+    deleted.complete(const Success<void>(null));
+    await tester.pumpAndSettle();
+  });
 
   testWidgets(
     'GivenALongNameAt1024_WhenDiscardIsTapped_ThenItIsOnScreenAndAsks',

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -173,6 +175,61 @@ void main() {
       ).called(2);
     },
   );
+
+  test(
+    'GivenADiscardInFlight_WhenObserved_ThenTheListIsBusyUntilItReloads',
+    () async {
+      // Given
+      answerListWith(Success<Page<PendingRegistration>>(_page()));
+      final deleted = Completer<Result<void>>();
+      when(() => repository.discard('s1', 'r1'))
+          .thenAnswer((_) => deleted.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final reloaded = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => reloaded.future);
+      bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+
+      // When
+      final discarding = controller.discard(_ada);
+
+      // Then — busy while the DELETE is out, through the reload after it, and
+      // idle once the list is back.
+      expect(busy(), isTrue);
+      deleted.complete(const Success<void>(null));
+      await pumpEventQueue();
+      expect(busy(), isTrue);
+      reloaded.complete(Success<Page<PendingRegistration>>(_page()));
+      await discarding;
+      expect(busy(), isFalse);
+    },
+  );
+
+  test('GivenARefusedDiscard_WhenItEnds_ThenTheListIsNoLongerBusy', () async {
+    // Given
+    answerListWith(Success<Page<PendingRegistration>>(_page()));
+    when(() => repository.discard('s1', 'r1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.discard(_ada);
+
+    // Then
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.busy, isFalse);
+    expect(state.discardFailure, isNotNull);
+  });
 
   test(
     'GivenAnAlreadyGoneRegistration_WhenDiscarded_ThenTheListReloadsAndSaysSo',

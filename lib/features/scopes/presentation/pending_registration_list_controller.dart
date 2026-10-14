@@ -70,7 +70,18 @@ class PendingRegistrationListController
 
   Future<void> goToPage(int pageNumber) => _fetch(pageNumber);
 
+  /// Busy from the DELETE until the reload after it ends, so the screen holds
+  /// every Discard and the pager meanwhile, and no page fetch can overtake
+  /// the reload and drop its notice.
   Future<void> discard(PendingRegistration registration) async {
+    if (state case final PendingRegistrationListLoaded loaded) {
+      state = PendingRegistrationListLoaded(
+        loaded.pageNumber,
+        loaded.page,
+        busy: true,
+      );
+    }
+
     final result = await _repository.discard(arg, registration.id);
     final failure = result.failureOrNull;
 

@@ -141,13 +141,16 @@ class _PendingRegistrationListScreenState
                 onPageChanged: _controller.goToPage,
                 title: (registration) => registration.name,
                 subtitle: (registration) => registration.email,
-                columns: _columns(context),
+                columns: _columns(context, busy: loaded.busy),
               ),
       ),
     ],
   );
 
-  List<CollectionColumn<PendingRegistration>> _columns(BuildContext context) {
+  List<CollectionColumn<PendingRegistration>> _columns(
+    BuildContext context, {
+    required bool busy,
+  }) {
     String when(DateTime? at) => at == null ? '—' : formatDateTime(context, at);
 
     return <CollectionColumn<PendingRegistration>>[
@@ -158,7 +161,8 @@ class _PendingRegistrationListScreenState
         cell: (registration) => IconButton(
           icon: const Icon(Icons.delete_outline),
           tooltip: 'Discard the registration for ${registration.email}',
-          onPressed: () => _confirmDiscard(registration),
+          // Held while a discard or a page is in flight.
+          onPressed: busy ? null : () => _confirmDiscard(registration),
         ),
       ),
       CollectionColumn<PendingRegistration>(
