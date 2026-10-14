@@ -26,6 +26,7 @@ describes the flows that satisfy these requirements; the
 | `FR-AP` | Application management |
 | `FR-PM` | Scope permission management |
 | `FR-GU` | Google user management |
+| `FR-AL` | Audit trail |
 | `FR-UX` | Shell, navigation, responsiveness, and theming |
 | `NFR` | Non-functional |
 
@@ -141,11 +142,12 @@ describes the flows that satisfy these requirements; the
 | FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. | UI-07 |
 | FR-UX-02 | The client shall show only the destinations the signed-in role can use. | UI-07 |
 | FR-UX-03 | The client shall support light, dark, and system theme modes, and shall remember the choice between launches. | — |
-| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32 |
+| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34 |
 | FR-UX-05 | The client shall render the API's `errors` array as returned, against the offending field where the error names one and in a banner otherwise. | All |
-| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32 |
+| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34 |
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
+| FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | All |
 
 ### 2.8 Data subject administration (`FR-DA`)
 
@@ -153,6 +155,14 @@ describes the flows that satisfy these requirements; the
 | --- | --- | --- |
 | FR-DA-01 | The client shall list outstanding erasure requests through `GET /api/auth/erasure-requests`, paginated by the API, soonest deadline first, with an overdue-only filter, showing no name or email address. | UI-32 |
 | FR-DA-02 | The client shall re-apply erasures after a restore through `POST /api/auth/erasure-reconciliation`, sending only a non-empty, de-duplicated list of identifiers after confirmation, and shall show how many were anonymised, already anonymised and not found. | UI-32 |
+
+### 2.9 Audit trail (`FR-AL`)
+
+| ID | Requirement | Use case |
+| --- | --- | --- |
+| FR-AL-01 | A System Admin can list the audit trail, newest first and paginated, filtered by an inclusive range of local days, by exact action, actor identifier, target identifier and outcome. | UI-34 |
+| FR-AL-02 | Each entry shows the instant in local date and time, the action, the outcome with its reason, and the actor (identifier and role) and target identifiers as returned. A cleared actor reads "Cleared"; nothing is resolved to a name. | UI-34 |
+| FR-AL-03 | Actor and target filters accept only identifiers, trimmed and lowercased before they are sent. | UI-34 |
 
 ---
 
@@ -186,6 +196,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/google-users` | Google user listing | UI-28 |
 | `/scopes/:scopeId/google-users/:googleUserId` | Google user detail | UI-29 |
 | `/erasure-requests` | Outstanding erasure requests; re-apply erasures after a restore | UI-32 |
+| `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
 | `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
 
@@ -225,6 +236,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Logical delete Google user | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete Google user | Full | Hidden | Hidden | Hidden |
 | Erasure requests | Full | Hidden | Hidden | Hidden |
+| Audit log | Full | Hidden | Hidden | Hidden |
 | Health and diagnostics | Full | Read-only | Hidden | Hidden |
 
 A **restricted session** — one holding the subject-rights-only token the API issues to an identity

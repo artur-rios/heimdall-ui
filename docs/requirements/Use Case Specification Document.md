@@ -95,6 +95,7 @@ graph LR
 
     subgraph "Data Subject Administration"
         UI32[UI-32: Erasure requests]
+        UI34[UI-34: Review the audit trail]
     end
 
     subgraph "Google Users"
@@ -111,7 +112,7 @@ graph LR
     SA & SCA --> UI20 & UI21 & UI22 & UI23
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
-    SA --> UI32
+    SA --> UI32 & UI34
 ```
 
 ### 1.4 Inventory and traceability
@@ -151,6 +152,7 @@ graph LR
 | UI-31 | Configure a scope's sign-in and sign-up | UC-24, UC-47 |
 | UI-32 | Review outstanding erasure requests | UC-43 |
 | UI-33 | Restrict processing of my account | UC-44, UC-45 |
+| UI-34 | Review the audit trail | UC-48 |
 
 ### 1.5 Platform items
 
@@ -1321,6 +1323,47 @@ UI-30 could only be entered by calling the API directly.
 
 ---
 
+### UI-34: Review the audit trail
+
+**Actor:** System Admin only. The audit trail has no scope column, so it cannot be divided by scope
+(UC-48), and a Scope Admin is refused.
+**Traces to:** UC-48 (List the Audit Trail)
+**Precondition:** The user is signed in as a System Admin.
+
+The screen is the route `/audit-log`, titled **Audit log**. It is a navigation destination shown
+only to a System Admin, and the route is refused for a Scope Admin and a User.
+
+**Main flow**
+
+1. The System Admin opens **Audit log**.
+2. The client calls `GET /api/audit-log` with `PageNumber` and `PageSize`, and renders the answer as
+   every collection is rendered (FR-UX-04): newest first.
+3. Above the list, a filter bar: **Dates** (a date range; the chosen local days are sent as UTC
+   bounds), **Action** (the exact command name), **Actor** and **Target** (identifiers), and
+   **All** / **Succeeded** / **Refused**. Each change returns to page 1; **Clear filters** resets
+   them. The filters and the page are kept while the System Admin moves around the app and are
+   forgotten when the session ends. Under the bar: "Entries older than the attribution period show
+   no actor, and filtering by actor cannot find them."
+4. Each entry shows when it was recorded (local date and time, with the year), the action, a
+   **Succeeded** or **Refused** chip with the refusal reason, the actor's identifier and role
+   ("Cleared" when the API returns none) and the target's identifier ("—" when none). Each
+   identifier has a copy button ("Identifier copied.") and a **Filter by** action. Nothing is looked
+   up by identifier.
+
+**Alternative flows**
+
+- **AF-34a — Nothing matches.** "No entries match these filters." with **Clear filters**, or "The
+  audit log is empty." when no filter is set (FR-UX-06).
+- **AF-34b — Refused.** The API answers `401` or `403`; the shell's usual handling (UI-07).
+- **AF-34c — Filters refused.** The API answers `400`; its errors are shown and the filters kept.
+- **AF-34d — Not an identifier.** The Actor or Target field says "Enter an identifier." Nothing is
+  sent.
+- **AF-34e — Transport failure.** The retryable error state (FR-UX-07).
+- **AF-34f — Too many requests.** The API answers `429`; its message is shown, with the wait it
+  asks for when it sends one (FR-UX-09).
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1338,7 +1381,8 @@ UI-30 could only be entered by calling the API directly.
 | UI-31 | FR-SC-12, FR-SC-13, FR-SC-14 |
 | UI-32 | FR-DA-01, FR-DA-02 |
 | UI-33 | FR-AU-27 |
-| All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
+| UI-34 | FR-AL-01 … FR-AL-03 |
+| All | FR-UX-01 … FR-UX-09, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
 [System Requirements Document](System%20Requirements%20Document.md).
