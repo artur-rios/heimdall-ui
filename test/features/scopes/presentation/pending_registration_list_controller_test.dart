@@ -112,43 +112,43 @@ void main() {
     verify(() => repository.list('s1', pageNumber: 2)).called(1);
   });
 
-  test(
-    'GivenTheLastRowOfTheLastPage_WhenDiscarded_ThenThePreviousPageShows',
-    () async {
-      // Given
-      var calls = 0;
-      when(
-        () => repository.list(
-          's1',
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((invocation) async {
-        calls++;
-        final number = invocation.namedArguments[#pageNumber] as int;
+  test('GivenTheLastRowOfTheLastPage_WhenDiscarded_ThenThePreviousPageShowsWithTheNotice', () async {
+    // Given
+    var calls = 0;
+    when(
+      () => repository.list(
+        's1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((invocation) async {
+      calls++;
+      final number = invocation.namedArguments[#pageNumber] as int;
 
-        return Success<Page<PendingRegistration>>(
-          calls <= 1
-              ? _page(pageNumber: number, totalPages: 2)
-              : _page(
-                  items: const <PendingRegistration>[],
-                  pageNumber: number,
-                  totalPages: 1,
-                ),
-        );
-      });
-      when(() => repository.discard('s1', 'r1'))
-          .thenAnswer((_) async => const Success<void>(null));
-      final controller = controllerUnderTest();
-      await controller.goToPage(2);
+      return Success<Page<PendingRegistration>>(
+        calls <= 1
+            ? _page(pageNumber: number, totalPages: 2)
+            : _page(
+                items: const <PendingRegistration>[],
+                pageNumber: number,
+                totalPages: 1,
+              ),
+      );
+    });
+    when(() => repository.discard('s1', 'r1'))
+        .thenAnswer((_) async => const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.goToPage(2);
 
-      // When
-      await controller.discard(_ada);
+    // When
+    await controller.discard(_ada);
 
-      // Then
-      expect(currentState().pageNumber, 1);
-    },
-  );
+    // Then — the notice outlives the fetch that fell back a page.
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.pageNumber, 1);
+    expect(state.notice, 'Registration discarded.');
+    expect(state.busy, isFalse);
+  });
 
   test(
     'GivenARegistration_WhenDiscarded_ThenTheListReloadsWithANotice',
