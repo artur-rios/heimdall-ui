@@ -211,6 +211,58 @@ void main() {
     },
   );
 
+  test(
+    'GivenADiscardInFlight_WhenAnotherIsAsked_ThenItIsRefusedAndBusyHolds',
+    () async {
+      // Given
+      answerListWith(Success<Page<PendingRegistration>>(_page()));
+      final deleted = Completer<Result<void>>();
+      when(() => repository.discard('s1', any()))
+          .thenAnswer((_) => deleted.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final reloaded = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => reloaded.future);
+      bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+      final first = controller.discard(_ada);
+
+      // When — neither is awaited first, so a call that went out shows.
+      final second = controller.discard(
+        const PendingRegistration(
+          id: 'r2',
+          name: 'Grace Hopper',
+          email: 'grace@example.com',
+          attemptsLeft: 3,
+          expired: false,
+        ),
+      );
+      final paged = controller.goToPage(2);
+      await pumpEventQueue();
+
+      // Then — only the first DELETE went out, and nothing else was fetched.
+      verify(() => repository.discard('s1', 'r1')).called(1);
+      verifyNever(() => repository.discard('s1', 'r2'));
+      expect(busy(), isTrue);
+      deleted.complete(const Success<void>(null));
+      await pumpEventQueue();
+      expect(busy(), isTrue);
+      reloaded.complete(Success<Page<PendingRegistration>>(_page()));
+      await Future.wait(<Future<void>>[first, second, paged]);
+      expect(busy(), isFalse);
+      verifyNever(() => repository.list('s1', pageNumber: 2));
+      expect(
+        (currentState() as PendingRegistrationListLoaded).notice,
+        'Registration discarded.',
+      );
+    },
+  );
+
   test('GivenARefusedDiscard_WhenItEnds_ThenTheListIsNoLongerBusy', () async {
     // Given
     answerListWith(Success<Page<PendingRegistration>>(_page()));

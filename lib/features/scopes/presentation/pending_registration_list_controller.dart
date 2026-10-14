@@ -68,12 +68,24 @@ class PendingRegistrationListController
 
   Future<void> load() => _fetch(state.pageNumber);
 
-  Future<void> goToPage(int pageNumber) => _fetch(pageNumber);
+  /// Ignored while the list is busy, as the pager is then disabled.
+  Future<void> goToPage(int pageNumber) async {
+    if (_busy) {
+      return;
+    }
+
+    await _fetch(pageNumber);
+  }
 
   /// Busy from the DELETE until the reload after it ends, so the screen holds
   /// every Discard and the pager meanwhile, and no page fetch can overtake
-  /// the reload and drop its notice.
+  /// the reload and drop its notice. A call while busy is ignored: nothing is
+  /// sent.
   Future<void> discard(PendingRegistration registration) async {
+    if (_busy) {
+      return;
+    }
+
     if (state case final PendingRegistrationListLoaded loaded) {
       state = PendingRegistrationListLoaded(
         loaded.pageNumber,
@@ -109,6 +121,11 @@ class PendingRegistrationListController
       );
     }
   }
+
+  bool get _busy => switch (state) {
+    PendingRegistrationListLoaded(:final busy) => busy,
+    _ => false,
+  };
 
   Future<void> _fetch(int pageNumber) async {
     if (_inFlight) {
