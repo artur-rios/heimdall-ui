@@ -1,0 +1,219 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
+
+import '../../../core/result/result.dart';
+import '../../../shared/formatting/date_time_format.dart';
+import '../../../shared/layout/app_shell.dart';
+import '../../../shared/widgets/adaptive_collection.dart';
+import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/failure_banner.dart';
+import '../domain/pending_registration.dart';
+import 'pending_registration_list_controller.dart';
+import 'scope_detail_controller.dart';
+
+/// UI-35 — the people who signed up to a scope and have not confirmed yet.
+class PendingRegistrationListScreen extends ConsumerStatefulWidget {
+  const PendingRegistrationListScreen({required this.scopeId, super.key});
+
+  final String scopeId;
+
+  @override
+  ConsumerState<PendingRegistrationListScreen> createState() =>
+      _PendingRegistrationListScreenState();
+}
+
+class _PendingRegistrationListScreenState
+    extends ConsumerState<PendingRegistrationListScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.load();
+    });
+  }
+
+  PendingRegistrationListController get _controller => ref.read(
+    pendingRegistrationListControllerProvider(widget.scopeId).notifier,
+  );
+
+  /// AF-35e — a dialog the user closes sends nothing.
+  Future<void> _confirmDiscard(PendingRegistration registration) async {
+    final confirmed = await showConfirm(
+      context: context,
+      title: 'Discard the registration for ${registration.email}?',
+      message: 'Its confirmation link will stop working.',
+      confirmLabel: 'Discard',
+    );
+
+    if (!confirmed || !mounted) {
+      return;
+    }
+
+    await _controller.discard(registration);
+  }
+
+  /// The scope's name when its page was opened first; the identifier otherwise,
+  /// since nothing here reads the scope on its own.
+  String _scopeLabel() {
+    final scope = ref.watch(scopeDetailControllerProvider(widget.scopeId));
+
+    return scope is ScopeDetailLoaded ? scope.scope.name : widget.scopeId;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(
+      pendingRegistrationListControllerProvider(widget.scopeId),
+    );
+
+    return AppShell(
+      currentRoute: '/scopes',
+      title: const Text('Pending registrations'),
+      backRoute: '/scopes/${widget.scopeId}',
+      backTooltip: 'Back to the scope',
+      body: switch (state) {
+        PendingRegistrationListLoading() => const CollectionLoading(),
+        // AF-35c — the scope itself is gone.
+        PendingRegistrationListFailed(:final failure)
+            when failure.kind == FailureKind.notFound =>
+          CollectionEmpty(
+            title: 'Scope not found.',
+            message: 'It may have been deleted.',
+            actionLabel: 'Back to scopes',
+            onAction: () => context.go('/scopes'),
+          ),
+        // AF-35b and AF-35f — the returned errors, with a retry.
+        PendingRegistrationListFailed(:final failure) => CollectionFailed(
+          failure: failure,
+          onRetry: _controller.load,
+        ),
+        final PendingRegistrationListLoaded loaded => _loaded(loaded),
+      },
+    );
+  }
+
+  Widget _loaded(PendingRegistrationListLoaded loaded) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: <Widget>[
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+        child: Text(
+          _scopeLabel(),
+          style: Theme.of(context).textTheme.titleSmall,
+        ),
+      ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 4, 12, 0),
+        child: Text(
+          'These people signed up but have not confirmed yet. Discarding a '
+          'registration makes its emailed link stop working; the person may '
+          'sign up again.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ),
+      if (loaded.discardFailure case final failure?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: ErrorBanner(failure: failure),
+        ),
+      if (loaded.notice case final notice?)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+          child: _Notice(icon: Icons.check_circle_outline, message: notice),
+        ),
+      Expanded(
+        child: loaded.page.items.isEmpty
+            // AF-35a.
+            ? const CollectionEmpty(
+                title: 'No pending registrations.',
+                message:
+                    'Nobody is waiting to confirm a sign-up for this scope.',
+                icon: Icons.how_to_reg_outlined,
+              )
+            : AdaptiveCollection<PendingRegistration>(
+                items: loaded.page.items,
+                busy: loaded.busy,
+                pageNumber: loaded.page.pageNumber,
+                totalPages: loaded.page.totalPages,
+                totalItems: loaded.page.totalItems,
+                onPageChanged: _controller.goToPage,
+                title: (registration) => registration.name,
+                subtitle: (registration) => registration.email,
+                columns: _columns(context),
+              ),
+      ),
+    ],
+  );
+
+  List<CollectionColumn<PendingRegistration>> _columns(BuildContext context) {
+    String when(DateTime? at) => at == null ? '—' : formatDateTime(context, at);
+
+    return <CollectionColumn<PendingRegistration>>[
+      CollectionColumn<PendingRegistration>(
+        label: 'Signed up',
+        cell: (registration) => Text(when(registration.createdAt)),
+      ),
+      CollectionColumn<PendingRegistration>(
+        label: 'Expires',
+        cell: (registration) => Wrap(
+          spacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: <Widget>[
+            Text(when(registration.expiresAt)),
+            if (registration.expired)
+              Chip(
+                label: const Text('Expired'),
+                backgroundColor: Theme.of(context).colorScheme.errorContainer,
+              ),
+          ],
+        ),
+      ),
+      CollectionColumn<PendingRegistration>(
+        label: 'Attempts left',
+        cell: (registration) => Text('${registration.attemptsLeft}'),
+      ),
+      CollectionColumn<PendingRegistration>(
+        label: 'Discard',
+        cell: (registration) => TextButton.icon(
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('Discard'),
+          onPressed: () => _confirmDiscard(registration),
+        ),
+      ),
+    ];
+  }
+}
+
+class _Notice extends StatelessWidget {
+  const _Notice({required this.icon, required this.message});
+
+  final IconData icon;
+  final String message;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: scheme.secondaryContainer,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Row(
+        children: <Widget>[
+          Icon(icon, color: scheme.onSecondaryContainer),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              message,
+              style: TextStyle(color: scheme.onSecondaryContainer),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}

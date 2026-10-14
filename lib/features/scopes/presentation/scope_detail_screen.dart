@@ -123,6 +123,16 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
   /// shown them read-only rather than offered a save it would refuse.
   bool get _mayUpdate => _isSystemAdmin;
 
+  /// UC-49/UC-50: a System Admin, or a Scope Admin who owns this scope. The
+  /// token's owned scopes say which; the API decides in the end.
+  bool _mayManageRegistrations(Scope scope) {
+    final session = ref.watch(sessionControllerProvider);
+
+    return session is Authenticated &&
+        (session.principal.isSystemAdmin ||
+            session.principal.ownedScopeIds.contains(scope.id));
+  }
+
   bool get _isSystemAdmin {
     final session = ref.watch(sessionControllerProvider);
 
@@ -362,7 +372,10 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               const SizedBox(height: 24),
               Text('In this scope', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
-              _Links(scope: scope),
+              _Links(
+                scope: scope,
+                showPendingRegistrations: _mayManageRegistrations(scope),
+              ),
               // AF-13e — a Scope Admin never sees either control. The API
               // refuses them either way; showing them would only promise
               // something that cannot happen.
@@ -445,9 +458,10 @@ class _ScopeId extends StatelessWidget {
 /// Where the scope's contents live. Each target arrives with its own use case;
 /// until then the router says so rather than throwing.
 class _Links extends StatelessWidget {
-  const _Links({required this.scope});
+  const _Links({required this.scope, required this.showPendingRegistrations});
 
   final Scope scope;
+  final bool showPendingRegistrations;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -479,6 +493,13 @@ class _Links extends StatelessWidget {
                 path: 'applications',
                 subtitle: null,
               ),
+              if (showPendingRegistrations)
+                (
+                  label: 'Pending registrations',
+                  icon: Icons.how_to_reg_outlined,
+                  path: 'pending-registrations',
+                  subtitle: null,
+                ),
               (
                 label: 'Permissions',
                 icon: Icons.key_outlined,
