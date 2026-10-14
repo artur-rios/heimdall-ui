@@ -62,23 +62,24 @@ class AuditLogController extends Notifier<AuditLogState> {
   /// soon as that one is answered, so a change made during a load is not lost.
   AuditLogQuery? _queued;
 
+  /// What the next change builds on: the queued query when one is waiting, so
+  /// a second change during a load keeps the first rather than replacing it.
+  AuditLogQuery get _latest => _queued ?? state.query;
+
   @override
   AuditLogState build() => const AuditLogLoading(AuditLogQuery());
 
-  Future<void> load() => _fetch(state.query);
+  Future<void> load() => _fetch(_latest);
 
   Future<void> goToPage(int pageNumber) =>
-      _fetch(state.query.copyWith(pageNumber: pageNumber));
+      _fetch(_latest.copyWith(pageNumber: pageNumber));
 
   Future<void> setDays(DateTime firstDay, DateTime lastDay) => _filter(
-    state.query.filter.copyWith(
-      firstDay: () => firstDay,
-      lastDay: () => lastDay,
-    ),
+    _latest.filter.copyWith(firstDay: () => firstDay, lastDay: () => lastDay),
   );
 
   Future<void> clearDays() => _filter(
-    state.query.filter.copyWith(firstDay: () => null, lastDay: () => null),
+    _latest.filter.copyWith(firstDay: () => null, lastDay: () => null),
   );
 
   /// An empty action is no filter at all, as the API reads it.
@@ -86,26 +87,24 @@ class AuditLogController extends Notifier<AuditLogState> {
     final trimmed = action.trim();
 
     return _filter(
-      state.query.filter.copyWith(
-        action: () => trimmed.isEmpty ? null : trimmed,
-      ),
+      _latest.filter.copyWith(action: () => trimmed.isEmpty ? null : trimmed),
     );
   }
 
   /// AF-34d — `false`, and nothing sent, when [text] is not an identifier.
   bool setActor(String text) => _setIdentifier(
     text,
-    (value) => state.query.filter.copyWith(actorId: () => value),
+    (value) => _latest.filter.copyWith(actorId: () => value),
   );
 
   /// AF-34d, for the target.
   bool setTarget(String text) => _setIdentifier(
     text,
-    (value) => state.query.filter.copyWith(targetId: () => value),
+    (value) => _latest.filter.copyWith(targetId: () => value),
   );
 
   Future<void> setOutcome(bool? succeeded) =>
-      _filter(state.query.filter.copyWith(succeeded: () => succeeded));
+      _filter(_latest.filter.copyWith(succeeded: () => succeeded));
 
   Future<void> clearFilters() => _filter(const AuditLogFilter());
 
@@ -130,7 +129,7 @@ class AuditLogController extends Notifier<AuditLogState> {
 
   /// A new filter starts at the first page.
   Future<void> _filter(AuditLogFilter filter) =>
-      _fetch(state.query.copyWith(filter: filter, pageNumber: 1));
+      _fetch(_latest.copyWith(filter: filter, pageNumber: 1));
 
   Future<void> _fetch(AuditLogQuery query) async {
     if (_inFlight) {
