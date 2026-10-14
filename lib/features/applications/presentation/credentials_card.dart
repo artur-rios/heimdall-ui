@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/formatting/date_time_format.dart';
+import '../../../shared/layout/breakpoints.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/application_credential.dart';
 import 'application_credentials_controller.dart';
 import 'issue_credential_dialog.dart';
 import 'one_time_secret_dialog.dart';
+import 'pending_secret.dart';
 
 /// UI-37 — an application's credentials: the list, issuing one and revoking
 /// one.
@@ -36,7 +38,23 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.load());
+    _pending = ref.read(pendingSecretProvider.notifier);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _controller.load();
+      }
+    });
+  }
+
+  late final PendingSecret _pending;
+
+  @override
+  void dispose() {
+    // Never left set: after the frame, since a provider may not change while
+    // the tree is being torn down.
+    final pending = _pending;
+    Future<void>.microtask(pending.clear);
+    super.dispose();
   }
 
   /// UC-53. The secret lives only in these locals and in the dialog.
@@ -47,13 +65,20 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
     final issued = await showIssueCredentialDialog(context, _key);
 
     if (issued == null) {
+      _pending.clear();
+
       return;
     }
 
-    await showOneTimeSecretDialog(
-      mounted ? context : navigator.context,
-      issued.secret,
-    );
+    try {
+      await showOneTimeSecretDialog(
+        mounted ? context : navigator.context,
+        issued.secret,
+      );
+    } finally {
+      // "I've stored it" was chosen, or the page was left anyway.
+      _pending.clear();
+    }
   }
 
   /// UC-55 — AF-37f: a dialog the user closes sends nothing.
@@ -171,43 +196,64 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
   }
 
   Widget _row(ApplicationCredential c, bool busy) {
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final compact = context.breakpoint == Breakpoint.compact;
     String dt(DateTime at) => formatDateTime(context, at);
     String orNever(DateTime? at) => at == null ? 'Never' : dt(at);
 
     final issued = c.createdAt == null ? '—' : dt(c.createdAt!);
     final revoked = c.revokedAt == null ? '' : ' · Revoked ${dt(c.revokedAt!)}';
 
-    return ListTile(
-      contentPadding: EdgeInsets.zero,
-      leading: Chip(
-        label: Text(switch (c.status) {
-          CredentialStatus.live => 'Live',
-          CredentialStatus.revoked => 'Revoked',
-          CredentialStatus.expired => 'Expired',
-        }),
-        backgroundColor: c.status == CredentialStatus.live
-            ? scheme.primaryContainer
-            : null,
-      ),
-      title: SelectableText(c.id),
-      subtitle: Text(
-        'Issued $issued · Expires ${orNever(c.expiresAt)} · '
-        'Last used ${orNever(c.lastUsedAt)}$revoked',
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          IconButton(
-            tooltip: 'Copy identifier',
-            icon: const Icon(Icons.copy_outlined),
-            onPressed: () => _copyIdentifier(c.id),
+    final actions = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: <Widget>[
+        IconButton(
+          tooltip: 'Copy identifier',
+          icon: const Icon(Icons.copy_outlined),
+          onPressed: () => _copyIdentifier(c.id),
+        ),
+        if (c.revokedAt == null)
+          TextButton(
+            onPressed: busy ? null : () => _revoke(c),
+            child: const Text('Revoke'),
           ),
-          if (c.revokedAt == null)
-            TextButton(
-              onPressed: busy ? null : () => _revoke(c),
-              child: const Text('Revoke'),
-            ),
+      ],
+    );
+
+    final chip = Chip(
+      label: Text(switch (c.status) {
+        CredentialStatus.live => 'Live',
+        CredentialStatus.revoked => 'Revoked',
+        CredentialStatus.expired => 'Expired',
+      }),
+      backgroundColor: c.status == CredentialStatus.live
+          ? scheme.primaryContainer
+          : null,
+    );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
+            children: <Widget>[
+              chip,
+              const SizedBox(width: 12),
+              // One line, ellipsised; copy and the tests use the full id.
+              Expanded(child: SelectableText(c.id, maxLines: 1)),
+              if (!compact) actions,
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Issued $issued · Expires ${orNever(c.expiresAt)} · '
+            'Last used ${orNever(c.lastUsedAt)}$revoked',
+            style: theme.textTheme.bodySmall,
+          ),
+          if (compact)
+            Align(alignment: AlignmentDirectional.centerEnd, child: actions),
         ],
       ),
     );

@@ -5,6 +5,7 @@ import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/application_credential.dart';
 import 'application_credentials_controller.dart';
+import 'pending_secret.dart';
 
 /// UC-53 — asks for an optional expiry and issues the credential. Answers the
 /// [IssuedCredential], secret included, or `null` when cancelled (AF-37f).
@@ -56,6 +57,8 @@ class _IssueCredentialDialogState
   Future<void> _issue() async {
     final day = _day;
     setState(() => _attempted = true);
+    // From the moment the request is sent: the answer may carry the secret.
+    ref.read(pendingSecretProvider.notifier).set();
 
     final result = await ref
         .read(
@@ -63,6 +66,11 @@ class _IssueCredentialDialogState
               .notifier,
         )
         .issue(expiresAt: day == null ? null : credentialExpiryFor(day));
+
+    if (result is! Success<IssuedCredential>) {
+      // Refused, or ignored: there is no secret to lose.
+      ref.read(pendingSecretProvider.notifier).clear();
+    }
 
     // `null`: another request was in flight, so nothing was sent. A failure
     // stays open with the API's message in the banner.
@@ -127,7 +135,7 @@ class _IssueCredentialDialogState
             child: const Text('Cancel'),
           ),
           FilledButton(
-            onPressed: state.busy ? null : _issue,
+            onPressed: state.mayIssue ? _issue : null,
             child: const Text('Issue'),
           ),
         ],

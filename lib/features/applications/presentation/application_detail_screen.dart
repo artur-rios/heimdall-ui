@@ -379,9 +379,7 @@ class _ApplicationDetailScreenState
                   scopeId: widget.scopeId,
                   applicationId: widget.applicationId,
                 ),
-              ],
-              // AF-22d leaves a deleted application nothing left to delete.
-              if (!state.isReadOnly) ...<Widget>[
+                // AF-22d leaves a deleted application nothing left to delete.
                 const SizedBox(height: 24),
                 _DangerZone(
                   application: application,

@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -346,5 +347,247 @@ void main() {
 
     // Then
     verifyNever(() => repository.revoke(any(), any(), any()));
+  });
+
+  testWidgets(
+    'GivenTheLimitWasReachedMeanwhile_WhenIssuing_ThenIssueIsDisabled',
+    (tester) async {
+      // Given
+      var listed = 0;
+      when(() => repository.list('s1', 'a1')).thenAnswer((_) async {
+        listed++;
+
+        return Success(
+          listed == 1
+              ? const <ApplicationCredential>[]
+              : <ApplicationCredential>[_live('c1'), _live('c2')],
+        );
+      });
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer(
+        (_) async => const FailureResult<IssuedCredential>(
+          Failure(
+            kind: FailureKind.conflict,
+            errors: <String>['Two credentials are already live.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      await openIssueDialog(tester);
+
+      // When
+      await tester.tap(issueDialogButton());
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(
+        tester.widget<FilledButton>(issueDialogButton()).onPressed,
+        isNull,
+      );
+    },
+  );
+
+  testWidgets('GivenARefusedRevoke_WhenConfirmed_ThenTheMessageShows', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(<ApplicationCredential>[_live('c1')]);
+    when(() => repository.revoke('s1', 'a1', 'c1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(
+          kind: FailureKind.conflict,
+          errors: <String>['The credential is already revoked.'],
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Revoke'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Revoke'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('The credential is already revoked.'), findsOneWidget);
+  });
+
+  testWidgets('GivenARefusedList_WhenRetried_ThenTheListShows', (tester) async {
+    // Given
+    var listed = 0;
+    when(() => repository.list('s1', 'a1')).thenAnswer((_) async {
+      listed++;
+
+      return listed == 1
+          ? const FailureResult<List<ApplicationCredential>>(
+              Failure(
+                kind: FailureKind.forbidden,
+                errors: <String>['Not your application.'],
+              ),
+            )
+          : Success(<ApplicationCredential>[_live('c1')]);
+    });
+    await pump(tester);
+    expect(find.text('Not your application.'), findsOneWidget);
+
+    // When
+    await tester.tap(find.text('Retry'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('c1'), findsOneWidget);
+    expect(find.text('Not your application.'), findsNothing);
+  });
+
+  testWidgets('GivenAnExpiredCredential_WhenShown_ThenItIsMarkedExpired', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(<ApplicationCredential>[
+      ApplicationCredential(
+        id: 'c-exp',
+        live: false,
+        expiresAt: DateTime.utc(2026, 9, 1),
+      ),
+    ]);
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Expired'), findsOneWidget);
+    expect(find.text('Revoke'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenACredential_WhenItsIdentifierIsCopied_ThenItIsOnTheClipboard',
+    (tester) async {
+      // Given
+      String? copied;
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async {
+          if (call.method == 'Clipboard.setData') {
+            copied =
+                (call.arguments as Map<Object?, Object?>)['text'] as String?;
+          }
+
+          return null;
+        },
+      );
+      addTearDown(
+        () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          null,
+        ),
+      );
+      answerListWith(<ApplicationCredential>[_live('c1')]);
+      await pump(tester);
+
+      // When
+      await tester.tap(find.byTooltip('Copy identifier'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(copied, 'c1');
+      expect(find.text('Identifier copied.'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenATransportFailure_WhenIssuing_ThenABannerShowsAndTheListReloads',
+    (tester) async {
+      // Given
+      answerListWith(const <ApplicationCredential>[]);
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer(
+        (_) async => const FailureResult<IssuedCredential>(
+          Failure(
+            kind: FailureKind.network,
+            errors: <String>[],
+            message: 'Connection refused.',
+          ),
+        ),
+      );
+      await pump(tester);
+      await openIssueDialog(tester);
+
+      // When
+      await tester.tap(issueDialogButton());
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Connection refused.'), findsWidgets);
+      verify(() => repository.list('s1', 'a1')).called(2);
+    },
+  );
+
+  testWidgets('GivenANarrowWindowAndALongId_WhenShown_ThenRowsStayCompact', (
+    tester,
+  ) async {
+    // Given
+    final id = 'a' * 36;
+    answerListWith(<ApplicationCredential>[
+      ApplicationCredential(
+        id: id,
+        live: true,
+        createdAt: DateTime.utc(2026, 10, 1, 9),
+      ),
+      ApplicationCredential(
+        id: 'b' * 36,
+        live: true,
+        createdAt: DateTime.utc(2026, 10, 2, 9),
+      ),
+    ]);
+    tester.view.physicalSize = const Size(360, 640);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: <Override>[
+          applicationCredentialRepositoryProvider.overrideWithValue(repository),
+        ],
+        child: const MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CredentialsCard(scopeId: 's1', applicationId: 'a1'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(tester.takeException(), isNull);
+    final row = find.ancestor(
+      of: find.text(id),
+      matching: find.byType(Padding),
+    );
+    expect(tester.getSize(row.first).height, lessThan(200));
+    await tester.ensureVisible(find.text('Revoke').first);
+    await tester.pumpAndSettle();
+    expect(find.text('Revoke').first.hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('GivenAWideWindowAndALongId_WhenShown_ThenTheIdIsOneLine', (
+    tester,
+  ) async {
+    // Given
+    final id = 'a' * 36;
+    answerListWith(<ApplicationCredential>[
+      ApplicationCredential(id: id, live: true),
+    ]);
+    await pump(tester);
+
+    // Then
+    expect(tester.getSize(find.text(id)).height, lessThan(30));
   });
 }
