@@ -96,8 +96,8 @@ abstract class ApplicationClient {
   /// they own (UC-19), but never purge it, so the attribute settles authorization on its own and.
   /// the handler applies no further rule. The handler resolves the application inside the.
   /// addressed scope in any deletion state and reports AF-20a when it does not exist — which.
-  /// includes a repeated call, as the removal leaves nothing to find. Nothing cascades: the.
-  /// application's scope and owner are untouched.
+  /// includes a repeated call, as the removal leaves nothing to find. The application's.
+  /// credentials (UC-53) go with it, by cascade; its scope and owner are untouched.
   ///
   /// **Requires role:** System Admin.
   @DELETE('/api/scopes/{scopeId}/applications/{id}/hard')

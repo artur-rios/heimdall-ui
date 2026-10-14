@@ -17,6 +17,8 @@ import '../models/person_output_paginated_output.dart';
 import '../models/person_summary_output_paginated_output.dart';
 import '../models/promote_scope_user_command_output_data_output.dart';
 import '../models/remove_scope_owner_command_output_data_output.dart';
+import '../models/send_person_password_reset_command_output_data_output.dart';
+import '../models/send_person_verification_email_command_output_data_output.dart';
 import '../models/update_person_command.dart';
 import '../models/update_person_command_output_data_output.dart';
 
@@ -186,4 +188,51 @@ abstract class PersonClient {
     @Query('PageNumber') int? pageNumber,
     @Query('PageSize') int? pageSize,
   });
+
+  /// Lists the system's `SystemAdmin` persons (UC-07 read e, FR-PE-13), projected to.
+  /// identifier, name, and email: who else holds full access to the deployment. System Admin.
+  /// only.
+  ///
+  /// A Scope Admin is deliberately excluded: a System Admin's address is not tenant-facing,.
+  /// which is also why `GET /api/persons/scope-admins` offers System Admins only to a.
+  /// System Admin caller.
+  ///
+  /// **Requires role:** System Admin.
+  @GET('/api/persons/system-admins')
+  Future<PersonSummaryOutputPaginatedOutput> personListSystemAdmins({
+    @Query('Name') String? name,
+    @Query('Email') String? email,
+    @Query('PageNumber') int? pageNumber,
+    @Query('PageSize') int? pageSize,
+  });
+
+  /// Has a fresh verification link mailed to a person's own address (UC-51, FR-EV-06): outstanding.
+  /// links are retired first, as UC-15 does, and the link uses the scope's verification URL. A.
+  /// System Admin may ask for any person; a Scope Admin only for a `User` of a scope they own.
+  /// (AF-51b). No body; the token is never returned.
+  ///
+  /// Refused when the person is deleted or restricted (409, AF-51c) or already verified (400,.
+  /// AF-51d), and with 429 when an email of this kind went to them within the cooldown,.
+  /// `HEIMDALL_ADMIN_EMAIL_COOLDOWN_IN_SECONDS` (five minutes by default, AF-51e). 200 means.
+  /// the email was handed to the sender.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @POST('/api/persons/{id}/verification-email')
+  Future<SendPersonVerificationEmailCommandOutputDataOutput>
+  personSendVerificationEmail({@Path('id') required String id});
+
+  /// Has a password-reset link mailed to a person's own address (UC-52, FR-PR-05). A System Admin.
+  /// may ask for any person; a Scope Admin only for a `User` of a scope they own (AF-52b). No.
+  /// body; neither a token nor a password is accepted or returned.
+  ///
+  /// Eligibility is UC-12's: refused (409) when the person is deleted or restricted (AF-52c) or.
+  /// their account could not sign in — a User whose scope is deleted, a Scope Admin with no live.
+  /// scope (AF-52d). 429 when a reset went to them within the cooldown (AF-52e). Unlike UC-12 the.
+  /// send is not queued: the caller is authenticated and owed a real answer. 200 means the email.
+  /// was handed to the sender.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @POST('/api/persons/{id}/password-reset')
+  Future<SendPersonPasswordResetCommandOutputDataOutput>
+  personSendPasswordReset({@Path('id') required String id});
 }
