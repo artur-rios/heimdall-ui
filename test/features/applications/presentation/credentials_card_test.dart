@@ -7,10 +7,10 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
-import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/credentials_card.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
+import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}

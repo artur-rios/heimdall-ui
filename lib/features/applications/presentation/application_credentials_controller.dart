@@ -119,7 +119,7 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
       notice: () => null,
     );
     try {
-      final Result<IssuedCredential> result;
+      Result<IssuedCredential> result;
       try {
         result = await _repository.issue(
           arg.scopeId,
@@ -128,8 +128,9 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
         );
       } on Exception {
         // E.g. a malformed 2xx body, which the generated client rethrows: the
-        // request may have landed, so it is a failure like any other (AF-37g).
-        return _unexpectedFailure<IssuedCredential>();
+        // request may have landed, so it is a failure like any other (AF-37g),
+        // and the list reloads below.
+        result = const FailureResult<IssuedCredential>(_unexpected);
       }
 
       if (!ref.mounted) {
@@ -155,15 +156,6 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
     }
   }
 
-  /// Shows the unexpected failure on the card and answers it.
-  FailureResult<T> _unexpectedFailure<T>() {
-    if (ref.mounted) {
-      state = state.copyWith(actionFailure: () => _unexpected);
-    }
-
-    return FailureResult<T>(_unexpected);
-  }
-
   /// Revokes [credential]. Ignored while an issue or a revoke is in flight.
   Future<void> revoke(ApplicationCredential credential) async {
     if (state.busy) {
@@ -184,7 +176,9 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
           credential.id,
         );
       } on Exception {
-        _unexpectedFailure<void>();
+        if (ref.mounted) {
+          state = state.copyWith(actionFailure: () => _unexpected);
+        }
         return;
       }
 

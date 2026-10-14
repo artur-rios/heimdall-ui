@@ -466,4 +466,64 @@ void main() {
       expect(currentState().mayIssue, isFalse);
     },
   );
+
+  test('GivenAnUnexpectedExceptionOnIssue_WhenIssuing_ThenTheListReloadsBeforeBusyEnds', () async {
+    // Given
+    answerListWith(
+      const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    when(() => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')))
+        .thenThrow(const FormatException('bad body'));
+    final reload = Completer<Result<List<ApplicationCredential>>>();
+    when(() => repository.list('s1', 'a1')).thenAnswer((_) => reload.future);
+
+    // When
+    final issuing = controller.issue();
+    await Future<void>.delayed(Duration.zero);
+
+    // Then
+    verify(() => repository.list('s1', 'a1')).called(2);
+    expect(currentState().busy, isTrue);
+    reload.complete(
+      const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+    );
+    await issuing;
+    expect(currentState().busy, isFalse);
+  });
+
+  test(
+    'GivenANetworkFailureOnIssue_WhenIssuing_ThenTheListReloadsBeforeBusyEnds',
+    () async {
+      // Given
+      answerListWith(
+        const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer(
+        (_) async => const FailureResult<IssuedCredential>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      final reload = Completer<Result<List<ApplicationCredential>>>();
+      when(() => repository.list('s1', 'a1')).thenAnswer((_) => reload.future);
+
+      // When
+      final issuing = controller.issue();
+      await Future<void>.delayed(Duration.zero);
+
+      // Then
+      verify(() => repository.list('s1', 'a1')).called(2);
+      expect(currentState().busy, isTrue);
+      reload.complete(
+        const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+      );
+      await issuing;
+      expect(currentState().busy, isFalse);
+    },
+  );
 }
