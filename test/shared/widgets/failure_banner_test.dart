@@ -137,7 +137,7 @@ void main() {
       // Given
       const failure = Failure(
         kind: FailureKind.rateLimited,
-        errors: <String>['Too many requests. Try again later.'],
+        errors: <String>['Too many requests.'],
         retryAfter: Duration(seconds: 12),
       );
 
@@ -145,7 +145,7 @@ void main() {
       await pump(tester, const ErrorBanner(failure: failure));
 
       // Then
-      expect(find.text('Too many requests. Try again later.'), findsOneWidget);
+      expect(find.text('Too many requests.'), findsOneWidget);
       expect(find.text('Try again in 12 seconds.'), findsOneWidget);
     },
   );
