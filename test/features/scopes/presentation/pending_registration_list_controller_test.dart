@@ -263,6 +263,38 @@ void main() {
     },
   );
 
+  test('GivenADiscardInFlight_WhenTheScreenReloads_ThenNothingIsSentAndTheNoticeShows', () async {
+    // Given
+    answerListWith(Success<Page<PendingRegistration>>(_page()));
+    final deleted = Completer<Result<void>>();
+    when(() => repository.discard('s1', 'r1'))
+        .thenAnswer((_) => deleted.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    clearInteractions(repository);
+    bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+    final discarding = controller.discard(_ada);
+
+    // When — the screen is opened again, which loads on every visit.
+    final reloading = controller.load();
+    await pumpEventQueue();
+
+    // Then — nothing is fetched while the DELETE is out.
+    verifyNever(
+      () => repository.list(
+        's1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    );
+    expect(busy(), isTrue);
+    deleted.complete(const Success<void>(null));
+    await Future.wait(<Future<void>>[discarding, reloading]);
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.busy, isFalse);
+    expect(state.notice, 'Registration discarded.');
+  });
+
   test('GivenARefusedDiscard_WhenItEnds_ThenTheListIsNoLongerBusy', () async {
     // Given
     answerListWith(Success<Page<PendingRegistration>>(_page()));

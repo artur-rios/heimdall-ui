@@ -66,7 +66,16 @@ class PendingRegistrationListController
   PendingRegistrationListState build() =>
       const PendingRegistrationListLoading(1);
 
-  Future<void> load() => _fetch(state.pageNumber);
+  /// Ignored while the list is busy: the screen loads on every visit, and a
+  /// visit during a discard would otherwise drop the discard's busy state and
+  /// its notice. Whatever is in flight ends in a fresh list anyway.
+  Future<void> load() async {
+    if (_busy) {
+      return;
+    }
+
+    await _fetch(state.pageNumber);
+  }
 
   /// Ignored while the list is busy, as the pager is then disabled.
   Future<void> goToPage(int pageNumber) async {
