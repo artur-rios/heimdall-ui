@@ -14,6 +14,8 @@ import 'core/scope/session_scope_source.dart';
 import 'core/storage/token_store.dart';
 import 'features/applications/data/application_repository_impl.dart';
 import 'features/applications/domain/application_repository.dart';
+import 'features/audit_log/data/audit_log_repository_impl.dart';
+import 'features/audit_log/domain/audit_log_repository.dart';
 import 'features/auth/data/auth_repository_impl.dart';
 import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
@@ -69,6 +71,9 @@ void main() {
         erasureRequestRepositoryProvider.overrideWith(
           (ref) =>
               ApiErasureRequestRepository(AuthClient(ref.watch(dioProvider))),
+        ),
+        auditLogRepositoryProvider.overrideWith(
+          (ref) => ApiAuditLogRepository(AuditClient(ref.watch(dioProvider))),
         ),
         personRepositoryProvider.overrideWith(
           (ref) => ApiPersonRepository(PersonClient(ref.watch(dioProvider))),
