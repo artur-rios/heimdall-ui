@@ -25,12 +25,10 @@ final NotifierProviderFamily<
   AccountEmailsState,
   String
 >
-accountEmailsControllerProvider =
-    NotifierProvider.family<
-      AccountEmailsController,
-      AccountEmailsState,
-      String
-    >(AccountEmailsController.new);
+accountEmailsControllerProvider = NotifierProvider.autoDispose
+    .family<AccountEmailsController, AccountEmailsState, String>(
+      AccountEmailsController.new,
+    );
 
 /// Sends a person's account emails for an administrator (UI-36).
 class AccountEmailsController extends Notifier<AccountEmailsState> {
@@ -55,6 +53,12 @@ class AccountEmailsController extends Notifier<AccountEmailsState> {
       AccountEmail.verification => repository.sendVerificationEmail(arg),
       AccountEmail.passwordReset => repository.sendPasswordReset(arg),
     };
+
+    // The card may have been left while the request was in flight; an
+    // auto-disposed provider must not be written to then.
+    if (!ref.mounted) {
+      return result.isSuccess;
+    }
 
     state = result.fold(
       onSuccess: (_) => AccountEmailsState(sent: kind),

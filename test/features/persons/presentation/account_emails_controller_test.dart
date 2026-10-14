@@ -103,4 +103,66 @@ void main() {
     expect(second, isFalse);
     verify(() => repository.sendPasswordReset('p1')).called(1);
   });
+
+  test(
+    'GivenAnAnswerKept_WhenTheProviderIsDisposedAndRead_ThenItIsFresh',
+    () async {
+      // Given
+      when(() => repository.sendPasswordReset('p1'))
+          .thenAnswer((_) async => const Success<void>(null));
+      container = ProviderContainer(
+        overrides: <Override>[
+          personRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        accountEmailsControllerProvider('p1'),
+        (_, _) {},
+      );
+      await container
+          .read(accountEmailsControllerProvider('p1').notifier)
+          .send(AccountEmail.passwordReset);
+      expect(currentState().sent, AccountEmail.passwordReset);
+
+      // When
+      subscription.close();
+      await container.pump();
+
+      // Then
+      expect(currentState().sent, isNull);
+    },
+  );
+
+  test(
+    'GivenASendInFlight_WhenTheProviderIsDisposed_ThenCompletingDoesNotThrow',
+    () async {
+      // Given
+      final pending = Completer<Result<void>>();
+      when(() => repository.sendPasswordReset('p1'))
+          .thenAnswer((_) => pending.future);
+      container = ProviderContainer(
+        overrides: <Override>[
+          personRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+      addTearDown(container.dispose);
+      final subscription = container.listen(
+        accountEmailsControllerProvider('p1'),
+        (_, _) {},
+      );
+      final sending = container
+          .read(accountEmailsControllerProvider('p1').notifier)
+          .send(AccountEmail.passwordReset);
+      subscription.close();
+      await container.pump();
+
+      // When
+      pending.complete(const Success<void>(null));
+      final sent = await sending;
+
+      // Then
+      expect(sent, isTrue);
+    },
+  );
 }
