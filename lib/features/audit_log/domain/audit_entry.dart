@@ -80,7 +80,8 @@ class AuditLogFilter {
 }
 
 /// The API's inclusive `from`/`to` for the local days [firstDay] to [lastDay]:
-/// the start of the first and the last millisecond of the last, in UTC. The
+/// the start of the first and the last microsecond of the last, in UTC — the
+/// API stores microseconds, so the last millisecond counts too. The
 /// API reads its bounds as UTC, so a day picked west of UTC must be converted
 /// here or the evening's entries would fall outside it.
 ({DateTime from, DateTime to}) auditBoundsFor(
@@ -95,6 +96,7 @@ class AuditLogFilter {
     23,
     59,
     59,
+    999,
     999,
   ).toUtc(),
 );
