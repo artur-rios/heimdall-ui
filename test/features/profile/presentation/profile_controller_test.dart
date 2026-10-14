@@ -5,14 +5,21 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
+
+class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
+
+class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 /// A token naming the signed-in person, which is where the controller reads the
 /// identifier it asks the API for.
@@ -30,6 +37,29 @@ String _jwt() {
   return 'header.$payload.signature';
 }
 
+/// A Google sign-in's token: its subject is the Google User, not a person, and
+/// it names the scope the Google User belongs to.
+String _googleJwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'google-1',
+        'role': 3,
+        'scopeId': 'scope-1',
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
+
+const _grace = GoogleUser(
+  id: 'google-1',
+  name: 'Grace',
+  email: 'grace@example.com',
+  scopeId: 'scope-1',
+);
+
 const _ada = Person(
   id: 'person-1',
   name: 'Ada',
@@ -39,15 +69,27 @@ const _ada = Person(
 
 void main() {
   late _MockPersonRepository repository;
+  late _MockGoogleUserRepository googleUsers;
+  late _MockGoogleSignInGateway google;
   late InMemoryTokenStore store;
   late ProviderContainer container;
 
-  Future<ProfileController> controllerUnderTest() async {
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+  Future<ProfileController> controllerUnderTest({
+    bool viaGoogle = false,
+  }) async {
+    await store.write(
+      AuthToken(
+        value: viaGoogle ? _googleJwt() : _jwt(),
+        expiresAt: DateTime.utc(2030),
+        viaGoogle: viaGoogle,
+      ),
+    );
 
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
+        googleUserRepositoryProvider.overrideWithValue(googleUsers),
+        googleSignInGatewayProvider.overrideWithValue(google),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -66,6 +108,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerGoogleGetWith(Result<GoogleUser> result) {
+    when(
+      () => googleUsers.getById(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
   void answerUpdateWith(Result<Person> result) {
     when(
       () => repository.update(
@@ -79,6 +131,9 @@ void main() {
 
   setUp(() {
     repository = _MockPersonRepository();
+    googleUsers = _MockGoogleUserRepository();
+    google = _MockGoogleSignInGateway();
+    when(() => google.signOut()).thenAnswer((_) async {});
     store = InMemoryTokenStore();
   });
 
@@ -324,4 +379,119 @@ void main() {
     final state = container.read(profileControllerProvider) as ProfileLoaded;
     expect(state.saved, isFalse);
   });
+
+  // A Google User is not a person: their own record is read from the Google
+  // User endpoints (UC-27), in the scope the token names.
+  test('GivenAGoogleSession_WhenLoaded_ThenTheGoogleRecordIsRead', () async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+    final controller = await controllerUnderTest(viaGoogle: true);
+
+    // When
+    await controller.load();
+
+    // Then
+    verify(
+      () => googleUsers.getById(
+        scopeId: 'scope-1',
+        id: 'google-1',
+        includeDeleted: false,
+      ),
+    ).called(1);
+  });
+
+  test('GivenAGoogleSession_WhenLoaded_ThenNoPersonIsAskedFor', () async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+    final controller = await controllerUnderTest(viaGoogle: true);
+
+    // When
+    await controller.load();
+
+    // Then
+    verifyNever(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    );
+  });
+
+  test('GivenAGoogleRecord_WhenLoaded_ThenStateIsGoogleLoaded', () async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+    final controller = await controllerUnderTest(viaGoogle: true);
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = container.read(profileControllerProvider);
+    expect((state as GoogleProfileLoaded).user.name, 'Grace');
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+  });
+
+  // AF-08e still holds: a 404 for the Google User's own record means the
+  // account was deleted from under the session.
+  test('GivenAMissingGoogleRecord_WhenLoaded_ThenTheSessionEnds', () async {
+    // Given
+    answerGoogleGetWith(
+      const FailureResult<GoogleUser>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+    final controller = await controllerUnderTest(viaGoogle: true);
+
+    // When
+    await controller.load();
+
+    // Then
+    final session = container.read(sessionControllerProvider);
+    expect((session as Unauthenticated).sessionExpired, isTrue);
+    final state = container.read(profileControllerProvider);
+    expect((state as ProfileUnavailable).sessionEnded, isTrue);
+  });
+
+  test(
+    'GivenAGoogleTransportFailure_WhenLoaded_ThenTheSessionSurvives',
+    () async {
+      // Given
+      answerGoogleGetWith(
+        const FailureResult<GoogleUser>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      final controller = await controllerUnderTest(viaGoogle: true);
+
+      // When
+      await controller.load();
+
+      // Then
+      final state = container.read(profileControllerProvider);
+      expect((state as ProfileUnavailable).sessionEnded, isFalse);
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    },
+  );
+
+  test(
+    'GivenAPasswordSession_WhenLoaded_ThenNoGoogleRecordIsAskedFor',
+    () async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      final controller = await controllerUnderTest();
+
+      // When
+      await controller.load();
+
+      // Then
+      verifyNever(
+        () => googleUsers.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      );
+      expect(container.read(profileControllerProvider), isA<ProfileLoaded>());
+    },
+  );
 }

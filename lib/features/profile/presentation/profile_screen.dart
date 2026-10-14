@@ -10,6 +10,8 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/presentation/email_verification_controller.dart';
 import '../../data_rights/presentation/restrict_processing_dialog.dart';
+import '../../google_users/domain/google_user.dart';
+import '../../google_users/presentation/google_avatar.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../persons/domain/person.dart';
 import 'profile_controller.dart';
@@ -19,7 +21,7 @@ import 'profile_controller.dart';
 /// Read and edit in one screen: the record is what the API returned, and the
 /// form starts from it, so there is never a version of the person on screen
 /// that the API has not confirmed. The fields stay read-only until **Edit** is
-/// pressed.
+/// pressed. A Google User's record is read-only throughout: Google owns it.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -154,6 +156,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           sessionEnded: sessionEnded,
         ),
         final ProfileLoaded loaded => _form(loaded),
+        GoogleProfileLoaded(:final user) => _GoogleProfile(user: user),
       },
     );
   }
@@ -242,35 +245,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                 const SizedBox(height: 16),
                 _Facts(person: person),
                 const SizedBox(height: 16),
-                // UI-09 lives on its own screen: two-factor setup has states
-                // of its own that have no business interrupting an edit here.
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.shield_outlined),
-                    title: const Text('Security'),
-                    subtitle: const Text(
-                      'Two-factor authentication and recovery codes.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.go('/profile/security'),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                // UI-33 — the one data-subject right a full session asks for
-                // here; the others are offered once processing is restricted
-                // (UI-30), which is where this leads.
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.pause_circle_outline),
-                    title: const Text('Restrict processing of my account'),
-                    subtitle: const Text(
-                      'Have Heimdall keep your data but stop using it. Your '
-                      'account is suspended until you lift the restriction.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => showRestrictProcessingDialog(context),
-                  ),
-                ),
+                const _AccountEntries(),
               ],
             ),
           ),
@@ -278,6 +253,146 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
+}
+
+/// The entries a profile leads on to, whoever's profile it is.
+class _AccountEntries extends StatelessWidget {
+  const _AccountEntries();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      // UI-09 lives on its own screen: two-factor setup has states of its own
+      // that have no business interrupting an edit here. A Google User finds
+      // there why it does not apply to them.
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.shield_outlined),
+          title: const Text('Security'),
+          subtitle: const Text('Two-factor authentication and recovery codes.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.go('/profile/security'),
+        ),
+      ),
+      const SizedBox(height: 16),
+      // UI-33 — the one data-subject right a full session asks for here; the
+      // others are offered once processing is restricted (UI-30), which is
+      // where this leads.
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.pause_circle_outline),
+          title: const Text('Restrict processing of my account'),
+          subtitle: const Text(
+            'Have Heimdall keep your data but stop using it. Your account is '
+            'suspended until you lift the restriction.',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showRestrictProcessingDialog(context),
+        ),
+      ),
+    ],
+  );
+}
+
+/// A Google User's own profile (#133).
+///
+/// Read-only: the name, the address and the picture come from Google, and the
+/// API offers no way to change them, so there is no Edit and no resend. It
+/// says why rather than leaving the absence of controls to be puzzled over.
+class _GoogleProfile extends StatelessWidget {
+  const _GoogleProfile({required this.user});
+
+  final GoogleUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          // The picture, or the initials when there is none.
+                          GoogleAvatar(user: user, radius: 28),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Your details',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _ReadOnlyField(label: 'Name', value: user.name),
+                      const SizedBox(height: 16),
+                      _ReadOnlyField(label: 'Email', value: user.email),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your name and email come from your Google account.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: DefaultTextStyle.merge(
+                    style: theme.textTheme.bodyMedium,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const _Fact(label: 'Signs in with', value: 'Google'),
+                        _Fact(
+                          label: 'Email verified',
+                          value: user.emailVerified ? 'Yes' : 'No',
+                        ),
+                        if (user.scopeId case final scopeId?)
+                          _Fact(label: 'Scope', value: scopeId),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const _AccountEntries(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A labelled value drawn like a record field in view mode, with no input
+/// behind it: there is nothing to type into.
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => InputDecorator(
+    decoration: recordFieldDecoration(context, label: label, editing: false),
+    child: Text(value),
+  );
 }
 
 /// What the API knows about the person that they cannot edit here.

@@ -100,7 +100,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   ],
                   const _SectionTitle('Your account'),
                   const SizedBox(height: 12),
-                  _AccountSummary(principal: principal),
+                  _AccountSummary(
+                    principal: principal,
+                    viaGoogle: session.token.viaGoogle,
+                  ),
                 ],
               ),
             ),
@@ -700,17 +703,29 @@ class _Badge extends StatelessWidget {
 
 /// The signed-in person's own account: who they are, how well it is
 /// protected, and the way to change either.
+///
+/// A Google session's account is its Google User record (#133): the name and
+/// address Google reported, in place of the second factor, which a Google User
+/// may never configure.
 class _AccountSummary extends ConsumerWidget {
-  const _AccountSummary({required this.principal});
+  const _AccountSummary({required this.principal, required this.viaGoogle});
 
   final Principal principal;
+  final bool viaGoogle;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final profile = ref.watch(profileControllerProvider);
-    final person = switch (profile) {
-      ProfileLoaded(:final person) => person,
-      _ => null,
+    final (:email, :emailVerified) = switch (profile) {
+      ProfileLoaded(:final person) => (
+        email: person.email,
+        emailVerified: person.emailVerified,
+      ),
+      GoogleProfileLoaded(:final user) => (
+        email: user.email,
+        emailVerified: user.emailVerified,
+      ),
+      _ => (email: null, emailVerified: null),
     };
 
     return Column(
@@ -722,34 +737,27 @@ class _AccountSummary extends ConsumerWidget {
             _AccountTile(
               icon: Icons.alternate_email,
               label: 'Email',
-              value:
-                  person?.email ??
-                  (principal.email.isEmpty ? '…' : principal.email),
-              status: switch (person) {
+              value: email ?? (principal.email.isEmpty ? '…' : principal.email),
+              status: switch (emailVerified) {
                 null => null,
-                Person(emailVerified: true) => (text: 'Verified', good: true),
-                _ => (text: 'Not verified', good: false),
+                true => (text: 'Verified', good: true),
+                false => (text: 'Not verified', good: false),
               },
               onTap: () => context.go('/profile'),
             ),
-            _AccountTile(
-              icon: Icons.shield_outlined,
-              label: 'Two-factor authentication',
-              value: switch (person) {
-                null => '…',
-                Person(twoFactorEnabled: true) => 'On',
-                _ => 'Off',
-              },
-              status: switch (person) {
-                null => null,
-                Person(twoFactorEnabled: true) => (
-                  text: 'Protected',
-                  good: true,
-                ),
-                _ => (text: 'Not set up', good: false),
-              },
-              onTap: () => context.go('/profile/security'),
-            ),
+            if (viaGoogle)
+              _AccountTile(
+                icon: Icons.account_circle_outlined,
+                label: 'Google account',
+                value: switch (profile) {
+                  GoogleProfileLoaded(:final user) => user.name,
+                  _ => '…',
+                },
+                status: (text: 'Signs in with Google', good: true),
+                onTap: () => context.go('/profile'),
+              )
+            else
+              _TwoFactorTile(profile: profile),
             _AccountTile(
               icon: Icons.badge_outlined,
               label: 'Role',
@@ -785,6 +793,37 @@ class _AccountSummary extends ConsumerWidget {
           ],
         ),
       ],
+    );
+  }
+}
+
+/// Whether a second factor protects a person's account.
+class _TwoFactorTile extends StatelessWidget {
+  const _TwoFactorTile({required this.profile});
+
+  final ProfileState profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final person = switch (profile) {
+      ProfileLoaded(:final person) => person,
+      _ => null,
+    };
+
+    return _AccountTile(
+      icon: Icons.shield_outlined,
+      label: 'Two-factor authentication',
+      value: switch (person) {
+        null => '…',
+        Person(twoFactorEnabled: true) => 'On',
+        _ => 'Off',
+      },
+      status: switch (person) {
+        null => null,
+        Person(twoFactorEnabled: true) => (text: 'Protected', good: true),
+        _ => (text: 'Not set up', good: false),
+      },
+      onTap: () => context.go('/profile/security'),
     );
   }
 }

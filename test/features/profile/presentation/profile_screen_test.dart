@@ -8,8 +8,12 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
+import 'package:heimdall_ui/features/google_users/presentation/google_avatar.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
@@ -20,6 +24,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
+
+class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 String _jwt({int role = 3}) {
   final payload = base64Url.encode(
@@ -34,6 +42,28 @@ String _jwt({int role = 3}) {
 
   return 'header.$payload.signature';
 }
+
+/// A Google sign-in's token: the subject is the Google User, in its scope.
+String _googleJwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'google-1',
+        'role': 3,
+        'scopeId': 'scope-1',
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
+
+const _grace = GoogleUser(
+  id: 'google-1',
+  name: 'Grace Hopper',
+  email: 'grace@example.com',
+  scopeId: 'scope-1',
+);
 
 const _ada = Person(
   id: 'person-1',
@@ -50,6 +80,8 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockPersonRepository persons;
   late _MockAuthRepository auth;
+  late _MockGoogleUserRepository googleUsers;
+  late _MockGoogleSignInGateway google;
   late InMemoryTokenStore store;
   late ProviderContainer container;
 
@@ -58,6 +90,7 @@ void main() {
     Size size = _compact,
     ThemeData? theme,
     int role = 3,
+    bool viaGoogle = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -65,14 +98,17 @@ void main() {
 
     await store.write(
       AuthToken(
-        value: _jwt(role: role),
+        value: viaGoogle ? _googleJwt() : _jwt(role: role),
         expiresAt: DateTime.utc(2030),
+        viaGoogle: viaGoogle,
       ),
     );
 
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(persons),
+        googleUserRepositoryProvider.overrideWithValue(googleUsers),
+        googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWithValue(auth),
         tokenStoreProvider.overrideWithValue(store),
       ],
@@ -99,6 +135,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerGoogleGetWith(Result<GoogleUser> result) {
+    when(
+      () => googleUsers.getById(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
   void answerUpdateWith(Result<Person> result) {
     when(
       () => persons.update(
@@ -114,6 +160,9 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     persons = _MockPersonRepository();
     auth = _MockAuthRepository();
+    googleUsers = _MockGoogleUserRepository();
+    google = _MockGoogleSignInGateway();
+    when(() => google.signOut()).thenAnswer((_) async {});
     store = InMemoryTokenStore();
   });
 
@@ -534,6 +583,136 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(_ada));
     await pump(tester);
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Restrict processing of your account?'), findsOneWidget);
+  });
+
+  // #133 — a Google User's own record, read-only: Google owns the name and the
+  // address, and the API offers no way to change either.
+  testWidgets('GivenAGoogleSession_WhenOpened_ThenTheirRecordIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    expect(find.text('Grace Hopper'), findsOneWidget);
+    expect(find.text('grace@example.com'), findsOneWidget);
+    expect(
+      find.text('Your name and email come from your Google account.'),
+      findsOneWidget,
+    );
+    expect(find.byType(GoogleAvatar), findsOneWidget);
+  });
+
+  testWidgets('GivenAGoogleSession_WhenOpened_ThenNothingIsEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    expect(find.text('Edit'), findsNothing);
+    expect(find.byType(EditableText), findsNothing);
+    expect(find.text('Send verification email'), findsNothing);
+  });
+
+  testWidgets('GivenAGooglePicture_WhenOpened_ThenItIsShown', (tester) async {
+    // Given
+    answerGoogleGetWith(
+      const Success<GoogleUser>(
+        GoogleUser(
+          id: 'google-1',
+          name: 'Grace Hopper',
+          email: 'grace@example.com',
+          profilePictureUrl: 'https://example.invalid/grace.png',
+        ),
+      ),
+    );
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    final avatar = tester.widget<CircleAvatar>(
+      find.descendant(
+        of: find.byType(GoogleAvatar),
+        matching: find.byType(CircleAvatar),
+      ),
+    );
+    expect(avatar.foregroundImage, isA<NetworkImage>());
+  });
+
+  // AF-08e still holds for a Google User deleted from under the session.
+  testWidgets(
+    'GivenAMissingGoogleRecord_WhenOpened_ThenTheSignOutIsExplained',
+    (tester) async {
+      // Given
+      answerGoogleGetWith(
+        const FailureResult<GoogleUser>(
+          Failure(kind: FailureKind.notFound, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await pump(tester, viaGoogle: true);
+
+      // Then
+      expect(find.text('Your account no longer exists'), findsOneWidget);
+    },
+  );
+
+  // UI-33 serves a Google User too, beside the security entry, at every width
+  // and in the dark theme.
+  for (final (label, size, dark) in <(String, Size, bool)>[
+    ('Compact', _compact, false),
+    ('Medium', _medium, false),
+    ('Expanded', _expanded, false),
+    ('Dark', _medium, true),
+  ]) {
+    testWidgets(
+      'Given${label}GoogleProfile_WhenRendered_ThenItsEntriesAreOffered',
+      (tester) async {
+        // Given
+        answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+        // When
+        await pump(
+          tester,
+          size: size,
+          theme: dark ? buildDarkTheme() : null,
+          viaGoogle: true,
+        );
+
+        // Then
+        expect(find.text('Grace Hopper'), findsOneWidget);
+        expect(find.text('Security'), findsOneWidget);
+        expect(find.text('Restrict processing of my account'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('GivenAGoogleProfile_WhenRestrictionTapped_ThenTheDialogOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+    await pump(tester, viaGoogle: true);
     final entry = find.text('Restrict processing of my account');
     await tester.ensureVisible(entry);
     await tester.pumpAndSettle();
