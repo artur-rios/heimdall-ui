@@ -51,7 +51,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. | UI-05 |
 | FR-AU-13 | The client shall offer to resend a verification email through `POST /api/auth/resend-verification`. | UI-05 |
 | FR-AU-14 | The client shall show an authenticated user with an unverified address a dismissible prompt offering to resend the verification email. | UI-05 |
-| FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}`. | UI-08 |
+| FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}` — or, for a Google User, through `GET /api/scopes/{scopeId}/google-users/{id}`, read-only. | UI-08 |
 | FR-AU-16 | The client shall let the signed-in person update their own name and email through `PUT /api/persons/{id}`. | UI-08 |
 | FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable` and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
 | FR-AU-18 | The client shall render an `otpAuthUri` as a scannable code and shall also present the secret as selectable text. | UI-09 |
