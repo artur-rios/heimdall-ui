@@ -123,7 +123,13 @@ class PersonDetailController extends Notifier<PersonDetailState> {
         .getById(arg, includeDeleted: true);
 
     if (result case Success<Person>(:final value)) {
-      state = PersonDetailLoaded(value);
+      final current = state;
+
+      // The flags describe requests that are still in flight or outcomes the
+      // user has not yet seen; a reload changes the record, not those.
+      state = current is PersonDetailLoaded
+          ? current.copyWith(person: value)
+          : PersonDetailLoaded(value);
     }
   }
 

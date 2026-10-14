@@ -581,6 +581,33 @@ void main() {
     },
   );
 
+  testWidgets('GivenADeletedPerson_WhenOpened_ThenAccountEmailsIsNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_deleted));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Account emails'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenASystemAdminViewingAScopeAdmin_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
   // AF-36c — the refusal stays on screen while the person is reloaded.
   testWidgets(
     'GivenTheAddressIsAlreadyVerified_WhenResendIsRefused_ThenTheMessageStaysAndTheActionGoes',
@@ -640,6 +667,64 @@ void main() {
       );
       expect(find.text('Resend verification email'), findsNothing);
       expect(find.text('Send password reset'), findsOneWidget);
+    },
+  );
+
+  // AF-36c must not undo what the admin has typed and not yet saved.
+  testWidgets(
+    'GivenAnUnsavedEdit_WhenResendIsRefusedAndTheReloadLands_ThenTheTypedNameStays',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Ada'),
+        'Ada L',
+      );
+      await tester.pumpAndSettle();
+      answerGetWith(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada',
+            email: 'ada@example.com',
+            role: Role.user,
+            scopeId: 'scope-1',
+          ),
+        ),
+      );
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.widgetWithText(TextFormField, 'Ada L'), findsOneWidget);
     },
   );
 
