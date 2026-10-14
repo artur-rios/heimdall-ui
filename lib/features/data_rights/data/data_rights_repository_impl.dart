@@ -84,6 +84,35 @@ class ApiDataRightsRepository implements DataRightsRepository {
   }
 
   @override
+  Future<Result<void>> restrictProcessing(RestrictionGround ground) async {
+    try {
+      // The body carries the ground and nothing else: the API reads the
+      // subject from the bearer token.
+      final response = await _client.authRestrictProcessing(
+        body: RestrictProcessingCommand(ground: _groundNumber(ground)),
+      );
+
+      if (response.success != true) {
+        return FailureResult<void>(_rejected(response.errors));
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      // AF-44a's 409 arrives here, read by the envelope helpers as a conflict
+      // with the API's own words.
+      return FailureResult<void>(failureFromDioException(error));
+    }
+  }
+
+  /// The API's numbers for the grounds of GDPR Art. 18(1), in its order.
+  static int _groundNumber(RestrictionGround ground) => switch (ground) {
+    RestrictionGround.accuracyContested => 1,
+    RestrictionGround.unlawfulButErasureOpposed => 2,
+    RestrictionGround.neededForLegalClaim => 3,
+    RestrictionGround.objectionPending => 4,
+  };
+
+  @override
   Future<Result<void>> liftOwnRestriction() async {
     try {
       // An empty body names nobody, which the API reads as the caller.
