@@ -1441,7 +1441,7 @@ there.
    {email}?" or "Send a password reset link to {email}?", with the message "The link goes only to
    their own address. No link or code is shown here." and the action **Send**.
 4. On confirmation the client calls `POST /api/persons/{id}/verification-email` or
-   `POST /api/persons/{id}/password-reset`. Each action is disabled while its request is in flight.
+   `POST /api/persons/{id}/password-reset`. Both actions are disabled while either request is in flight.
 5. On success the card shows "Sent to {email}." Neither action shows a link or a code.
 
 The card's outcome is held only while the person page is open. It is discarded when the page is
@@ -1456,8 +1456,9 @@ Each answer is shown with the API's own message, in an error banner within the c
 - **AF-36b — Cannot be sent.** A `409`: the person is deleted or restricted, or (for a reset)
   cannot sign in.
 - **AF-36c — Already verified.** A `400` on the resend. The banner keeps the API's message. The
-  person is then reloaded in the background, without a spinner, so **Resend verification email**
-  disappears and the message stays.
+  person is then reloaded in the background, without a spinner. When the reload succeeds,
+  **Resend verification email** disappears and the message stays. If it fails, the action and the
+  message both stay.
 - **AF-36d — Refused.** A `403` or `404`.
 - **AF-36e — Cancelled.** **Cancel**, the barrier or the back control closes the confirmation.
   Nothing is sent.
@@ -1485,7 +1486,7 @@ Each answer is shown with the API's own message, in an error banner within the c
 | UI-34 | FR-AL-01 … FR-AL-03 |
 | UI-35 | FR-SC-15, FR-SC-16 |
 | UI-36 | FR-PE-10, FR-PE-11 |
-| UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 | FR-UX-09 |
+| UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
