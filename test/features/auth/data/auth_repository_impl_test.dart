@@ -63,6 +63,60 @@ void main() {
     expect((result.valueOrNull! as LoggedIn).token.value, 'jwt');
   });
 
+  // The scope travels as it does for Google, so a User can be found.
+  test('GivenAScope_WhenLoggingIn_ThenItTravelsInTheBody', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.login(
+      email: 'a@b.c',
+      password: 'secret',
+      scopeId: 'scope-public-id',
+    );
+
+    // Then
+    expect(adapter.requests.single['email'], 'a@b.c');
+    expect(adapter.requests.single['scopeId'], 'scope-public-id');
+  });
+
+  test('GivenNoScope_WhenLoggingIn_ThenTheBodyCarriesNone', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect(adapter.requests.single['scopeId'], isNull);
+  });
+
   // AF-01c — the API answers with a challenge instead of a token.
   test(
     'GivenTwoFactorResponse_WhenLoggingIn_ThenTwoFactorRequiredIsReturned',

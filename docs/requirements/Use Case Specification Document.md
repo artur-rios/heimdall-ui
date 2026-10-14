@@ -191,7 +191,9 @@ delivered the same way.
 1. The user opens the application and is redirected to the login screen.
 2. The user enters an email address and a password.
 3. The user submits the form.
-4. The client calls `POST /api/auth/login`.
+4. The client calls `POST /api/auth/login` with the email, the password, and the configured scope. The
+   scope is the one the calling application named, or the build's own; without one the API finds only
+   administrators, because a User's email is unique only within their scope.
 5. The API answers with a token and its expiry.
 6. The client stores the token, establishes the session, and redirects to the screen the user
    originally requested, or to the home screen.

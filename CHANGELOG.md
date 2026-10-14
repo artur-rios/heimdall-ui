@@ -19,6 +19,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
   post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
 
+### Fixed
+
+- Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
+  It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
+  sign in, as before.
+
 ## [1.6.1] - 2026-10-12
 
 ### Fixed

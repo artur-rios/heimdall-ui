@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -40,7 +41,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => Success<LoginOutcome>(
         TwoFactorRequired(
           challengeToken: 'challenge',
@@ -51,6 +58,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
