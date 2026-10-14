@@ -48,8 +48,8 @@ class AccountEmailsCard extends ConsumerWidget {
       await controller.send(kind);
 
       // The card may have gone while the request was in flight (the person
-      // navigated away); its ref is unusable then. The controller outlives
-      // the card, so its own state update is safe.
+      // navigated away); its ref is unusable then. The controller's own
+      // `ref.mounted` guard makes its state update safe.
       if (!context.mounted) {
         return;
       }

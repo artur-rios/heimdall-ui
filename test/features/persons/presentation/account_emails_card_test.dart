@@ -64,6 +64,18 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Confirms in the dialog, whose button shares its label with nothing else
+  /// worth tapping on the card.
+  Future<void> confirmSend(WidgetTester tester) async {
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Send'),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
   setUp(() {
     repository = _MockPersonRepository();
   });
@@ -116,7 +128,7 @@ void main() {
 
     // When
     await tapText(tester, 'Send password reset');
-    await tapText(tester, 'Send');
+    await confirmSend(tester);
 
     // Then
     verify(() => repository.sendPasswordReset('person-1')).called(1);
@@ -151,7 +163,7 @@ void main() {
 
       // When
       await tapText(tester, 'Send password reset');
-      await tapText(tester, 'Send');
+      await confirmSend(tester);
 
       // Then
       expect(find.text(_cooldown), findsOneWidget);
@@ -176,7 +188,7 @@ void main() {
 
       // When
       await tapText(tester, 'Resend verification email');
-      await tapText(tester, 'Send');
+      await confirmSend(tester);
 
       // Then
       expect(refused, 1);
@@ -196,7 +208,7 @@ void main() {
         .thenAnswer((_) => pending.future);
     await pump(tester, _unverified);
     await tapText(tester, 'Resend verification email');
-    await tapText(tester, 'Send');
+    await confirmSend(tester);
 
     // When
     await tester.pumpWidget(

@@ -436,7 +436,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                         personDetailControllerProvider(widget.personId)
                             .notifier,
                       )
-                      .load(),
+                      .refresh(),
                 ),
               ],
               // AF-19d — the controls are disabled on your own record, and

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -577,6 +578,68 @@ void main() {
 
       // Then
       expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  // AF-36c — the refusal stays on screen while the person is reloaded.
+  testWidgets(
+    'GivenTheAddressIsAlreadyVerified_WhenResendIsRefused_ThenTheMessageStaysAndTheActionGoes',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      const verified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      final reload = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => reload.future);
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Then — no spinner while the person is read again
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      reload.complete(const Success<Person>(verified));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('The email address is already verified.'),
+        findsOneWidget,
+      );
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.text('Send password reset'), findsOneWidget);
     },
   );
 
