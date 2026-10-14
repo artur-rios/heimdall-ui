@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -73,8 +75,9 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     Future<void> Function(ProviderContainer container)? prepare,
+    Size size = const Size(1400, 900),
   }) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -154,6 +157,100 @@ void main() {
     expect(find.text('None'), findsWidgets);
     expect(find.text('Cleared'), findsNothing);
     expect(find.text('b7c1d2e3…'), findsWidgets);
+  });
+
+  testWidgets(
+    'GivenACompactWindow_WhenOpened_ThenTheFiltersFoldAndEntriesShow',
+    (tester) async {
+      // Given
+      answerWith(
+        Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])),
+      );
+
+      // When
+      await pump(tester, size: const Size(360, 640));
+
+      // Then
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(OutlinedButton, 'Filters'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Actor'), findsNothing);
+      expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
+      expect(find.text('UpdatePersonCommand').hitTestable(), findsOneWidget);
+    },
+  );
+
+  testWidgets('GivenACompactWindow_WhenFiltersIsTapped_ThenTheFilterBarOpens', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(tester, size: const Size(360, 640));
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Filters'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(tester.takeException(), isNull);
+    expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
+    expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('GivenFoldedFilters_WhenSomeAreSet_ThenTheToggleCountsThem', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(
+      tester,
+      size: const Size(360, 640),
+      prepare: (container) async {
+        final controller = container.read(auditLogControllerProvider.notifier);
+        unawaited(controller.setOutcome(false));
+        await controller.setAction('CreateScopeCommand');
+      },
+    );
+
+    // Then
+    expect(find.widgetWithText(OutlinedButton, 'Filters (2)'), findsOneWidget);
+  });
+
+  testWidgets('GivenAShortWindow_WhenOpened_ThenTheListKeepsRoom', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])));
+
+    final errors = <FlutterErrorDetails>[];
+    final reportError = FlutterError.onError;
+    FlutterError.onError = errors.add;
+
+    // When
+    try {
+      await pump(tester, size: const Size(640, 360));
+    } finally {
+      FlutterError.onError = reportError;
+    }
+
+    // Then — the shell's navigation rail overflowing a window this short is a
+    // known shell-level issue (M3); nothing of this screen may overflow.
+    final rail = tester.renderObject(find.byType(NavigationRail));
+    bool inRail(RenderObject? node) =>
+        node != null && (identical(node, rail) || inRail(node.parent));
+    // An overflow report names the render object that overflowed.
+    RenderObject? overflowing(FlutterErrorDetails details) => details
+        .informationCollector
+        ?.call()
+        .map((node) => node.value)
+        .whereType<RenderObject>()
+        .firstOrNull;
+    final screenErrors = errors.where(
+      (details) => !inRail(overflowing(details)),
+    );
+    expect(screenErrors, isEmpty);
+    expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
   });
 
   testWidgets('GivenATable_WhenOpened_ThenItNamesItsColumnsAndDatesOnce', (

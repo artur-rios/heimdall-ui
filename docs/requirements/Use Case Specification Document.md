@@ -1341,8 +1341,9 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 3. Above the list, a filter bar: **Dates** (a date range; the chosen local days are sent as UTC
    bounds), **Action** (the exact command name), **Actor** and **Target** (identifiers), and
    **All** / **Succeeded** / **Refused**. Each change returns to page 1; **Clear filters** resets
-   them. The filters and the page are kept while the System Admin moves around the app and are
-   forgotten when the session ends. Under the bar: "An entry shows no actor when the action was
+   them. On a compact or short window the bar and its note fold behind a **Filters** toggle, which
+   counts the active filters, e.g. **Filters (2)**. The filters and the page are kept while the
+   System Admin moves around the app and are forgotten when the session ends. Under the bar: "An entry shows no actor when the action was
    anonymous, such as a sign-in, or when its attribution was cleared — after the attribution period,
    or once the person was erased. Filtering by actor cannot find these."
 4. Each entry shows when it was recorded (local date and time, with the year), the action, a
