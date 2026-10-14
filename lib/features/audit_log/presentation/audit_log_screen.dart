@@ -11,7 +11,8 @@ import '../../home/presentation/home_screen.dart' show roleLabel;
 import '../domain/audit_entry.dart';
 import 'audit_log_controller.dart';
 
-/// Below this body height the filter bar folds, whatever the width.
+/// Below this body height — the window's, less the app bar — the filter bar
+/// folds, whatever the width.
 const double _shortHeight = 480;
 
 /// The most of the body height the filter bar and the note may take; past it
@@ -134,10 +135,12 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
         builder: (context, constraints) {
           // A compact or short window folds the bar behind a toggle, and the
           // bar never takes more than its share of the height, so the list
-          // keeps room for its entries.
+          // keeps room for its entries. "Short" is the window's height, not
+          // the body's: a soft keyboard shrinks the body, and folding then
+          // would take away the very field being typed in.
           final folds =
               context.breakpoint == Breakpoint.compact ||
-              constraints.maxHeight < _shortHeight;
+              MediaQuery.sizeOf(context).height < _shortHeight + kToolbarHeight;
 
           return Column(
             children: <Widget>[

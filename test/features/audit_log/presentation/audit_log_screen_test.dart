@@ -66,6 +66,42 @@ envelope.Page<AuditEntry> _page(List<AuditEntry> items) =>
       totalPages: 1,
     );
 
+/// Runs [body] and returns what it reported to [FlutterError.onError].
+Future<List<FlutterErrorDetails>> _errorsDuring(
+  Future<void> Function() body,
+) async {
+  final errors = <FlutterErrorDetails>[];
+  final reportError = FlutterError.onError;
+  FlutterError.onError = errors.add;
+  try {
+    await body();
+  } finally {
+    FlutterError.onError = reportError;
+  }
+
+  return errors;
+}
+
+/// [errors] less the shell's navigation rail overflowing a short body, a
+/// known shell-level issue (M3): what is left is this screen's own.
+Iterable<FlutterErrorDetails> _screenErrors(
+  WidgetTester tester,
+  List<FlutterErrorDetails> errors,
+) {
+  final rail = tester.renderObject(find.byType(NavigationRail));
+  bool inRail(RenderObject? node) =>
+      node != null && (identical(node, rail) || inRail(node.parent));
+  // An overflow report names the render object that overflowed.
+  RenderObject? overflowing(FlutterErrorDetails details) => details
+      .informationCollector
+      ?.call()
+      .map((node) => node.value)
+      .whereType<RenderObject>()
+      .firstOrNull;
+
+  return errors.where((details) => !inRail(overflowing(details)));
+}
+
 void main() {
   late _MockAuditLogRepository repository;
   late InMemoryTokenStore store;
@@ -217,39 +253,48 @@ void main() {
     expect(find.widgetWithText(OutlinedButton, 'Filters (2)'), findsOneWidget);
   });
 
+  testWidgets('GivenATallWindow_WhenTheKeyboardOpens_ThenTheFieldStays', (
+    tester,
+  ) async {
+    // Given — a landscape tablet with the Actor field focused
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(tester, size: const Size(900, 800));
+    await tester.tap(find.widgetWithText(TextField, 'Actor'));
+    await tester.pumpAndSettle();
+
+    // When — the soft keyboard takes the bottom 380 px
+    tester.view.viewInsets = const FakeViewPadding(bottom: 380);
+    addTearDown(tester.view.resetViewInsets);
+    final errors = await _errorsDuring(tester.pumpAndSettle);
+
+    // Then
+    expect(_screenErrors(tester, errors), isEmpty);
+    final actor = find.widgetWithText(TextField, 'Actor');
+    expect(actor, findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(of: actor, matching: find.byType(EditableText)),
+          )
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+  });
+
   testWidgets('GivenAShortWindow_WhenOpened_ThenTheListKeepsRoom', (
     tester,
   ) async {
     // Given
     answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])));
 
-    final errors = <FlutterErrorDetails>[];
-    final reportError = FlutterError.onError;
-    FlutterError.onError = errors.add;
-
     // When
-    try {
-      await pump(tester, size: const Size(640, 360));
-    } finally {
-      FlutterError.onError = reportError;
-    }
-
-    // Then — the shell's navigation rail overflowing a window this short is a
-    // known shell-level issue (M3); nothing of this screen may overflow.
-    final rail = tester.renderObject(find.byType(NavigationRail));
-    bool inRail(RenderObject? node) =>
-        node != null && (identical(node, rail) || inRail(node.parent));
-    // An overflow report names the render object that overflowed.
-    RenderObject? overflowing(FlutterErrorDetails details) => details
-        .informationCollector
-        ?.call()
-        .map((node) => node.value)
-        .whereType<RenderObject>()
-        .firstOrNull;
-    final screenErrors = errors.where(
-      (details) => !inRail(overflowing(details)),
+    final errors = await _errorsDuring(
+      () => pump(tester, size: const Size(640, 360)),
     );
-    expect(screenErrors, isEmpty);
+
+    // Then
+    expect(_screenErrors(tester, errors), isEmpty);
     expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
   });
 
