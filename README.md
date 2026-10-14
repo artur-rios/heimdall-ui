@@ -238,13 +238,13 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-01: Login | ✅ | [#1](https://github.com/artur-rios/heimdall-ui/issues/1) |
 | UI-02: Complete two-factor challenge at login | ✅ | [#2](https://github.com/artur-rios/heimdall-ui/issues/2) |
-| UI-02 amendment: Send a new second-factor code | 🚧 | [#122](https://github.com/artur-rios/heimdall-ui/issues/122) |
+| UI-02 amendment: Send a new second-factor code | ✅ | [#122](https://github.com/artur-rios/heimdall-ui/issues/122) |
 | UI-03: Request password recovery | ✅ | [#3](https://github.com/artur-rios/heimdall-ui/issues/3) |
 | UI-04: Reset password | ✅ | [#4](https://github.com/artur-rios/heimdall-ui/issues/4) |
 | UI-05: Verify email and resend verification | ✅ | [#5](https://github.com/artur-rios/heimdall-ui/issues/5) |
 | UI-06: Sign in and sign out with Google | ✅ | [#6](https://github.com/artur-rios/heimdall-ui/issues/6) |
 | UI-07: Guard routes by session and role | ✅ | [#7](https://github.com/artur-rios/heimdall-ui/issues/7) |
-| UI-30: Use a restricted session | 🚧 | [#103](https://github.com/artur-rios/heimdall-ui/issues/103) |
+| UI-30: Use a restricted session | ✅ | [#103](https://github.com/artur-rios/heimdall-ui/issues/103) |
 
 ### Profile & Security
 
@@ -263,7 +263,7 @@ the board is where an item's status changes as it moves.
 | UI-13: Delete a scope, logically and permanently | ✅ | [#13](https://github.com/artur-rios/heimdall-ui/issues/13) |
 | UI-14: Manage scope owners | ✅ | [#14](https://github.com/artur-rios/heimdall-ui/issues/14) |
 | UI-15: Toggle Google Sign-In for a scope | ✅ | [#15](https://github.com/artur-rios/heimdall-ui/issues/15) |
-| UI-31: Configure a scope's sign-in and sign-up | 🚧 | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
+| UI-31: Configure a scope's sign-in and sign-up | ✅ | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
 
 ### Person Management
 
@@ -303,7 +303,7 @@ the board is where an item's status changes as it moves.
 
 | Use case | Status | Issue |
 | --- | --- | --- |
-| UI-32: Review outstanding erasure requests | 🚧 | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
+| UI-32: Review outstanding erasure requests | ✅ | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
 
 ### Needs Heimdall API work
 
