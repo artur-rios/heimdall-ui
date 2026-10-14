@@ -119,7 +119,8 @@ class AccountEmailsCard extends ConsumerWidget {
   /// A transport failure carries no words of the API's own, only the HTTP
   /// library's; it is given some. Everything else is shown as the API said it.
   static Failure _shown(Failure failure) =>
-      failure.kind == FailureKind.network || failure.kind == FailureKind.unknown
+      failure.kind == FailureKind.network ||
+          (failure.kind == FailureKind.unknown && failure.errors.isEmpty)
       ? Failure(
           kind: failure.kind,
           errors: const <String>[

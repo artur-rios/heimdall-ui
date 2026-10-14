@@ -296,4 +296,27 @@ void main() {
     pending.complete(const Success<void>(null));
     await tester.pumpAndSettle();
   });
+
+  testWidgets('GivenAnUnknownFailureWithAMessage_WhenSent_ThenItIsShown', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.sendPasswordReset('person-1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>['Method not allowed.'],
+        ),
+      ),
+    );
+    await pump(tester, _unverified);
+
+    // When
+    await tapText(tester, 'Send password reset');
+    await confirmSend(tester);
+
+    // Then
+    expect(find.text('Method not allowed.'), findsOneWidget);
+    expect(find.textContaining('Could not reach the API'), findsNothing);
+  });
 }
