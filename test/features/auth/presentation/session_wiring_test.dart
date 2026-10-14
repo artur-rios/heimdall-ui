@@ -9,6 +9,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
@@ -31,6 +32,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'https://example.invalid'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWith(
           (ref) => ApiAuthRepository(AuthClient(ref.watch(dioProvider))),

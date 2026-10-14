@@ -23,6 +23,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Signing in again opens the restricted session, from which the restriction is lifted or the person's data
   downloaded or erased. The API's answer is shown as it comes, including when processing is already restricted.
 
+### Fixed
+
+- Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
+  It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
+  sign in, as before.
+
 ## [1.6.1] - 2026-10-12
 
 ### Fixed

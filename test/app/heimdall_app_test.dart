@@ -13,6 +13,7 @@ import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
@@ -67,6 +68,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
         ...overrides,
       ],
@@ -244,6 +246,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -279,6 +282,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -315,6 +319,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -405,6 +410,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -447,6 +453,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );

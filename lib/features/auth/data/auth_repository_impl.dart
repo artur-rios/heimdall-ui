@@ -20,10 +20,11 @@ class ApiAuthRepository implements AuthRepository {
   Future<Result<LoginOutcome>> login({
     required String email,
     required String password,
+    String? scopeId,
   }) async {
     try {
       final response = await _client.authLogin(
-        body: LoginCommand(email: email, password: password),
+        body: LoginCommand(email: email, password: password, scopeId: scopeId),
       );
 
       return _outcomeFrom(response);

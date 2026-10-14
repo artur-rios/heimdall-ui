@@ -37,7 +37,7 @@ describes the flows that satisfy these requirements; the
 
 | ID | Requirement | Use case |
 | --- | --- | --- |
-| FR-AU-01 | The client shall authenticate a person by email and password through `POST /api/auth/login`. | UI-01 |
+| FR-AU-01 | The client shall authenticate a person by email and password through `POST /api/auth/login`, sending the configured scope as Google sign-in does. | UI-01 |
 | FR-AU-02 | The client shall detect a two-factor challenge in the login response and continue into the challenge flow instead of establishing a session. | UI-01, UI-02 |
 | FR-AU-03 | The client shall send a challenge token to `POST /api/auth/2fa/verify` and to no other endpoint, and shall never persist it. | UI-02 |
 | FR-AU-04 | The client shall accept a generated code or a recovery code as the second factor, and shall let the user choose among the methods the API reports as available. | UI-02 |
