@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -48,7 +50,7 @@ final _refused = AuditEntry(
   failureReason: 'You are not an owner of the target scope.',
 );
 
-const _cleared = AuditEntry(
+const _noActor = AuditEntry(
   id: 'a2',
   action: 'UpdatePersonCommand',
   succeeded: true,
@@ -64,6 +66,42 @@ envelope.Page<AuditEntry> _page(List<AuditEntry> items) =>
       totalPages: 1,
     );
 
+/// Runs [body] and returns what it reported to [FlutterError.onError].
+Future<List<FlutterErrorDetails>> _errorsDuring(
+  Future<void> Function() body,
+) async {
+  final errors = <FlutterErrorDetails>[];
+  final reportError = FlutterError.onError;
+  FlutterError.onError = errors.add;
+  try {
+    await body();
+  } finally {
+    FlutterError.onError = reportError;
+  }
+
+  return errors;
+}
+
+/// [errors] less the shell's navigation rail overflowing a short body, a
+/// known shell-level issue (M3): what is left is this screen's own.
+Iterable<FlutterErrorDetails> _screenErrors(
+  WidgetTester tester,
+  List<FlutterErrorDetails> errors,
+) {
+  final rail = tester.renderObject(find.byType(NavigationRail));
+  bool inRail(RenderObject? node) =>
+      node != null && (identical(node, rail) || inRail(node.parent));
+  // An overflow report names the render object that overflowed.
+  RenderObject? overflowing(FlutterErrorDetails details) => details
+      .informationCollector
+      ?.call()
+      .map((node) => node.value)
+      .whereType<RenderObject>()
+      .firstOrNull;
+
+  return errors.where((details) => !inRail(overflowing(details)));
+}
+
 void main() {
   late _MockAuditLogRepository repository;
   late InMemoryTokenStore store;
@@ -73,8 +111,9 @@ void main() {
   Future<void> pump(
     WidgetTester tester, {
     Future<void> Function(ProviderContainer container)? prepare,
+    Size size = const Size(1400, 900),
   }) async {
-    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
@@ -137,7 +176,7 @@ void main() {
     tester,
   ) async {
     // Given
-    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _cleared])));
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])));
 
     // When
     await pump(tester);
@@ -149,10 +188,175 @@ void main() {
       find.text('You are not an owner of the target scope.'),
       findsOneWidget,
     );
-    expect(find.text(_actorId), findsWidgets);
+    expect(find.text('6f1c2b9e…'), findsWidgets);
     expect(find.text('Scope Admin'), findsWidgets);
-    expect(find.text('Cleared'), findsWidgets);
-    expect(find.text(_targetId), findsWidgets);
+    expect(find.text('None'), findsWidgets);
+    expect(find.text('Cleared'), findsNothing);
+    expect(find.text('b7c1d2e3…'), findsWidgets);
+  });
+
+  testWidgets(
+    'GivenACompactWindow_WhenOpened_ThenTheFiltersFoldAndEntriesShow',
+    (tester) async {
+      // Given
+      answerWith(
+        Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])),
+      );
+
+      // When
+      await pump(tester, size: const Size(360, 640));
+
+      // Then
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(OutlinedButton, 'Filters'), findsOneWidget);
+      expect(find.widgetWithText(TextField, 'Actor'), findsNothing);
+      expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
+      expect(find.text('UpdatePersonCommand').hitTestable(), findsOneWidget);
+    },
+  );
+
+  testWidgets('GivenACompactWindow_WhenFiltersIsTapped_ThenTheFilterBarOpens', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(tester, size: const Size(360, 640));
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Filters'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(tester.takeException(), isNull);
+    expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
+    expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('GivenFoldedFilters_WhenSomeAreSet_ThenTheToggleCountsThem', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(
+      tester,
+      size: const Size(360, 640),
+      prepare: (container) async {
+        final controller = container.read(auditLogControllerProvider.notifier);
+        unawaited(controller.setOutcome(false));
+        await controller.setAction('CreateScopeCommand');
+      },
+    );
+
+    // Then
+    expect(find.widgetWithText(OutlinedButton, 'Filters (2)'), findsOneWidget);
+  });
+
+  testWidgets('GivenATallWindow_WhenTheKeyboardOpens_ThenTheFieldStays', (
+    tester,
+  ) async {
+    // Given — a landscape tablet with the Actor field focused
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(tester, size: const Size(900, 800));
+    await tester.tap(find.widgetWithText(TextField, 'Actor'));
+    await tester.pumpAndSettle();
+
+    // When — the soft keyboard takes the bottom 380 px
+    tester.view.viewInsets = const FakeViewPadding(bottom: 380);
+    addTearDown(tester.view.resetViewInsets);
+    final errors = await _errorsDuring(tester.pumpAndSettle);
+
+    // Then
+    expect(_screenErrors(tester, errors), isEmpty);
+    final actor = find.widgetWithText(TextField, 'Actor');
+    expect(actor, findsOneWidget);
+    expect(
+      tester
+          .widget<EditableText>(
+            find.descendant(of: actor, matching: find.byType(EditableText)),
+          )
+          .focusNode
+          .hasFocus,
+      isTrue,
+    );
+  });
+
+  testWidgets('GivenAShortWindow_WhenOpened_ThenTheListKeepsRoom', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])));
+
+    // When
+    final errors = await _errorsDuring(
+      () => pump(tester, size: const Size(640, 360)),
+    );
+
+    // Then
+    expect(_screenErrors(tester, errors), isEmpty);
+    expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
+  });
+
+  testWidgets('GivenATable_WhenOpened_ThenItNamesItsColumnsAndDatesOnce', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.byType(DataTable), findsOneWidget);
+    expect(find.text('Action'), findsWidgets);
+    expect(find.text('Name'), findsNothing);
+    expect(find.textContaining('2026'), findsOneWidget);
+  });
+
+  testWidgets('GivenALongRefusalReason_WhenInATable_ThenItWrapsNarrowly', (
+    tester,
+  ) async {
+    // Given
+    final reason = List<String>.filled(50, 'Refused because.').join(' ');
+    answerWith(
+      Success<envelope.Page<AuditEntry>>(
+        _page([
+          AuditEntry(
+            id: 'a3',
+            recordedAt: DateTime.utc(2026, 10, 14, 12),
+            action: 'CreateScopeCommand',
+            succeeded: false,
+            failureReason: reason,
+          ),
+        ]),
+      ),
+    );
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(tester.getSize(find.text(reason)).width, lessThanOrEqualTo(260));
+  });
+
+  testWidgets('GivenAnIdentifier_WhenShown_ThenItIsShortenedWithTheFullTip', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text(_actorId), findsNothing);
+    expect(find.byTooltip(_actorId), findsOneWidget);
+    final targetHeader = find.descendant(
+      of: find.byType(DataTable),
+      matching: find.text('Target'),
+    );
+    expect(tester.getTopRight(targetHeader).dx, lessThanOrEqualTo(1400));
   });
 
   testWidgets(
@@ -278,7 +482,7 @@ void main() {
     expect(find.text('Clear filters'), findsNothing);
   });
 
-  testWidgets('GivenEntries_WhenOpened_ThenTheClearedActorNoteIsShown', (
+  testWidgets('GivenEntries_WhenOpened_ThenTheNoActorNoteIsShown', (
     tester,
   ) async {
     // Given
@@ -288,7 +492,15 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(find.textContaining('show no actor'), findsOneWidget);
+    expect(
+      find.text(
+        'An entry shows no actor when the action was anonymous, such as a '
+        'sign-in, or when its attribution was cleared — after the attribution '
+        'period, or once the person was erased. Filtering by actor cannot find '
+        'these.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAFailure_WhenOpened_ThenTheFiltersStayAndRetryIsOffered', (
@@ -305,11 +517,157 @@ void main() {
     );
 
     // When
-    await pump(tester);
+    await pump(
+      tester,
+      prepare: (container) => container
+          .read(auditLogControllerProvider.notifier)
+          .setAction('CreateScopeCommand'),
+    );
 
     // Then
     expect(find.text('The range is reversed.'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Action'))
+          .controller!
+          .text,
+      'CreateScopeCommand',
+    );
+    clearInteractions(repository);
+    await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
+    await tester.pumpAndSettle();
+    final retried =
+        verify(
+              () => repository.list(
+                filter: captureAny(named: 'filter'),
+                pageNumber: any(named: 'pageNumber'),
+                pageSize: any(named: 'pageSize'),
+              ),
+            ).captured.single
+            as AuditLogFilter;
+    expect(retried.action, 'CreateScopeCommand');
+  });
+
+  testWidgets(
+    'GivenARefusedIdentifier_WhenTheFieldChanges_ThenItsErrorClears',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+      await pump(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), 'bob');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(find.text('Enter an identifier.'), findsOneWidget);
+
+      // When
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), 'bo');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Enter an identifier.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenTextFilters_WhenTheirSearchButtonsAreTapped_ThenTheyApply',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+      await pump(tester);
+      Finder searchIn(String label) => find.descendant(
+        of: find.widgetWithText(TextField, label),
+        matching: find.byTooltip('Search'),
+      );
+
+      // When
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Action'),
+        'CreateScopeCommand',
+      );
+      await tester.tap(searchIn('Action'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), _actorId);
+      await tester.tap(searchIn('Actor'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Target'),
+        _targetId,
+      );
+      await tester.tap(searchIn('Target'));
+      await tester.pumpAndSettle();
+
+      // Then
+      final sent =
+          verify(
+                () => repository.list(
+                  filter: captureAny(named: 'filter'),
+                  pageNumber: any(named: 'pageNumber'),
+                  pageSize: any(named: 'pageSize'),
+                ),
+              ).captured.last
+              as AuditLogFilter;
+      expect(sent.action, 'CreateScopeCommand');
+      expect(sent.actorId, _actorId);
+      expect(sent.targetId, _targetId);
+    },
+  );
+
+  testWidgets('GivenADateRange_WhenItsClearIsTapped_ThenOnlyTheDatesClear', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(
+      tester,
+      prepare: (container) async {
+        final controller = container.read(auditLogControllerProvider.notifier);
+        await controller.setDays(DateTime(2026, 10, 1), DateTime(2026, 10, 2));
+        await controller.setOutcome(false);
+      },
+    );
+
+    // When
+    await tester.tap(find.byTooltip('Clear the dates'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final filter = container.read(auditLogControllerProvider).query.filter;
+    expect(filter.firstDay, isNull);
+    expect(filter.lastDay, isNull);
+    expect(filter.succeeded, isFalse);
+    expect(find.widgetWithText(OutlinedButton, 'Dates'), findsOneWidget);
+    expect(find.byTooltip('Clear the dates'), findsNothing);
+  });
+
+  testWidgets('GivenADateRange_WhenShown_ThenTheDatesButtonNamesTheYear', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page(const [])));
+
+    // When
+    await pump(
+      tester,
+      prepare: (container) => container
+          .read(auditLogControllerProvider.notifier)
+          .setDays(DateTime(2025, 12, 30), DateTime(2026, 1, 2)),
+    );
+
+    // Then
+    expect(
+      find.descendant(
+        of: find.byType(OutlinedButton),
+        matching: find.textContaining('2025'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(OutlinedButton),
+        matching: find.textContaining('2026'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenARetainedFilter_WhenReentered_ThenTheFieldsShowIt', (

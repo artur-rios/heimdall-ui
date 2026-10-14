@@ -4,11 +4,20 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/layout/app_shell.dart';
+import '../../../shared/layout/breakpoints.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../home/presentation/home_screen.dart' show roleLabel;
 import '../domain/audit_entry.dart';
 import 'audit_log_controller.dart';
+
+/// Below this body height — the window's, less the app bar — the filter bar
+/// folds, whatever the width.
+const double _shortHeight = 480;
+
+/// The most of the body height the filter bar and the note may take; past it
+/// they scroll.
+const double _barShare = 0.4;
 
 /// UI-34 — the audit trail, newest first, for a System Admin.
 class AuditLogScreen extends ConsumerStatefulWidget {
@@ -24,6 +33,9 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
   final TextEditingController _target = TextEditingController();
   String? _actorError;
   String? _targetError;
+
+  /// Whether the folded filter bar is open, on a compact or short window.
+  bool _filtersOpen = false;
 
   @override
   void initState() {
@@ -59,6 +71,14 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
   void _submitTarget(String text) {
     final accepted = _controller.setTarget(text);
     setState(() => _targetError = accepted ? null : 'Enter an identifier.');
+  }
+
+  /// A refusal left over from an earlier submit would contradict what the
+  /// field now holds, so an edit clears it.
+  void _clearStale(VoidCallback clear, String? error) {
+    if (error != null) {
+      setState(clear);
+    }
   }
 
   void _filterByActor(String id) {
@@ -111,89 +131,165 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     return AppShell(
       currentRoute: '/audit-log',
       title: const Text('Audit log'),
-      body: Column(
-        children: <Widget>[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-            child: Wrap(
-              spacing: 16,
-              runSpacing: 8,
-              crossAxisAlignment: WrapCrossAlignment.center,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  icon: const Icon(Icons.date_range_outlined),
-                  label: Text(_datesLabel(context, filter)),
-                  onPressed: () => _pickDays(filter),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          // A compact or short window folds the bar behind a toggle, and the
+          // bar never takes more than its share of the height, so the list
+          // keeps room for its entries. "Short" is the window's height, not
+          // the body's: a soft keyboard shrinks the body, and folding then
+          // would take away the very field being typed in.
+          final folds =
+              context.breakpoint == Breakpoint.compact ||
+              MediaQuery.sizeOf(context).height < _shortHeight + kToolbarHeight;
+
+          return Column(
+            children: <Widget>[
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: constraints.maxHeight * _barShare,
                 ),
-                _field(
-                  controller: _action,
-                  label: 'Action',
-                  hint: 'e.g. CreateScopeCommand',
-                  onSubmitted: _controller.setAction,
-                ),
-                _field(
-                  controller: _actor,
-                  label: 'Actor',
-                  error: _actorError,
-                  onSubmitted: _submitActor,
-                ),
-                _field(
-                  controller: _target,
-                  label: 'Target',
-                  error: _targetError,
-                  onSubmitted: _submitTarget,
-                ),
-                _outcomeChip('All', null, filter),
-                _outcomeChip('Succeeded', true, filter),
-                _outcomeChip('Refused', false, filter),
-                if (filter.isFiltered)
-                  TextButton(
-                    onPressed: _clearFilters,
-                    child: const Text('Clear filters'),
+                child: SingleChildScrollView(
+                  child: Column(
+                    children: <Widget>[
+                      if (folds) _filtersToggle(filter),
+                      // Folded, the note goes with the bar: it is about what
+                      // the actor filter can find.
+                      if (!folds || _filtersOpen) ...<Widget>[
+                        _filterBar(context, filter),
+                        _note(context),
+                      ],
+                    ],
                   ),
-              ],
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
-            child: Align(
-              alignment: AlignmentDirectional.centerStart,
-              child: Text(
-                'Entries older than the attribution period show no actor, '
-                'and filtering by actor cannot find them.',
-                style: Theme.of(context).textTheme.bodySmall,
+                ),
               ),
-            ),
-          ),
-          Expanded(
-            child: switch (state) {
-              AuditLogLoading() => const CollectionLoading(),
-              // AF-34b, AF-34c, AF-34e — the returned errors, with a retry; the
-              // filters above are kept.
-              AuditLogFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
+              Expanded(
+                child: switch (state) {
+                  AuditLogLoading() => const CollectionLoading(),
+                  // AF-34b, AF-34c, AF-34e — the returned errors, with a
+                  // retry; the filters above are kept.
+                  AuditLogFailed(:final failure) => CollectionFailed(
+                    failure: failure,
+                    onRetry: _controller.load,
+                  ),
+                  AuditLogLoaded(:final page, :final query)
+                      when page.items.isEmpty =>
+                    _empty(query),
+                  final AuditLogLoaded loaded => AdaptiveCollection<AuditEntry>(
+                    items: loaded.page.items,
+                    busy: loaded.busy,
+                    pageNumber: loaded.page.pageNumber,
+                    totalPages: loaded.page.totalPages,
+                    totalItems: loaded.page.totalItems,
+                    onPageChanged: _controller.goToPage,
+                    titleLabel: 'Action',
+                    title: (entry) => entry.action,
+                    subtitle: (entry) => _when(context, entry),
+                    columns: _columns(context),
+                  ),
+                },
               ),
-              AuditLogLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query),
-              final AuditLogLoaded loaded => AdaptiveCollection<AuditEntry>(
-                items: loaded.page.items,
-                busy: loaded.busy,
-                pageNumber: loaded.page.pageNumber,
-                totalPages: loaded.page.totalPages,
-                totalItems: loaded.page.totalItems,
-                onPageChanged: _controller.goToPage,
-                title: (entry) => entry.action,
-                subtitle: (entry) => _when(context, entry),
-                columns: _columns(context),
-              ),
-            },
-          ),
-        ],
+            ],
+          );
+        },
       ),
     );
   }
+
+  Widget _note(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 8, 12, 0),
+    child: Align(
+      alignment: AlignmentDirectional.centerStart,
+      child: Text(
+        'An entry shows no actor when the action was anonymous, such as a '
+        'sign-in, or when its attribution was cleared — after the attribution '
+        'period, or once the person was erased. Filtering by actor cannot find '
+        'these.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ),
+  );
+
+  Widget _filtersToggle(AuditLogFilter filter) {
+    final count = _activeFilters(filter);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+      child: Align(
+        alignment: AlignmentDirectional.centerStart,
+        child: OutlinedButton.icon(
+          icon: Icon(_filtersOpen ? Icons.expand_less : Icons.filter_list),
+          // The count, so a filter that is folded away is not forgotten.
+          label: Text(count == 0 ? 'Filters' : 'Filters ($count)'),
+          onPressed: () => setState(() => _filtersOpen = !_filtersOpen),
+        ),
+      ),
+    );
+  }
+
+  Widget _filterBar(BuildContext context, AuditLogFilter filter) => Padding(
+    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+    child: Wrap(
+      spacing: 16,
+      runSpacing: 8,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: <Widget>[
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range_outlined),
+              label: Text(_datesLabel(context, filter)),
+              onPressed: () => _pickDays(filter),
+            ),
+            if (filter.firstDay != null || filter.lastDay != null)
+              IconButton(
+                icon: const Icon(Icons.clear),
+                tooltip: 'Clear the dates',
+                onPressed: _controller.clearDays,
+              ),
+          ],
+        ),
+        _field(
+          controller: _action,
+          label: 'Action',
+          hint: 'e.g. CreateScopeCommand',
+          onSubmitted: _controller.setAction,
+        ),
+        _field(
+          controller: _actor,
+          label: 'Actor',
+          error: _actorError,
+          onSubmitted: _submitActor,
+          onChanged: (_) => _clearStale(() => _actorError = null, _actorError),
+        ),
+        _field(
+          controller: _target,
+          label: 'Target',
+          error: _targetError,
+          onSubmitted: _submitTarget,
+          onChanged: (_) =>
+              _clearStale(() => _targetError = null, _targetError),
+        ),
+        _outcomeChip('All', null, filter),
+        _outcomeChip('Succeeded', true, filter),
+        _outcomeChip('Refused', false, filter),
+        if (filter.isFiltered)
+          TextButton(
+            onPressed: _clearFilters,
+            child: const Text('Clear filters'),
+          ),
+      ],
+    ),
+  );
+
+  /// The date range counts once, as it is one control.
+  int _activeFilters(AuditLogFilter filter) => <bool>[
+    filter.firstDay != null || filter.lastDay != null,
+    filter.action != null,
+    filter.actorId != null,
+    filter.targetId != null,
+    filter.succeeded != null,
+  ].where((active) => active).length;
 
   String _datesLabel(BuildContext context, AuditLogFilter filter) {
     final first = filter.firstDay;
@@ -205,8 +301,8 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
 
     final localizations = MaterialLocalizations.of(context);
 
-    return '${localizations.formatMediumDate(first)} – '
-        '${localizations.formatMediumDate(last)}';
+    return '${localizations.formatShortDate(first)} – '
+        '${localizations.formatShortDate(last)}';
   }
 
   String _when(BuildContext context, AuditEntry entry) =>
@@ -218,6 +314,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     required TextEditingController controller,
     required String label,
     required ValueChanged<String> onSubmitted,
+    ValueChanged<String>? onChanged,
     String? hint,
     String? error,
   }) => SizedBox(
@@ -228,9 +325,16 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
         labelText: label,
         hintText: hint,
         errorText: error,
+        // The same as Enter, for a pointer or a keyboard without one.
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.search),
+          tooltip: 'Search',
+          onPressed: () => onSubmitted(controller.text),
+        ),
       ),
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
+      onChanged: onChanged,
     ),
   );
 
@@ -261,12 +365,6 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
 
     return <CollectionColumn<AuditEntry>>[
       CollectionColumn<AuditEntry>(
-        label: 'When',
-        cell: (entry) => Text(_when(context, entry)),
-        // The subtitle already says it on a card.
-        onCard: false,
-      ),
-      CollectionColumn<AuditEntry>(
         label: 'Outcome',
         cell: (entry) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -282,8 +380,13 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
                   ? null
                   : theme.colorScheme.errorContainer,
             ),
+            // The reason can run to 500 characters; it wraps rather than
+            // widening the table.
             if (entry.failureReason case final reason?)
-              Text(reason, style: theme.textTheme.bodySmall),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 260),
+                child: Text(reason, style: theme.textTheme.bodySmall),
+              ),
           ],
         ),
       ),
@@ -292,7 +395,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
         cell: (entry) => _IdCell(
           id: entry.actorId,
           label: entry.actorRole == null ? null : roleLabel(entry.actorRole!),
-          empty: 'Cleared',
+          empty: 'None',
           copyTooltip: 'Copy the actor',
           filterTooltip: 'Filter by this actor',
           onFilter: _filterByActor,
@@ -311,6 +414,9 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     ];
   }
 }
+
+/// The first eight characters of [id] and an ellipsis.
+String _shortened(String id) => id.length <= 8 ? id : '${id.substring(0, 8)}…';
 
 /// An identifier that can be copied or used as a filter, with the role that
 /// came with it when there is one.
@@ -353,7 +459,9 @@ class _IdCell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              SelectableText(id),
+              // Shortened, so two identifiers leave room for the target; the
+              // tooltip, the copy and the filter all use the full one.
+              Tooltip(message: id, child: Text(_shortened(id))),
               if (label case final label?)
                 Text(label, style: Theme.of(context).textTheme.bodySmall),
             ],
