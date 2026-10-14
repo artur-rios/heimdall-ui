@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-35 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-36 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -275,6 +275,7 @@ the board is where an item's status changes as it moves.
 | UI-17: Create a person | ✅ | [#17](https://github.com/artur-rios/heimdall-ui/issues/17) |
 | UI-18: View and update a person | ✅ | [#18](https://github.com/artur-rios/heimdall-ui/issues/18) |
 | UI-19: Delete a person, logically and permanently | ✅ | [#19](https://github.com/artur-rios/heimdall-ui/issues/19) |
+| UI-36: Send account emails to a person | ✅ | [#138](https://github.com/artur-rios/heimdall-ui/issues/138) |
 
 ### Application Management
 
@@ -320,7 +321,6 @@ Gaps the UI cannot close until the API gains the endpoint, tracked in the API re
 | Item | Status | Issue |
 | --- | --- | --- |
 | List System Admins | ⬜ | [heimdall-api#176](https://github.com/artur-rios/heimdall-api/issues/176) |
-| Admin-initiated resend verification and password reset | ⬜ | [heimdall-api#177](https://github.com/artur-rios/heimdall-api/issues/177) |
 
 ### Platform
 

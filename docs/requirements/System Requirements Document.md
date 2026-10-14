@@ -100,6 +100,8 @@ describes the flows that satisfy these requirements; the
 | FR-PE-07 | The client shall logically delete a person through `DELETE /api/persons/{id}` after confirmation. | UI-19 |
 | FR-PE-08 | The client shall permanently delete a person through `DELETE /api/persons/{id}/hard` after a confirmation requiring the person's email to be typed. | UI-19 |
 | FR-PE-09 | The client shall offer the owners a scope may be given from `GET /api/persons/scope-admins`, leaving out the persons who already own the scope being managed. | UI-11, UI-14 |
+| FR-PE-10 | A System Admin, or a Scope Admin viewing a User of a scope they own, can have a fresh verification link sent to a person whose address is unverified, after confirming. | UI-36 |
+| FR-PE-11 | They can have a password reset link sent, after confirming. Neither action shows a link or code; the API's refusals — including its cooldown — are shown as returned. | UI-36 |
 
 ### 2.4 Application management (`FR-AP`)
 
@@ -189,7 +191,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/pending-registrations` | Pending registrations — list and discard | UI-35 |
 | `/scopes/:scopeId/persons` | Person listing | UI-16 |
 | `/scopes/:scopeId/persons/new` | Create a person | UI-17 |
-| `/scopes/:scopeId/persons/:personId` | Person detail | UI-18, UI-19 |
+| `/scopes/:scopeId/persons/:personId` | Person detail, with the account emails card | UI-18, UI-19, UI-36 |
 | `/scopes/:scopeId/applications` | Application listing | UI-20 |
 | `/scopes/:scopeId/applications/new` | Create an application | UI-21 |
 | `/scopes/:scopeId/applications/:applicationId` | Application detail | UI-22, UI-23 |
@@ -230,6 +232,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Person listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |
+| Account emails: resend verification, send password reset | Full | Users of owned scopes only | Hidden | Hidden |
 | Application listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete application | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete application | Full | Hidden | Hidden | Hidden |

@@ -78,6 +78,7 @@ graph LR
         UI17[UI-17: Create person]
         UI18[UI-18: View & update person]
         UI19[UI-19: Delete person]
+        UI36[UI-36: Account emails]
     end
 
     subgraph "Application Management"
@@ -109,7 +110,7 @@ graph LR
     RS --> UI30
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
     SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
-    SA & SCA --> UI16 & UI17 & UI18 & UI19
+    SA & SCA --> UI16 & UI17 & UI18 & UI19 & UI36
     SA & SCA --> UI20 & UI21 & UI22 & UI23
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
@@ -155,6 +156,7 @@ graph LR
 | UI-33 | Restrict processing of my account | UC-44, UC-45 |
 | UI-34 | Review the audit trail | UC-48 |
 | UI-35 | Manage a scope's pending registrations | UC-49, UC-50 |
+| UI-36 | Send account emails to a person | UC-51, UC-52 |
 
 ### 1.5 Platform items
 
@@ -1416,6 +1418,53 @@ ends.
 
 ---
 
+### UI-36: Send account emails to a person
+
+**Actor:** System Admin for anyone; a Scope Admin for a User of a scope they own
+**Traces to:** UC-51 (Resend a Person's Verification Email), UC-52 (Send a Person a Password Reset)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin, and the person is open.
+
+**Placement.** The **Account emails** card on the person page (UI-18), above the danger zone. It is
+shown to a System Admin, and to a Scope Admin viewing a User of a scope they own. It is not shown on
+one's own record, where the profile screen (UI-08) is used, nor on a logically deleted person. The
+API remains the authority, and a `403` is shown like any refusal.
+
+A line in the card says that links go only to the person's own address and that none is ever shown
+there.
+
+**Main flow**
+
+1. The user opens a person.
+2. The card offers **Resend verification email**, only while the person's address is not verified,
+   and **Send password reset**, always.
+3. The user chooses an action. A confirmation names the address: "Send a new verification link to
+   {email}?" or "Send a password reset link to {email}?", with the message "The link goes only to
+   their own address. No link or code is shown here." and the action **Send**.
+4. On confirmation the client calls `POST /api/persons/{id}/verification-email` or
+   `POST /api/persons/{id}/password-reset`. Each action is disabled while its request is in flight.
+5. On success the card shows "Sent to {email}." Neither action shows a link or a code.
+
+The card's outcome is held only while the person page is open. It is discarded when the page is
+left, so a return shows no earlier outcome.
+
+**Alternative flows**
+
+Each answer is shown with the API's own message, in an error banner within the card.
+
+- **AF-36a — Sent recently.** A `429` (the cooldown): the API's "An email of this kind was sent to
+  this person recently. Try again in a few minutes."
+- **AF-36b — Cannot be sent.** A `409`: the person is deleted or restricted, or (for a reset)
+  cannot sign in.
+- **AF-36c — Already verified.** A `400` on the resend. The banner keeps the API's message. The
+  person is then reloaded in the background, without a spinner, so **Resend verification email**
+  disappears and the message stays.
+- **AF-36d — Refused.** A `403` or `404`.
+- **AF-36e — Cancelled.** **Cancel**, the barrier or the back control closes the confirmation.
+  Nothing is sent.
+- **AF-36f — Transport failure.** An error banner.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1435,6 +1484,7 @@ ends.
 | UI-33 | FR-AU-27 |
 | UI-34 | FR-AL-01 … FR-AL-03 |
 | UI-35 | FR-SC-15, FR-SC-16 |
+| UI-36 | FR-PE-10, FR-PE-11 |
 | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
