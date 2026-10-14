@@ -69,8 +69,9 @@ class _IssueCredentialDialogState
       expiresAt: day == null ? null : credentialExpiryFor(day),
     );
 
-    if (result is! Success<IssuedCredential>) {
-      // Refused, or ignored: there is no secret to lose.
+    if (result is FailureResult<IssuedCredential>) {
+      // Refused: there is no secret to lose. An ignored call (`null`) leaves
+      // the flag alone, since the first request is still running.
       pending.clear();
     }
 

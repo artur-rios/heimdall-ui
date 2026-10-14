@@ -211,4 +211,41 @@ void main() {
       expect(find.text('scopes'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'GivenTwoIssueTapsInOneFrame_WhenTheSecondIsIgnored_ThenTheFlagStays',
+    (tester) async {
+      // Given
+      await pump(tester);
+      final pending = Completer<Result<IssuedCredential>>();
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer((_) => pending.future);
+      await tester.tap(find.text('Issue credential'));
+      await tester.pumpAndSettle();
+      final issueButton = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Issue'),
+      );
+
+      // When: no frame between the taps, so the second reaches a busy controller.
+      await tester.tap(issueButton);
+      await tester.tap(issueButton);
+      await tester.pump();
+
+      // Then
+      expect(container.read(pendingSecretProvider), isTrue);
+      pending.complete(
+        const Success(IssuedCredential(id: 'c9', secret: 'hds_once')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('hds_once'), findsOneWidget);
+      router.go('/scopes');
+      await tester.pumpAndSettle();
+      expect(find.text('Leave without the secret?'), findsOneWidget);
+      verify(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).called(1);
+    },
+  );
 }
