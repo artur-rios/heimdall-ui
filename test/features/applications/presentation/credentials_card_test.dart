@@ -192,6 +192,32 @@ void main() {
     ).called(1);
   });
 
+  testWidgets('GivenADayNextYear_WhenChosen_ThenTheLabelShowsTheYear', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(const <ApplicationCredential>[]);
+    await pump(tester);
+    await openIssueDialog(tester);
+    final today = DateUtils.dateOnly(DateTime.now());
+
+    // When — January of next year
+    await tester.tap(find.text('Never expires'));
+    await tester.pumpAndSettle();
+    for (var i = 0; i < 13 - today.month; i++) {
+      await tester.tap(find.byTooltip('Next month'));
+      await tester.pumpAndSettle();
+    }
+    await tester.tap(find.text('15'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('OK'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.textContaining('${today.year + 1}'), findsOneWidget);
+    expect(find.textContaining('Expires on'), findsOneWidget);
+  });
+
   testWidgets('GivenTheIssueDialog_WhenCancelled_ThenNothingIsSent', (
     tester,
   ) async {

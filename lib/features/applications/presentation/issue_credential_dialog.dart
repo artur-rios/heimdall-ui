@@ -113,7 +113,7 @@ class _IssueCredentialDialogState
                   label: Text(
                     day == null
                         ? 'Never expires'
-                        : 'Expires on ${localizations.formatMediumDate(day)}',
+                        : 'Expires on ${localizations.formatShortDate(day)}',
                   ),
                   onPressed: state.busy ? null : _pickDay,
                 ),
