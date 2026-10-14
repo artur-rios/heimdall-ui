@@ -5,6 +5,10 @@ import '../../../core/result/result.dart';
 import '../domain/application_credential.dart';
 import '../domain/application_credential_repository.dart';
 
+/// How many credentials may be live at once (spec §7; the API's limit,
+/// FR-AP-11).
+const int maxLiveCredentials = 2;
+
 typedef CredentialsKey = ({String scopeId, String applicationId});
 
 /// What the credentials card shows. It never holds a secret: the secret of a
@@ -34,7 +38,8 @@ class CredentialsState {
       credentials?.where((c) => c.status == CredentialStatus.live).length ?? 0;
 
   /// At most two may be live (FR-AP-11 in the API); the API decides in the end.
-  bool get mayIssue => credentials != null && liveCount < 2 && !busy;
+  bool get mayIssue =>
+      credentials != null && liveCount < maxLiveCredentials && !busy;
 
   CredentialsState copyWith({
     List<ApplicationCredential>? credentials,
@@ -90,7 +95,14 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
     );
   }
 
-  Future<Result<IssuedCredential>> issue({DateTime? expiresAt}) async {
+  /// Issues a credential and hands its result back. Answers `null`, calling
+  /// nothing, when an issue or a revoke is already in flight: the card ignores
+  /// that, since the first call is still showing its outcome.
+  Future<Result<IssuedCredential>?> issue({DateTime? expiresAt}) async {
+    if (state.busy) {
+      return null;
+    }
+
     state = state.copyWith(
       busy: true,
       actionFailure: () => null,
@@ -107,9 +119,7 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
     }
 
     if (result.failureOrNull case final Failure failure) {
-      state = state.copyWith(busy: false, actionFailure: () => failure);
-    } else {
-      state = state.copyWith(busy: false);
+      state = state.copyWith(actionFailure: () => failure);
     }
 
     // Reloaded either way: on success to show the new row; on AF-37b because
@@ -117,10 +127,21 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
     // because the request may have landed (AF-37g).
     await load();
 
+    // Busy until the list is fresh, so the button is never offered on a stale
+    // list.
+    if (ref.mounted) {
+      state = state.copyWith(busy: false);
+    }
+
     return result;
   }
 
+  /// Revokes [credential]. Ignored while an issue or a revoke is in flight.
   Future<void> revoke(ApplicationCredential credential) async {
+    if (state.busy) {
+      return;
+    }
+
     state = state.copyWith(
       busy: true,
       actionFailure: () => null,
@@ -137,12 +158,14 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
     }
 
     state = result.fold(
-      onSuccess: (_) =>
-          state.copyWith(busy: false, notice: () => 'Credential revoked.'),
-      onFailure: (failure) =>
-          state.copyWith(busy: false, actionFailure: () => failure),
+      onSuccess: (_) => state.copyWith(notice: () => 'Credential revoked.'),
+      onFailure: (failure) => state.copyWith(actionFailure: () => failure),
     );
 
     await load();
+
+    if (ref.mounted) {
+      state = state.copyWith(busy: false);
+    }
   }
 }

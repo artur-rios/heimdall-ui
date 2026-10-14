@@ -100,7 +100,7 @@ void main() {
     final result = await controller.issue();
 
     // Then
-    expect(result.isSuccess, isFalse);
+    expect(result!.isSuccess, isFalse);
     expect(
       currentState().actionFailure!.errors.single,
       startsWith('This application already has two live credentials.'),
@@ -131,7 +131,7 @@ void main() {
     final result = await controller.issue();
 
     // Then
-    expect(result.valueOrNull!.secret, 'hds_secret');
+    expect(result!.valueOrNull!.secret, 'hds_secret');
     expect(currentState().credentials!.single.id, 'c3');
     expect(currentState().toString(), isNot(contains('hds_secret')));
     expect(currentState().busy, isFalse);
@@ -255,7 +255,7 @@ void main() {
     final result = await issuing;
 
     // Then
-    expect(result.valueOrNull!.secret, 'hds_secret');
+    expect(result!.valueOrNull!.secret, 'hds_secret');
   });
 
   test('GivenARevokeInFlight_WhenTheProviderIsDisposedBeforeItCompletes_ThenNothingThrows', () async {
@@ -277,4 +277,122 @@ void main() {
     // Then
     await expectLater(revoking, completes);
   });
+
+  group('overlapping calls', () {
+    late Completer<Result<IssuedCredential>> pendingIssue;
+    late ApplicationCredentialsController controller;
+    late Future<Result<IssuedCredential>?> firstIssue;
+
+    setUp(() async {
+      answerListWith(
+        const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+      );
+      pendingIssue = Completer<Result<IssuedCredential>>();
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer((_) => pendingIssue.future);
+      when(() => repository.revoke('s1', 'a1', 'c1'))
+          .thenAnswer((_) async => const Success<void>(null));
+      controller = controllerUnderTest();
+      await controller.load();
+      firstIssue = controller.issue();
+    });
+
+    test(
+      'GivenAnIssueInFlight_WhenIssuingAgain_ThenNoSecondCallIsMade',
+      () async {
+        // When
+        final second = await controller.issue();
+
+        // Then
+        expect(second, isNull);
+        verify(
+          () =>
+              repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+        ).called(1);
+        pendingIssue.complete(
+          const Success<IssuedCredential>(
+            IssuedCredential(id: 'c3', secret: 'hds_secret'),
+          ),
+        );
+        await firstIssue;
+      },
+    );
+
+    test('GivenAnIssueInFlight_WhenRevoking_ThenNoCallIsMade', () async {
+      // When
+      await controller.revoke(_live('c1'));
+
+      // Then
+      verifyNever(() => repository.revoke(any(), any(), any()));
+      pendingIssue.complete(
+        const Success<IssuedCredential>(
+          IssuedCredential(id: 'c3', secret: 'hds_secret'),
+        ),
+      );
+      await firstIssue;
+    });
+
+    test(
+      'GivenAnIssueInFlight_WhenItEnds_ThenBusyHoldsUntilTheReloadFinishes',
+      () async {
+        // Given
+        final reload = Completer<Result<List<ApplicationCredential>>>();
+        when(() => repository.list('s1', 'a1'))
+            .thenAnswer((_) => reload.future);
+
+        // When
+        expect(currentState().busy, isTrue);
+        pendingIssue.complete(
+          const Success<IssuedCredential>(
+            IssuedCredential(id: 'c3', secret: 'hds_secret'),
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        // Then
+        expect(currentState().busy, isTrue);
+        expect(currentState().mayIssue, isFalse);
+        reload.complete(
+          Success<List<ApplicationCredential>>(<ApplicationCredential>[
+            _live('c3'),
+          ]),
+        );
+        await firstIssue;
+        expect(currentState().busy, isFalse);
+        expect(currentState().mayIssue, isTrue);
+      },
+    );
+  });
+
+  test(
+    'GivenANotice_WhenARevokeFails_ThenTheNoticeClearsAndTheFailureShows',
+    () async {
+      // Given
+      answerListWith(
+        Success<List<ApplicationCredential>>(<ApplicationCredential>[
+          _live('c1'),
+          _live('c2'),
+        ]),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+      when(() => repository.revoke('s1', 'a1', 'c1'))
+          .thenAnswer((_) async => const Success<void>(null));
+      await controller.revoke(_live('c1'));
+      expect(currentState().notice, isNotNull);
+      when(() => repository.revoke('s1', 'a1', 'c2')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(kind: FailureKind.forbidden, errors: <String>['Nope.']),
+        ),
+      );
+
+      // When
+      await controller.revoke(_live('c2'));
+
+      // Then
+      expect(currentState().notice, isNull);
+      expect(currentState().actionFailure!.errors.single, 'Nope.');
+    },
+  );
 }
