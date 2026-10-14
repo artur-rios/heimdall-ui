@@ -395,4 +395,48 @@ void main() {
       expect(currentState().actionFailure!.errors.single, 'Nope.');
     },
   );
+
+  test(
+    'GivenAnUnexpectedExceptionOnIssue_WhenIssuing_ThenItIsAFailureAndNotBusy',
+    () async {
+      // Given
+      answerListWith(
+        const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenThrow(const FormatException('bad body'));
+
+      // When
+      final result = await controller.issue();
+
+      // Then
+      expect(result, isA<FailureResult<IssuedCredential>>());
+      expect(currentState().busy, isFalse);
+      expect(currentState().actionFailure, isNotNull);
+      expect(currentState().mayIssue, isTrue);
+    },
+  );
+
+  test('GivenAnUnexpectedExceptionOnRevoke_WhenRevoking_ThenItIsAFailureAndNotBusy', () async {
+    // Given
+    answerListWith(
+      Success<List<ApplicationCredential>>(<ApplicationCredential>[
+        _live('c1'),
+      ]),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    when(() => repository.revoke('s1', 'a1', 'c1'))
+        .thenThrow(const FormatException('bad body'));
+
+    // When
+    await controller.revoke(_live('c1'));
+
+    // Then
+    expect(currentState().busy, isFalse);
+    expect(currentState().actionFailure, isNotNull);
+  });
 }

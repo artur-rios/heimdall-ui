@@ -65,14 +65,20 @@ class _IssueCredentialDialogState
     // From the moment the request is sent: the answer may carry the secret.
     pending.set();
 
-    final result = await controller.issue(
-      expiresAt: day == null ? null : credentialExpiryFor(day),
-    );
-
-    if (result is FailureResult<IssuedCredential>) {
-      // Refused: there is no secret to lose. An ignored call (`null`) leaves
-      // the flag alone, since the first request is still running.
-      pending.clear();
+    Result<IssuedCredential>? result;
+    // Kept only while a secret may still arrive: on success, or on an ignored
+    // call (`null`), since the first request is still running. A refusal or an
+    // exception leaves no secret to lose.
+    var keepFlag = false;
+    try {
+      result = await controller.issue(
+        expiresAt: day == null ? null : credentialExpiryFor(day),
+      );
+      keepFlag = result == null || result is Success<IssuedCredential>;
+    } finally {
+      if (!keepFlag) {
+        pending.clear();
+      }
     }
 
     // `null`: another request was in flight, so nothing was sent. A failure

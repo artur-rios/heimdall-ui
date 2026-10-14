@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
+import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/credentials_card.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
@@ -642,4 +643,38 @@ void main() {
     );
     expect(container.read(pendingSecretProvider), isFalse);
   });
+
+  testWidgets(
+    'GivenAnUnexpectedExceptionOnIssue_WhenIssued_ThenTheDialogCanBeClosedAgain',
+    (tester) async {
+      // Given
+      answerListWith(const <ApplicationCredential>[]);
+      when(
+        () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
+      ).thenThrow(const FormatException('bad body'));
+      await pump(tester);
+      await openIssueDialog(tester);
+
+      // When
+      await tester.tap(issueDialogButton());
+      await tester.pumpAndSettle();
+
+      // Then
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(CredentialsCard)),
+      );
+      expect(container.read(pendingSecretProvider), isFalse);
+      expect(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.byType(ErrorBanner),
+        ),
+        findsOneWidget,
+      );
+      final cancel = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, 'Cancel'),
+      );
+      expect(cancel.onPressed, isNotNull);
+    },
+  );
 }

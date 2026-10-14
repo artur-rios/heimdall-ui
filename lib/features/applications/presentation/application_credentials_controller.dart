@@ -9,6 +9,11 @@ import '../domain/application_credential_repository.dart';
 /// FR-AP-10).
 const int maxLiveCredentials = 2;
 
+const Failure _unexpected = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>['The API returned an unexpected response.'],
+);
+
 typedef CredentialsKey = ({String scopeId, String applicationId});
 
 /// What the credentials card shows. It never holds a secret: the secret of a
@@ -108,32 +113,50 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
       actionFailure: () => null,
       notice: () => null,
     );
-    final result = await _repository.issue(
-      arg.scopeId,
-      arg.applicationId,
-      expiresAt: expiresAt,
-    );
+    try {
+      final Result<IssuedCredential> result;
+      try {
+        result = await _repository.issue(
+          arg.scopeId,
+          arg.applicationId,
+          expiresAt: expiresAt,
+        );
+      } on Exception {
+        // E.g. a malformed 2xx body, which the generated client rethrows: the
+        // request may have landed, so it is a failure like any other (AF-37g).
+        return _unexpectedFailure<IssuedCredential>();
+      }
 
-    if (!ref.mounted) {
+      if (!ref.mounted) {
+        return result;
+      }
+
+      if (result.failureOrNull case final Failure failure) {
+        state = state.copyWith(actionFailure: () => failure);
+      }
+
+      // Reloaded either way: on success to show the new row; on AF-37b because
+      // somebody else's credential is why it was refused; on a transport
+      // failure because the request may have landed (AF-37g).
+      await load();
+
       return result;
+    } finally {
+      // Busy until the list is fresh, so the button is never offered on a
+      // stale list; and always cleared, so the dialog can be closed again.
+      if (ref.mounted) {
+        state = state.copyWith(busy: false);
+      }
     }
+  }
 
-    if (result.failureOrNull case final Failure failure) {
-      state = state.copyWith(actionFailure: () => failure);
-    }
-
-    // Reloaded either way: on success to show the new row; on AF-37b because
-    // somebody else's credential is why it was refused; on a transport failure
-    // because the request may have landed (AF-37g).
-    await load();
-
-    // Busy until the list is fresh, so the button is never offered on a stale
-    // list.
+  /// Shows the unexpected failure on the card and answers it.
+  FailureResult<T> _unexpectedFailure<T>() {
     if (ref.mounted) {
-      state = state.copyWith(busy: false);
+      state = state.copyWith(actionFailure: () => _unexpected);
     }
 
-    return result;
+    return FailureResult<T>(_unexpected);
   }
 
   /// Revokes [credential]. Ignored while an issue or a revoke is in flight.
@@ -147,25 +170,33 @@ class ApplicationCredentialsController extends Notifier<CredentialsState> {
       actionFailure: () => null,
       notice: () => null,
     );
-    final result = await _repository.revoke(
-      arg.scopeId,
-      arg.applicationId,
-      credential.id,
-    );
+    try {
+      final Result<void> result;
+      try {
+        result = await _repository.revoke(
+          arg.scopeId,
+          arg.applicationId,
+          credential.id,
+        );
+      } on Exception {
+        _unexpectedFailure<void>();
+        return;
+      }
 
-    if (!ref.mounted) {
-      return;
-    }
+      if (!ref.mounted) {
+        return;
+      }
 
-    state = result.fold(
-      onSuccess: (_) => state.copyWith(notice: () => 'Credential revoked.'),
-      onFailure: (failure) => state.copyWith(actionFailure: () => failure),
-    );
+      state = result.fold(
+        onSuccess: (_) => state.copyWith(notice: () => 'Credential revoked.'),
+        onFailure: (failure) => state.copyWith(actionFailure: () => failure),
+      );
 
-    await load();
-
-    if (ref.mounted) {
-      state = state.copyWith(busy: false);
+      await load();
+    } finally {
+      if (ref.mounted) {
+        state = state.copyWith(busy: false);
+      }
     }
   }
 }
