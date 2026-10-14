@@ -41,8 +41,9 @@ credentials. This design adds one use case for each:
    - `displayMessage` appends "Try again in N seconds.", or "Try again later." without it.
    - A `429` that a handler returns (UI-36's cooldown) has no header, so its API message stands alone.
 3. **Date and time.** A shared `formatDateTime(BuildContext, DateTime)` in `lib/shared/`. It
-   formats the local date with `MaterialLocalizations.formatMediumDate` and the time with
-   `formatTimeOfDay` (24-hour per locale), with no new dependency. UI-34 uses it; UI-35 and UI-37
+   formats the local date with `MaterialLocalizations.formatShortDate` and the time with
+   `formatTimeOfDay` (24-hour per locale), with no new dependency. The short date, because the
+   year must show: `formatMediumDate` omits it. UI-34 uses it; UI-35 and UI-37
    use it for their instants.
 
 ## 4. UI-34 — Review the audit trail

@@ -321,6 +321,37 @@ void main() {
     expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
   });
 
+  testWidgets('GivenADateRange_WhenShown_ThenTheDatesButtonNamesTheYear', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page(const [])));
+
+    // When
+    await pump(
+      tester,
+      prepare: (container) => container
+          .read(auditLogControllerProvider.notifier)
+          .setDays(DateTime(2025, 12, 30), DateTime(2026, 1, 2)),
+    );
+
+    // Then
+    expect(
+      find.descendant(
+        of: find.byType(OutlinedButton),
+        matching: find.textContaining('2025'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(OutlinedButton),
+        matching: find.textContaining('2026'),
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenARetainedFilter_WhenReentered_ThenTheFieldsShowIt', (
     tester,
   ) async {

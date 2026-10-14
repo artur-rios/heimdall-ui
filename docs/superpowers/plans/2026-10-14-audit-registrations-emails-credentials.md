@@ -43,7 +43,7 @@
    - `ErrorBanner` appends `retryHint` as an extra line when it is non-null.
 
    So a handler's `429`, which has no header, shows the API's message alone. A limiter `429` shows the message plus "Try again in N seconds."
-4. **Date and time.** `formatDateTime(BuildContext context, DateTime at)` lives in `lib/shared/formatting/date_time_format.dart`. It returns `'${formatMediumDate(local)} ${formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}'`.
+4. **Date and time.** `formatDateTime(BuildContext context, DateTime at)` lives in `lib/shared/formatting/date_time_format.dart`. It returns `'${formatShortDate(local)} ${formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}'`. The short date, because the year must show: `formatMediumDate` omits it.
 5. **Audit date bounds.** `auditBoundsFor(DateTime firstDay, DateTime lastDay)` lives in the domain, and takes the picked days rather than Flutter's `DateTimeRange` so the domain imports no Flutter. It returns `(from: DateTime, to: DateTime)`:
    - `from` is the local start of `firstDay`'s day, converted with `.toUtc()`;
    - `to` is the local `23:59:59.999` of `lastDay`'s day, converted with `.toUtc()`.
@@ -568,7 +568,7 @@ String formatDateTime(BuildContext context, DateTime at) {
     alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
   );
 
-  return '${localizations.formatMediumDate(local)} $time';
+  return '${localizations.formatShortDate(local)} $time';
 }
 ```
 
@@ -1518,7 +1518,7 @@ Run. Expected: FAIL (screen missing).
 - `AppShell(currentRoute: '/audit-log', title: const Text('Audit log'), body: ...)`.
 - The body is a `Column`:
   1. A `Padding` + `Wrap` filter bar:
-     - **Dates**: an `OutlinedButton.icon` with `Icons.date_range_outlined`. Its label is `'Dates'`, or the chosen range as `'${formatMediumDate(first)} – ${formatMediumDate(last)}'`. It opens `showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: ...)` and on a result calls `setDays(range.start, range.end)`.
+     - **Dates**: an `OutlinedButton.icon` with `Icons.date_range_outlined`. Its label is `'Dates'`, or the chosen range as `'${formatShortDate(first)} – ${formatShortDate(last)}'`. It opens `showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: ...)` and on a result calls `setDays(range.start, range.end)`.
      - **Action**: a 220-px `TextField(controller: _action, decoration: const InputDecoration(labelText: 'Action', hintText: 'e.g. CreateScopeCommand'), textInputAction: TextInputAction.search, onSubmitted: controller.setAction)`.
      - **Actor** and **Target**: `TextField`s labelled `'Actor'` and `'Target'`, with `errorText: _actorError` / `_targetError`. `onSubmitted` calls `setActor`/`setTarget`, and when that returns `false`, sets the field's error to `'Enter an identifier.'`; otherwise clears it.
      - **Outcome**: three `ChoiceChip`s, **All** / **Succeeded** / **Refused**, selected by `query.filter.succeeded == null / true / false`, each calling `setOutcome(null / true / false)`.

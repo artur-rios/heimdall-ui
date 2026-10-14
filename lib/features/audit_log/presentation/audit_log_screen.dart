@@ -207,8 +207,8 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
 
     final localizations = MaterialLocalizations.of(context);
 
-    return '${localizations.formatMediumDate(first)} – '
-        '${localizations.formatMediumDate(last)}';
+    return '${localizations.formatShortDate(first)} – '
+        '${localizations.formatShortDate(last)}';
   }
 
   String _when(BuildContext context, AuditEntry entry) =>
