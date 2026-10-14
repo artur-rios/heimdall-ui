@@ -11,7 +11,7 @@ description: "How a use case goes from backlog to merged: branch, issue status, 
 
 This document defines **how a use case moves from backlog to merged** — the branch, the issue status
 transitions, the testing gate, and the pull request. It is the standard every contributor, human or
-agent, follows so that each use case (UI-01 … UI-30 in the
+agent, follows so that each use case (UI-01 … UI-32 in the
 [Use Case Specification Document](Use%20Case%20Specification%20Document.md), plus the platform items
 P-01 … P-04) is delivered the same way.
 

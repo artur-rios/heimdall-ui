@@ -19,6 +19,9 @@ bool roleMayReach({required Role role, required String path}) => switch (path) {
   '/scopes/new' => role == Role.systemAdmin,
   final String p when p == '/scopes' || p.startsWith('/scopes/') =>
     role != Role.user,
+  // UC-43 excludes a Scope Admin on purpose: who has asked to be erased is not
+  // theirs to know.
+  '/erasure-requests' => role == Role.systemAdmin,
   // Full for a System Admin, read-only for a Scope Admin, hidden for a User.
   '/health' => role != Role.user,
   // A route nobody has built yet is the error screen's business, not the

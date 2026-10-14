@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-30 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-32 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -298,6 +298,12 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-28: Browse and view Google users | ✅ | [#28](https://github.com/artur-rios/heimdall-ui/issues/28) |
 | UI-29: Delete a Google user, logically and permanently | ✅ | [#29](https://github.com/artur-rios/heimdall-ui/issues/29) |
+
+### Data Subject Erasure
+
+| Use case | Status | Issue |
+| --- | --- | --- |
+| UI-32: Review outstanding erasure requests | 🚧 | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
 
 ### Needs Heimdall API work
 

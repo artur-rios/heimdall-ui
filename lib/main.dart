@@ -19,6 +19,8 @@ import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
 import 'features/data_rights/data/data_rights_repository_impl.dart';
 import 'features/data_rights/domain/data_rights_repository.dart';
+import 'features/erasure_requests/data/erasure_request_repository_impl.dart';
+import 'features/erasure_requests/domain/erasure_request_repository.dart';
 import 'features/google_users/data/google_user_repository_impl.dart';
 import 'features/google_users/domain/google_user_repository.dart';
 import 'features/health/data/health_repository_impl.dart';
@@ -63,6 +65,10 @@ void main() {
         ),
         dataRightsRepositoryProvider.overrideWith(
           (ref) => ApiDataRightsRepository(AuthClient(ref.watch(dioProvider))),
+        ),
+        erasureRequestRepositoryProvider.overrideWith(
+          (ref) =>
+              ApiErasureRequestRepository(AuthClient(ref.watch(dioProvider))),
         ),
         personRepositoryProvider.overrideWith(
           (ref) => ApiPersonRepository(PersonClient(ref.watch(dioProvider))),

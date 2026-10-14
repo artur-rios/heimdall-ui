@@ -15,6 +15,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   without a verification link, and closing it, each ask first and say what will happen.
 - **Send a new code** on the two-step verification screen when the code comes by email. It waits 30 seconds between
   sends and, after three, offers to start the sign-in again, matching the API's limit.
+- An **Erasure requests** screen for System Admins: the erasure requests not yet carried out, soonest deadline first,
+  with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
+  post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
 
 ## [1.6.1] - 2026-10-12
 

@@ -78,6 +78,28 @@ void main() {
     expect(allowed, isTrue);
   });
 
+  // UC-43 excludes a Scope Admin on purpose.
+  test('GivenASystemAdmin_WhenErasureRequestsAsked_ThenTheyAreReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.systemAdmin,
+      path: '/erasure-requests',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenErasureRequestsAsked_ThenTheyAreNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/erasure-requests');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
+
   // Health: full for a System Admin, read-only for a Scope Admin, hidden for
   // a User — read-only is still reaching it.
   test('GivenScopeAdmin_WhenAskingHealth_ThenItIsAllowed', () {
