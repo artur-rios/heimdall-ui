@@ -677,4 +677,59 @@ void main() {
       expect(cancel.onPressed, isNotNull);
     },
   );
+
+  const orphanNote =
+      'A credential may have been issued without its secret being shown. '
+      'Check the list, and revoke any credential you don\'t recognise.';
+
+  testWidgets('GivenANetworkFailureOnIssue_WhenIssued_ThenTheOrphanNoteShows', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(const <ApplicationCredential>[]);
+    when(() => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')))
+        .thenAnswer(
+          (_) async => const FailureResult<IssuedCredential>(
+            Failure(kind: FailureKind.network, errors: <String>[]),
+          ),
+        );
+    await pump(tester);
+    await openIssueDialog(tester);
+
+    // When
+    await tester.tap(issueDialogButton());
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text(orphanNote),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenAConflictOnIssue_WhenIssued_ThenNoOrphanNoteShows', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(const <ApplicationCredential>[]);
+    when(() => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')))
+        .thenAnswer(
+          (_) async => const FailureResult<IssuedCredential>(
+            Failure(kind: FailureKind.conflict, errors: <String>['Two live.']),
+          ),
+        );
+    await pump(tester);
+    await openIssueDialog(tester);
+
+    // When
+    await tester.tap(issueDialogButton());
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Two live.'), findsWidgets);
+    expect(find.text(orphanNote), findsNothing);
+  });
 }

@@ -1557,6 +1557,9 @@ an issue is also shown in the issue dialog.
   issue, and on the card for a revoke. A list that fails to load shows the banner with **Retry**.
   If the issue request fails after sending, the secret is not known to the client. The list
   reloads, so an issued-but-unseen credential appears and can be revoked.
+  The issue dialog adds the line "A credential may have been issued without its secret being shown.
+  Check the list, and revoke any credential you don't recognise." for a transport failure or an
+  incomplete response, but not for an API refusal such as AF-37b or AF-37c.
 
 ---
 

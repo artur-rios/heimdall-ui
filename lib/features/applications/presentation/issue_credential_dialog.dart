@@ -135,6 +135,15 @@ class _IssueCredentialDialogState
             if (_attempted && state.actionFailure != null) ...<Widget>[
               const SizedBox(height: 16),
               ErrorBanner(failure: state.actionFailure!),
+              if (state.actionFailure!.kind
+                  case FailureKind.network || FailureKind.unknown) ...<Widget>[
+                const SizedBox(height: 8),
+                const Text(
+                  'A credential may have been issued without its secret being '
+                  "shown. Check the list, and revoke any credential you don't "
+                  'recognise.',
+                ),
+              ],
             ],
           ],
         ),
