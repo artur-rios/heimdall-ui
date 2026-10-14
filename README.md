@@ -263,6 +263,7 @@ the board is where an item's status changes as it moves.
 | UI-13: Delete a scope, logically and permanently | ✅ | [#13](https://github.com/artur-rios/heimdall-ui/issues/13) |
 | UI-14: Manage scope owners | ✅ | [#14](https://github.com/artur-rios/heimdall-ui/issues/14) |
 | UI-15: Toggle Google Sign-In for a scope | ✅ | [#15](https://github.com/artur-rios/heimdall-ui/issues/15) |
+| UI-31: Configure a scope's sign-in and sign-up | 🚧 | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
 
 ### Person Management
 
@@ -297,6 +298,17 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-28: Browse and view Google users | ✅ | [#28](https://github.com/artur-rios/heimdall-ui/issues/28) |
 | UI-29: Delete a Google user, logically and permanently | ✅ | [#29](https://github.com/artur-rios/heimdall-ui/issues/29) |
+
+### Needs Heimdall API work
+
+Gaps the UI cannot close until the API gains the endpoint, tracked in the API repository.
+
+| Item | Status | Issue |
+| --- | --- | --- |
+| Audit log viewer | ⬜ | [heimdall-api#174](https://github.com/artur-rios/heimdall-api/issues/174) |
+| Pending self-registrations: list and discard | ⬜ | [heimdall-api#175](https://github.com/artur-rios/heimdall-api/issues/175) |
+| List System Admins | ⬜ | [heimdall-api#176](https://github.com/artur-rios/heimdall-api/issues/176) |
+| Admin-initiated resend verification and password reset | ⬜ | [heimdall-api#177](https://github.com/artur-rios/heimdall-api/issues/177) |
 
 ### Platform
 

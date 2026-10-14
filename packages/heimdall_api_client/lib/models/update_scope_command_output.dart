@@ -13,6 +13,9 @@ class UpdateScopeCommandOutput {
     this.name,
     this.description,
     this.googleSignInEnabled,
+    this.selfRegistrationEnabled,
+    this.emailVerificationUrl,
+    this.passwordResetUrl,
     this.ownerIds,
     this.createdAt,
     this.updatedAt,
@@ -25,6 +28,9 @@ class UpdateScopeCommandOutput {
   final String? name;
   final String? description;
   final bool? googleSignInEnabled;
+  final bool? selfRegistrationEnabled;
+  final String? emailVerificationUrl;
+  final String? passwordResetUrl;
   final List<String>? ownerIds;
   final DateTime? createdAt;
   final DateTime? updatedAt;

@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- A **Sign-in & sign-up** screen for each scope, opened from the scope's page. It holds the Google Sign-In switch
+  (moved from the scope's page), a new self-registration switch, and the links the scope's verification and
+  password-reset emails point at, so a client application's own screens can receive them. Opening self-registration
+  without a verification link, and closing it, each ask first and say what will happen.
 - **Send a new code** on the two-step verification screen when the code comes by email. It waits 30 seconds between
   sends and, after three, offers to start the sign-in again, matching the API's limit.
 
