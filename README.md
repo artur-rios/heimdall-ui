@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-33 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-34 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -252,7 +252,7 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-08: View and edit own profile | ✅ | [#8](https://github.com/artur-rios/heimdall-ui/issues/8) |
 | UI-09: Manage two-factor authentication | ✅ | [#9](https://github.com/artur-rios/heimdall-ui/issues/9) |
-| UI-33: Restrict processing of my account | 🚧 | [#125](https://github.com/artur-rios/heimdall-ui/issues/125) |
+| UI-33: Restrict processing of my account | ✅ | [#125](https://github.com/artur-rios/heimdall-ui/issues/125) |
 
 ### Scope Management
 
@@ -306,13 +306,18 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-32: Review outstanding erasure requests | ✅ | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
 
+### Audit
+
+| Use case | Status | Issue |
+| --- | --- | --- |
+| UI-34: Review the audit trail | ✅ | [#136](https://github.com/artur-rios/heimdall-ui/issues/136) |
+
 ### Needs Heimdall API work
 
 Gaps the UI cannot close until the API gains the endpoint, tracked in the API repository.
 
 | Item | Status | Issue |
 | --- | --- | --- |
-| Audit log viewer | ⬜ | [heimdall-api#174](https://github.com/artur-rios/heimdall-api/issues/174) |
 | Pending self-registrations: list and discard | ⬜ | [heimdall-api#175](https://github.com/artur-rios/heimdall-api/issues/175) |
 | List System Admins | ⬜ | [heimdall-api#176](https://github.com/artur-rios/heimdall-api/issues/176) |
 | Admin-initiated resend verification and password reset | ⬜ | [heimdall-api#177](https://github.com/artur-rios/heimdall-api/issues/177) |

@@ -223,4 +223,78 @@ void main() {
     // Then
     expect(failure.kind, FailureKind.unauthorized);
   });
+
+  test('GivenA429WithRetryAfter_WhenMapped_ThenTheHintNamesTheSeconds', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/login'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/login'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['37'],
+        }),
+        data: <String, dynamic>{
+          'errors': <String>['Too many requests. Try again later.'],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, const Duration(seconds: 37));
+    expect(failure.retryHint, 'Try again in 37 seconds.');
+    expect(failure.errors, <String>['Too many requests. Try again later.']);
+  });
+
+  test('GivenA429WithoutRetryAfter_WhenMapped_ThenThereIsNoHint', () {
+    // Given — a handler's 429, such as an account email's cooldown
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/persons/x/password-reset'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/persons/x/password-reset'),
+        statusCode: 429,
+        data: <String, dynamic>{
+          'errors': <String>[
+            'An email of this kind was sent to this person recently. Try again in a few minutes.',
+          ],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, isNull);
+    expect(failure.retryHint, isNull);
+  });
+
+  test('GivenAnUnreadableRetryAfter_WhenMapped_ThenItIsIgnored', () {
+    // Given — an HTTP-date, or garbage, rather than whole seconds
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/login'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/login'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['Wed, 21 Oct 2026 07:28:00 GMT'],
+        }),
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, isNull);
+  });
 }

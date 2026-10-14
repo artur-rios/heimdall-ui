@@ -38,6 +38,7 @@ class AdaptiveCollection<T> extends StatelessWidget {
     required this.totalItems,
     required this.onPageChanged,
     this.subtitle,
+    this.titleLabel = 'Name',
     this.onTap,
     this.busy = false,
     this.reservesFloatingAction = false,
@@ -49,6 +50,10 @@ class AdaptiveCollection<T> extends StatelessWidget {
 
   /// The item's headline, which is the card's title and the table's first cell.
   final String Function(T item) title;
+
+  /// The table's header over [title], for a listing whose headline is not a
+  /// name.
+  final String titleLabel;
   final String Function(T item)? subtitle;
   final void Function(T item)? onTap;
 
@@ -140,8 +145,11 @@ class AdaptiveCollection<T> extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         showCheckboxColumn: false,
+        // A row grows to fit a cell that wraps, rather than clipping it; a row
+        // that fits keeps the usual height.
+        dataRowMaxHeight: double.infinity,
         columns: <DataColumn>[
-          const DataColumn(label: Text('Name')),
+          DataColumn(label: Text(titleLabel)),
           for (final column in columns) DataColumn(label: Text(column.label)),
         ],
         rows: <DataRow>[

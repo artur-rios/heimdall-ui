@@ -29,6 +29,7 @@ void main() {
     void Function(_Row item)? onTap,
     ValueChanged<int>? onPageChanged,
     ThemeData? theme,
+    String? titleLabel,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -40,6 +41,7 @@ void main() {
         home: Scaffold(
           body: AdaptiveCollection<_Row>(
             items: items,
+            titleLabel: titleLabel ?? 'Name',
             busy: busy,
             reservesFloatingAction: reservesFloatingAction,
             pageNumber: pageNumber,
@@ -87,6 +89,53 @@ void main() {
 
     // Then
     expect(find.byType(DataTable), findsOneWidget);
+  });
+
+  testWidgets('GivenNoTitleLabel_WhenATableIsUsed_ThenTheFirstHeaderIsName', (
+    tester,
+  ) async {
+    // Given
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // When
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildLightTheme(),
+        home: Scaffold(
+          body: AdaptiveCollection<_Row>(
+            items: _rows,
+            pageNumber: 1,
+            totalPages: 1,
+            totalItems: _rows.length,
+            onPageChanged: (_) {},
+            title: (item) => item.name,
+            columns: <CollectionColumn<_Row>>[
+              CollectionColumn<_Row>(
+                label: 'State',
+                cell: (item) => Text(item.state),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Name'), findsOneWidget);
+  });
+
+  testWidgets('GivenATitleLabel_WhenATableIsUsed_ThenTheFirstHeaderNamesIt', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, size: const Size(1400, 900), titleLabel: 'Action');
+
+    // Then
+    expect(find.text('Action'), findsOneWidget);
+    expect(find.text('Name'), findsNothing);
   });
 
   testWidgets('GivenATableOnlyColumn_WhenCardsAreUsed_ThenItIsOmitted', (

@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Audit log** — System Admins can browse the audit trail, newest first, filtered by dates, action, actor, target and
+  outcome; identifiers can be copied or used as a filter.
 - A **Sign-in & sign-up** screen for each scope, opened from the scope's page. It holds the Google Sign-In switch
   (moved from the scope's page), a new self-registration switch, and the links the scope's verification and
   password-reset emails point at, so a client application's own screens can receive them. Opening self-registration
@@ -25,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Rate-limited requests now say so, and how long to wait when the API tells us.
 - Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
   It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
   sign in, as before.

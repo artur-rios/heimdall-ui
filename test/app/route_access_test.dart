@@ -100,6 +100,17 @@ void main() {
     });
   }
 
+  // UC-48: the trail has no scope column, so only a System Admin reads it.
+  test(
+    'GivenEachRole_WhenAskingForTheAuditLog_ThenOnlyASystemAdminMayReachIt',
+    () {
+      // Given / When / Then
+      expect(roleMayReach(role: Role.systemAdmin, path: '/audit-log'), isTrue);
+      expect(roleMayReach(role: Role.scopeAdmin, path: '/audit-log'), isFalse);
+      expect(roleMayReach(role: Role.user, path: '/audit-log'), isFalse);
+    },
+  );
+
   // Health: full for a System Admin, read-only for a Scope Admin, hidden for
   // a User — read-only is still reaching it.
   test('GivenScopeAdmin_WhenAskingHealth_ThenItIsAllowed', () {
