@@ -9,6 +9,7 @@ import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../auth/presentation/email_verification_controller.dart';
+import '../../data_rights/presentation/restrict_processing_dialog.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../persons/domain/person.dart';
 import 'profile_controller.dart';
@@ -252,6 +253,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                     ),
                     trailing: const Icon(Icons.chevron_right),
                     onTap: () => context.go('/profile/security'),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                // UI-33 — the one data-subject right a full session asks for
+                // here; the others are offered once processing is restricted
+                // (UI-30), which is where this leads.
+                Card(
+                  child: ListTile(
+                    leading: const Icon(Icons.pause_circle_outline),
+                    title: const Text('Restrict processing of my account'),
+                    subtitle: const Text(
+                      'Have Heimdall keep your data but stop using it. Your '
+                      'account is suspended until you lift the restriction.',
+                    ),
+                    trailing: const Icon(Icons.chevron_right),
+                    onTap: () => showRestrictProcessingDialog(context),
                   ),
                 ),
               ],
