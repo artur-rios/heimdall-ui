@@ -5,8 +5,8 @@ import '../../../core/result/result.dart';
 import '../domain/application_credential.dart';
 import '../domain/application_credential_repository.dart';
 
-/// How many credentials may be live at once (spec §7; the API's limit,
-/// FR-AP-10).
+/// How many credentials may be live at once (spec §7): the API's limit
+/// (heimdall-api FR-AP-11, UC-53); not offered per this app's FR-AP-10.
 const int maxLiveCredentials = 2;
 
 const Failure _unexpected = Failure(
@@ -42,9 +42,14 @@ class CredentialsState {
   int get liveCount =>
       credentials?.where((c) => c.status == CredentialStatus.live).length ?? 0;
 
-  /// At most two may be live (FR-AP-10 in the API); the API decides in the end.
+  /// At most two may be live (the API's limit, heimdall-api FR-AP-11, UC-53;
+  /// not offered per this app's FR-AP-10); the API decides in the end. Not on a
+  /// stale list, so not after a failed reload either.
   bool get mayIssue =>
-      credentials != null && liveCount < maxLiveCredentials && !busy;
+      credentials != null &&
+      loadFailure == null &&
+      liveCount < maxLiveCredentials &&
+      !busy;
 
   CredentialsState copyWith({
     List<ApplicationCredential>? credentials,

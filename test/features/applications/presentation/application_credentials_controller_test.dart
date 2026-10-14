@@ -439,4 +439,31 @@ void main() {
     expect(currentState().busy, isFalse);
     expect(currentState().actionFailure, isNotNull);
   });
+
+  test(
+    'GivenAFailedReload_WhenTheListIsStale_ThenIssuingIsNotOffered',
+    () async {
+      // Given
+      answerListWith(
+        Success<List<ApplicationCredential>>(<ApplicationCredential>[
+          _live('c1'),
+        ]),
+      );
+      final controller = controllerUnderTest();
+      await controller.load();
+      expect(currentState().mayIssue, isTrue);
+      answerListWith(
+        const FailureResult<List<ApplicationCredential>>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await controller.load();
+
+      // Then
+      expect(currentState().credentials, isNotNull);
+      expect(currentState().mayIssue, isFalse);
+    },
+  );
 }
