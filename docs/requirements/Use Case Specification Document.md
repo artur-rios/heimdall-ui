@@ -1131,7 +1131,8 @@ screens.
    to use Heimdall's default." and "Password recovery. Leave empty to use Heimdall's default."
 6. The user chooses **Edit** (the shared edit mode), changes the links, and chooses **Save changes**.
    When non-empty after trimming, a link must be an absolute `http` or `https` URL with a host, at
-   most 2048 characters (a path such as `/verify-email` is refused).
+   most 2048 characters (a path such as `/verify-email` is refused). **Cancel** leaves edit mode,
+   restores the saved values and sends nothing.
 7. The client calls `PUT /api/scopes/{id}/email-links` with **both** values, trimmed, an empty link
    sent as `null` (the API treats the body as the whole state, so an omitted link would be cleared).
 8. The card shows the saved notice and the scope state reflects the new links, including the
