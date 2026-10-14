@@ -225,4 +225,98 @@ void main() {
     // Then
     expect(tester.takeException(), isNull);
   });
+
+  // AF-36f — a transport failure carries the HTTP library's own words.
+  testWidgets('GivenATransportFailure_WhenSent_ThenAFixedSentenceIsShown', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.sendPasswordReset('person-1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(
+          kind: FailureKind.network,
+          errors: <String>[],
+          message: 'The connection errored: Connection refused',
+        ),
+      ),
+    );
+    await pump(tester, _unverified);
+
+    // When
+    await tapText(tester, 'Send password reset');
+    await confirmSend(tester);
+
+    // Then
+    expect(
+      find.text(
+        'Could not reach the API. Check your connection and try again.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('The connection errored'), findsNothing);
+  });
+
+  testWidgets('GivenASendInFlight_WhenShown_ThenBothActionsAreDisabled', (
+    tester,
+  ) async {
+    // Given
+    final pending = Completer<Result<void>>();
+    when(() => repository.sendPasswordReset('person-1'))
+        .thenAnswer((_) => pending.future);
+    await pump(tester, _unverified);
+
+    // When
+    await tapText(tester, 'Send password reset');
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Send'),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Resend verification email'),
+          )
+          .onPressed,
+      isNull,
+    );
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Send password reset'),
+          )
+          .onPressed,
+      isNull,
+    );
+    pending.complete(const Success<void>(null));
+    await tester.pumpAndSettle();
+  });
+
+  testWidgets('GivenAnUnknownFailureWithAMessage_WhenSent_ThenItIsShown', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.sendPasswordReset('person-1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>['Method not allowed.'],
+        ),
+      ),
+    );
+    await pump(tester, _unverified);
+
+    // When
+    await tapText(tester, 'Send password reset');
+    await confirmSend(tester);
+
+    // Then
+    expect(find.text('Method not allowed.'), findsOneWidget);
+    expect(find.textContaining('Could not reach the API'), findsNothing);
+  });
 }

@@ -73,7 +73,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     }
 
     _seeded = person;
-    _restore(person);
+
+    // A background reload (AF-36c) can land mid-edit; what was typed and not
+    // yet saved stays. `_seeded` still moves on, so the leave guard compares
+    // the typing against the record the API now holds.
+    if (!_editing) {
+      _restore(person);
+    }
   }
 
   void _restore(Person person) {

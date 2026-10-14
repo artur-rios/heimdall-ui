@@ -43,10 +43,10 @@
    - `ErrorBanner` appends `retryHint` as an extra line when it is non-null.
 
    So a handler's `429`, which has no header, shows the API's message alone. A limiter `429` shows the message plus "Try again in N seconds."
-4. **Date and time.** `formatDateTime(BuildContext context, DateTime at)` lives in `lib/shared/formatting/date_time_format.dart`. It returns `'${formatMediumDate(local)} ${formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}'`.
+4. **Date and time.** `formatDateTime(BuildContext context, DateTime at)` lives in `lib/shared/formatting/date_time_format.dart`. It returns `'${formatShortDate(local)} ${formatTimeOfDay(TimeOfDay.fromDateTime(local), alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context))}'`. The short date, because the year must show: `formatMediumDate` omits it.
 5. **Audit date bounds.** `auditBoundsFor(DateTime firstDay, DateTime lastDay)` lives in the domain, and takes the picked days rather than Flutter's `DateTimeRange` so the domain imports no Flutter. It returns `(from: DateTime, to: DateTime)`:
    - `from` is the local start of `firstDay`'s day, converted with `.toUtc()`;
-   - `to` is the local `23:59:59.999` of `lastDay`'s day, converted with `.toUtc()`.
+   - `to` is the local `23:59:59.999999` of `lastDay`'s day (`DateTime(y, m, d, 23, 59, 59, 999, 999)`), converted with `.toUtc()`: the last microsecond, because PostgreSQL stores microseconds.
 6. **Identifier input.**
    - The audit actor and target filters trim, lowercase and validate against the UUID pattern `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$` (case-insensitive).
    - Do not import `outstanding_erasure.dart`. Copy the expression into `lib/shared/formatting/identifier.dart` as `bool isIdentifier(String value)` and `String normaliseIdentifier(String value)`.
@@ -568,7 +568,7 @@ String formatDateTime(BuildContext context, DateTime at) {
     alwaysUse24HourFormat: MediaQuery.alwaysUse24HourFormatOf(context),
   );
 
-  return '${localizations.formatMediumDate(local)} $time';
+  return '${localizations.formatShortDate(local)} $time';
 }
 ```
 
@@ -625,7 +625,7 @@ void main() {
     expect(bounds.from.isUtc, isTrue);
     expect(bounds.to.isUtc, isTrue);
     expect(bounds.from, DateTime(2026, 10, 14).toUtc());
-    expect(bounds.to, DateTime(2026, 10, 14, 23, 59, 59, 999).toUtc());
+    expect(bounds.to, DateTime(2026, 10, 14, 23, 59, 59, 999, 999).toUtc());
     // A late-evening local entry is inside, the previous local day is not.
     final lateEvening = DateTime(2026, 10, 14, 22, 30).toUtc();
     final dayBefore = DateTime(2026, 10, 13, 23, 0).toUtc();
@@ -643,7 +643,7 @@ void main() {
 
     // Then
     expect(bounds.from, DateTime(2026, 10, 1).toUtc());
-    expect(bounds.to, DateTime(2026, 10, 3, 23, 59, 59, 999).toUtc());
+    expect(bounds.to, DateTime(2026, 10, 3, 23, 59, 59, 999, 999).toUtc());
   });
 }
 ```
@@ -738,12 +738,12 @@ class AuditLogFilter {
 }
 
 /// The API's inclusive `from`/`to` for the local days [firstDay] to [lastDay]:
-/// the start of the first and the last millisecond of the last, in UTC. The
+/// the start of the first and the last microsecond of the last, in UTC. The
 /// API reads its bounds as UTC, so a day picked west of UTC must be converted
 /// here or the evening's entries would fall outside it.
 ({DateTime from, DateTime to}) auditBoundsFor(DateTime firstDay, DateTime lastDay) => (
   from: DateTime(firstDay.year, firstDay.month, firstDay.day).toUtc(),
-  to: DateTime(lastDay.year, lastDay.month, lastDay.day, 23, 59, 59, 999).toUtc(),
+  to: DateTime(lastDay.year, lastDay.month, lastDay.day, 23, 59, 59, 999, 999).toUtc(),
 );
 ```
 
@@ -1360,6 +1360,8 @@ Claude-Session: https://claude.ai/code/session_01KU2awQWyVHDRk4zc4mKYjv"
 
 ### Task A5: The audit log screen, its route and its navigation entry
 
+> Amended during Part A's final review (spec §4): an entry with no actor reads "None", not "Cleared", and the note is the one in spec §4. The snippets below say so; Task A6's quoted use-case and FR-AL-02 text follows the same amendment.
+
 **Files:**
 - Create: `lib/features/audit_log/presentation/audit_log_screen.dart`
 - Modify: `lib/app/router.dart` (import plus a `GoRoute` after `/erasure-requests`), `lib/app/route_access.dart`, `lib/features/home/presentation/destinations.dart`, `lib/main.dart`
@@ -1426,7 +1428,7 @@ Run the two test files. Expected: PASS.
     expect(find.text('Refused'), findsWidgets);
     expect(find.text('You are not an owner of the target scope.'), findsOneWidget);
     expect(find.text(_actorId), findsWidgets);
-    expect(find.text('Cleared'), findsWidgets);
+    expect(find.text('None'), findsWidgets);
   });
 
   testWidgets('GivenAnActorThatIsNotAnIdentifier_WhenSubmitted_ThenTheFieldSaysSoAndNothingIsSent', (tester) async {
@@ -1491,7 +1493,7 @@ Run the two test files. Expected: PASS.
     expect(find.text('The audit log is empty.'), findsOneWidget);
   });
 
-  testWidgets('GivenEntries_WhenOpened_ThenTheClearedActorNoteIsShown', (tester) async {
+  testWidgets('GivenEntries_WhenOpened_ThenTheNoActorNoteIsShown', (tester) async {
     // Given
     answerWith(Success<envelope.Page<AuditEntry>>(_page(<AuditEntry>[_refused])));
 
@@ -1499,7 +1501,7 @@ Run the two test files. Expected: PASS.
     await pump(tester);
 
     // Then
-    expect(find.textContaining('show no actor'), findsOneWidget);
+    expect(find.textContaining('shows no actor'), findsOneWidget);
   });
 ```
 
@@ -1518,12 +1520,12 @@ Run. Expected: FAIL (screen missing).
 - `AppShell(currentRoute: '/audit-log', title: const Text('Audit log'), body: ...)`.
 - The body is a `Column`:
   1. A `Padding` + `Wrap` filter bar:
-     - **Dates**: an `OutlinedButton.icon` with `Icons.date_range_outlined`. Its label is `'Dates'`, or the chosen range as `'${formatMediumDate(first)} – ${formatMediumDate(last)}'`. It opens `showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: ...)` and on a result calls `setDays(range.start, range.end)`.
+     - **Dates**: an `OutlinedButton.icon` with `Icons.date_range_outlined`. Its label is `'Dates'`, or the chosen range as `'${formatShortDate(first)} – ${formatShortDate(last)}'`. It opens `showDateRangePicker(context: context, firstDate: DateTime(2020), lastDate: DateTime.now(), initialDateRange: ...)` and on a result calls `setDays(range.start, range.end)`.
      - **Action**: a 220-px `TextField(controller: _action, decoration: const InputDecoration(labelText: 'Action', hintText: 'e.g. CreateScopeCommand'), textInputAction: TextInputAction.search, onSubmitted: controller.setAction)`.
      - **Actor** and **Target**: `TextField`s labelled `'Actor'` and `'Target'`, with `errorText: _actorError` / `_targetError`. `onSubmitted` calls `setActor`/`setTarget`, and when that returns `false`, sets the field's error to `'Enter an identifier.'`; otherwise clears it.
      - **Outcome**: three `ChoiceChip`s, **All** / **Succeeded** / **Refused**, selected by `query.filter.succeeded == null / true / false`, each calling `setOutcome(null / true / false)`.
      - **Clear filters**: a `TextButton`, shown when `query.filter.isFiltered`. It clears the three text controllers and both errors, then calls `clearFilters()`.
-  2. The note `Text('Entries older than the attribution period show no actor, and filtering by actor cannot find them.', style: bodySmall)`.
+  2. The note `Text('An entry shows no actor when the action was anonymous, such as a sign-in, or when its attribution was cleared — after the attribution period, or once the person was erased. Filtering by actor cannot find these.', style: bodySmall)`.
   3. `Expanded` with a `switch (state)`:
      - `AuditLogLoading()` → `CollectionLoading()`;
      - `AuditLogFailed(:final failure)` → `CollectionFailed(failure: failure, onRetry: controller.load)`;
@@ -1540,7 +1542,7 @@ Run. Expected: FAIL (screen missing).
     | --- | --- |
     | **When** (`onCard: false`; the subtitle says it) | the formatted time |
     | **Outcome** | a `Chip(label: Text(e.succeeded ? 'Succeeded' : 'Refused'))`, with the error container colour when refused, and `e.failureReason` beneath it in `bodySmall` |
-    | **Actor** | `_IdCell(id: e.actorId, label: e.actorRole == null ? null : _roleName(e.actorRole!), empty: 'Cleared', copyTooltip: 'Copy the actor', filterTooltip: 'Filter by this actor', onFilter: (id) { _actor.text = id; controller.setActor(id); })` |
+    | **Actor** | `_IdCell(id: e.actorId, label: e.actorRole == null ? null : _roleName(e.actorRole!), empty: 'None', copyTooltip: 'Copy the actor', filterTooltip: 'Filter by this actor', onFilter: (id) { _actor.text = id; controller.setActor(id); })` |
     | **Target** | the same, with `empty: '—'`, `'Copy the target'`, `'Filter by this target'` and `setTarget` |
 
 - `_IdCell`, a private widget in the same file, shows `SelectableText(id)` and `label` beneath it when given. It has two `IconButton`s: copy (`Icons.copy_outlined`), which calls `Clipboard.setData` and shows the snackbar `'Identifier copied.'`; and filter (`Icons.filter_alt_outlined`). It shows `Text(empty)` when `id` is null.

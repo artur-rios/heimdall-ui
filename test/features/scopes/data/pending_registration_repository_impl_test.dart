@@ -22,7 +22,7 @@ void main() {
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'));
   });
 
-  test('GivenAPage_WhenListed_ThenRegistrationsAreMapped', () async {
+  test('GivenAPage_WhenListed_ThenItIsAskedForAndMapped', () async {
     // Given
     final repository = repositoryAnswering(
       const _Answer(
@@ -41,18 +41,24 @@ void main() {
               'expired': true,
             },
           ],
-          'pageNumber': 1,
+          'pageNumber': 2,
           'pageSize': 20,
-          'totalItems': 1,
-          'totalPages': 1,
+          'totalItems': 21,
+          'totalPages': 2,
         },
       ),
     );
 
     // When
-    final result = await repository.list('s1');
+    final result = await repository.list('s1', pageNumber: 2);
 
     // Then
+    expect(adapter.paths.single, '/api/scopes/s1/pending-registrations');
+    expect(adapter.methods.single, 'GET');
+    expect(adapter.queries.single, <String, dynamic>{
+      'PageNumber': 2,
+      'PageSize': 20,
+    });
     final item = result.valueOrNull!.items.single;
     expect(item.email, 'ada@example.com');
     expect(item.attemptsLeft, 7);

@@ -483,4 +483,24 @@ void main() {
       expect((state as PersonDetailLoaded).person, _ada);
     },
   );
+
+  test('GivenARefusedSave_WhenRefreshed_ThenTheFlagsAreKept', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.validation, errors: <String>['Refused.']),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    await controller.save(name: 'Ada L', email: 'ada@example.com');
+
+    // When
+    await controller.refresh();
+
+    // Then
+    final state = currentState() as PersonDetailLoaded;
+    expect(state.saveFailure?.errors, <String>['Refused.']);
+  });
 }

@@ -38,6 +38,7 @@ class AdaptiveCollection<T> extends StatelessWidget {
     required this.totalItems,
     required this.onPageChanged,
     this.subtitle,
+    this.titleLabel = 'Name',
     this.onTap,
     this.busy = false,
     this.reservesFloatingAction = false,
@@ -49,6 +50,10 @@ class AdaptiveCollection<T> extends StatelessWidget {
 
   /// The item's headline, which is the card's title and the table's first cell.
   final String Function(T item) title;
+
+  /// The table's header over [title], for a listing whose headline is not a
+  /// name.
+  final String titleLabel;
   final String Function(T item)? subtitle;
   final void Function(T item)? onTap;
 
@@ -140,8 +145,11 @@ class AdaptiveCollection<T> extends StatelessWidget {
       scrollDirection: Axis.horizontal,
       child: DataTable(
         showCheckboxColumn: false,
+        // A row grows to fit a cell that wraps, rather than clipping it; a row
+        // that fits keeps the usual height.
+        dataRowMaxHeight: double.infinity,
         columns: <DataColumn>[
-          const DataColumn(label: Text('Name')),
+          DataColumn(label: Text(titleLabel)),
           for (final column in columns) DataColumn(label: Text(column.label)),
         ],
         rows: <DataRow>[
@@ -150,17 +158,24 @@ class AdaptiveCollection<T> extends StatelessWidget {
               onSelectChanged: onTap == null ? null : (_) => onTap!(item),
               cells: <DataCell>[
                 DataCell(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Text(title(item)),
-                      if (subtitle case final String Function(T) read)
-                        Text(
-                          read(item),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
+                  // A headline can be as long as whoever named the record
+                  // liked, and the widest cell sets the column for every row,
+                  // pushing the other columns off the window. So the headline
+                  // is cut short, with the whole text in a tooltip.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: _titleMaxWidth),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        _OneLine(title(item)),
+                        if (subtitle case final String Function(T) read)
+                          _OneLine(
+                            read(item),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 for (final column in columns) DataCell(column.cell(item)),
@@ -168,6 +183,32 @@ class AdaptiveCollection<T> extends StatelessWidget {
             ),
         ],
       ),
+    ),
+  );
+}
+
+/// The widest the table's headline column grows.
+const double _titleMaxWidth = 260;
+
+/// A single line cut short with an ellipsis, the whole text in a tooltip.
+///
+/// The tooltip repeats the text, which screen readers already read whole, so
+/// it is kept out of the semantics tree.
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.text, {this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: text,
+    excludeFromSemantics: true,
+    child: Text(
+      text,
+      style: style,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     ),
   );
 }

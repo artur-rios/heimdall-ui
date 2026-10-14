@@ -31,6 +31,14 @@ class _PendingRegistrationListScreenState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.load();
+
+      // A deep link or a refresh arrives without the scope page having read
+      // the scope, so it is read once here for the subtitle's name. Only
+      // here, so a scope that cannot be read is not asked for again.
+      final scope = ref.read(scopeDetailControllerProvider(widget.scopeId));
+      if (scope is! ScopeDetailLoaded) {
+        ref.read(scopeDetailControllerProvider(widget.scopeId).notifier).load();
+      }
     });
   }
 
@@ -54,8 +62,8 @@ class _PendingRegistrationListScreenState
     await _controller.discard(registration);
   }
 
-  /// The scope's name when its page was opened first; the identifier otherwise,
-  /// since nothing here reads the scope on its own.
+  /// The scope's name once it is read; the identifier until then, or when it
+  /// cannot be read.
   String _scopeLabel() {
     final scope = ref.watch(scopeDetailControllerProvider(widget.scopeId));
 
@@ -75,6 +83,19 @@ class _PendingRegistrationListScreenState
       backTooltip: 'Back to the scope',
       body: switch (state) {
         PendingRegistrationListLoading() => const CollectionLoading(),
+        // AF-35b — the scope is not one this admin owns; retrying would only
+        // be refused again.
+        PendingRegistrationListFailed(:final failure)
+            when failure.kind == FailureKind.forbidden =>
+          CollectionEmpty(
+            title: 'Not available for your role',
+            message:
+                'This scope is not one you administer. Nothing is wrong '
+                'with your session.',
+            icon: Icons.lock_person_outlined,
+            actionLabel: 'Back to scopes',
+            onAction: () => context.go('/scopes'),
+          ),
         // AF-35c — the scope itself is gone.
         PendingRegistrationListFailed(:final failure)
             when failure.kind == FailureKind.notFound =>
@@ -84,7 +105,7 @@ class _PendingRegistrationListScreenState
             actionLabel: 'Back to scopes',
             onAction: () => context.go('/scopes'),
           ),
-        // AF-35b and AF-35f — the returned errors, with a retry.
+        // AF-35f — the returned errors, with a retry.
         PendingRegistrationListFailed(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: _controller.load,
@@ -141,16 +162,30 @@ class _PendingRegistrationListScreenState
                 onPageChanged: _controller.goToPage,
                 title: (registration) => registration.name,
                 subtitle: (registration) => registration.email,
-                columns: _columns(context),
+                columns: _columns(context, busy: loaded.busy),
               ),
       ),
     ],
   );
 
-  List<CollectionColumn<PendingRegistration>> _columns(BuildContext context) {
+  List<CollectionColumn<PendingRegistration>> _columns(
+    BuildContext context, {
+    required bool busy,
+  }) {
     String when(DateTime? at) => at == null ? '—' : formatDateTime(context, at);
 
     return <CollectionColumn<PendingRegistration>>[
+      // Beside the name it acts on rather than at the far end: the dates are
+      // wide, and a last column starts off-screen on a medium window.
+      CollectionColumn<PendingRegistration>(
+        label: 'Discard',
+        cell: (registration) => IconButton(
+          icon: const Icon(Icons.delete_outline),
+          tooltip: 'Discard the registration for ${registration.email}',
+          // Held while a discard or a page is in flight.
+          onPressed: busy ? null : () => _confirmDiscard(registration),
+        ),
+      ),
       CollectionColumn<PendingRegistration>(
         label: 'Signed up',
         cell: (registration) => Text(when(registration.createdAt)),
@@ -173,14 +208,6 @@ class _PendingRegistrationListScreenState
       CollectionColumn<PendingRegistration>(
         label: 'Attempts left',
         cell: (registration) => Text('${registration.attemptsLeft}'),
-      ),
-      CollectionColumn<PendingRegistration>(
-        label: 'Discard',
-        cell: (registration) => TextButton.icon(
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Discard'),
-          onPressed: () => _confirmDiscard(registration),
-        ),
       ),
     ];
   }
