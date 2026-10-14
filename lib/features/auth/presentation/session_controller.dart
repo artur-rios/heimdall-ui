@@ -173,7 +173,12 @@ class SessionController extends Notifier<SessionState> {
     required String email,
     required String password,
   }) async {
-    final result = await _repository.login(email: email, password: password);
+    // The scope comes from the calling application, as it does for Google.
+    final result = await _repository.login(
+      email: email,
+      password: password,
+      scopeId: ref.read(scopeSourceProvider).read(),
+    );
 
     switch (result) {
       case Success<LoginOutcome>(:final value):
