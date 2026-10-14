@@ -17,6 +17,7 @@ import '../../persons/presentation/scope_members.dart';
 import '../domain/application.dart';
 import 'application_detail_controller.dart';
 import 'application_list_controller.dart';
+import 'credentials_card.dart';
 
 /// UI-22 — one application: what it is called and who owns it.
 class ApplicationDetailScreen extends ConsumerStatefulWidget {
@@ -370,6 +371,15 @@ class _ApplicationDetailScreenState
                   ),
                 ),
               ),
+              // UI-37 — a deleted application's credentials are inert, and the
+              // API answers 404 for it, so the card is not offered.
+              if (!state.isReadOnly) ...<Widget>[
+                const SizedBox(height: 24),
+                CredentialsCard(
+                  scopeId: widget.scopeId,
+                  applicationId: widget.applicationId,
+                ),
+              ],
               // AF-22d leaves a deleted application nothing left to delete.
               if (!state.isReadOnly) ...<Widget>[
                 const SizedBox(height: 24),

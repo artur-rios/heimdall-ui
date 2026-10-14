@@ -6,7 +6,7 @@ import '../domain/application_credential.dart';
 import '../domain/application_credential_repository.dart';
 
 /// How many credentials may be live at once (spec §7; the API's limit,
-/// FR-AP-11).
+/// FR-AP-10).
 const int maxLiveCredentials = 2;
 
 typedef CredentialsKey = ({String scopeId, String applicationId});
@@ -37,7 +37,7 @@ class CredentialsState {
   int get liveCount =>
       credentials?.where((c) => c.status == CredentialStatus.live).length ?? 0;
 
-  /// At most two may be live (FR-AP-11 in the API); the API decides in the end.
+  /// At most two may be live (FR-AP-10 in the API); the API decides in the end.
   bool get mayIssue =>
       credentials != null && liveCount < maxLiveCredentials && !busy;
 

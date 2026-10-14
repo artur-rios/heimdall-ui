@@ -10,6 +10,8 @@ import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
+import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
+import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_detail_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -22,6 +24,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
+
+class _MockCredentialRepository extends Mock
+    implements ApplicationCredentialRepository {}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -84,6 +89,7 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
+  late _MockCredentialRepository credentials;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -108,6 +114,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         applicationRepositoryProvider.overrideWithValue(applications),
+        applicationCredentialRepositoryProvider.overrideWithValue(credentials),
         personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
       ],
@@ -241,6 +248,11 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     applications = _MockApplicationRepository();
     persons = _MockPersonRepository();
+    credentials = _MockCredentialRepository();
+    when(() => credentials.list(any(), any())).thenAnswer(
+      (_) async =>
+          const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+    );
     store = InMemoryTokenStore();
     answerMembersWith(<Person>[_ada, _grace]);
   });
@@ -257,6 +269,74 @@ void main() {
     // Then
     expect(find.widgetWithText(TextFormField, 'Billing'), findsOneWidget);
   });
+
+  testWidgets('GivenAnApplication_WhenOpened_ThenTheCredentialsCardIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Credentials'), findsOneWidget);
+    expect(
+      find.text('This application has no credentials yet.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'GivenADeletedApplication_WhenOpened_ThenNoCredentialsCardIsShown',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_deleted));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Credentials'), findsNothing);
+      verifyNever(() => credentials.list(any(), any()));
+    },
+  );
+
+  testWidgets(
+    'GivenACredentialIssued_WhenTheListReloads_ThenTheApplicationPageIsNotReloaded',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      when(
+        () =>
+            credentials.issue(any(), any(), expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer(
+        (_) async =>
+            const Success(IssuedCredential(id: 'c9', secret: 'hds_once')),
+      );
+      await pump(tester);
+
+      // When
+      await tapAfterScrolling(tester, find.text('Issue credential'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Issue'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('hds_once'), findsOneWidget);
+      verify(
+        () => applications.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+    },
+  );
 
   testWidgets('GivenAnApplication_WhenEdited_ThenItsOwnerIsSelected', (
     tester,
