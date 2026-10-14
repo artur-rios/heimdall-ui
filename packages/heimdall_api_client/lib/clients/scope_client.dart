@@ -13,6 +13,10 @@ import '../models/scope_output_data_output.dart';
 import '../models/scope_output_paginated_output.dart';
 import '../models/set_google_sign_in_command.dart';
 import '../models/set_google_sign_in_command_output_data_output.dart';
+import '../models/set_scope_email_links_command.dart';
+import '../models/set_scope_email_links_command_output_data_output.dart';
+import '../models/set_self_registration_command.dart';
+import '../models/set_self_registration_command_output_data_output.dart';
 import '../models/update_scope_command.dart';
 import '../models/update_scope_command_output_data_output.dart';
 
@@ -96,5 +100,27 @@ abstract class ScopeClient {
   Future<SetGoogleSignInCommandOutputDataOutput> scopeSetGoogleSignIn({
     @Path('id') required String id,
     @Body() SetGoogleSignInCommand? body,
+  });
+
+  /// Opens or closes anonymous self-registration for a scope (UC-47 toggle, FR-SR-02). Same.
+  /// actors and refusals as the Google Sign-In toggle (UC-24).
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @PUT('/api/scopes/{id}/self-registration')
+  Future<SetSelfRegistrationCommandOutputDataOutput> scopeSetSelfRegistration({
+    @Path('id') required String id,
+    @Body() SetSelfRegistrationCommand? body,
+  });
+
+  /// Sets the base links the scope's verification and password-reset emails point at. A client.
+  /// system with its own screens for those steps points its users there; a link left out, or.
+  /// sent as null or empty, is cleared and the global one applies again. Same actors and.
+  /// refusals as the self-registration toggle.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @PUT('/api/scopes/{id}/email-links')
+  Future<SetScopeEmailLinksCommandOutputDataOutput> scopeSetEmailLinks({
+    @Path('id') required String id,
+    @Body() SetScopeEmailLinksCommand? body,
   });
 }

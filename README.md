@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-30 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-32 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -238,6 +238,7 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-01: Login | ✅ | [#1](https://github.com/artur-rios/heimdall-ui/issues/1) |
 | UI-02: Complete two-factor challenge at login | ✅ | [#2](https://github.com/artur-rios/heimdall-ui/issues/2) |
+| UI-02 amendment: Send a new second-factor code | 🚧 | [#122](https://github.com/artur-rios/heimdall-ui/issues/122) |
 | UI-03: Request password recovery | ✅ | [#3](https://github.com/artur-rios/heimdall-ui/issues/3) |
 | UI-04: Reset password | ✅ | [#4](https://github.com/artur-rios/heimdall-ui/issues/4) |
 | UI-05: Verify email and resend verification | ✅ | [#5](https://github.com/artur-rios/heimdall-ui/issues/5) |
@@ -262,6 +263,7 @@ the board is where an item's status changes as it moves.
 | UI-13: Delete a scope, logically and permanently | ✅ | [#13](https://github.com/artur-rios/heimdall-ui/issues/13) |
 | UI-14: Manage scope owners | ✅ | [#14](https://github.com/artur-rios/heimdall-ui/issues/14) |
 | UI-15: Toggle Google Sign-In for a scope | ✅ | [#15](https://github.com/artur-rios/heimdall-ui/issues/15) |
+| UI-31: Configure a scope's sign-in and sign-up | 🚧 | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
 
 ### Person Management
 
@@ -302,6 +304,17 @@ the board is where an item's status changes as it moves.
 | Use case | Status | Issue |
 | --- | --- | --- |
 | UI-32: Review outstanding erasure requests | 🚧 | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
+
+### Needs Heimdall API work
+
+Gaps the UI cannot close until the API gains the endpoint, tracked in the API repository.
+
+| Item | Status | Issue |
+| --- | --- | --- |
+| Audit log viewer | ⬜ | [heimdall-api#174](https://github.com/artur-rios/heimdall-api/issues/174) |
+| Pending self-registrations: list and discard | ⬜ | [heimdall-api#175](https://github.com/artur-rios/heimdall-api/issues/175) |
+| List System Admins | ⬜ | [heimdall-api#176](https://github.com/artur-rios/heimdall-api/issues/176) |
+| Admin-initiated resend verification and password reset | ⬜ | [heimdall-api#177](https://github.com/artur-rios/heimdall-api/issues/177) |
 
 ### Platform
 

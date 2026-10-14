@@ -13,6 +13,8 @@ class SetGoogleSignInCommandOutput {
     this.name,
     this.description,
     this.googleSignInEnabled,
+    this.emailVerificationUrl,
+    this.passwordResetUrl,
     this.ownerIds,
     this.createdAt,
     this.updatedAt,
@@ -25,6 +27,8 @@ class SetGoogleSignInCommandOutput {
   final String? name;
   final String? description;
   final bool? googleSignInEnabled;
+  final String? emailVerificationUrl;
+  final String? passwordResetUrl;
   final List<String>? ownerIds;
   final DateTime? createdAt;
   final DateTime? updatedAt;

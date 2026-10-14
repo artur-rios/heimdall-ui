@@ -62,6 +62,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-23 | The client shall lift the caller's own restriction on processing through `POST /api/auth/processing-restriction/lift`, then end the session, since the token that lifted it stays confined to the rights endpoints. | UI-30 |
 | FR-AU-24 | The client shall obtain the caller's own data through `POST /api/auth/data-export` and save it as a JSON file: a browser download on the web, the downloads folder on every other target. | UI-30 |
 | FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
+| FR-AU-26 | The client shall request a new second-factor email code through `POST /api/auth/2fa/challenge/resend` while a challenge answered by email is outstanding, waiting 30 seconds between sends and offering at most three per challenge, after which it offers to start the sign-in again. | UI-02 |
 
 ### 2.2 Scope management (`FR-SC`)
 
@@ -70,7 +71,7 @@ describes the flows that satisfy these requirements; the
 | FR-SC-01 | The client shall list scopes through `GET /api/scopes`, paginated by the API. | UI-10 |
 | FR-SC-02 | The client shall filter the scope listing by name and shall let the user include logically deleted scopes. | UI-10 |
 | FR-SC-03 | The client shall create a scope through `POST /api/scopes`, with a name, a description, and at least one owner. | UI-11 |
-| FR-SC-04 | The client shall show a scope through `GET /api/scopes/{id}`, including its owners and its Google Sign-In state. | UI-12 |
+| FR-SC-04 | The client shall show a scope through `GET /api/scopes/{id}`, including its owners, and a summary of its sign-in and sign-up settings. | UI-12 |
 | FR-SC-05 | The client shall update a scope's name and description through `PUT /api/scopes/{id}`. | UI-12 |
 | FR-SC-06 | The client shall logically delete a scope through `DELETE /api/scopes/{id}` after confirmation. | UI-13 |
 | FR-SC-07 | The client shall permanently delete a scope through `DELETE /api/scopes/{id}/hard` after a confirmation requiring the scope's name to be typed. | UI-13 |
@@ -78,7 +79,9 @@ describes the flows that satisfy these requirements; the
 | FR-SC-09 | The client shall add an existing Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners/{personId}`. | UI-14 |
 | FR-SC-10 | The client shall create a new Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners`. | UI-14 |
 | FR-SC-11 | The client shall promote a user of the scope to owner through `POST /api/scopes/{scopeId}/users/{personId}/promote`, and shall remove an owner through `DELETE /api/scopes/{scopeId}/owners/{personId}`, each after confirmation. | UI-14 |
-| FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15 |
+| FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
+| FR-SC-13 | The client shall show and toggle a scope's self-registration through `PUT /api/scopes/{id}/self-registration`, asking before opening it while the scope has no verification link and before closing it. | UI-31 |
+| FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
 
 ### 2.3 Person management (`FR-PE`)
 
@@ -167,8 +170,9 @@ describes the flows that satisfy these requirements; the
 | `/profile/security` | Two-factor and recovery codes | UI-09 |
 | `/scopes` | Scope listing | UI-10 |
 | `/scopes/new` | Create a scope | UI-11 |
-| `/scopes/:scopeId` | Scope detail | UI-12, UI-13, UI-15 |
+| `/scopes/:scopeId` | Scope detail | UI-12, UI-13 |
 | `/scopes/:scopeId/owners` | Scope owners | UI-14 |
+| `/scopes/:scopeId/sign-in-settings` | Sign-in & sign-up | UI-31, UI-15 |
 | `/scopes/:scopeId/persons` | Person listing | UI-16 |
 | `/scopes/:scopeId/persons/new` | Create a person | UI-17 |
 | `/scopes/:scopeId/persons/:personId` | Person detail | UI-18, UI-19 |
@@ -206,7 +210,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Logical delete scope | Full | Hidden | Hidden | Hidden |
 | Permanent delete scope | Full | Hidden | Hidden | Hidden |
 | Scope owners | Full | Owned scopes only | Hidden | Hidden |
-| Toggle Google Sign-In | Full | Owned scopes only | Hidden | Hidden |
+| Sign-in & sign-up settings | Full | Owned scopes only | Hidden | Hidden |
 | Person listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |

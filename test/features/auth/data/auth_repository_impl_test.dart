@@ -1334,6 +1334,48 @@ void main() {
       expect(result.valueOrNull?.processingRestricted, isTrue);
     },
   );
+
+  // UC-46 — the held challenge token is what asks for a new code.
+  test('GivenAChallenge_WhenACodeIsResent_ThenTheTokenTravels', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resendSecondFactorCode(
+      challengeToken: 'challenge',
+    );
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.requests.single, <String, dynamic>{
+      'challengeToken': 'challenge',
+    });
+  });
+
+  test(
+    'GivenNoConnection_WhenACodeIsResent_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.resendSecondFactorCode(
+        challengeToken: 'challenge',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

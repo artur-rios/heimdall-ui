@@ -127,4 +127,26 @@ void main() {
     // Then
     expect(allowed, isTrue);
   });
+
+  test('GivenAScopeAdmin_WhenSignInSettingsAsked_ThenItIsReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.scopeAdmin,
+      path: '/scopes/scope-id/sign-in-settings',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  test('GivenAUser_WhenSignInSettingsAsked_ThenItIsNot', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.user,
+      path: '/scopes/scope-id/sign-in-settings',
+    );
+
+    // Then
+    expect(allowed, isFalse);
+  });
 }

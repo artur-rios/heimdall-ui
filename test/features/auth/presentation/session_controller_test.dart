@@ -1054,6 +1054,47 @@ void main() {
       expect(gateway.signOuts, 1);
     },
   );
+
+  // UC-46 — the session holds the token, so the screen never handles it.
+  test('GivenAChallenge_WhenACodeIsResent_ThenTheHeldTokenIsUsed', () async {
+    // Given
+    final container = await challengedContainer(
+      methods: const <String>['Email'],
+    );
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => const Success<void>(null));
+
+    // When
+    final result = await container
+        .read(sessionControllerProvider.notifier)
+        .resendSecondFactorCode();
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    verify(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .called(1);
+  });
+
+  test('GivenNoChallenge_WhenACodeIsResent_ThenNothingIsSent', () async {
+    // Given
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    final result = await controller.resendSecondFactorCode();
+
+    // Then
+    expect(result.isSuccess, isFalse);
+    expect(result.failureOrNull?.errors, <String>[
+      'There is no sign-in to send a code for.',
+    ]);
+    verifyNever(
+      () => repository.resendSecondFactorCode(
+        challengeToken: any(named: 'challengeToken'),
+      ),
+    );
+  });
 }
 
 /// Reads a token but refuses to delete it.

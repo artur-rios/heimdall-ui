@@ -11,7 +11,6 @@ import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
-import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_detail_screen.dart';
@@ -20,8 +19,6 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
-
-class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
 String _jwt({int role = 1}) {
@@ -46,13 +43,6 @@ const _acme = Scope(
   ownerIds: <String>['person-1'],
 );
 
-const _googleOff = Scope(
-  id: 'scope-1',
-  name: 'Acme',
-  description: 'The first tenant',
-  ownerIds: <String>['person-1'],
-);
-
 const _deleted = Scope(
   id: 'scope-1',
   name: 'Acme',
@@ -66,7 +56,6 @@ const Size _expanded = Size(1400, 900);
 
 void main() {
   late _MockScopeRepository repository;
-  late _MockGoogleUserRepository googleUsers;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -91,7 +80,6 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         scopeRepositoryProvider.overrideWithValue(repository),
-        googleUserRepositoryProvider.overrideWithValue(googleUsers),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -109,6 +97,11 @@ void main() {
           path: '/scopes/:scopeId',
           builder: (context, state) =>
               ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
+        ),
+        GoRoute(
+          path: '/scopes/:scopeId/sign-in-settings',
+          builder: (context, state) =>
+              const Scaffold(body: Text('sign-in settings')),
         ),
         GoRoute(
           path: '/scopes/:scopeId/persons',
@@ -146,19 +139,6 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(finder);
     await tester.pumpAndSettle();
-  }
-
-  void answerToggleWith(Result<Scope> result) {
-    when(
-      () => repository.setGoogleSignIn(
-        id: any(named: 'id'),
-        enabled: any(named: 'enabled'),
-      ),
-    ).thenAnswer((_) async => result);
-  }
-
-  void answerCountWith(Result<int> result) {
-    when(() => googleUsers.countIn(any())).thenAnswer((_) async => result);
   }
 
   void answerDeleteWith(Result<void> result) {
@@ -201,9 +181,7 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockScopeRepository();
-    googleUsers = _MockGoogleUserRepository();
     store = InMemoryTokenStore();
-    answerCountWith(const Success<int>(0));
   });
 
   testWidgets('GivenAScope_WhenOpened_ThenTheRecordIsShown', (tester) async {
@@ -276,6 +254,51 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Applications'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Permissions'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Google users'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScope_WhenOpened_ThenItsWaysInAreSummarised', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Sign-in & sign-up'), findsOneWidget);
+    expect(
+      find.text('Google on · Self-registration off · Default email links'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenTheSignInLink_WhenTapped_ThenTheSettingsOpen', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Sign-in & sign-up'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('sign-in settings'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScope_WhenOpened_ThenNoGoogleSwitchIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.widgetWithText(SwitchListTile, 'Google Sign-In'), findsNothing);
   });
 
   testWidgets('GivenALinkedSection_WhenTapped_ThenItOpens', (tester) async {
@@ -830,203 +853,6 @@ void main() {
 
     // Then
     expect(find.text('listing'), findsOneWidget);
-  });
-
-  testWidgets('GivenAScope_WhenOpened_ThenTheGoogleControlReflectsIt', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-
-    // When
-    await pump(tester);
-
-    // Then
-    expect(
-      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
-      isTrue,
-    );
-  });
-
-  testWidgets('GivenGoogleSignInOff_WhenTurnedOn_ThenTheApiIsAsked', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_googleOff));
-    answerToggleWith(const Success<Scope>(_acme));
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: true))
-        .called(1);
-  });
-
-  // AF-15b — the accounts already in the scope are named before anything is
-  // sent.
-  testWidgets('GivenGoogleUsersPresent_WhenTurnedOff_ThenTheLossIsExplained', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(const Success<int>(3));
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    expect(
-      find.textContaining('3 Google accounts already in this scope'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('GivenOneGoogleUser_WhenTurnedOff_ThenTheWarningIsSingular', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(const Success<int>(1));
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    expect(
-      find.textContaining('1 Google account already in this scope'),
-      findsOneWidget,
-    );
-  });
-
-  testWidgets('GivenTheWarning_WhenConfirmed_ThenTheApiIsAsked', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(const Success<int>(3));
-    await pump(tester);
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // When
-    await tester.tap(find.widgetWithText(FilledButton, 'Turn off'));
-    await tester.pumpAndSettle();
-
-    // Then
-    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: false))
-        .called(1);
-  });
-
-  testWidgets('GivenTheWarning_WhenCancelled_ThenNothingIsSent', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(const Success<int>(3));
-    await pump(tester);
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // When
-    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
-    await tester.pumpAndSettle();
-
-    // Then
-    verifyNever(
-      () => repository.setGoogleSignIn(
-        id: any(named: 'id'),
-        enabled: any(named: 'enabled'),
-      ),
-    );
-  });
-
-  // Nothing will stop working, so nothing needs explaining.
-  testWidgets('GivenNoGoogleUsers_WhenTurnedOff_ThenNoWarningIsShown', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(const Success<int>(0));
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    verify(() => repository.setGoogleSignIn(id: 'scope-1', enabled: false))
-        .called(1);
-  });
-
-  // A count that cannot be read warns anyway rather than staying quiet.
-  testWidgets('GivenAnUnreadableCount_WhenTurnedOff_ThenTheWarningStillShows', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_acme));
-    answerToggleWith(const Success<Scope>(_googleOff));
-    answerCountWith(
-      const FailureResult<int>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    expect(find.text('Turn Google Sign-In off?'), findsOneWidget);
-  });
-
-  // AF-15a — the refusal is shown and the control stays where the API has it.
-  testWidgets('GivenARefusedToggle_WhenAttempted_ThenApiErrorsAreShown', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_googleOff));
-    answerToggleWith(
-      const FailureResult<Scope>(
-        Failure(
-          kind: FailureKind.validation,
-          errors: <String>['That scope is not active.'],
-        ),
-      ),
-    );
-    await pump(tester);
-
-    // When
-    await tapAfterScrolling(tester, find.byType(SwitchListTile));
-
-    // Then
-    expect(find.text('That scope is not active.'), findsOneWidget);
-    expect(
-      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).value,
-      isFalse,
-    );
-  });
-
-  // AF-12d — a deleted scope cannot be changed from here.
-  testWidgets('GivenADeletedScope_WhenRendered_ThenTheControlIsDisabled', (
-    tester,
-  ) async {
-    // Given
-    answerGetWith(const Success<Scope>(_deleted));
-
-    // When
-    await pump(tester);
-
-    // Then
-    expect(
-      tester.widget<SwitchListTile>(find.byType(SwitchListTile)).onChanged,
-      isNull,
-    );
   });
 
   // The API holds scope updates to a System Admin, so a Scope Admin reads the
