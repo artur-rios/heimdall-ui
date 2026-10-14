@@ -45,6 +45,12 @@ abstract interface class AuthRepository {
     bool isRecoveryCode,
   });
 
+  /// UC-46 — asks for a fresh email code for an outstanding challenge.
+  ///
+  /// The API answers alike whether or not it sent one (AF-46a…AF-46e), so a
+  /// success here means only that the request was taken.
+  Future<Result<void>> resendSecondFactorCode({required String challengeToken});
+
   /// Asks the API to mail a password reset link.
   ///
   /// Carries no result beyond success, deliberately: the API answers the same

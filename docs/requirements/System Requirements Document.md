@@ -62,6 +62,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-23 | The client shall lift the caller's own restriction on processing through `POST /api/auth/processing-restriction/lift`, then end the session, since the token that lifted it stays confined to the rights endpoints. | UI-30 |
 | FR-AU-24 | The client shall obtain the caller's own data through `POST /api/auth/data-export` and save it as a JSON file: a browser download on the web, the downloads folder on every other target. | UI-30 |
 | FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
+| FR-AU-26 | The client shall request a new second-factor email code through `POST /api/auth/2fa/challenge/resend` while a challenge answered by email is outstanding, waiting 30 seconds between sends and offering at most three per challenge, after which it offers to start the sign-in again. | UI-02 |
 
 ### 2.2 Scope management (`FR-SC`)
 
