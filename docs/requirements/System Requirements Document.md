@@ -84,6 +84,8 @@ describes the flows that satisfy these requirements; the
 | FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
 | FR-SC-13 | The client shall show and toggle a scope's self-registration through `PUT /api/scopes/{id}/self-registration`, asking before opening it while the scope has no verification link and before closing it. | UI-31 |
 | FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
+| FR-SC-15 | A System Admin or an owning Scope Admin can list a scope's pending self-registrations, newest first and paginated, with name, address, sign-up and expiry instants, attempts left and whether each has expired. No secret is shown. | UI-35 |
+| FR-SC-16 | They can discard one after confirming. A registration already gone is reported as such and the list refreshed. | UI-35 |
 
 ### 2.3 Person management (`FR-PE`)
 
@@ -142,9 +144,9 @@ describes the flows that satisfy these requirements; the
 | FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. | UI-07 |
 | FR-UX-02 | The client shall show only the destinations the signed-in role can use. | UI-07 |
 | FR-UX-03 | The client shall support light, dark, and system theme modes, and shall remember the choice between launches. | — |
-| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34 |
+| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
 | FR-UX-05 | The client shall render the API's `errors` array as returned, against the offending field where the error names one and in a banner otherwise. | All |
-| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34 |
+| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
 | FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 |
@@ -184,6 +186,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId` | Scope detail | UI-12, UI-13 |
 | `/scopes/:scopeId/owners` | Scope owners | UI-14 |
 | `/scopes/:scopeId/sign-in-settings` | Sign-in & sign-up | UI-31, UI-15 |
+| `/scopes/:scopeId/pending-registrations` | Pending registrations — list and discard | UI-35 |
 | `/scopes/:scopeId/persons` | Person listing | UI-16 |
 | `/scopes/:scopeId/persons/new` | Create a person | UI-17 |
 | `/scopes/:scopeId/persons/:personId` | Person detail | UI-18, UI-19 |
@@ -223,6 +226,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Permanent delete scope | Full | Hidden | Hidden | Hidden |
 | Scope owners | Full | Owned scopes only | Hidden | Hidden |
 | Sign-in & sign-up settings | Full | Owned scopes only | Hidden | Hidden |
+| Pending registrations: list, discard | Full | Owned scopes only | Hidden | Hidden |
 | Person listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |

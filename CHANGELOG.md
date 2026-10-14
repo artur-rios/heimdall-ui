@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Pending registrations** — a scope's owners and System Admins can see who signed up but has not confirmed, and
+  discard a registration.
 - **Audit log** — System Admins can browse the audit trail, newest first, filtered by dates, action, actor, target and
   outcome; identifiers can be copied or used as a filter.
 - A **Sign-in & sign-up** screen for each scope, opened from the scope's page. It holds the Google Sign-In switch

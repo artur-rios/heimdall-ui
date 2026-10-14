@@ -28,6 +28,7 @@ import '../features/persons/presentation/person_list_screen.dart';
 import '../features/privacy/presentation/privacy_notice_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/profile/presentation/security_screen.dart';
+import '../features/scopes/presentation/pending_registration_list_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
 import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
@@ -234,6 +235,12 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/scopes/:scopeId/sign-in-settings',
         builder: (context, state) => ScopeSignInSettingsScreen(
+          scopeId: state.pathParameters['scopeId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/pending-registrations',
+        builder: (context, state) => PendingRegistrationListScreen(
           scopeId: state.pathParameters['scopeId']!,
         ),
       ),

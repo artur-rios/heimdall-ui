@@ -21,13 +21,14 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
-String _jwt({int role = 1}) {
+String _jwt({int role = 1, String? ownedScopeIds}) {
   final payload = base64Url.encode(
     utf8.encode(
       jsonEncode(<String, dynamic>{
         'sub': 'person-1',
         'email': 'admin@example.com',
         'role': role,
+        'ownedScopeIds': ?ownedScopeIds,
       }),
     ),
   );
@@ -65,6 +66,7 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
     int role = 1,
+    String? ownedScopeIds,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -72,7 +74,7 @@ void main() {
 
     await store.write(
       AuthToken(
-        value: _jwt(role: role),
+        value: _jwt(role: role, ownedScopeIds: ownedScopeIds),
         expiresAt: DateTime.utc(2030),
       ),
     );
@@ -102,6 +104,10 @@ void main() {
           path: '/scopes/:scopeId/sign-in-settings',
           builder: (context, state) =>
               const Scaffold(body: Text('sign-in settings')),
+        ),
+        GoRoute(
+          path: '/scopes/:scopeId/pending-registrations',
+          builder: (context, state) => const Scaffold(body: Text('pending')),
         ),
         GoRoute(
           path: '/scopes/:scopeId/persons',
@@ -254,6 +260,90 @@ void main() {
     expect(find.widgetWithText(ListTile, 'Applications'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Permissions'), findsOneWidget);
     expect(find.widgetWithText(ListTile, 'Google users'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenASystemAdmin_WhenTheScopeOpens_ThenPendingRegistrationsIsLinked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(
+        find.widgetWithText(ListTile, 'Pending registrations'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'GivenAScopeAdminOwningTheScope_WhenTheScopeOpens_ThenPendingRegistrationsIsLinked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+
+      // When
+      await pump(tester, role: 2, ownedScopeIds: 'scope-1');
+
+      // Then
+      expect(
+        find.widgetWithText(ListTile, 'Pending registrations'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'GivenAScopeAdminNotOwningTheScope_WhenTheScopeOpens_ThenPendingRegistrationsIsNotLinked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+
+      // When
+      await pump(tester, role: 2, ownedScopeIds: 'scope-2');
+
+      // Then
+      expect(
+        find.widgetWithText(ListTile, 'Pending registrations'),
+        findsNothing,
+      );
+    },
+  );
+
+  testWidgets(
+    'GivenADeletedScope_WhenOpened_ThenPendingRegistrationsIsNotLinked',
+    (tester) async {
+      // Given — the API answers 404 for a deleted scope's registrations.
+      answerGetWith(const Success<Scope>(_deleted));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(
+        find.widgetWithText(ListTile, 'Pending registrations'),
+        findsNothing,
+      );
+      expect(find.widgetWithText(ListTile, 'Persons'), findsOneWidget);
+    },
+  );
+
+  testWidgets('GivenAScope_WhenPendingRegistrationsIsTapped_ThenItOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(ListTile, 'Pending registrations'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('pending'), findsOneWidget);
   });
 
   testWidgets('GivenAScope_WhenOpened_ThenItsWaysInAreSummarised', (

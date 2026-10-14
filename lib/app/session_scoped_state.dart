@@ -21,6 +21,7 @@ import '../features/persons/presentation/scope_admin_picker_controller.dart';
 import '../features/persons/presentation/scope_members.dart';
 import '../features/profile/presentation/profile_controller.dart';
 import '../features/profile/presentation/two_factor_controller.dart';
+import '../features/scopes/presentation/pending_registration_list_controller.dart';
 import '../features/scopes/presentation/scope_create_controller.dart';
 import '../features/scopes/presentation/scope_detail_controller.dart';
 import '../features/scopes/presentation/scope_list_controller.dart';
@@ -48,6 +49,7 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   scopeCreateControllerProvider,
   scopeDetailControllerProvider,
   scopeOwnersControllerProvider,
+  pendingRegistrationListControllerProvider,
   scopeAdminPickerControllerProvider,
   scopeMembersProvider,
   personListControllerProvider,
