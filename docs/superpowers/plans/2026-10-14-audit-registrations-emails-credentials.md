@@ -3373,7 +3373,7 @@ Run the dialog tests. Expected: PASS. If `ScaffoldMessenger.of(context)` finds n
 - **State:** `DateTime? _day`.
 - **Content:**
   - the line "An application exchanges a secret for a token at `POST /api/applications/token`. At most two secrets may be live, so a new one can be deployed before the old one is revoked.";
-  - an **Expires on** `OutlinedButton.icon` (`Icons.event_outlined`). Its label is "Never expires", or "Expires on {formatMediumDate(_day)}". It opens `showDatePicker(context: context, firstDate: today, lastDate: today.add(const Duration(days: 365 * 5)), initialDate: _day ?? today)`;
+  - an **Expires on** `OutlinedButton.icon` (`Icons.event_outlined`). Its label is "Never expires", or "Expires on {formatShortDate(_day)}" (amended during Part D's final review: the year must show, as in Part A). It opens `showDatePicker(context: context, firstDate: today, lastDate: today.add(const Duration(days: 365 * 5)), initialDate: _day ?? today)`;
   - a **No expiry** `TextButton` when `_day != null`;
   - an `ErrorBanner` for `state.actionFailure` (AF-37c and AF-37b inside the dialog).
 - **Actions:**

@@ -86,6 +86,7 @@ graph LR
         UI21[UI-21: Create application]
         UI22[UI-22: View & update application]
         UI23[UI-23: Delete application]
+        UI37[UI-37: Application credentials]
     end
 
     subgraph "Scope Permission Management"
@@ -114,7 +115,7 @@ graph LR
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
     SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
     SA & SCA --> UI16 & UI17 & UI18 & UI19 & UI36
-    SA & SCA --> UI20 & UI21 & UI22 & UI23
+    SA & SCA --> UI20 & UI21 & UI22 & UI23 & UI37
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
     SA --> UI32 & UI34
@@ -160,6 +161,7 @@ graph LR
 | UI-34 | Review the audit trail | UC-48 |
 | UI-35 | Manage a scope's pending registrations | UC-49, UC-50 |
 | UI-36 | Send account emails to a person | UC-51, UC-52 |
+| UI-37 | Manage an application's credentials | UC-53, UC-54, UC-55 |
 
 ### 1.5 Platform items
 
@@ -1476,6 +1478,91 @@ Each answer is shown with the API's own message, in an error banner within the c
 
 ---
 
+### UI-37: Manage an application's credentials
+
+**Actor:** System Admin; a Scope Admin who owns the application and still owns its scope
+**Traces to:** UC-53 (Issue an Application Credential), UC-54 (List an Application's Credentials), UC-55 (Revoke an Application Credential)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin, and the application is open.
+
+**Placement.** The **Credentials** card on the application page (UI-22), between the facts card and
+the danger zone. It is not shown for a logically deleted application. The API remains the authority,
+and a `403` or `404` is shown like any refusal.
+
+A line in the card says that an application exchanges a secret for a token at
+`POST /api/applications/token`, and that at most two secrets may be live, so a new one can be
+deployed before the old one is revoked.
+
+**Main flow**
+
+1. The user opens an application. The card loads the credentials through
+   `GET /api/scopes/{scopeId}/applications/{id}/credentials`, newest first. No secret or hash is
+   ever listed.
+2. Each row shows a status chip and the credential's identifier and, below them, "Issued … ·
+   Expires … · Last used …". **Expires** and **Last used** say "Never" when the API returns none. A
+   revoked credential adds "· Revoked …" with its date.
+   - The chip is **Live**, **Revoked** or **Expired**. A credential that is both revoked and
+     expired shows **Revoked**.
+   - The identifier can be selected and copied ("Identifier copied.").
+   - Below the expanded width, the actions sit on their own line below the row.
+3. **Issue credential** is unavailable before the list has loaded, after a load failure, while an
+   issue or revoke is running, and while two credentials are live. Only the last case shows the
+   hint "Revoke a credential before issuing another."
+4. The user opens **Issue credential**. The dialog, titled "Issue a credential", offers an optional
+   **Expires on** date; **No expiry** clears it. The dialog repeats the card's explanatory line. The
+   date button reads "Never expires" until a day is chosen, then "Expires on {date}". The picker
+   runs from today to five years ahead. The expiry is the end of that day, local time, sent as UTC.
+   Without a date, the credential never expires.
+5. The user chooses **Issue**. The client calls `POST …/credentials`. While the request runs, the
+   dialog cannot be closed: **Cancel** and the date buttons are disabled, and the back control and
+   the barrier do nothing.
+6. On success, a one-time secret dialog replaces the issue dialog. It shows the secret, which can be
+   selected and copied ("Secret copied."), under the title "Store this secret now", and warns: "This is the only time the secret is shown.
+   Store it in the application's secret store now." The dialog closes only through **I've stored
+   it**; Escape, the back control and the barrier leave it open. The list then shows the new
+   credential.
+7. The user chooses **Revoke** on a credential that is not revoked. A confirmation asks "Revoke this
+   credential?" with the message "Tokens issued from it stop working at the next check." and the
+   action **Revoke**. On confirmation the client calls `DELETE …/credentials/{credentialId}`. The
+   card says "Credential revoked." and the list reloads. **Revoke** is disabled while another
+   issue or revoke is running.
+
+**The secret is shown once.** The client holds it only in the dialogs' own state, never in a provider,
+a log or storage, and discards it when the dialog closes. If the user tries to leave the application
+page while a secret is pending (the issue request is running, or the secret dialog is open), by the
+browser's Back control or any other navigation, the app asks "Leave without the secret?" with the
+message "The secret is shown only once. If you leave now, it cannot be shown again; revoke this
+credential and issue another." and the action **Leave**. If the session ends (sign-out or expiry),
+the app goes to sign-in without asking. Closing or refreshing the browser tab is not guarded.
+
+The card's state is held only while the application page is open. It is discarded when the page is
+left, so a return shows a fresh list and no earlier outcome.
+
+**Alternative flows**
+
+Each refusal is shown with the API's own message, in an error banner within the card; a refusal of
+an issue is also shown in the issue dialog.
+
+- **AF-37a — No credentials.** "This application has no credentials yet."
+- **AF-37b — Limit reached.** A `409` on issue (another admin issued the second credential
+  meanwhile): the API's message in the dialog and on the card, and the list reloads.
+- **AF-37c — Expiry refused.** A `400` on issue: the API's message in the issue dialog, which stays
+  open, and on the card.
+- **AF-37d — Already revoked.** A `409` on revoke: the API's message, and the list reloads.
+- **AF-37e — Refused.** A `403` or `404`: the API's message.
+- **AF-37f — Cancelled.** **Cancel** on the revoke confirmation closes it and sends nothing.
+  **Cancel** or the back control closes the issue dialog while no request is running, and the
+  barrier never does; nothing is sent and no secret is shown. On the leave prompt, **Cancel**
+  keeps the user on the page, with the secret still shown.
+- **AF-37g — Transport failure.** An error banner, in the issue dialog and on the card for an
+  issue, and on the card for a revoke. A list that fails to load shows the banner with **Retry**.
+  If the issue request fails after sending, the secret is not known to the client. The list
+  reloads, so an issued-but-unseen credential appears and can be revoked.
+  The issue dialog adds the line "A credential may have been issued without its secret being shown.
+  Check the list, and revoke any credential you don't recognise." for a transport failure or an
+  incomplete response, but not for an API refusal such as AF-37b or AF-37c.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1496,6 +1583,7 @@ Each answer is shown with the API's own message, in an error banner within the c
 | UI-34 | FR-AL-01 … FR-AL-03 |
 | UI-35 | FR-SC-15, FR-SC-16 |
 | UI-36 | FR-PE-10, FR-PE-11 |
+| UI-37 | FR-AP-09 … FR-AP-11 |
 | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 

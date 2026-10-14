@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_detail_screen.dart';
 import '../features/applications/presentation/application_list_screen.dart';
+import '../features/applications/presentation/pending_secret.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/password_recovery_screen.dart';
@@ -197,6 +198,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           applicationId: state.pathParameters['applicationId']!,
         ),
+        // UI-37 — a one-time secret not yet stored is lost by leaving.
+        onExit: (context, state) => confirmLeaveWithPendingSecret(context, ref),
       ),
       GoRoute(
         path: '/scopes/:scopeId/permissions',

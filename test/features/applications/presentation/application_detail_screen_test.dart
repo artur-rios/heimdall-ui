@@ -5,13 +5,22 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/app/theme.dart';
+import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
+import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
+import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
+import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_detail_screen.dart';
+import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
@@ -22,6 +31,33 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
+
+class _MockCredentialRepository extends Mock
+    implements ApplicationCredentialRepository {}
+
+class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// Google's half, faked; the sign-in screen the session redirect lands on
+/// asks for it.
+class _FakeGoogleSignInGateway implements GoogleSignInGateway {
+  @override
+  GoogleSignInAvailability get availability =>
+      GoogleSignInAvailability.interactive;
+
+  @override
+  Future<void> initialize() async {}
+
+  @override
+  Stream<GoogleIdTokenObtained> get idTokens =>
+      const Stream<GoogleIdTokenObtained>.empty();
+
+  @override
+  Future<GoogleSignInAttempt> obtainIdToken() async =>
+      const GoogleSignInCancelled();
+
+  @override
+  Future<void> signOut() async {}
+}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -84,6 +120,7 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
+  late _MockCredentialRepository credentials;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -93,6 +130,7 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
     int role = 1,
+    bool realRouter = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -108,29 +146,46 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         applicationRepositoryProvider.overrideWithValue(applications),
+        applicationCredentialRepositoryProvider.overrideWithValue(credentials),
         personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
+        if (realRouter) ...<Override>[
+          appConfigProvider.overrideWithValue(
+            const AppConfig(apiBaseUrl: 'http://localhost:8080'),
+          ),
+          authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          googleSignInGatewayProvider.overrideWithValue(
+            _FakeGoogleSignInGateway(),
+          ),
+        ],
       ],
     );
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
 
-    router = GoRouter(
-      initialLocation: '/scopes/scope-1/applications/app-1',
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/scopes/:scopeId/applications',
-          builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/:applicationId',
-          builder: (context, state) => ApplicationDetailScreen(
-            scopeId: state.pathParameters['scopeId']!,
-            applicationId: state.pathParameters['applicationId']!,
+    if (realRouter) {
+      // The app's own router, so its `onExit` and redirect are the ones tested.
+      router = container.read(routerProvider);
+      router.go('/scopes/scope-1/applications/app-1');
+    } else {
+      router = GoRouter(
+        initialLocation: '/scopes/scope-1/applications/app-1',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/scopes/:scopeId/applications',
+            builder: (context, state) => const Scaffold(body: Text('listing')),
           ),
-        ),
-      ],
-    );
+          GoRoute(
+            path: '/scopes/:scopeId/applications/:applicationId',
+            builder: (context, state) => ApplicationDetailScreen(
+              scopeId: state.pathParameters['scopeId']!,
+              applicationId: state.pathParameters['applicationId']!,
+            ),
+          ),
+        ],
+      );
+    }
     addTearDown(router.dispose);
 
     await tester.pumpWidget(
@@ -241,6 +296,11 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     applications = _MockApplicationRepository();
     persons = _MockPersonRepository();
+    credentials = _MockCredentialRepository();
+    when(() => credentials.list(any(), any())).thenAnswer(
+      (_) async =>
+          const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
+    );
     store = InMemoryTokenStore();
     answerMembersWith(<Person>[_ada, _grace]);
   });
@@ -256,6 +316,174 @@ void main() {
 
     // Then
     expect(find.widgetWithText(TextFormField, 'Billing'), findsOneWidget);
+  });
+
+  testWidgets('GivenAnApplication_WhenOpened_ThenTheCredentialsCardIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Credentials'), findsOneWidget);
+    expect(
+      find.text('This application has no credentials yet.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets(
+    'GivenADeletedApplication_WhenOpened_ThenNoCredentialsCardIsShown',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_deleted));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Credentials'), findsNothing);
+      verifyNever(() => credentials.list(any(), any()));
+    },
+  );
+
+  testWidgets(
+    'GivenACredentialIssued_WhenTheListReloads_ThenTheApplicationPageIsNotReloaded',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      when(
+        () =>
+            credentials.issue(any(), any(), expiresAt: any(named: 'expiresAt')),
+      ).thenAnswer(
+        (_) async =>
+            const Success(IssuedCredential(id: 'c9', secret: 'hds_once')),
+      );
+      await pump(tester);
+
+      // When
+      await tapAfterScrolling(tester, find.text('Issue credential'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Issue'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('hds_once'), findsOneWidget);
+      verify(
+        () => applications.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+    },
+  );
+
+  Future<void> issueCredential(WidgetTester tester) async {
+    when(
+      () => credentials.issue(any(), any(), expiresAt: any(named: 'expiresAt')),
+    ).thenAnswer(
+      (_) async =>
+          const Success(IssuedCredential(id: 'c9', secret: 'hds_once')),
+    );
+    await tapAfterScrolling(tester, find.text('Issue credential'));
+    await tester.tap(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Issue'),
+      ),
+    );
+    await tester.pumpAndSettle();
+  }
+
+  testWidgets('GivenAPendingSecret_WhenTheRealRouterLeaves_ThenItAsks', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester, realRouter: true);
+    container.read(pendingSecretProvider.notifier).set();
+
+    // When
+    router.go('/scopes');
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    expect(find.text('Leave without the secret?'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenTheSecretShowing_WhenTheWindowCrossesTheBreakpoint_ThenLeavingStillAsks',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      await pump(tester, realRouter: true);
+      await issueCredential(tester);
+      expect(find.text('hds_once'), findsOneWidget);
+
+      // When
+      tester.view.physicalSize = const Size(500, 900);
+      await tester.pumpAndSettle();
+      router.go('/scopes');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(container.read(pendingSecretProvider), isTrue);
+      expect(find.text('Leave without the secret?'), findsOneWidget);
+      expect(find.text('hds_once'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAPendingSecret_WhenTheSessionEnds_ThenItLeavesWithoutAsking',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      await pump(tester, realRouter: true);
+      container.read(pendingSecretProvider.notifier).set();
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Leave without the secret?'), findsNothing);
+      expect(router.state.uri.path, '/login');
+      expect(container.read(pendingSecretProvider), isFalse);
+    },
+  );
+
+  testWidgets('GivenTheMediumBand_WhenALongIdIsShown_ThenTheIdHasRoom', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    when(() => credentials.list(any(), any())).thenAnswer(
+      (_) async => Success<List<ApplicationCredential>>(<ApplicationCredential>[
+        ApplicationCredential(id: 'a' * 36, live: true),
+      ]),
+    );
+
+    // When
+    await pump(tester, size: const Size(700, 900));
+
+    // Then
+    expect(tester.takeException(), isNull);
+    expect(
+      tester.getSize(find.text('a' * 36)).width,
+      greaterThanOrEqualTo(200),
+    );
+    await tester.ensureVisible(find.text('Revoke'));
+    await tester.pumpAndSettle();
+    expect(find.text('Revoke').hitTestable(), findsOneWidget);
   });
 
   testWidgets('GivenAnApplication_WhenEdited_ThenItsOwnerIsSelected', (
