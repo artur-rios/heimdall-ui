@@ -30,9 +30,9 @@ final class TwoFactorRequired extends LoginOutcome {
 /// Implemented in `features/auth/data` over the generated client, and faked in
 /// tests — which is why nothing here mentions a transport.
 abstract interface class AuthRepository {
-  /// [scopeId] is the scope being entered, which the calling application named.
-  /// Without it the API finds only administrators: a User's email is unique
-  /// only within their scope.
+  /// [scopeId] is the scope being entered: the one the calling application
+  /// named, or else the build's own. Without it the API finds only
+  /// administrators: a User's email is unique only within their scope.
   Future<Result<LoginOutcome>> login({
     required String email,
     required String password,

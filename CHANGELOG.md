@@ -19,13 +19,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
   post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
 
-## [1.6.1] - 2026-10-12
-
 ### Fixed
 
 - Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
   It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
   sign in, as before.
+
+## [1.6.1] - 2026-10-12
+
+### Fixed
+
 - Password manager extensions such as Bitwarden still could not fill the sign-in form on the web. Flutter only puts
   an input in the page while a field has focus, gives the other field no size, and removes both as soon as focus
   moves, so an extension never found a login form. On the web the email and password are now real inputs that are
