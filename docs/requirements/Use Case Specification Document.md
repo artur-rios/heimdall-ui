@@ -68,6 +68,7 @@ graph LR
         UI13[UI-13: Delete scope]
         UI14[UI-14: Manage scope owners]
         UI15[UI-15: Toggle Google Sign-In]
+        UI31[UI-31: Sign-in & sign-up settings]
     end
 
     subgraph "Person Management"
@@ -99,8 +100,8 @@ graph LR
     AN --> UI01 & UI02 & UI03 & UI04 & UI05 & UI06
     SA & SCA & U --> UI07 & UI08 & UI09
     RS --> UI30
-    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15
-    SCA --> UI10 & UI12 & UI14 & UI15
+    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31
+    SCA --> UI10 & UI12 & UI14 & UI15 & UI31
     SA & SCA --> UI16 & UI17 & UI18 & UI19
     SA & SCA --> UI20 & UI21 & UI22 & UI23
     SA & SCA --> UI24 & UI25 & UI26 & UI27
@@ -141,6 +142,7 @@ graph LR
 | UI-28 | Browse and view Google users | UC-27 |
 | UI-29 | Delete a Google user, logically and permanently | UC-28, UC-29 |
 | UI-30 | Use a restricted session | UC-11 (AF-11i), UC-25 (AF-25e), UC-38, UC-41, UC-42, UC-45 |
+| UI-31 | Configure a scope's sign-in and sign-up | UC-24, UC-47 |
 
 ### 1.5 Platform items
 
@@ -529,8 +531,9 @@ delivered the same way.
 **Main flow**
 
 1. The user opens a scope from the listing, or by URL.
-2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, its Google Sign-In
-   state, and links to its persons, applications, permissions, and Google users.
+2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, a summary of its
+   sign-in and sign-up settings, and an **In this scope** list linking to its persons, applications,
+   permissions, Google users, and **Sign-in & sign-up** (UI-31).
 3. The user edits the name or description and saves.
 4. The client calls `PUT /api/scopes/{id}` and shows the updated record.
 
@@ -622,9 +625,12 @@ delivered the same way.
 **Traces to:** UC-24 (Enable/Disable Google Sign-In)
 **Precondition:** A session exists, and a Scope Admin may only change a scope they own.
 
+> Since UI-31, the switch lives on the scope's **Sign-in & sign-up** screen
+> (`/scopes/:scopeId/sign-in-settings`) rather than on the scope detail. Its flows are unchanged.
+
 **Main flow**
 
-1. The scope detail shows a control reflecting the current `googleSignInEnabled` state.
+1. The **Sign-in & sign-up** screen (UI-31) shows a control reflecting the current `googleSignInEnabled` state.
 2. The user toggles it.
 3. The client calls `PUT /api/scopes/{id}/google-signin` with the new value.
 4. The control settles on the confirmed state.
@@ -961,7 +967,8 @@ delivered the same way.
 **Alternative flows**
 
 - **AF-28a — Empty result.** The empty state explains that Google users appear only after someone
-  signs in with Google, and links to UI-15 when the scope has the feature switched off.
+  signs in with Google, and opens the **Sign-in & sign-up** screen (UI-31), where UI-15's switch lives, when the scope has the
+  feature switched off.
 - **AF-28b — Request fails.** An error panel shows the returned errors and offers a retry.
 - **AF-28c — Forbidden.** The not-available-for-your-role panel is shown.
 - **AF-28d — Picture unavailable.** A missing or unreachable picture falls back to an initials
@@ -1086,6 +1093,72 @@ restricted person would land on the home screen and watch every request fail.
 
 ---
 
+### UI-31: Configure a scope's sign-in and sign-up
+
+**Actor:** System Admin, Scope Admin
+**Traces to:** UC-24 (Enable/Disable Google Sign-In), UC-47 (Enable/Disable Self-Registration), and the
+API's email-links endpoint (FR-SR-10 in the API)
+**Precondition:** A session exists, and a Scope Admin may only change a scope they own. A Scope Admin
+who does not own the scope is refused by the API and shown that refusal, as on the other scope
+screens.
+
+**Placement**
+
+- Route `/scopes/:scopeId/sign-in-settings`, screen title **Sign-in & sign-up**.
+- Reached from the scope detail's **In this scope** list, as an entry after Owners. Its subtitle
+  summarises the scope's state, e.g. `Google on · Self-registration off · Custom email links` (or
+  `Default email links` when neither link is set).
+- The Google Sign-In switch of UI-15 lives here, not on the scope detail.
+
+**Main flow**
+
+1. The user opens **Sign-in & sign-up** from the scope's **In this scope** list.
+2. The screen shows two cards. **Ways in** holds the **Google Sign-In** switch (UI-15, including
+   AF-15b's warning before switching off) and the **Self-registration** switch, each showing the
+   confirmed state. A note explains the second: "Lets people create their own account in this scope
+   from your application's sign-up screen. Each one confirms by email before the account exists."
+3. The user toggles **Self-registration**. Opening it while the scope has no verification link asks
+   first: "Sign-up confirmation emails will link to Heimdall's default page, not your application's.
+   Open self-registration anyway?" (**Open** / **Cancel**); with a verification link set it opens
+   without asking. Closing it always asks first: "New sign-ups will be refused. People who have
+   signed up but have not yet followed the link in their email will not be able to finish, and will
+   need to sign up again once it reopens." (**Close** / **Cancel**).
+4. The client calls `PUT /api/scopes/{id}/self-registration` with `{"enabled": bool}`, and the
+   switch settles on the confirmed state. Both switches are disabled while either switch's request
+   or the email links' save is outstanding.
+5. The **Email links** card shows **Verification link** and **Password-reset link**, seeded from the
+   scope. Help text names what uses each: "Sign-up confirmation and email verification. Leave empty
+   to use Heimdall's default." and "Password recovery. Leave empty to use Heimdall's default."
+6. The user chooses **Edit** (the shared edit mode), changes the links, and chooses **Save changes**.
+   When non-empty after trimming, a link must be an absolute `http` or `https` URL with a host, at
+   most 2048 characters (a path such as `/verify-email` is refused). **Cancel** leaves edit mode,
+   restores the saved values and sends nothing.
+7. The client calls `PUT /api/scopes/{id}/email-links` with **both** values, trimmed, an empty link
+   sent as `null` (the API treats the body as the whole state, so an omitted link would be cleared).
+8. The card shows the saved notice and the scope state reflects the new links, including the
+   condition of the self-registration dialog.
+
+**Alternative flows**
+
+- **AF-31a — Scope missing.** The "Scope not found" state of the scope detail, with a way back to
+  `/scopes`.
+- **AF-31b — Scope logically deleted.** Everything is read-only, with the deleted notice of the
+  scope detail.
+- **AF-31c — Switch refused.** The API refuses a switch (403, 404, 400). The switch stays at the
+  API's state and an error banner beneath it shows the returned errors.
+- **AF-31d — Links refused.** The API refuses the links (400). The returned errors are shown on the
+  fields they name, or in a banner otherwise, and the typed values are kept.
+- **AF-31e — Link fails the client-side check.** Nothing is sent; the field says why.
+- **AF-31f — Opening cancelled.** Opening self-registration with no verification link, dialog
+  cancelled. Nothing is sent and the switch stays off.
+- **AF-31g — Closing cancelled.** Closing self-registration, dialog cancelled. Nothing is sent and
+  the switch stays on.
+- **AF-31h — Transport failure on load.** The retryable error state (FR-UX-07).
+- **AF-31i — Transport failure on a switch or save.** An error banner is shown; the switch keeps its
+  confirmed state and the typed links are kept.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1099,6 +1172,7 @@ restricted person would land on the home screen and watch every request fail.
 | UI-24 … UI-27 | FR-PM-01 … FR-PM-08 |
 | UI-28, UI-29 | FR-GU-01 … FR-GU-05 |
 | UI-07, UI-30 | FR-AU-21 … FR-AU-25 |
+| UI-31 | FR-SC-12, FR-SC-13, FR-SC-14 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the

@@ -14,6 +14,7 @@ class RequestErasureCommandOutput {
     this.dueAt,
     this.blocked,
     this.blockedReason,
+    this.restrictionLifted,
   });
 
   factory RequestErasureCommandOutput.fromJson(Map<String, Object?> json) =>
@@ -24,6 +25,7 @@ class RequestErasureCommandOutput {
   final DateTime? dueAt;
   final bool? blocked;
   final String? blockedReason;
+  final bool? restrictionLifted;
 
   Map<String, Object?> toJson() => _$RequestErasureCommandOutputToJson(this);
 }

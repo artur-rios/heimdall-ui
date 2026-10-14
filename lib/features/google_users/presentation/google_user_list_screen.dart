@@ -149,7 +149,8 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
 
   /// AF-28a — nobody has signed in with Google here, which is a different
   /// thing from a search that matched nothing. When the scope has the feature
-  /// switched off, that is the reason, and UI-15 is where it is switched on.
+  /// switched off, that is the reason, and UI-31's screen is where it is
+  /// switched on.
   Widget _empty(GoogleUserQuery query) {
     if (query.isFiltered) {
       return CollectionEmpty(
@@ -174,9 +175,9 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
           : 'A Google user appears here the first time somebody signs in to '
                 'this scope with Google. Nobody has yet.',
       icon: Icons.account_circle_outlined,
-      actionLabel: (signInOff ?? false) ? 'Scope settings' : null,
+      actionLabel: (signInOff ?? false) ? 'Sign-in settings' : null,
       onAction: (signInOff ?? false)
-          ? () => context.go('/scopes/${widget.scopeId}')
+          ? () => context.go('/scopes/${widget.scopeId}/sign-in-settings')
           : null,
     );
   }

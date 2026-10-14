@@ -259,6 +259,198 @@ void main() {
       'https://acme.example/privacy',
     );
   });
+
+  const signUpOpened = _Answer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'id': 'scope-1',
+        'name': 'Acme',
+        'description': 'The first tenant',
+        'googleSignInEnabled': false,
+        'selfRegistrationEnabled': true,
+        'emailVerificationUrl': 'https://acme.example/verify-email',
+        'passwordResetUrl': null,
+        'ownerIds': <String>['person-1'],
+      },
+    },
+  );
+
+  test('GivenScopeSettings_WhenRead_ThenTheyAreMapped', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'scope-1',
+            'name': 'Acme',
+            'description': 'The first tenant',
+            'selfRegistrationEnabled': true,
+            'emailVerificationUrl': 'https://acme.example/verify-email',
+            'passwordResetUrl': 'https://acme.example/password-reset',
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.getById('scope-1');
+
+    // Then
+    final scope = result.valueOrNull!;
+    expect(scope.selfRegistrationEnabled, isTrue);
+    expect(scope.emailVerificationUrl, 'https://acme.example/verify-email');
+    expect(scope.passwordResetUrl, 'https://acme.example/password-reset');
+  });
+
+  test('GivenAnEmptyLinkFromTheApi_WhenRead_ThenItIsNoLink', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'scope-1',
+            'name': 'Acme',
+            'description': '',
+            'emailVerificationUrl': '',
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.getById('scope-1');
+
+    // Then
+    expect(result.valueOrNull!.emailVerificationUrl, isNull);
+  });
+
+  test('GivenSelfRegistration_WhenOpened_ThenTheBodySaysSo', () async {
+    // Given
+    final repository = repositoryAnswering(signUpOpened);
+
+    // When
+    await repository.setSelfRegistration(id: 'scope-1', enabled: true);
+
+    // Then
+    expect(adapter.bodies.single, <String, dynamic>{'enabled': true});
+  });
+
+  test('GivenSelfRegistration_WhenOpened_ThenTheScopeIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(signUpOpened);
+
+    // When
+    final result = await repository.setSelfRegistration(
+      id: 'scope-1',
+      enabled: true,
+    );
+
+    // Then
+    expect(result.valueOrNull!.selfRegistrationEnabled, isTrue);
+    expect(
+      result.valueOrNull!.emailVerificationUrl,
+      'https://acme.example/verify-email',
+    );
+  });
+
+  test(
+    'GivenARefusedSelfRegistration_WhenSet_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 403,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['You do not own this scope.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.setSelfRegistration(
+        id: 'scope-1',
+        enabled: true,
+      );
+
+      // Then
+      expect(result.failureOrNull!.kind, FailureKind.forbidden);
+      expect(result.failureOrNull!.errors, <String>[
+        'You do not own this scope.',
+      ]);
+    },
+  );
+
+  test('GivenEmailLinks_WhenSet_ThenBothTravelInTheBody', () async {
+    // Given
+    final repository = repositoryAnswering(signUpOpened);
+
+    // When
+    await repository.setEmailLinks(
+      id: 'scope-1',
+      emailVerificationUrl: 'https://acme.example/verify-email',
+      passwordResetUrl: null,
+    );
+
+    // Then
+    expect(adapter.bodies.single, <String, dynamic>{
+      'emailVerificationUrl': 'https://acme.example/verify-email',
+      'passwordResetUrl': null,
+    });
+  });
+
+  test('GivenRefusedEmailLinks_WhenSet_ThenApiErrorsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 400,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['The email link must be an absolute URL.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.setEmailLinks(
+      id: 'scope-1',
+      emailVerificationUrl: 'nope',
+      passwordResetUrl: null,
+    );
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.validation);
+    expect(result.failureOrNull!.errors, <String>[
+      'The email link must be an absolute URL.',
+    ]);
+  });
+
+  test(
+    'GivenNoConnection_WhenEmailLinksSet_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.setEmailLinks(
+        id: 'scope-1',
+        emailVerificationUrl: null,
+        passwordResetUrl: null,
+      );
+
+      // Then
+      expect(result.failureOrNull!.kind, FailureKind.network);
+    },
+  );
 }
 
 class _Answer {

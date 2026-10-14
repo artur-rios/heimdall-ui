@@ -8,12 +8,13 @@ part 'verify_email_command.g.dart';
 
 @JsonSerializable()
 class VerifyEmailCommand {
-  const VerifyEmailCommand({this.token});
+  const VerifyEmailCommand({this.token, this.password});
 
   factory VerifyEmailCommand.fromJson(Map<String, Object?> json) =>
       _$VerifyEmailCommandFromJson(json);
 
   final String? token;
+  final String? password;
 
   Map<String, Object?> toJson() => _$VerifyEmailCommandToJson(this);
 }

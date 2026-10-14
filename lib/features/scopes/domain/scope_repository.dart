@@ -59,6 +59,25 @@ abstract interface class ScopeRepository {
     required bool enabled,
   });
 
+  /// Opens or closes self-registration for a scope (UC-47 toggle).
+  ///
+  /// Returns the scope as the API now holds it, so the control settles on the
+  /// confirmed state rather than on the one it was moved to.
+  Future<Result<Scope>> setSelfRegistration({
+    required String id,
+    required bool enabled,
+  });
+
+  /// Sets the links the scope's verification and password-reset emails point
+  /// at. Both are sent every time: the API treats the body as the whole state,
+  /// so a link left out — or `null` — is cleared and Heimdall's default
+  /// applies again.
+  Future<Result<Scope>> setEmailLinks({
+    required String id,
+    required String? emailVerificationUrl,
+    required String? passwordResetUrl,
+  });
+
   /// Logically deletes a scope. The record is kept and the API can restore it.
   Future<Result<void>> delete(String id);
 
