@@ -1421,7 +1421,7 @@ ends.
 ### UI-36: Send account emails to a person
 
 **Actor:** System Admin for anyone; a Scope Admin for a User of a scope they own
-**Traces to:** UC-51 (Resend a Person's Verification Email), UC-52 (Send a Person a Password Reset)
+**Traces to:** UC-51 (Send a Verification Email on a Person's Behalf), UC-52 (Send a Password Reset on a Person's Behalf)
 **Precondition:** The user is signed in as a System Admin, or as a Scope Admin, and the person is open.
 
 **Placement.** The **Account emails** card on the person page (UI-18), above the danger zone. It is
