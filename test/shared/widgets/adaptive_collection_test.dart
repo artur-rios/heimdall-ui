@@ -30,6 +30,7 @@ void main() {
     ValueChanged<int>? onPageChanged,
     ThemeData? theme,
     String? titleLabel,
+    String Function(_Row item)? subtitle,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -50,7 +51,7 @@ void main() {
             onPageChanged: onPageChanged ?? (_) {},
             onTap: onTap,
             title: (item) => item.name,
-            subtitle: (item) => 'subtitle',
+            subtitle: subtitle ?? (item) => 'subtitle',
             columns: <CollectionColumn<_Row>>[
               CollectionColumn<_Row>(
                 label: 'State',
@@ -269,6 +270,50 @@ void main() {
       tester.getBottomRight(find.byIcon(Icons.chevron_right)).dy,
       lessThan(900 - 72),
     );
+  });
+
+  testWidgets(
+    'GivenALongTitleAndSubtitle_WhenATableIsUsed_ThenBothAreBoundedAndTipped',
+    (tester) async {
+      // Given
+      final name = 'N' * 200;
+      final email = '${'e' * 200}@example.com';
+
+      // When
+      await pump(
+        tester,
+        size: const Size(1400, 900),
+        items: <_Row>[_Row(name, 'Active')],
+        subtitle: (item) => email,
+      );
+
+      // Then — one line each, cut short, the whole text a hover away.
+      for (final text in <String>[name, email]) {
+        final shown = tester.widget<Text>(find.text(text));
+        expect(tester.getSize(find.text(text)).width, lessThanOrEqualTo(260));
+        expect(shown.maxLines, 1);
+        expect(shown.overflow, TextOverflow.ellipsis);
+        expect(find.byTooltip(text), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('GivenALongTitle_WhenCardsAreUsed_ThenItIsShownWhole', (
+    tester,
+  ) async {
+    // Given
+    final name = 'N' * 200;
+
+    // When
+    await pump(
+      tester,
+      size: const Size(400, 900),
+      items: <_Row>[_Row(name, 'Active')],
+    );
+
+    // Then — a card wraps instead, so nothing is hidden there.
+    expect(tester.widget<Text>(find.text(name)).maxLines, isNull);
   });
 
   testWidgets('GivenTheDarkTheme_WhenRendered_ThenTheItemsAreStillShown', (

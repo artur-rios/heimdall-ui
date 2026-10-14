@@ -158,17 +158,24 @@ class AdaptiveCollection<T> extends StatelessWidget {
               onSelectChanged: onTap == null ? null : (_) => onTap!(item),
               cells: <DataCell>[
                 DataCell(
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: <Widget>[
-                      Text(title(item)),
-                      if (subtitle case final String Function(T) read)
-                        Text(
-                          read(item),
-                          style: Theme.of(context).textTheme.bodySmall,
-                        ),
-                    ],
+                  // A headline can be as long as whoever named the record
+                  // liked, and the widest cell sets the column for every row,
+                  // pushing the other columns off the window. So the headline
+                  // is cut short, with the whole text in a tooltip.
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: _titleMaxWidth),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: <Widget>[
+                        _OneLine(title(item)),
+                        if (subtitle case final String Function(T) read)
+                          _OneLine(
+                            read(item),
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                      ],
+                    ),
                   ),
                 ),
                 for (final column in columns) DataCell(column.cell(item)),
@@ -176,6 +183,28 @@ class AdaptiveCollection<T> extends StatelessWidget {
             ),
         ],
       ),
+    ),
+  );
+}
+
+/// The widest the table's headline column grows.
+const double _titleMaxWidth = 260;
+
+/// A single line cut short with an ellipsis, the whole text in a tooltip.
+class _OneLine extends StatelessWidget {
+  const _OneLine(this.text, {this.style});
+
+  final String text;
+  final TextStyle? style;
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: text,
+    child: Text(
+      text,
+      style: style,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
     ),
   );
 }

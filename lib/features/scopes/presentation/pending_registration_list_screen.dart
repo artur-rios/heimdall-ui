@@ -151,6 +151,16 @@ class _PendingRegistrationListScreenState
     String when(DateTime? at) => at == null ? '—' : formatDateTime(context, at);
 
     return <CollectionColumn<PendingRegistration>>[
+      // Beside the name it acts on rather than at the far end: the dates are
+      // wide, and a last column starts off-screen on a medium window.
+      CollectionColumn<PendingRegistration>(
+        label: 'Discard',
+        cell: (registration) => IconButton(
+          icon: const Icon(Icons.delete_outline),
+          tooltip: 'Discard the registration for ${registration.email}',
+          onPressed: () => _confirmDiscard(registration),
+        ),
+      ),
       CollectionColumn<PendingRegistration>(
         label: 'Signed up',
         cell: (registration) => Text(when(registration.createdAt)),
@@ -173,14 +183,6 @@ class _PendingRegistrationListScreenState
       CollectionColumn<PendingRegistration>(
         label: 'Attempts left',
         cell: (registration) => Text('${registration.attemptsLeft}'),
-      ),
-      CollectionColumn<PendingRegistration>(
-        label: 'Discard',
-        cell: (registration) => TextButton.icon(
-          icon: const Icon(Icons.delete_outline),
-          label: const Text('Discard'),
-          onPressed: () => _confirmDiscard(registration),
-        ),
       ),
     ];
   }

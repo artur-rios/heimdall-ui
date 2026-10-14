@@ -276,7 +276,7 @@ void main() {
       // When
       await tapAfterScrolling(
         tester,
-        find.widgetWithText(TextButton, 'Discard'),
+        find.byTooltip('Discard the registration for ada@example.com'),
       );
 
       // Then
@@ -297,7 +297,10 @@ void main() {
     // Given — AF-35e
     answerListWith(Success<envelope.Page<PendingRegistration>>(_page()));
     await pump(tester);
-    await tapAfterScrolling(tester, find.widgetWithText(TextButton, 'Discard'));
+    await tapAfterScrolling(
+      tester,
+      find.byTooltip('Discard the registration for ada@example.com'),
+    );
 
     // When
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
@@ -317,7 +320,7 @@ void main() {
       await pump(tester);
       await tapAfterScrolling(
         tester,
-        find.widgetWithText(TextButton, 'Discard'),
+        find.byTooltip('Discard the registration for ada@example.com'),
       );
 
       // When
@@ -346,7 +349,7 @@ void main() {
       await pump(tester);
       await tapAfterScrolling(
         tester,
-        find.widgetWithText(TextButton, 'Discard'),
+        find.byTooltip('Discard the registration for ada@example.com'),
       );
 
       // When
@@ -359,6 +362,47 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('ada@example.com'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenALongNameAt1024_WhenDiscardIsTapped_ThenItIsOnScreenAndAsks',
+    (tester) async {
+      // Given — a registrant may choose a name of up to 200 characters.
+      answerListWith(
+        Success<envelope.Page<PendingRegistration>>(
+          _page(
+            items: <PendingRegistration>[
+              PendingRegistration(
+                id: 'r3',
+                name: 'N' * 200,
+                email: 'long@example.com',
+                createdAt: DateTime.utc(2026, 10, 1, 9),
+                expiresAt: DateTime.utc(2026, 10, 2, 9),
+                attemptsLeft: 7,
+                expired: true,
+              ),
+            ],
+          ),
+        ),
+      );
+      await pump(tester, size: const Size(1024, 768));
+      final discard = find.byTooltip(
+        'Discard the registration for long@example.com',
+      );
+
+      // When — no scrolling first.
+      final at = tester.getRect(discard);
+      await tester.tap(discard);
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(at.right, lessThanOrEqualTo(1024));
+      expect(at.bottom, lessThanOrEqualTo(768));
+      expect(
+        find.text('Discard the registration for long@example.com?'),
+        findsOneWidget,
+      );
     },
   );
 
