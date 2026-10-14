@@ -186,6 +186,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
                 totalPages: loaded.page.totalPages,
                 totalItems: loaded.page.totalItems,
                 onPageChanged: _controller.goToPage,
+                titleLabel: 'Action',
                 title: (entry) => entry.action,
                 subtitle: (entry) => _when(context, entry),
                 columns: _columns(context),
@@ -263,12 +264,6 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
 
     return <CollectionColumn<AuditEntry>>[
       CollectionColumn<AuditEntry>(
-        label: 'When',
-        cell: (entry) => Text(_when(context, entry)),
-        // The subtitle already says it on a card.
-        onCard: false,
-      ),
-      CollectionColumn<AuditEntry>(
         label: 'Outcome',
         cell: (entry) => Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -284,8 +279,13 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
                   ? null
                   : theme.colorScheme.errorContainer,
             ),
+            // The reason can run to 500 characters; it wraps rather than
+            // widening the table.
             if (entry.failureReason case final reason?)
-              Text(reason, style: theme.textTheme.bodySmall),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 260),
+                child: Text(reason, style: theme.textTheme.bodySmall),
+              ),
           ],
         ),
       ),
@@ -313,6 +313,9 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     ];
   }
 }
+
+/// The first eight characters of [id] and an ellipsis.
+String _shortened(String id) => id.length <= 8 ? id : '${id.substring(0, 8)}…';
 
 /// An identifier that can be copied or used as a filter, with the role that
 /// came with it when there is one.
@@ -355,7 +358,9 @@ class _IdCell extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: <Widget>[
-              SelectableText(id),
+              // Shortened, so two identifiers leave room for the target; the
+              // tooltip, the copy and the filter all use the full one.
+              Tooltip(message: id, child: Text(_shortened(id))),
               if (label case final label?)
                 Text(label, style: Theme.of(context).textTheme.bodySmall),
             ],

@@ -149,11 +149,72 @@ void main() {
       find.text('You are not an owner of the target scope.'),
       findsOneWidget,
     );
-    expect(find.text(_actorId), findsWidgets);
+    expect(find.text('6f1c2b9e…'), findsWidgets);
     expect(find.text('Scope Admin'), findsWidgets);
     expect(find.text('None'), findsWidgets);
     expect(find.text('Cleared'), findsNothing);
-    expect(find.text(_targetId), findsWidgets);
+    expect(find.text('b7c1d2e3…'), findsWidgets);
+  });
+
+  testWidgets('GivenATable_WhenOpened_ThenItNamesItsColumnsAndDatesOnce', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.byType(DataTable), findsOneWidget);
+    expect(find.text('Action'), findsWidgets);
+    expect(find.text('Name'), findsNothing);
+    expect(find.textContaining('2026'), findsOneWidget);
+  });
+
+  testWidgets('GivenALongRefusalReason_WhenInATable_ThenItWrapsNarrowly', (
+    tester,
+  ) async {
+    // Given
+    final reason = List<String>.filled(50, 'Refused because.').join(' ');
+    answerWith(
+      Success<envelope.Page<AuditEntry>>(
+        _page([
+          AuditEntry(
+            id: 'a3',
+            recordedAt: DateTime.utc(2026, 10, 14, 12),
+            action: 'CreateScopeCommand',
+            succeeded: false,
+            failureReason: reason,
+          ),
+        ]),
+      ),
+    );
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(tester.getSize(find.text(reason)).width, lessThanOrEqualTo(260));
+  });
+
+  testWidgets('GivenAnIdentifier_WhenShown_ThenItIsShortenedWithTheFullTip', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text(_actorId), findsNothing);
+    expect(find.byTooltip(_actorId), findsOneWidget);
+    final targetHeader = find.descendant(
+      of: find.byType(DataTable),
+      matching: find.text('Target'),
+    );
+    expect(tester.getTopRight(targetHeader).dx, lessThanOrEqualTo(1400));
   });
 
   testWidgets(
