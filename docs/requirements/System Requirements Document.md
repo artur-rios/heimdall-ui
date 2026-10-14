@@ -115,6 +115,9 @@ describes the flows that satisfy these requirements; the
 | FR-AP-06 | The client shall logically delete an application through `DELETE /api/scopes/{scopeId}/applications/{id}` after confirmation. | UI-23 |
 | FR-AP-07 | The client shall permanently delete an application through `DELETE /api/scopes/{scopeId}/applications/{id}/hard` after a confirmation requiring the application's name to be typed. | UI-23 |
 | FR-AP-08 | The client shall resolve each application's owner to a person, and shall fall back to the identifier when it cannot. | UI-20, UI-22 |
+| FR-AP-09 | A System Admin or the owning Scope Admin can list an application's credentials, newest first, with status, issue, expiry and last-use instants. No secret or hash is shown. | UI-37 |
+| FR-AP-10 | They can issue a credential with an optional expiry date; its secret is shown once, in a dialog that only closes when the user says it is stored. Issuing is not offered while two credentials are live. | UI-37 |
+| FR-AP-11 | They can revoke a credential after confirming. | UI-37 |
 
 ### 2.5 Scope permission management (`FR-PM`)
 
@@ -194,7 +197,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/persons/:personId` | Person detail, with the account emails card | UI-18, UI-19, UI-36 |
 | `/scopes/:scopeId/applications` | Application listing | UI-20 |
 | `/scopes/:scopeId/applications/new` | Create an application | UI-21 |
-| `/scopes/:scopeId/applications/:applicationId` | Application detail | UI-22, UI-23 |
+| `/scopes/:scopeId/applications/:applicationId` | Application detail, with the credentials card | UI-22, UI-23, UI-37 |
 | `/scopes/:scopeId/permissions` | Permission listing | UI-24 |
 | `/scopes/:scopeId/permissions/new` | Create a permission | UI-25 |
 | `/scopes/:scopeId/permissions/:permissionId` | Permission detail | UI-26, UI-27 |
@@ -236,6 +239,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Application listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete application | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete application | Full | Hidden | Hidden | Hidden |
+| Application credentials: list, issue, revoke | Full | Owned scopes only | Hidden | Hidden |
 | Permission listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete permission | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete permission | Full | Hidden | Hidden | Hidden |

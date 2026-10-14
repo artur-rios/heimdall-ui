@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-36 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-37 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -285,6 +285,7 @@ the board is where an item's status changes as it moves.
 | UI-21: Create an application | ✅ | [#21](https://github.com/artur-rios/heimdall-ui/issues/21) |
 | UI-22: View and update an application | ✅ | [#22](https://github.com/artur-rios/heimdall-ui/issues/22) |
 | UI-23: Delete an application, logically and permanently | ✅ | [#23](https://github.com/artur-rios/heimdall-ui/issues/23) |
+| UI-37: Manage an application's credentials | ✅ | [#139](https://github.com/artur-rios/heimdall-ui/issues/139) |
 
 ### Scope Permission Management
 
