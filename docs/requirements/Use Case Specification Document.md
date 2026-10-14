@@ -1379,9 +1379,10 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 
 The screen is the route `/scopes/:scopeId/pending-registrations`, titled **Pending registrations**,
 opened from the **Pending registrations** entry in the scope page's **In this scope** links. The
-entry is shown to a System Admin, and to a Scope Admin whose token's owned scopes hold this scope.
-The scope page's own controls are System-Admin-only, so this is a separate check; the API remains
-the authority. The screen has a **Back to the scope** link.
+entry is shown to a System Admin, and to a Scope Admin whose token's owned scopes hold this scope,
+but not on a deleted scope, for which the API answers `404`. The scope page's own controls are
+System-Admin-only, so this is a separate check; the API remains the authority. The screen has a
+**Back to the scope** link.
 
 **Main flow**
 

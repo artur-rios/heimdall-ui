@@ -374,7 +374,10 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               const SizedBox(height: 8),
               _Links(
                 scope: scope,
-                showPendingRegistrations: _mayManageRegistrations(scope),
+                // A deleted scope has no registrations to manage: the API
+                // answers 404 for them.
+                showPendingRegistrations:
+                    !state.isReadOnly && _mayManageRegistrations(scope),
               ),
               // AF-13e — a Scope Admin never sees either control. The API
               // refuses them either way; showing them would only promise
