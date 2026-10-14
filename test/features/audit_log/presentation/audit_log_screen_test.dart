@@ -48,7 +48,7 @@ final _refused = AuditEntry(
   failureReason: 'You are not an owner of the target scope.',
 );
 
-const _cleared = AuditEntry(
+const _noActor = AuditEntry(
   id: 'a2',
   action: 'UpdatePersonCommand',
   succeeded: true,
@@ -137,7 +137,7 @@ void main() {
     tester,
   ) async {
     // Given
-    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _cleared])));
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused, _noActor])));
 
     // When
     await pump(tester);
@@ -151,7 +151,8 @@ void main() {
     );
     expect(find.text(_actorId), findsWidgets);
     expect(find.text('Scope Admin'), findsWidgets);
-    expect(find.text('Cleared'), findsWidgets);
+    expect(find.text('None'), findsWidgets);
+    expect(find.text('Cleared'), findsNothing);
     expect(find.text(_targetId), findsWidgets);
   });
 
@@ -278,7 +279,7 @@ void main() {
     expect(find.text('Clear filters'), findsNothing);
   });
 
-  testWidgets('GivenEntries_WhenOpened_ThenTheClearedActorNoteIsShown', (
+  testWidgets('GivenEntries_WhenOpened_ThenTheNoActorNoteIsShown', (
     tester,
   ) async {
     // Given
@@ -288,7 +289,15 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(find.textContaining('show no actor'), findsOneWidget);
+    expect(
+      find.text(
+        'An entry shows no actor when the action was anonymous, such as a '
+        'sign-in, or when its attribution was cleared — after the attribution '
+        'period, or once the person was erased. Filtering by actor cannot find '
+        'these.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAFailure_WhenOpened_ThenTheFiltersStayAndRetryIsOffered', (

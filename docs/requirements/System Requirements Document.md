@@ -161,7 +161,7 @@ describes the flows that satisfy these requirements; the
 | ID | Requirement | Use case |
 | --- | --- | --- |
 | FR-AL-01 | A System Admin can list the audit trail, newest first and paginated, filtered by an inclusive range of local days, by exact action, actor identifier, target identifier and outcome. | UI-34 |
-| FR-AL-02 | Each entry shows the instant in local date and time, the action, the outcome with its reason, and the actor (identifier and role) and target identifiers as returned. A cleared actor reads "Cleared"; nothing is resolved to a name. | UI-34 |
+| FR-AL-02 | Each entry shows the instant in local date and time, the action, the outcome with its reason, and the actor (identifier and role) and target identifiers as returned. An entry with no actor — an anonymous action, or an attribution cleared after the attribution period or once the person was erased — reads "None"; nothing is resolved to a name. | UI-34 |
 | FR-AL-03 | Actor and target filters accept only identifiers, trimmed and lowercased before they are sent. | UI-34 |
 
 ---

@@ -1342,11 +1342,12 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
    bounds), **Action** (the exact command name), **Actor** and **Target** (identifiers), and
    **All** / **Succeeded** / **Refused**. Each change returns to page 1; **Clear filters** resets
    them. The filters and the page are kept while the System Admin moves around the app and are
-   forgotten when the session ends. Under the bar: "Entries older than the attribution period show
-   no actor, and filtering by actor cannot find them."
+   forgotten when the session ends. Under the bar: "An entry shows no actor when the action was
+   anonymous, such as a sign-in, or when its attribution was cleared — after the attribution period,
+   or once the person was erased. Filtering by actor cannot find these."
 4. Each entry shows when it was recorded (local date and time, with the year), the action, a
    **Succeeded** or **Refused** chip with the refusal reason, the actor's identifier and role
-   ("Cleared" when the API returns none) and the target's identifier ("—" when none). Each
+   ("None" when the API returns none) and the target's identifier ("—" when none). Each
    identifier has a copy button ("Identifier copied.") and a **Filter by** action. Nothing is looked
    up by identifier.
 

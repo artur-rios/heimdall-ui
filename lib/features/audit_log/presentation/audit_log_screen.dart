@@ -159,8 +159,10 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
             child: Align(
               alignment: AlignmentDirectional.centerStart,
               child: Text(
-                'Entries older than the attribution period show no actor, '
-                'and filtering by actor cannot find them.',
+                'An entry shows no actor when the action was anonymous, such '
+                'as a sign-in, or when its attribution was cleared — after the '
+                'attribution period, or once the person was erased. Filtering '
+                'by actor cannot find these.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
@@ -292,7 +294,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
         cell: (entry) => _IdCell(
           id: entry.actorId,
           label: entry.actorRole == null ? null : roleLabel(entry.actorRole!),
-          empty: 'Cleared',
+          empty: 'None',
           copyTooltip: 'Copy the actor',
           filterTooltip: 'Filter by this actor',
           onFilter: _filterByActor,
