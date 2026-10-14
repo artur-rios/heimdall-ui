@@ -313,6 +313,24 @@ void main() {
     },
   );
 
+  testWidgets(
+    'GivenADeletedScope_WhenOpened_ThenPendingRegistrationsIsNotLinked',
+    (tester) async {
+      // Given — the API answers 404 for a deleted scope's registrations.
+      answerGetWith(const Success<Scope>(_deleted));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(
+        find.widgetWithText(ListTile, 'Pending registrations'),
+        findsNothing,
+      );
+      expect(find.widgetWithText(ListTile, 'Persons'), findsOneWidget);
+    },
+  );
+
   testWidgets('GivenAScope_WhenPendingRegistrationsIsTapped_ThenItOpens', (
     tester,
   ) async {

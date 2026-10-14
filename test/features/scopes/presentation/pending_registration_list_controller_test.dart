@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -110,43 +112,43 @@ void main() {
     verify(() => repository.list('s1', pageNumber: 2)).called(1);
   });
 
-  test(
-    'GivenTheLastRowOfTheLastPage_WhenDiscarded_ThenThePreviousPageShows',
-    () async {
-      // Given
-      var calls = 0;
-      when(
-        () => repository.list(
-          's1',
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((invocation) async {
-        calls++;
-        final number = invocation.namedArguments[#pageNumber] as int;
+  test('GivenTheLastRowOfTheLastPage_WhenDiscarded_ThenThePreviousPageShowsWithTheNotice', () async {
+    // Given
+    var calls = 0;
+    when(
+      () => repository.list(
+        's1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((invocation) async {
+      calls++;
+      final number = invocation.namedArguments[#pageNumber] as int;
 
-        return Success<Page<PendingRegistration>>(
-          calls <= 1
-              ? _page(pageNumber: number, totalPages: 2)
-              : _page(
-                  items: const <PendingRegistration>[],
-                  pageNumber: number,
-                  totalPages: 1,
-                ),
-        );
-      });
-      when(() => repository.discard('s1', 'r1'))
-          .thenAnswer((_) async => const Success<void>(null));
-      final controller = controllerUnderTest();
-      await controller.goToPage(2);
+      return Success<Page<PendingRegistration>>(
+        calls <= 1
+            ? _page(pageNumber: number, totalPages: 2)
+            : _page(
+                items: const <PendingRegistration>[],
+                pageNumber: number,
+                totalPages: 1,
+              ),
+      );
+    });
+    when(() => repository.discard('s1', 'r1'))
+        .thenAnswer((_) async => const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.goToPage(2);
 
-      // When
-      await controller.discard(_ada);
+    // When
+    await controller.discard(_ada);
 
-      // Then
-      expect(currentState().pageNumber, 1);
-    },
-  );
+    // Then — the notice outlives the fetch that fell back a page.
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.pageNumber, 1);
+    expect(state.notice, 'Registration discarded.');
+    expect(state.busy, isFalse);
+  });
 
   test(
     'GivenARegistration_WhenDiscarded_ThenTheListReloadsWithANotice',
@@ -173,6 +175,145 @@ void main() {
       ).called(2);
     },
   );
+
+  test(
+    'GivenADiscardInFlight_WhenObserved_ThenTheListIsBusyUntilItReloads',
+    () async {
+      // Given
+      answerListWith(Success<Page<PendingRegistration>>(_page()));
+      final deleted = Completer<Result<void>>();
+      when(() => repository.discard('s1', 'r1'))
+          .thenAnswer((_) => deleted.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final reloaded = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => reloaded.future);
+      bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+
+      // When
+      final discarding = controller.discard(_ada);
+
+      // Then — busy while the DELETE is out, through the reload after it, and
+      // idle once the list is back.
+      expect(busy(), isTrue);
+      deleted.complete(const Success<void>(null));
+      await pumpEventQueue();
+      expect(busy(), isTrue);
+      reloaded.complete(Success<Page<PendingRegistration>>(_page()));
+      await discarding;
+      expect(busy(), isFalse);
+    },
+  );
+
+  test(
+    'GivenADiscardInFlight_WhenAnotherIsAsked_ThenItIsRefusedAndBusyHolds',
+    () async {
+      // Given
+      answerListWith(Success<Page<PendingRegistration>>(_page()));
+      final deleted = Completer<Result<void>>();
+      when(() => repository.discard('s1', any()))
+          .thenAnswer((_) => deleted.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final reloaded = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => reloaded.future);
+      bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+      final first = controller.discard(_ada);
+
+      // When — neither is awaited first, so a call that went out shows.
+      final second = controller.discard(
+        const PendingRegistration(
+          id: 'r2',
+          name: 'Grace Hopper',
+          email: 'grace@example.com',
+          attemptsLeft: 3,
+          expired: false,
+        ),
+      );
+      final paged = controller.goToPage(2);
+      await pumpEventQueue();
+
+      // Then — only the first DELETE went out, and nothing else was fetched.
+      verify(() => repository.discard('s1', 'r1')).called(1);
+      verifyNever(() => repository.discard('s1', 'r2'));
+      expect(busy(), isTrue);
+      deleted.complete(const Success<void>(null));
+      await pumpEventQueue();
+      expect(busy(), isTrue);
+      reloaded.complete(Success<Page<PendingRegistration>>(_page()));
+      await Future.wait(<Future<void>>[first, second, paged]);
+      expect(busy(), isFalse);
+      verifyNever(() => repository.list('s1', pageNumber: 2));
+      expect(
+        (currentState() as PendingRegistrationListLoaded).notice,
+        'Registration discarded.',
+      );
+    },
+  );
+
+  test('GivenADiscardInFlight_WhenTheScreenReloads_ThenNothingIsSentAndTheNoticeShows', () async {
+    // Given
+    answerListWith(Success<Page<PendingRegistration>>(_page()));
+    final deleted = Completer<Result<void>>();
+    when(() => repository.discard('s1', 'r1'))
+        .thenAnswer((_) => deleted.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    clearInteractions(repository);
+    bool busy() => (currentState() as PendingRegistrationListLoaded).busy;
+    final discarding = controller.discard(_ada);
+
+    // When — the screen is opened again, which loads on every visit.
+    final reloading = controller.load();
+    await pumpEventQueue();
+
+    // Then — nothing is fetched while the DELETE is out.
+    verifyNever(
+      () => repository.list(
+        's1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    );
+    expect(busy(), isTrue);
+    deleted.complete(const Success<void>(null));
+    await Future.wait(<Future<void>>[discarding, reloading]);
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.busy, isFalse);
+    expect(state.notice, 'Registration discarded.');
+  });
+
+  test('GivenARefusedDiscard_WhenItEnds_ThenTheListIsNoLongerBusy', () async {
+    // Given
+    answerListWith(Success<Page<PendingRegistration>>(_page()));
+    when(() => repository.discard('s1', 'r1')).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.discard(_ada);
+
+    // Then
+    final state = currentState() as PendingRegistrationListLoaded;
+    expect(state.busy, isFalse);
+    expect(state.discardFailure, isNotNull);
+  });
 
   test(
     'GivenAnAlreadyGoneRegistration_WhenDiscarded_ThenTheListReloadsAndSaysSo',

@@ -41,8 +41,9 @@ credentials. This design adds one use case for each:
    - `displayMessage` appends "Try again in N seconds.", or "Try again later." without it.
    - A `429` that a handler returns (UI-36's cooldown) has no header, so its API message stands alone.
 3. **Date and time.** A shared `formatDateTime(BuildContext, DateTime)` in `lib/shared/`. It
-   formats the local date with `MaterialLocalizations.formatMediumDate` and the time with
-   `formatTimeOfDay` (24-hour per locale), with no new dependency. UI-34 uses it; UI-35 and UI-37
+   formats the local date with `MaterialLocalizations.formatShortDate` and the time with
+   `formatTimeOfDay` (24-hour per locale), with no new dependency. The short date, because the
+   year must show: `formatMediumDate` omits it. UI-34 uses it; UI-35 and UI-37
    use it for their instants.
 
 ## 4. UI-34 — Review the audit trail
@@ -71,12 +72,13 @@ reads `GET /api/audit-log` with these filters:
   - **When**: `recordedAt`, through `formatDateTime`.
   - **Action**: the action name.
   - **Outcome**: a **Succeeded** or **Refused** chip, with `failureReason` beneath a refusal.
-  - **Actor**: the id and role, or "Cleared" when `actorId` is `null`.
+  - **Actor**: the id and role, or "None" when `actorId` is `null`.
   - **Target**: the id, or "—" when `targetId` is `null`.
 - **Each id** has a copy button ("Identifier copied.") and a **Filter by this** action that puts it
   in the matching filter.
-- A short line above the list says entries older than the attribution period show no actor, and
-  filtering by actor cannot find them.
+- A short line above the list reads: "An entry shows no actor when the action was anonymous, such
+  as a sign-in, or when its attribution was cleared — after the attribution period, or once the
+  person was erased. Filtering by actor cannot find these."
 
 **Alternative flows:**
 - **AF-34a — Nothing matches.** "No entries match these filters.", with **Clear filters** when any
@@ -94,6 +96,9 @@ reads `GET /api/audit-log` with these filters:
   - `presentation/audit_log_screen.dart` and `audit_log_controller.dart`.
 - The controller follows `erasure_request_list_controller.dart`: a `Query` value, sealed
   states, in-flight and queued fetches, and a fallback to the last valid page.
+
+Amended during Part A's final review: 'Cleared' became 'None' and the note was reworded, because
+anonymous actions never have an actor.
 
 ## 5. UI-35 — Manage a scope's pending registrations
 
