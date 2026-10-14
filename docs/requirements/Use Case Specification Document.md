@@ -1504,16 +1504,19 @@ deployed before the old one is revoked.
      expired shows **Revoked**.
    - The identifier can be selected and copied ("Identifier copied.").
    - Below the expanded width, the actions sit on their own line below the row.
-3. **Issue credential** is offered only while fewer than two credentials are live. Otherwise the
-   card says "Revoke a credential before issuing another."
+3. **Issue credential** is unavailable before the list has loaded, after a load failure, while an
+   issue or revoke is running, and while two credentials are live. Only the last case shows the
+   hint "Revoke a credential before issuing another."
 4. The user opens **Issue credential**. The dialog, titled "Issue a credential", offers an optional
-   **Expires on** date, chosen from today onwards; **No expiry** clears it. The expiry is the end of
-   that day, local time, sent as UTC. Without a date, the credential never expires.
+   **Expires on** date; **No expiry** clears it. The dialog repeats the card's explanatory line. The
+   date button reads "Never expires" until a day is chosen, then "Expires on {date}". The picker
+   runs from today to five years ahead. The expiry is the end of that day, local time, sent as UTC.
+   Without a date, the credential never expires.
 5. The user chooses **Issue**. The client calls `POST …/credentials`. While the request runs, the
    dialog cannot be closed: **Cancel** and the date buttons are disabled, and the back control and
    the barrier do nothing.
 6. On success, a one-time secret dialog replaces the issue dialog. It shows the secret, which can be
-   selected and copied ("Secret copied."), and warns: "This is the only time the secret is shown.
+   selected and copied ("Secret copied."), under the title "Store this secret now", and warns: "This is the only time the secret is shown.
    Store it in the application's secret store now." The dialog closes only through **I've stored
    it**; Escape, the back control and the barrier leave it open. The list then shows the new
    credential.
@@ -1546,8 +1549,10 @@ an issue is also shown in the issue dialog.
   open, and on the card.
 - **AF-37d — Already revoked.** A `409` on revoke: the API's message, and the list reloads.
 - **AF-37e — Refused.** A `403` or `404`: the API's message.
-- **AF-37f — Cancelled.** **Cancel** on either confirmation or on the issue dialog closes it.
-  Nothing is sent, and no secret is shown.
+- **AF-37f — Cancelled.** **Cancel** on the revoke confirmation closes it and sends nothing.
+  **Cancel** or the back control closes the issue dialog while no request is running, and the
+  barrier never does; nothing is sent and no secret is shown. On the leave prompt, **Cancel**
+  keeps the user on the page, with the secret still shown.
 - **AF-37g — Transport failure.** An error banner, in the issue dialog and on the card for an
   issue, and on the card for a revoke. A list that fails to load shows the banner with **Retry**.
   If the issue request fails after sending, the secret is not known to the client. The list
