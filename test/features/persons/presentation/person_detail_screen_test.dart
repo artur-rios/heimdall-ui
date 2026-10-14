@@ -537,6 +537,49 @@ void main() {
     );
   });
 
+  // UI-36 — who is offered the account emails.
+  testWidgets(
+    'GivenAScopeAdminViewingAUser_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAScopeAdminViewingAnotherScopeAdmin_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenTheCallersOwnRecord_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, signedInAs: 'person-1');
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
   // AF-19d — the controls are disabled on your own record.
   testWidgets('GivenYourOwnRecord_WhenOpened_ThenDeletionIsDisabled', (
     tester,
