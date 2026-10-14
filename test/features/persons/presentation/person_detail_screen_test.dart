@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -536,6 +537,196 @@ void main() {
       findsNothing,
     );
   });
+
+  // UI-36 — who is offered the account emails.
+  testWidgets(
+    'GivenAScopeAdminViewingAUser_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAScopeAdminViewingAnotherScopeAdmin_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenTheCallersOwnRecord_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, signedInAs: 'person-1');
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  testWidgets('GivenADeletedPerson_WhenOpened_ThenAccountEmailsIsNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_deleted));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Account emails'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenASystemAdminViewingAScopeAdmin_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
+  // AF-36c — the refusal stays on screen while the person is reloaded.
+  testWidgets(
+    'GivenTheAddressIsAlreadyVerified_WhenResendIsRefused_ThenTheMessageStaysAndTheActionGoes',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      const verified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      final reload = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => reload.future);
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Then — no spinner while the person is read again
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      reload.complete(const Success<Person>(verified));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('The email address is already verified.'),
+        findsOneWidget,
+      );
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.text('Send password reset'), findsOneWidget);
+    },
+  );
+
+  // AF-36c must not undo what the admin has typed and not yet saved.
+  testWidgets(
+    'GivenAnUnsavedEdit_WhenResendIsRefusedAndTheReloadLands_ThenTheTypedNameStays',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Ada'),
+        'Ada L',
+      );
+      await tester.pumpAndSettle();
+      answerGetWith(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada',
+            email: 'ada@example.com',
+            role: Role.user,
+            scopeId: 'scope-1',
+          ),
+        ),
+      );
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.widgetWithText(TextFormField, 'Ada L'), findsOneWidget);
+    },
+  );
 
   // AF-19d — the controls are disabled on your own record.
   testWidgets('GivenYourOwnRecord_WhenOpened_ThenDeletionIsDisabled', (

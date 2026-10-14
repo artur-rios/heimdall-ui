@@ -14,6 +14,7 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
 import '../domain/person.dart';
+import 'account_emails_card.dart';
 import 'person_detail_controller.dart';
 import 'person_list_controller.dart';
 
@@ -72,7 +73,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     }
 
     _seeded = person;
-    _restore(person);
+
+    // A background reload (AF-36c) can land mid-edit; what was typed and not
+    // yet saved stays. `_seeded` still moves on, so the leave guard compares
+    // the typing against the record the API now holds.
+    if (!_editing) {
+      _restore(person);
+    }
   }
 
   void _restore(Person person) {
@@ -144,6 +151,12 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
   /// a System Admin, or a Scope Admin deleting a User (UC-09's
   /// `NotAuthorizedToDeletePerson`).
   bool _mayDelete(Person person) =>
+      _maySeeHardDelete || person.role == Role.user;
+
+  /// UC-51/UC-52: a System Admin for anyone, a Scope Admin for the Users of
+  /// scopes they own. The API decides the ownership; this only decides what
+  /// is offered.
+  bool _mayEmail(Person person) =>
       _maySeeHardDelete || person.role == Role.user;
 
   /// AF-19a — a dialog the user closes sends nothing.
@@ -416,6 +429,22 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                   ),
                 ),
               ),
+              // UI-36 — people use the profile screen for their own account,
+              // and a deleted person has no account left to email.
+              if (!state.isReadOnly &&
+                  !_isSelf &&
+                  _mayEmail(person)) ...<Widget>[
+                const SizedBox(height: 24),
+                AccountEmailsCard(
+                  person: person,
+                  onVerificationRefused: () => ref
+                      .read(
+                        personDetailControllerProvider(widget.personId)
+                            .notifier,
+                      )
+                      .refresh(),
+                ),
+              ],
               // AF-19d — the controls are disabled on your own record, and
               // AF-18d leaves a deleted person nothing left to delete.
               if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[

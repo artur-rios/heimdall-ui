@@ -118,4 +118,15 @@ abstract interface class PersonRepository {
     required String scopeId,
     required String personId,
   });
+
+  /// Asks the API to send a person a fresh verification email (UC-51).
+  ///
+  /// A cooldown arrives as [FailureKind.rateLimited], and a person whose data
+  /// is restricted as a refusal; both carry the API's own words.
+  Future<Result<void>> sendVerificationEmail(String personId);
+
+  /// Asks the API to send a person a password reset email (UC-52).
+  ///
+  /// Refused like [sendVerificationEmail], in the API's own words.
+  Future<Result<void>> sendPasswordReset(String personId);
 }

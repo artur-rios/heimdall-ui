@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **Account emails** — administrators can have a verification link or a password reset link sent to a person's own
+  address.
 - **Pending registrations** — a scope's owners and System Admins can see who signed up but has not confirmed, and
   discard a registration.
 - **Audit log** — System Admins can browse the audit trail, newest first, filtered by dates, action, actor, target and
