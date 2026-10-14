@@ -1388,10 +1388,11 @@ the authority. The screen has a **Back to the scope** link.
 1. The user opens **Pending registrations** from the scope page.
 2. The client calls `GET /api/scopes/{id}/pending-registrations` with `PageNumber` and `PageSize`,
    and renders the answer as every collection is rendered (FR-UX-04): newest first. The subtitle
-   shows the scope's name when the scope page was already loaded, and the scope's identifier
-   otherwise. A line above the list says that these people signed up but have not confirmed yet,
-   that discarding a registration makes its emailed link stop working, and that the person may sign
-   up again.
+   shows the scope's name. When the scope page has not read the scope already (a deep link or a
+   refresh), the client reads it once; the scope's identifier shows until then, and stays if the
+   scope cannot be read. A line above the list says that these people signed up but have not
+   confirmed yet, that discarding a registration makes its emailed link stop working, and that the
+   person may sign up again.
 3. Each row shows the name, the email address, **Signed up** and **Expires** (local date and time;
    "—" when the API returns no instant), **Attempts left**, and an **Expired** chip when the
    registration has expired. No secret is shown.

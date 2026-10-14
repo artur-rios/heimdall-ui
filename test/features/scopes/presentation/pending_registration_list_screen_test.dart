@@ -13,12 +13,18 @@ import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/pending_registration.dart';
 import 'package:heimdall_ui/features/scopes/domain/pending_registration_repository.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/pending_registration_list_screen.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockPendingRegistrationRepository extends Mock
     implements PendingRegistrationRepository {}
+
+class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 String _jwt() {
   final payload = base64Url.encode(
@@ -72,6 +78,7 @@ const Size _expanded = Size(1400, 900);
 
 void main() {
   late _MockPendingRegistrationRepository repository;
+  late _MockScopeRepository scopes;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -80,6 +87,7 @@ void main() {
     WidgetTester tester, {
     Size size = _expanded,
     ThemeData? theme,
+    bool scopeOpenedFirst = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -90,11 +98,15 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         pendingRegistrationRepositoryProvider.overrideWithValue(repository),
+        scopeRepositoryProvider.overrideWithValue(scopes),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
+    if (scopeOpenedFirst) {
+      await container.read(scopeDetailControllerProvider('s1').notifier).load();
+    }
 
     router = GoRouter(
       initialLocation: '/scopes/s1/pending-registrations',
@@ -146,7 +158,44 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockPendingRegistrationRepository();
+    scopes = _MockScopeRepository();
+    when(
+      () => scopes.getById('s1', includeDeleted: any(named: 'includeDeleted')),
+    ).thenAnswer(
+      (_) async =>
+          const Success<Scope>(Scope(id: 's1', name: 'Acme', description: '')),
+    );
     store = InMemoryTokenStore();
+  });
+
+  testWidgets('GivenADeepLink_WhenTheScopeLoads_ThenItsNameIsShown', (
+    tester,
+  ) async {
+    // Given — the scope's page was never opened in this session.
+    answerListWith(Success<envelope.Page<PendingRegistration>>(_page()));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Acme'), findsOneWidget);
+    expect(find.text('s1'), findsNothing);
+  });
+
+  testWidgets('GivenTheScopeAlreadyRead_WhenOpened_ThenItIsNotReadAgain', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(Success<envelope.Page<PendingRegistration>>(_page()));
+
+    // When
+    await pump(tester, scopeOpenedFirst: true);
+
+    // Then
+    expect(find.text('Acme'), findsOneWidget);
+    verify(
+      () => scopes.getById('s1', includeDeleted: any(named: 'includeDeleted')),
+    ).called(1);
   });
 
   testWidgets(

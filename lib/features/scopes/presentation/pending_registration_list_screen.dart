@@ -31,6 +31,14 @@ class _PendingRegistrationListScreenState
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.load();
+
+      // A deep link or a refresh arrives without the scope page having read
+      // the scope, so it is read once here for the subtitle's name. Only
+      // here, so a scope that cannot be read is not asked for again.
+      final scope = ref.read(scopeDetailControllerProvider(widget.scopeId));
+      if (scope is! ScopeDetailLoaded) {
+        ref.read(scopeDetailControllerProvider(widget.scopeId).notifier).load();
+      }
     });
   }
 
@@ -54,8 +62,8 @@ class _PendingRegistrationListScreenState
     await _controller.discard(registration);
   }
 
-  /// The scope's name when its page was opened first; the identifier otherwise,
-  /// since nothing here reads the scope on its own.
+  /// The scope's name once it is read; the identifier until then, or when it
+  /// cannot be read.
   String _scopeLabel() {
     final scope = ref.watch(scopeDetailControllerProvider(widget.scopeId));
 
