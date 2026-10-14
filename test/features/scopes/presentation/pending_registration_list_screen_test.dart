@@ -230,10 +230,10 @@ void main() {
     expect(find.text('listing'), findsOneWidget);
   });
 
-  testWidgets('GivenARefusedList_WhenOpened_ThenTheApiErrorsAreShown', (
+  testWidgets('GivenARefusedList_WhenOpened_ThenTheForbiddenStateIsShown', (
     tester,
   ) async {
-    // Given — AF-35b
+    // Given — AF-35b: retrying would only be refused again.
     answerListWith(
       const FailureResult<envelope.Page<PendingRegistration>>(
         Failure(kind: FailureKind.forbidden, errors: <String>['Forbidden.']),
@@ -244,7 +244,35 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(find.text('Forbidden.'), findsOneWidget);
+    expect(find.text('Not available for your role'), findsOneWidget);
+    expect(
+      find.text(
+        'This scope is not one you administer. Nothing is wrong with your '
+        'session.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byIcon(Icons.lock_person_outlined), findsOneWidget);
+    expect(find.text('Retry'), findsNothing);
+  });
+
+  testWidgets('GivenTheForbiddenState_WhenBackToScopesIsTapped_ThenItLeaves', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(
+      const FailureResult<envelope.Page<PendingRegistration>>(
+        Failure(kind: FailureKind.forbidden, errors: <String>['Forbidden.']),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Back to scopes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
   });
 
   testWidgets('GivenATransportFailure_WhenOpened_ThenRetryIsOffered', (

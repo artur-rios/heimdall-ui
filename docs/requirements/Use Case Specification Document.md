@@ -1408,9 +1408,9 @@ ends.
 **Alternative flows**
 
 - **AF-35a — None pending.** "No pending registrations."
-- **AF-35b — Refused.** The API answers `403` on the list; the returned errors are shown with
-  **Retry**. A `401` is the shell's usual handling (UI-07). A refused discard shows the returned
-  errors in a banner and keeps the list.
+- **AF-35b — Refused.** The API answers `403` on the list: the forbidden state, the
+  not-available-for-your-role panel with **Back to scopes**. A `401` is the shell's usual handling
+  (UI-07). A refused discard shows the returned errors in a banner and keeps the list.
 - **AF-35c — Scope not found.** The API answers `404` on the list; "Scope not found." is shown with
   **Back to scopes**.
 - **AF-35d — Already gone.** The API answers `404` on the discard (the registration was confirmed,

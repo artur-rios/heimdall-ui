@@ -75,6 +75,19 @@ class _PendingRegistrationListScreenState
       backTooltip: 'Back to the scope',
       body: switch (state) {
         PendingRegistrationListLoading() => const CollectionLoading(),
+        // AF-35b — the scope is not one this admin owns; retrying would only
+        // be refused again.
+        PendingRegistrationListFailed(:final failure)
+            when failure.kind == FailureKind.forbidden =>
+          CollectionEmpty(
+            title: 'Not available for your role',
+            message:
+                'This scope is not one you administer. Nothing is wrong '
+                'with your session.',
+            icon: Icons.lock_person_outlined,
+            actionLabel: 'Back to scopes',
+            onAction: () => context.go('/scopes'),
+          ),
         // AF-35c — the scope itself is gone.
         PendingRegistrationListFailed(:final failure)
             when failure.kind == FailureKind.notFound =>
@@ -84,7 +97,7 @@ class _PendingRegistrationListScreenState
             actionLabel: 'Back to scopes',
             onAction: () => context.go('/scopes'),
           ),
-        // AF-35b and AF-35f — the returned errors, with a retry.
+        // AF-35f — the returned errors, with a retry.
         PendingRegistrationListFailed(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: _controller.load,
