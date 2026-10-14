@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../shared/widgets/confirm_dialog.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 
 /// Whether a credential's one-time secret is on its way or on screen. Only the
 /// flag lives here, never the secret.
@@ -31,6 +33,14 @@ Future<bool> confirmLeaveWithPendingSecret(
   BuildContext context,
   Ref ref,
 ) async {
+  // A session redirect always wins: without a session the secret cannot be
+  // used, and asking would strand the redirect behind a dialog.
+  if (ref.read(sessionControllerProvider) is! Authenticated) {
+    ref.read(pendingSecretProvider.notifier).clear();
+
+    return true;
+  }
+
   if (!ref.read(pendingSecretProvider)) {
     return true;
   }

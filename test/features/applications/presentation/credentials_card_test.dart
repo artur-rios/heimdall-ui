@@ -9,6 +9,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/credentials_card.dart';
+import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}
@@ -589,5 +590,30 @@ void main() {
 
     // Then
     expect(tester.getSize(find.text(id)).height, lessThan(30));
+  });
+
+  testWidgets('GivenARefusedIssue_WhenIssued_ThenThePendingFlagIsClear', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(const <ApplicationCredential>[]);
+    when(() => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')))
+        .thenAnswer(
+          (_) async => const FailureResult<IssuedCredential>(
+            Failure(kind: FailureKind.validation, errors: <String>['Refused.']),
+          ),
+        );
+    await pump(tester);
+    await openIssueDialog(tester);
+
+    // When
+    await tester.tap(issueDialogButton());
+    await tester.pumpAndSettle();
+
+    // Then
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(CredentialsCard)),
+    );
+    expect(container.read(pendingSecretProvider), isFalse);
   });
 }

@@ -48,35 +48,27 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
 
   late final PendingSecret _pending;
 
-  @override
-  void dispose() {
-    // Never left set: after the frame, since a provider may not change while
-    // the tree is being torn down.
-    final pending = _pending;
-    Future<void>.microtask(pending.clear);
-    super.dispose();
-  }
-
   /// UC-53. The secret lives only in these locals and in the dialog.
   Future<void> _issue() async {
     // The root navigator outlives this card: if the page is left while the
     // request is in flight, the secret still has somewhere to be shown.
     final navigator = Navigator.of(context, rootNavigator: true);
-    final issued = await showIssueCredentialDialog(context, _key);
-
-    if (issued == null) {
-      _pending.clear();
-
-      return;
-    }
-
+    // The flag belongs to the secret, not to this card: the card can be rebuilt
+    // (a window crossing a breakpoint) while the dialogs, which live on the
+    // root navigator, stay. So it is cleared here, when no secret came back or
+    // the secret dialog is gone, and nowhere that depends on this card living.
     try {
+      final issued = await showIssueCredentialDialog(context, _key);
+
+      if (issued == null) {
+        return;
+      }
+
       await showOneTimeSecretDialog(
         mounted ? context : navigator.context,
         issued.secret,
       );
     } finally {
-      // "I've stored it" was chosen, or the page was left anyway.
       _pending.clear();
     }
   }
@@ -198,7 +190,9 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
   Widget _row(ApplicationCredential c, bool busy) {
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final compact = context.breakpoint == Breakpoint.compact;
+    // Beside the navigation rail the row is narrow well past the compact
+    // breakpoint, so only the expanded layout keeps the actions inline.
+    final compact = context.breakpoint != Breakpoint.expanded;
     String dt(DateTime at) => formatDateTime(context, at);
     String orNever(DateTime? at) => at == null ? 'Never' : dt(at);
 
@@ -241,7 +235,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
             children: <Widget>[
               chip,
               const SizedBox(width: 12),
-              // One line, ellipsised; copy and the tests use the full id.
+              // One line; copying still takes the full id.
               Expanded(child: SelectableText(c.id, maxLines: 1)),
               if (!compact) actions,
             ],

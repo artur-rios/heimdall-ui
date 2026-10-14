@@ -57,19 +57,21 @@ class _IssueCredentialDialogState
   Future<void> _issue() async {
     final day = _day;
     setState(() => _attempted = true);
+    // Taken before the await: choosing Leave mid-flight unmounts this dialog.
+    final pending = ref.read(pendingSecretProvider.notifier);
+    final controller = ref.read(
+      applicationCredentialsControllerProvider(widget.credentialsKey).notifier,
+    );
     // From the moment the request is sent: the answer may carry the secret.
-    ref.read(pendingSecretProvider.notifier).set();
+    pending.set();
 
-    final result = await ref
-        .read(
-          applicationCredentialsControllerProvider(widget.credentialsKey)
-              .notifier,
-        )
-        .issue(expiresAt: day == null ? null : credentialExpiryFor(day));
+    final result = await controller.issue(
+      expiresAt: day == null ? null : credentialExpiryFor(day),
+    );
 
     if (result is! Success<IssuedCredential>) {
       // Refused, or ignored: there is no secret to lose.
-      ref.read(pendingSecretProvider.notifier).clear();
+      pending.clear();
     }
 
     // `null`: another request was in flight, so nothing was sent. A failure
