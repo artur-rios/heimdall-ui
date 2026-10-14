@@ -63,3 +63,21 @@ final class GoogleIdTokenCredential extends ErasureCredential {
 
   final String idToken;
 }
+
+/// Why a person asks for processing of their own identity to be restricted
+/// (UC-44): the four grounds of GDPR Art. 18(1). The API asks for exactly one.
+enum RestrictionGround {
+  /// The person contests the accuracy of the data.
+  accuracyContested,
+
+  /// Processing is unlawful, and the person prefers restriction to erasure.
+  unlawfulButErasureOpposed,
+
+  /// The controller no longer needs the data, but the person needs it kept
+  /// for a legal claim.
+  neededForLegalClaim,
+
+  /// The person has objected, pending verification of the controller's
+  /// grounds.
+  objectionPending,
+}

@@ -1131,6 +1131,63 @@ void main() {
     expect(state.sessionExpired, isFalse);
   });
 
+  // UI-33 — the sign-in screen says signing in again opens the restricted
+  // session.
+  test(
+    'GivenARestrictionJustImposed_WhenSignedOut_ThenTheReasonIsKept',
+    () async {
+      // Given
+      await store.write(tokenFor(_systemAdminJwt));
+      final container = containerWith();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut(processingRestricted: true);
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Unauthenticated).processingRestricted, isTrue);
+      expect(state.restrictionLifted, isFalse);
+      expect(state.sessionExpired, isFalse);
+      expect(await store.read(), isNull);
+    },
+  );
+
+  // UI-33 — once restricted, the API refuses the full token everywhere but
+  // the rights endpoints, its Google sign-out included; Google still is told.
+  test(
+    'GivenAGoogleSessionJustRestricted_WhenSignedOut_ThenTheApiIsNotCalled',
+    () async {
+      // Given
+      final gateway = _FakeGoogleSignInGateway();
+      await store.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          viaGoogle: true,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut(processingRestricted: true);
+
+      // Then
+      verifyNever(() => repository.signOutFromGoogle());
+      expect(gateway.signOuts, 1);
+    },
+  );
+
   // UI-30 — the API's Google sign-out is not one of the four endpoints a
   // restricted token is admitted to, so it is not asked; Google still is.
   test(

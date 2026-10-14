@@ -17,6 +17,12 @@ abstract interface class DataRightsRepository {
   /// cannot be undone.
   Future<Result<ErasureRequest>> requestErasure(ErasureCredential credential);
 
+  /// UC-44 — restricts processing of the caller's own identity on [ground].
+  ///
+  /// The API suspends the account at once, and stops admitting the token that
+  /// asked to anything but the rights endpoints.
+  Future<Result<void>> restrictProcessing(RestrictionGround ground);
+
   /// UC-45 — lifts the restriction on processing the caller's own identity.
   Future<Result<void>> liftOwnRestriction();
 }

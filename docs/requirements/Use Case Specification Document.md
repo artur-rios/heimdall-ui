@@ -59,6 +59,7 @@ graph LR
     subgraph "Profile & Security"
         UI08[UI-08: Own profile]
         UI09[UI-09: Manage two-factor]
+        UI33[UI-33: Restrict processing]
     end
 
     subgraph "Scope Management"
@@ -102,7 +103,7 @@ graph LR
     end
 
     AN --> UI01 & UI02 & UI03 & UI04 & UI05 & UI06
-    SA & SCA & U --> UI07 & UI08 & UI09
+    SA & SCA & U --> UI07 & UI08 & UI09 & UI33
     RS --> UI30
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31
     SCA --> UI10 & UI12 & UI14 & UI15 & UI31
@@ -149,6 +150,7 @@ graph LR
 | UI-30 | Use a restricted session | UC-11 (AF-11i), UC-25 (AF-25e), UC-38, UC-41, UC-42, UC-45 |
 | UI-31 | Configure a scope's sign-in and sign-up | UC-24, UC-47 |
 | UI-32 | Review outstanding erasure requests | UC-43 |
+| UI-33 | Restrict processing of my account | UC-44, UC-45 |
 
 ### 1.5 Platform items
 
@@ -1034,7 +1036,7 @@ delivered the same way.
 Second Factor), UC-41 (Export Own Personal Data), UC-42 (Request Erasure of Own Identity), UC-45
 (Lift a Restriction on Processing)
 **Precondition:** Processing of the signing-in identity is restricted at its subject's request
-(the API's UC-44, NFR-24).
+(the API's UC-44, NFR-24), through UI-33 or directly through the API.
 
 The API answers such a sign-in with a **subject-rights-only token**: it names the person and their
 role, claims no scope, and is admitted to data export, erasure, restriction and its lift — and
@@ -1240,6 +1242,76 @@ restore.
 
 ---
 
+### UI-33: Restrict processing of my account
+
+**Actor:** System Admin, Scope Admin, User — any person signed in with a full session. A Google
+User is not served yet: the profile reads `GET /api/persons/{id}`, which answers `404` for a Google
+User (AF-08e), so they never reach the entry. The session still skips the API's Google sign-out
+after a restriction (step 5), so the flow holds once they can.
+**Traces to:** UC-44 (Restrict Processing of Own Identity); UC-45 (Lift a Restriction on
+Processing) for lifting it, which UI-30 already offers
+**Precondition:** A full session exists. A restricted session (UI-30) never reaches this screen: it
+is already restricted.
+
+The API exposes the right to restriction (GDPR Art. 18) at `POST /api/auth/processing-restriction`,
+admitted to any token and acting on the caller. Without this use case the restricted session of
+UI-30 could only be entered by calling the API directly.
+
+**Placement**
+
+- On the profile (UI-08), as an entry after **Security**: **Restrict processing of my account**,
+  subtitled "Have Heimdall keep your data but stop using it. Your account is suspended until you
+  lift the restriction." The other data-subject rights — download, erasure, lift — are offered by
+  the restricted session (UI-30), which is where this one leads.
+
+**Main flow**
+
+1. The person chooses **Restrict processing of my account**. A dialog titled **Restrict processing
+   of your account?** explains that while processing is restricted Heimdall keeps their data
+   exactly as it is and uses it for nothing else, that the account is suspended until the
+   restriction is lifted, and that they will be signed out; and that they can still sign in to lift
+   the restriction, or to download or erase their data.
+2. Under **Why are you asking for it?** the dialog offers the four grounds of GDPR Art. 18(1) in
+   the person's own words, none preselected:
+   - **I believe my data is inaccurate** — the accuracy is contested (ground 1);
+   - **My data is being processed unlawfully, but I do not want it erased** — restriction preferred
+     to erasure (ground 2);
+   - **Heimdall no longer needs my data, but I need it kept for a legal claim** (ground 3);
+   - **I have objected to Heimdall processing my data** — pending verification of the
+     controller's grounds (ground 4).
+
+   **Restrict processing** stays disabled until one is chosen.
+3. The person chooses a ground and **Restrict processing**.
+4. The client calls `POST /api/auth/processing-restriction` with `{"ground": n}`; the body names
+   nobody else, so the API acts on the caller. The dialog cannot be dismissed, and its controls are
+   disabled, while the request is in flight.
+5. The API restricts processing and suspends the account. From then on it refuses the session's
+   token on everything but the data-subject-right endpoints, so the client closes the dialog and
+   ends the session (without calling the API's Google sign-out, which that token can no longer
+   reach).
+6. The sign-in screen says that processing of the account is restricted and the account suspended
+   until the restriction is lifted, and that signing in again lets them lift it, or download or
+   erase their data. Signing in again opens the restricted session (UI-30), from which the
+   restriction is lifted (UC-45).
+
+**Alternative flows**
+
+- **AF-33a — Cancelled.** **Cancel**, the barrier or the back control closes the dialog. Nothing is
+  sent and the session is unchanged.
+- **AF-33b — Already restricted.** The API answers `409` (the API's AF-44a), "Processing of this
+  account is already restricted." A full session only hears this when the account was restricted
+  elsewhere — on another device, or directly through the API — so the API already refuses this
+  session's token on everything but the data-subject-right endpoints. The dialog shows the returned
+  errors, says the session can do nothing more, and replaces its actions with a single **Sign out**;
+  it can no longer be dismissed. **Sign out** ends the session exactly as in step 5, and the
+  sign-in screen shows the note of step 6.
+- **AF-33c — Request refused.** Any other refusal, such as `400` for an unknown ground, is shown in
+  the dialog as returned. The chosen ground is kept and the person may try again or cancel.
+- **AF-33d — Transport failure.** The dialog says the API could not be reached. The chosen ground
+  is kept and the person may try again or cancel.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1256,6 +1328,7 @@ restore.
 | UI-02 | FR-AU-26 |
 | UI-31 | FR-SC-12, FR-SC-13, FR-SC-14 |
 | UI-32 | FR-DA-01, FR-DA-02 |
+| UI-33 | FR-AU-27 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
@@ -1274,7 +1347,7 @@ stateDiagram-v2
     Unauthenticated --> Authenticated: login succeeds
     Challenged --> Authenticated: second factor verified
     Challenged --> Unauthenticated: challenge abandoned or expired
-    Authenticated --> Unauthenticated: sign out, or a rejected token
+    Authenticated --> Unauthenticated: sign out, processing restricted, or a rejected token
     Unauthenticated --> Restricted: login answers processingRestricted
     Challenged --> Restricted: second factor verified, processing restricted
     Restoring --> Restricted: stored token claims subjectRightsOnly

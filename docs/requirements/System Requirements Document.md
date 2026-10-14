@@ -63,6 +63,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-24 | The client shall obtain the caller's own data through `POST /api/auth/data-export` and save it as a JSON file: a browser download on the web, the downloads folder on every other target. | UI-30 |
 | FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
 | FR-AU-26 | The client shall request a new second-factor email code through `POST /api/auth/2fa/challenge/resend` while a challenge answered by email is outstanding, waiting 30 seconds between sends and offering at most three per challenge, after which it offers to start the sign-in again. | UI-02 |
+| FR-AU-27 | The client shall let a signed-in person restrict processing of their own identity through `POST /api/auth/processing-restriction`, sending one of the four GDPR Art. 18(1) grounds the person chose (none preselected) after a confirmation that says the account is suspended until the restriction is lifted, and shall then end the session and say on the sign-in screen that signing in again opens the restricted session. | UI-33 |
 
 ### 2.2 Scope management (`FR-SC`)
 
@@ -166,7 +167,7 @@ describes the flows that satisfy these requirements; the
 | `/verify-email` | Verify an email address | UI-05 |
 | `/restricted` | Restricted session — lift the restriction, download one's data, request erasure | UI-30 |
 | `/` | Home | UI-07 |
-| `/profile` | Own profile | UI-08 |
+| `/profile` | Own profile; restrict processing of one's own account | UI-08, UI-33 |
 | `/profile/security` | Two-factor and recovery codes | UI-09 |
 | `/scopes` | Scope listing | UI-10 |
 | `/scopes/new` | Create a scope | UI-11 |

@@ -17,6 +17,8 @@ import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
+import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
@@ -31,6 +33,8 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
+
+class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 const String _systemAdminJwt =
     'header.'
@@ -560,6 +564,58 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  // UI-33 — restricted from the profile, then signed out, and the sign-in
+  // screen says what signing in again leads to.
+  testWidgets('GivenAProfile_WhenProcessingIsRestricted_ThenTheNoteIsShown', (
+    tester,
+  ) async {
+    // Given
+    final dataRights = _MockDataRightsRepository();
+    when(
+      () =>
+          dataRights.restrictProcessing(RestrictionGround.neededForLegalClaim),
+    ).thenAnswer((_) async => const Success<void>(null));
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        dataRightsRepositoryProvider.overrideWithValue(dataRights),
+      ],
+    );
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    final ground = find.text(
+      'Heimdall no longer needs my data, but I need it kept for a legal claim',
+    );
+    await tester.ensureVisible(ground);
+    await tester.pumpAndSettle();
+    await tester.tap(ground);
+    await tester.pump();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Restrict processing'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text(
+        'Processing of your account is restricted, and your account is '
+        'suspended until the restriction is lifted. Sign in again to lift it, '
+        'or to download or erase your data.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsNothing);
   });
 
   // The next person to sign in on this device may be somebody else, so what

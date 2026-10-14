@@ -380,9 +380,15 @@ class SessionController extends Notifier<SessionState> {
   /// subject-rights-only token is not sent to the API's Google sign-out
   /// either: that endpoint is not one of the four such a token is admitted to,
   /// so the call could only come back `403`.
+  ///
+  /// UI-33: [processingRestricted] marks a sign-out that follows restricting
+  /// processing of the person's own account. From then on the API refuses the
+  /// token everywhere but the rights endpoints, its Google sign-out included,
+  /// so that is not called either.
   Future<void> signOut({
     bool expired = false,
     bool restrictionLifted = false,
+    bool processingRestricted = false,
   }) async {
     if (_signingOut) {
       return;
@@ -393,7 +399,10 @@ class SessionController extends Notifier<SessionState> {
     try {
       if (state case Authenticated(:final token, :final principal)
           when token.viaGoogle) {
-        if (!expired && !token.isExpired && !principal.subjectRightsOnly) {
+        if (!expired &&
+            !processingRestricted &&
+            !token.isExpired &&
+            !principal.subjectRightsOnly) {
           await _repository.signOutFromGoogle();
         }
 
@@ -404,6 +413,7 @@ class SessionController extends Notifier<SessionState> {
       state = Unauthenticated(
         sessionExpired: expired,
         restrictionLifted: restrictionLifted,
+        processingRestricted: processingRestricted,
       );
     } finally {
       _signingOut = false;

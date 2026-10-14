@@ -503,4 +503,46 @@ void main() {
     // Then
     expect(find.text('Your details'), findsOneWidget);
   });
+
+  // UI-33 — offered beside the person's own security settings, at every width
+  // and in the dark theme.
+  for (final (label, size, dark) in <(String, Size, bool)>[
+    ('Compact', _compact, false),
+    ('Medium', _medium, false),
+    ('Expanded', _expanded, false),
+    ('Dark', _medium, true),
+  ]) {
+    testWidgets(
+      'Given${label}Profile_WhenRendered_ThenRestrictingProcessingIsOffered',
+      (tester) async {
+        // Given
+        answerGetWith(const Success<Person>(_ada));
+
+        // When
+        await pump(tester, size: size, theme: dark ? buildDarkTheme() : null);
+
+        // Then
+        expect(find.text('Restrict processing of my account'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('GivenTheRestrictionEntry_WhenTapped_ThenTheDialogOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Restrict processing of your account?'), findsOneWidget);
+  });
 }

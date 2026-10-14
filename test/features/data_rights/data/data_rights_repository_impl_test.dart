@@ -227,6 +227,118 @@ void main() {
     expect(result.failureOrNull?.kind, FailureKind.conflict);
   });
 
+  // UC-44 — the ground travels as the API's number; nobody else is named.
+  test(
+    'GivenAGround_WhenProcessingRestricted_ThenItTravelsAsItsNumber',
+    () async {
+      // Given
+      final expected = <RestrictionGround, int>{
+        RestrictionGround.accuracyContested: 1,
+        RestrictionGround.unlawfulButErasureOpposed: 2,
+        RestrictionGround.neededForLegalClaim: 3,
+        RestrictionGround.objectionPending: 4,
+      };
+
+      for (final MapEntry(key: ground, value: number) in expected.entries) {
+        final repository = repositoryAnswering(
+          _Answer(
+            status: 200,
+            body: <String, dynamic>{
+              'success': true,
+              'data': <String, dynamic>{
+                'id': 'person-1',
+                'restrictedAt': '2026-10-14T00:00:00Z',
+                'ground': number,
+              },
+              'messages': <String>[
+                'Processing of your data is restricted. Your account is '
+                    'suspended until it is lifted.',
+              ],
+            },
+          ),
+        );
+
+        // When
+        final result = await repository.restrictProcessing(ground);
+
+        // Then
+        expect(result.isSuccess, isTrue);
+        expect(adapter.method, 'POST');
+        expect(adapter.path, '/api/auth/processing-restriction');
+        expect(adapter.requests.single, <String, dynamic>{'ground': number});
+      }
+    },
+  );
+
+  // AF-44a — already restricted.
+  test(
+    'GivenARestriction_WhenRestrictedAgain_ThenAConflictIsReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 409,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>[
+              'Processing of this account is already restricted.',
+            ],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.restrictProcessing(
+        RestrictionGround.objectionPending,
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.conflict);
+      expect(result.failureOrNull?.errors, <String>[
+        'Processing of this account is already restricted.',
+      ]);
+    },
+  );
+
+  test(
+    'GivenAnUnknownGround_WhenRestricted_ThenTheApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 400,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['RestrictionGroundUnknown'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.restrictProcessing(
+        RestrictionGround.accuracyContested,
+      );
+
+      // Then
+      expect(result.failureOrNull?.errors, <String>[
+        'RestrictionGroundUnknown',
+      ]);
+    },
+  );
+
+  test('GivenNoConnection_WhenRestricted_ThenANetworkFailure', () async {
+    // Given
+    final repository = repositoryAnswering(const _Answer(status: 0));
+
+    // When
+    final result = await repository.restrictProcessing(
+      RestrictionGround.neededForLegalClaim,
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
   // UC-45 — an empty body names nobody, which the API reads as the caller.
   test('GivenARestriction_WhenLifted_ThenNoSubjectIsNamed', () async {
     // Given

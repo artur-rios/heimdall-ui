@@ -18,6 +18,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - An **Erasure requests** screen for System Admins: the erasure requests not yet carried out, soonest deadline first,
   with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
   post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
+- **Restrict processing of my account** on the profile. It asks why, offering the four grounds the law allows in
+  plain words, says that the account is suspended until the restriction is lifted, and then signs the person out.
+  Signing in again opens the restricted session, from which the restriction is lifted or the person's data
+  downloaded or erased. The API's answer is shown as it comes, including when processing is already restricted.
 
 ### Fixed
 
