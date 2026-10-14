@@ -84,6 +84,8 @@ describes the flows that satisfy these requirements; the
 | FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
 | FR-SC-13 | The client shall show and toggle a scope's self-registration through `PUT /api/scopes/{id}/self-registration`, asking before opening it while the scope has no verification link and before closing it. | UI-31 |
 | FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
+| FR-SC-15 | A System Admin or an owning Scope Admin can list a scope's pending self-registrations, newest first and paginated, with name, address, sign-up and expiry instants, attempts left and whether each has expired. No secret is shown. | UI-35 |
+| FR-SC-16 | They can discard one after confirming. A registration already gone is reported as such and the list refreshed. | UI-35 |
 
 ### 2.3 Person management (`FR-PE`)
 
@@ -184,6 +186,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId` | Scope detail | UI-12, UI-13 |
 | `/scopes/:scopeId/owners` | Scope owners | UI-14 |
 | `/scopes/:scopeId/sign-in-settings` | Sign-in & sign-up | UI-31, UI-15 |
+| `/scopes/:scopeId/pending-registrations` | Pending registrations — list and discard | UI-35 |
 | `/scopes/:scopeId/persons` | Person listing | UI-16 |
 | `/scopes/:scopeId/persons/new` | Create a person | UI-17 |
 | `/scopes/:scopeId/persons/:personId` | Person detail | UI-18, UI-19 |
@@ -223,6 +226,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Permanent delete scope | Full | Hidden | Hidden | Hidden |
 | Scope owners | Full | Owned scopes only | Hidden | Hidden |
 | Sign-in & sign-up settings | Full | Owned scopes only | Hidden | Hidden |
+| Pending registrations: list, discard | Full | Owned scopes only | Hidden | Hidden |
 | Person listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |

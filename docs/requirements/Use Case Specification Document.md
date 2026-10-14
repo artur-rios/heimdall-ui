@@ -70,6 +70,7 @@ graph LR
         UI14[UI-14: Manage scope owners]
         UI15[UI-15: Toggle Google Sign-In]
         UI31[UI-31: Sign-in & sign-up settings]
+        UI35[UI-35: Pending registrations]
     end
 
     subgraph "Person Management"
@@ -106,8 +107,8 @@ graph LR
     AN --> UI01 & UI02 & UI03 & UI04 & UI05 & UI06
     SA & SCA & U --> UI07 & UI08 & UI09 & UI33
     RS --> UI30
-    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31
-    SCA --> UI10 & UI12 & UI14 & UI15 & UI31
+    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
+    SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
     SA & SCA --> UI16 & UI17 & UI18 & UI19
     SA & SCA --> UI20 & UI21 & UI22 & UI23
     SA & SCA --> UI24 & UI25 & UI26 & UI27
@@ -153,6 +154,7 @@ graph LR
 | UI-32 | Review outstanding erasure requests | UC-43 |
 | UI-33 | Restrict processing of my account | UC-44, UC-45 |
 | UI-34 | Review the audit trail | UC-48 |
+| UI-35 | Manage a scope's pending registrations | UC-49, UC-50 |
 
 ### 1.5 Platform items
 
@@ -1362,6 +1364,58 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 
 ---
 
+### UI-35: Manage a scope's pending registrations
+
+**Actor:** System Admin, or a Scope Admin who owns the scope
+**Traces to:** UC-49 (List a Scope's Pending Registrations), UC-50 (Discard a Pending Registration)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin who owns the scope.
+
+The screen is the route `/scopes/:scopeId/pending-registrations`, titled **Pending registrations**,
+opened from the **Pending registrations** entry in the scope page's **In this scope** links. The
+entry is shown to a System Admin, and to a Scope Admin whose token's owned scopes hold this scope.
+The scope page's own controls are System-Admin-only, so this is a separate check; the API remains
+the authority. The screen has a **Back to the scope** link.
+
+**Main flow**
+
+1. The user opens **Pending registrations** from the scope page.
+2. The client calls `GET /api/scopes/{id}/pending-registrations` with `PageNumber` and `PageSize`,
+   and renders the answer as every collection is rendered (FR-UX-04): newest first. The subtitle
+   shows the scope's name when the scope page was already loaded, and the scope's identifier
+   otherwise. A line above the list says that these people signed up but have not confirmed yet,
+   that discarding a registration makes its emailed link stop working, and that the person may sign
+   up again.
+3. Each row shows the name, the email address, **Signed up** and **Expires** (local date and time;
+   "—" when the API returns no instant), **Attempts left**, and an **Expired** chip when the
+   registration has expired. No secret is shown.
+4. Each row has **Discard**.
+5. The user chooses **Discard**. A confirmation asks "Discard the registration for {email}?" with
+   the message "Its confirmation link will stop working." and the action **Discard**.
+6. On confirmation the client calls `DELETE /api/scopes/{id}/pending-registrations/{registrationId}`.
+7. On success the list reloads, staying on the same page, and a notice says "Registration
+   discarded." Discarding the last row of the last page returns to the last page that remains.
+
+The listing is held per scope while the user moves around the app and is forgotten when the session
+ends.
+
+**Alternative flows**
+
+- **AF-35a — None pending.** "No pending registrations."
+- **AF-35b — Refused.** The API answers `403` on the list; the returned errors are shown with
+  **Retry**. A `401` is the shell's usual handling (UI-07). A refused discard shows the returned
+  errors in a banner and keeps the list.
+- **AF-35c — Scope not found.** The API answers `404` on the list; "Scope not found." is shown with
+  **Back to scopes**.
+- **AF-35d — Already gone.** The API answers `404` on the discard (the registration was confirmed,
+  purged or discarded elsewhere). The list reloads and a notice says "That registration no longer
+  exists."
+- **AF-35e — Discard cancelled.** **Cancel**, the barrier or the back control closes the
+  confirmation. Nothing is sent.
+- **AF-35f — Transport failure.** The retryable error state (FR-UX-07) on the list, or an error
+  banner for the discard.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1380,6 +1434,7 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 | UI-32 | FR-DA-01, FR-DA-02 |
 | UI-33 | FR-AU-27 |
 | UI-34 | FR-AL-01 … FR-AL-03 |
+| UI-35 | FR-SC-15, FR-SC-16 |
 | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
