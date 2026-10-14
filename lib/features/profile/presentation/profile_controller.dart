@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/result/result.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
+import '../../google_users/domain/google_user.dart';
+import '../../google_users/domain/google_user_repository.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/domain/person_repository.dart';
 
@@ -27,7 +29,7 @@ final class ProfileLoading extends ProfileState {
 
 /// The record could not be read.
 ///
-/// [sessionEnded] marks AF-08e: the API answered `404`, so the person was
+/// [sessionEnded] marks AF-08e: the API answered `404`, so the account was
 /// deleted from under the session and the sign-out has already been started.
 final class ProfileUnavailable extends ProfileState {
   const ProfileUnavailable(this.failure, {this.sessionEnded = false});
@@ -73,6 +75,18 @@ final class ProfileLoaded extends ProfileState {
   );
 }
 
+/// A Google User's own record is on screen.
+///
+/// A Google User is not a person: the session's subject is the Google User,
+/// read through UC-27 rather than the person endpoint. Every field comes from
+/// Google and the API offers no way to change one, so unlike [ProfileLoaded]
+/// there is nothing to save.
+final class GoogleProfileLoaded extends ProfileState {
+  const GoogleProfileLoaded(this.user);
+
+  final GoogleUser user;
+}
+
 final NotifierProvider<ProfileController, ProfileState>
 profileControllerProvider = NotifierProvider<ProfileController, ProfileState>(
   ProfileController.new,
@@ -99,12 +113,55 @@ class ProfileController extends Notifier<ProfileState> {
 
     state = const ProfileLoading();
 
+    if (session.token.viaGoogle) {
+      await _loadGoogleUser(session.principal);
+
+      return;
+    }
+
     final result = await _repository.getById(session.principal.id);
 
     switch (result) {
       case Success<Person>(:final value):
         state = ProfileLoaded(value);
       case FailureResult<Person>(:final failure):
+        await _settleFailure(failure, (f) => ProfileUnavailable(f));
+    }
+  }
+
+  /// Reads a Google session's own record.
+  ///
+  /// A Google sign-in's subject is the Google User, which the person endpoint
+  /// does not know, so asking it would answer `404` and end every Google
+  /// session (#133). UC-27 lets a Google User read their own record, in the
+  /// scope the token names. A `404` here is still AF-08e: the Google User was
+  /// deleted from under the session.
+  Future<void> _loadGoogleUser(Principal principal) async {
+    final scopeId = principal.scopeId;
+
+    if (scopeId == null) {
+      // The API always names the scope of a Google User; a token that does
+      // not is unreadable rather than evidence the account is gone, so the
+      // session is left alone.
+      state = const ProfileUnavailable(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>[],
+          message: 'This session does not say which scope it belongs to.',
+        ),
+      );
+
+      return;
+    }
+
+    final result = await ref
+        .read(googleUserRepositoryProvider)
+        .getById(scopeId: scopeId, id: principal.id, includeDeleted: false);
+
+    switch (result) {
+      case Success<GoogleUser>(:final value):
+        state = GoogleProfileLoaded(value);
+      case FailureResult<GoogleUser>(:final failure):
         await _settleFailure(failure, (f) => ProfileUnavailable(f));
     }
   }

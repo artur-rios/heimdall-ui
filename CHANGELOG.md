@@ -28,6 +28,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
   It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
   sign in, as before.
+- Signing in with Google ended the session almost at once: the home screen read the account as a person, the API
+  answered that no such person exists, and the interface took that to mean the account had been deleted. A Google
+  session now reads its own Google user record. The profile shows the name, email and picture read-only, since they
+  come from the Google account, and offers **Security** and **Restrict processing of my account**; the home screen
+  shows the Google account's name and email.
 
 ## [1.6.1] - 2026-10-12
 

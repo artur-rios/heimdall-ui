@@ -16,12 +16,15 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
@@ -35,6 +38,8 @@ class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
 
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
+
+class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 const String _systemAdminJwt =
     'header.'
@@ -58,10 +63,11 @@ void main() {
   Future<ProviderContainer> pumpApp(
     WidgetTester tester, {
     List<Override> overrides = const <Override>[],
+    FakeDashboardRepositories? fakes,
   }) async {
     final container = ProviderContainer(
       overrides: <Override>[
-        ...FakeDashboardRepositories().overrides,
+        ...(fakes ?? FakeDashboardRepositories()).overrides,
         // The sign-in screen asks the configuration whether to offer the
         // Google control, so the whole app needs one to render.
         appConfigProvider.overrideWithValue(
@@ -145,6 +151,64 @@ void main() {
     // Then
     expect(find.text('Welcome back, Ada Lovelace'), findsOneWidget);
     expect(find.text('Your profile'), findsWidgets);
+  });
+
+  // #133 — a Google sign-in's subject is a Google User, which the persons
+  // endpoint answers `404` for. Home reads the Google User's own record
+  // instead, so the session is not mistaken for a deleted account and ended.
+  testWidgets('GivenAGoogleSession_WhenAppStarts_ThenItStaysSignedIn', (
+    tester,
+  ) async {
+    // Given
+    final payload = base64Url
+        .encode(
+          utf8.encode(
+            jsonEncode(<String, String>{
+              'id': '6f1d3a00-0000-0000-0000-000000000004',
+              'role': '3',
+              'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
+              'name': 'Grace Hopper',
+            }),
+          ),
+        )
+        .replaceAll('=', '');
+    await store.write(
+      AuthToken(
+        value: 'header.$payload.signature',
+        expiresAt: DateTime.utc(2030),
+        viaGoogle: true,
+      ),
+    );
+    final fakes = FakeDashboardRepositories(
+      googleMe: const GoogleUser(
+        id: '6f1d3a00-0000-0000-0000-000000000004',
+        name: 'Grace Hopper',
+        email: 'grace@example.com',
+        scopeId: '6f1d3a00-0000-0000-0000-0000000000aa',
+      ),
+    );
+    // Were the session ended, it would sign out of Google too.
+    final google = _MockGoogleSignInGateway();
+    when(google.signOut).thenAnswer((_) async {});
+
+    // When
+    final container = await pumpApp(
+      tester,
+      fakes: fakes,
+      overrides: <Override>[
+        googleSignInGatewayProvider.overrideWithValue(google),
+      ],
+    );
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    expect(
+      container.read(profileControllerProvider),
+      isA<GoogleProfileLoaded>(),
+    );
+    expect(find.text('Welcome back, Grace Hopper'), findsOneWidget);
+    expect(find.text('grace@example.com'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
   });
 
   testWidgets('GivenEmptyPassword_WhenSubmitted_ThenNoRequestIsMade', (

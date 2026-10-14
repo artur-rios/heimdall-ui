@@ -125,7 +125,7 @@ graph LR
 | UI-05 | Verify email and resend verification | UC-14, UC-15 |
 | UI-06 | Sign in and sign out with Google | UC-25, UC-26 |
 | UI-07 | Guard routes by session and role | — |
-| UI-08 | View and edit own profile | UC-07, UC-08 |
+| UI-08 | View and edit own profile | UC-07, UC-08, UC-27 |
 | UI-09 | Manage two-factor authentication | UC-36, UC-37, UC-39, UC-40 |
 | UI-10 | Browse and search scopes | UC-02 |
 | UI-11 | Create a scope | UC-01 |
@@ -409,8 +409,9 @@ delivered the same way.
 
 ### UI-08: View and edit own profile
 
-**Actor:** System Admin, Scope Admin, User
-**Traces to:** UC-07 (View Person), UC-08 (Update Person)
+**Actor:** System Admin, Scope Admin, User — a Google User included (AF-08f)
+**Traces to:** UC-07 (View Person), UC-08 (Update Person); UC-27 (View Google User) for a Google
+User's own record
 **Precondition:** A session exists.
 
 **Main flow**
@@ -433,6 +434,16 @@ delivered the same way.
   disabled until a field actually differs.
 - **AF-08e — Record unavailable.** The API answers `404`, meaning the person was deleted from under
   the session. The client signs the user out and explains why.
+- **AF-08f — Signed in with Google.** A Google session (UI-06) belongs to a Google User, not a
+  person, so `GET /api/persons/{id}` would answer `404` for it. The client instead calls
+  `GET /api/scopes/{scopeId}/google-users/{id}` with the scope and identifier the token names —
+  UC-27 admits a Google User reading their own record — and shows the name, the email, the picture
+  (the initials when there is none), whether Google verified the address, and the scope. The record
+  is read-only, with the note "Your name and email come from your Google account.": there is no
+  **Edit** and no resend, because the API offers no way to change a Google User's name or email.
+  **Security** (UI-09, which tells a Google User that two-factor authentication does not apply to
+  them) and **Restrict processing of my account** (UI-33) are offered as for a person. A `404` is
+  AF-08e: the Google User was deleted from under the session.
 
 ---
 
@@ -1244,10 +1255,8 @@ restore.
 
 ### UI-33: Restrict processing of my account
 
-**Actor:** System Admin, Scope Admin, User — any person signed in with a full session. A Google
-User is not served yet: the profile reads `GET /api/persons/{id}`, which answers `404` for a Google
-User (AF-08e), so they never reach the entry. The session still skips the API's Google sign-out
-after a restriction (step 5), so the flow holds once they can.
+**Actor:** System Admin, Scope Admin, User — anyone signed in with a full session, a Google User
+included (their profile is AF-08f).
 **Traces to:** UC-44 (Restrict Processing of Own Identity); UC-45 (Lift a Restriction on
 Processing) for lifting it, which UI-30 already offers
 **Precondition:** A full session exists. A restricted session (UI-30) never reaches this screen: it
