@@ -147,7 +147,7 @@ describes the flows that satisfy these requirements; the
 | FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34 |
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
-| FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | All |
+| FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 |
 
 ### 2.8 Data subject administration (`FR-DA`)
 

@@ -1359,8 +1359,6 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 - **AF-34d — Not an identifier.** The Actor or Target field says "Enter an identifier." Nothing is
   sent.
 - **AF-34e — Transport failure.** The retryable error state (FR-UX-07).
-- **AF-34f — Too many requests.** The API answers `429`; its message is shown, with the wait it
-  asks for when it sends one (FR-UX-09).
 
 ---
 
@@ -1382,7 +1380,8 @@ only to a System Admin, and the route is refused for a Scope Admin and a User.
 | UI-32 | FR-DA-01, FR-DA-02 |
 | UI-33 | FR-AU-27 |
 | UI-34 | FR-AL-01 … FR-AL-03 |
-| All | FR-UX-01 … FR-UX-09, NFR-01 … NFR-09 |
+| UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30 | FR-UX-09 |
+| All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
 [System Requirements Document](System%20Requirements%20Document.md).
