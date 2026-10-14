@@ -299,6 +299,30 @@ void main() {
     },
   );
 
+  testWidgets(
+    'GivenABoundedTitle_WhenReadAloud_ThenTheTitleAndSubtitleAreReadOnce',
+    (tester) async {
+      // Given
+      final semantics = tester.ensureSemantics();
+
+      // When
+      await pump(
+        tester,
+        size: const Size(1400, 900),
+        items: const <_Row>[_Row('Acme', 'Active')],
+        subtitle: (item) => 'acme@example.com',
+      );
+
+      // Then — the tooltip repeats the text on screen, so it is not read.
+      for (final text in <String>['Acme', 'acme@example.com']) {
+        final data = tester.getSemantics(find.text(text)).getSemanticsData();
+        final spoken = '${data.label}\n${data.tooltip}';
+        expect(text.allMatches(spoken).length, 1, reason: spoken);
+      }
+      semantics.dispose();
+    },
+  );
+
   testWidgets('GivenALongTitle_WhenCardsAreUsed_ThenItIsShownWhole', (
     tester,
   ) async {

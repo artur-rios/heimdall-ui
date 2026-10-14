@@ -191,6 +191,9 @@ class AdaptiveCollection<T> extends StatelessWidget {
 const double _titleMaxWidth = 260;
 
 /// A single line cut short with an ellipsis, the whole text in a tooltip.
+///
+/// The tooltip repeats the text, which screen readers already read whole, so
+/// it is kept out of the semantics tree.
 class _OneLine extends StatelessWidget {
   const _OneLine(this.text, {this.style});
 
@@ -200,6 +203,7 @@ class _OneLine extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Tooltip(
     message: text,
+    excludeFromSemantics: true,
     child: Text(
       text,
       style: style,
