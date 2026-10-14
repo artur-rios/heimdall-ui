@@ -72,6 +72,14 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     setState(() => _targetError = accepted ? null : 'Enter an identifier.');
   }
 
+  /// A refusal left over from an earlier submit would contradict what the
+  /// field now holds, so an edit clears it.
+  void _clearStale(VoidCallback clear, String? error) {
+    if (error != null) {
+      setState(clear);
+    }
+  }
+
   void _filterByActor(String id) {
     _actor.text = id;
     _submitActor(id);
@@ -222,10 +230,21 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: <Widget>[
-        OutlinedButton.icon(
-          icon: const Icon(Icons.date_range_outlined),
-          label: Text(_datesLabel(context, filter)),
-          onPressed: () => _pickDays(filter),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            OutlinedButton.icon(
+              icon: const Icon(Icons.date_range_outlined),
+              label: Text(_datesLabel(context, filter)),
+              onPressed: () => _pickDays(filter),
+            ),
+            if (filter.firstDay != null || filter.lastDay != null)
+              IconButton(
+                icon: const Icon(Icons.clear),
+                tooltip: 'Clear the dates',
+                onPressed: _controller.clearDays,
+              ),
+          ],
         ),
         _field(
           controller: _action,
@@ -238,12 +257,15 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
           label: 'Actor',
           error: _actorError,
           onSubmitted: _submitActor,
+          onChanged: (_) => _clearStale(() => _actorError = null, _actorError),
         ),
         _field(
           controller: _target,
           label: 'Target',
           error: _targetError,
           onSubmitted: _submitTarget,
+          onChanged: (_) =>
+              _clearStale(() => _targetError = null, _targetError),
         ),
         _outcomeChip('All', null, filter),
         _outcomeChip('Succeeded', true, filter),
@@ -289,6 +311,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     required TextEditingController controller,
     required String label,
     required ValueChanged<String> onSubmitted,
+    ValueChanged<String>? onChanged,
     String? hint,
     String? error,
   }) => SizedBox(
@@ -299,9 +322,16 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
         labelText: label,
         hintText: hint,
         errorText: error,
+        // The same as Enter, for a pointer or a keyboard without one.
+        suffixIcon: IconButton(
+          icon: const Icon(Icons.search),
+          tooltip: 'Search',
+          onPressed: () => onSubmitted(controller.text),
+        ),
       ),
       textInputAction: TextInputAction.search,
       onSubmitted: onSubmitted,
+      onChanged: onChanged,
     ),
   );
 

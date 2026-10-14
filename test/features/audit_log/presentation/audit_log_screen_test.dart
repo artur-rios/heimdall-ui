@@ -472,11 +472,126 @@ void main() {
     );
 
     // When
-    await pump(tester);
+    await pump(
+      tester,
+      prepare: (container) => container
+          .read(auditLogControllerProvider.notifier)
+          .setAction('CreateScopeCommand'),
+    );
 
     // Then
     expect(find.text('The range is reversed.'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Actor'), findsOneWidget);
+    expect(
+      tester
+          .widget<TextField>(find.widgetWithText(TextField, 'Action'))
+          .controller!
+          .text,
+      'CreateScopeCommand',
+    );
+    clearInteractions(repository);
+    await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
+    await tester.pumpAndSettle();
+    final retried =
+        verify(
+              () => repository.list(
+                filter: captureAny(named: 'filter'),
+                pageNumber: any(named: 'pageNumber'),
+                pageSize: any(named: 'pageSize'),
+              ),
+            ).captured.single
+            as AuditLogFilter;
+    expect(retried.action, 'CreateScopeCommand');
+  });
+
+  testWidgets(
+    'GivenARefusedIdentifier_WhenTheFieldChanges_ThenItsErrorClears',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+      await pump(tester);
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), 'bob');
+      await tester.testTextInput.receiveAction(TextInputAction.search);
+      await tester.pumpAndSettle();
+      expect(find.text('Enter an identifier.'), findsOneWidget);
+
+      // When
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), 'bo');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Enter an identifier.'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenTextFilters_WhenTheirSearchButtonsAreTapped_ThenTheyApply',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+      await pump(tester);
+      Finder searchIn(String label) => find.descendant(
+        of: find.widgetWithText(TextField, label),
+        matching: find.byTooltip('Search'),
+      );
+
+      // When
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Action'),
+        'CreateScopeCommand',
+      );
+      await tester.tap(searchIn('Action'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Actor'), _actorId);
+      await tester.tap(searchIn('Actor'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Target'),
+        _targetId,
+      );
+      await tester.tap(searchIn('Target'));
+      await tester.pumpAndSettle();
+
+      // Then
+      final sent =
+          verify(
+                () => repository.list(
+                  filter: captureAny(named: 'filter'),
+                  pageNumber: any(named: 'pageNumber'),
+                  pageSize: any(named: 'pageSize'),
+                ),
+              ).captured.last
+              as AuditLogFilter;
+      expect(sent.action, 'CreateScopeCommand');
+      expect(sent.actorId, _actorId);
+      expect(sent.targetId, _targetId);
+    },
+  );
+
+  testWidgets('GivenADateRange_WhenItsClearIsTapped_ThenOnlyTheDatesClear', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<AuditEntry>>(_page([_refused])));
+    await pump(
+      tester,
+      prepare: (container) async {
+        final controller = container.read(auditLogControllerProvider.notifier);
+        await controller.setDays(DateTime(2026, 10, 1), DateTime(2026, 10, 2));
+        await controller.setOutcome(false);
+      },
+    );
+
+    // When
+    await tester.tap(find.byTooltip('Clear the dates'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final filter = container.read(auditLogControllerProvider).query.filter;
+    expect(filter.firstDay, isNull);
+    expect(filter.lastDay, isNull);
+    expect(filter.succeeded, isFalse);
+    expect(find.widgetWithText(OutlinedButton, 'Dates'), findsOneWidget);
+    expect(find.byTooltip('Clear the dates'), findsNothing);
   });
 
   testWidgets('GivenADateRange_WhenShown_ThenTheDatesButtonNamesTheYear', (
