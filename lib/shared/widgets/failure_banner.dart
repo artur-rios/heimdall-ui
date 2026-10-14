@@ -75,6 +75,11 @@ class ErrorBanner extends StatelessWidget {
           children: <Widget>[
             for (final message in messages)
               Text(message, style: TextStyle(color: scheme.onErrorContainer)),
+            // Only with the API's own errors: otherwise the single message is
+            // displayMessage, which already carries the hint.
+            if (failure.errors.isNotEmpty)
+              if (failure.retryHint case final String hint)
+                Text(hint, style: TextStyle(color: scheme.onErrorContainer)),
           ],
         ),
       ),

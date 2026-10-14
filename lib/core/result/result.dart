@@ -5,6 +5,7 @@ enum FailureKind {
   forbidden,
   notFound,
   conflict,
+  rateLimited,
   server,
   network,
   unknown,
@@ -16,18 +17,40 @@ enum FailureKind {
 /// shown as returned, so what a user reads matches what an operator finds in
 /// the API's logs.
 class Failure {
-  const Failure({required this.kind, required this.errors, this.message});
+  const Failure({
+    required this.kind,
+    required this.errors,
+    this.message,
+    this.retryAfter,
+  });
 
   final FailureKind kind;
   final List<String> errors;
   final String? message;
 
+  /// How long the API asked the caller to wait, from a `429`'s `Retry-After`.
+  /// `null` when the response carried none: a handler's own `429`, such as an
+  /// account email's cooldown, says how long in its message instead.
+  final Duration? retryAfter;
+
+  /// "Try again in N seconds." when the API said how long to wait, else `null`.
+  String? get retryHint => switch (retryAfter) {
+    final Duration wait when wait.inSeconds == 1 => 'Try again in 1 second.',
+    final Duration wait => 'Try again in ${wait.inSeconds} seconds.',
+    null => null,
+  };
+
   /// The single line worth showing when there is no field to attach errors to.
   String get displayMessage =>
-      message ?? (errors.isNotEmpty ? errors.first : 'Something went wrong.');
+      message ??
+      (errors.isNotEmpty
+          ? errors.first
+          : kind == FailureKind.rateLimited
+          ? 'Too many requests. ${retryHint ?? 'Try again later.'}'
+          : 'Something went wrong.');
 
   @override
-  String toString() => 'Failure($kind, $errors, $message)';
+  String toString() => 'Failure($kind, $errors, $message, $retryAfter)';
 }
 
 /// The outcome of an operation that can fail without throwing.

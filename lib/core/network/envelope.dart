@@ -125,9 +125,20 @@ Failure failureFromDioException(DioException error) {
       403 => FailureKind.forbidden,
       404 => FailureKind.notFound,
       409 => FailureKind.conflict,
+      429 => FailureKind.rateLimited,
       final int status when status >= 500 => FailureKind.server,
       _ => FailureKind.unknown,
     },
     errors: errors,
+    retryAfter: response.statusCode == 429 ? _retryAfterOf(response) : null,
   );
+}
+
+/// `Retry-After` as whole seconds (RFC 9110 §10.2.3). The HTTP-date form is not
+/// used by the API and is ignored rather than guessed at.
+Duration? _retryAfterOf(Response<dynamic> response) {
+  final raw = response.headers.value('retry-after');
+  final seconds = raw == null ? null : int.tryParse(raw.trim());
+
+  return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
 }

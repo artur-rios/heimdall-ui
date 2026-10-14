@@ -63,4 +63,51 @@ void main() {
     // Then
     expect(message, 'Something went wrong.');
   });
+
+  test(
+    'GivenARateLimitWithoutErrors_WhenDisplayed_ThenItSaysTryAgainLater',
+    () {
+      // Given
+      const failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: <String>[],
+      );
+
+      // When
+      final message = failure.displayMessage;
+
+      // Then
+      expect(message, 'Too many requests. Try again later.');
+    },
+  );
+
+  test('GivenARateLimitWithRetryAfter_WhenDisplayed_ThenItNamesTheSeconds', () {
+    // Given
+    const failure = Failure(
+      kind: FailureKind.rateLimited,
+      errors: <String>[],
+      retryAfter: Duration(seconds: 5),
+    );
+
+    // When
+    final message = failure.displayMessage;
+
+    // Then
+    expect(message, 'Too many requests. Try again in 5 seconds.');
+  });
+
+  test('GivenOneSecond_WhenHinted_ThenTheWordIsSingular', () {
+    // Given
+    const failure = Failure(
+      kind: FailureKind.rateLimited,
+      errors: <String>[],
+      retryAfter: Duration(seconds: 1),
+    );
+
+    // When
+    final hint = failure.retryHint;
+
+    // Then
+    expect(hint, 'Try again in 1 second.');
+  });
 }
