@@ -1382,7 +1382,7 @@ opened from the **Pending registrations** entry in the scope page's **In this sc
 entry is shown to a System Admin, and to a Scope Admin whose token's owned scopes hold this scope,
 but not on a deleted scope, for which the API answers `404`. The scope page's own controls are
 System-Admin-only, so this is a separate check; the API remains the authority. The screen has a
-**Back to the scope** link.
+back control (tooltip **Back to the scope**).
 
 **Main flow**
 
@@ -1397,7 +1397,8 @@ System-Admin-only, so this is a separate check; the API remains the authority. T
 3. Each row shows the name, the email address, **Signed up** and **Expires** (local date and time;
    "—" when the API returns no instant), **Attempts left**, and an **Expired** chip when the
    registration has expired. No secret is shown.
-4. Each row has **Discard**.
+4. Each row has **Discard**: in the table, a delete icon beside the name whose tooltip is "Discard
+   the registration for {email}". A long name or address is cut short there, whole in a tooltip.
 5. The user chooses **Discard**. A confirmation asks "Discard the registration for {email}?" with
    the message "Its confirmation link will stop working." and the action **Discard**.
 6. On confirmation the client calls `DELETE /api/scopes/{id}/pending-registrations/{registrationId}`.
