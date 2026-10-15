@@ -33,6 +33,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The request log of a debug build printed every request's headers, the bearer token among them. It now
+  writes one line per request, with the method, path, status and duration, and never headers, query strings, bodies
+  or an error's text. Release builds log nothing, as before.
 - Rate-limited requests now say so, and how long to wait when the API tells us.
 - Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
   It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
