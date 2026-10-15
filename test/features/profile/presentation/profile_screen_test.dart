@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -475,6 +476,39 @@ void main() {
 
       // Then
       expect(codeField(), findsOneWidget);
+      expect(find.text('Use one of your recovery codes.'), findsOneWidget);
+    },
+  );
+
+  // Until the method is known the field suggests nothing, so a person whose
+  // only method is email is never shown the authenticator wording first.
+  testWidgets(
+    'GivenTheMethodBeingRead_WhenTheEmailIsChanged_ThenNoHintIsShownYet',
+    (tester) async {
+      // Given
+      final status = Completer<Result<TwoFactorStatus>>();
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      when(() => auth.twoFactorStatus()).thenAnswer((_) => status.future);
+      await pump(tester);
+
+      // When
+      await changeEmailTo(tester, 'new@example.com');
+
+      // Then
+      expect(codeField(), findsOneWidget);
+      expect(
+        find.text('A code from your authenticator app, or a recovery code.'),
+        findsNothing,
+      );
+      expect(find.text('Use one of your recovery codes.'), findsNothing);
+
+      // And once it is known
+      status.complete(
+        const Success<TwoFactorStatus>(
+          TwoFactorStatus(isActive: true, emailEnabled: true),
+        ),
+      );
+      await tester.pumpAndSettle();
       expect(find.text('Use one of your recovery codes.'), findsOneWidget);
     },
   );

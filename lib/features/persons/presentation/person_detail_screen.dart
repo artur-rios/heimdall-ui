@@ -381,11 +381,17 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                             controller: _email,
                             readOnly: !editing || _isSelf,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: recordFieldDecoration(
-                              context,
-                              label: 'Email',
-                              editing: editing && !_isSelf,
-                            ),
+                            decoration:
+                                recordFieldDecoration(
+                                  context,
+                                  label: 'Email',
+                                  editing: editing && !_isSelf,
+                                ).copyWith(
+                                  helperText: editing && _isSelf
+                                      ? 'Change your own email from your '
+                                            'profile.'
+                                      : null,
+                                ),
                             validator: (value) {
                               final email = value?.trim() ?? '';
 

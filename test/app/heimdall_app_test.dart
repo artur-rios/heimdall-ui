@@ -18,6 +18,7 @@ import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
@@ -685,6 +686,67 @@ void main() {
     await tester.ensureVisible(save);
     await tester.pumpAndSettle();
     await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-09 AF-09c — on the web a browser Back or typed address is a route
+  // change; the security route asks before recovery codes are left behind,
+  // and leaving them signs the person out with the reason.
+  testWidgets('GivenIssuedCodes_WhenTheRouteChanges_ThenItAsksAndSignsOut', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.twoFactorStatus()).thenAnswer(
+      (_) async => const Success<TwoFactorStatus>(TwoFactorStatus()),
+    );
+    when(
+      () => repository.enableTwoFactor(
+        TwoFactorMethod.email,
+        currentPassword: 'secret',
+      ),
+    ).thenAnswer(
+      (_) async => const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.email, emailCodeSent: true),
+      ),
+    );
+    when(
+      () => repository.confirmTwoFactor(
+        method: TwoFactorMethod.email,
+        code: '123456',
+      ),
+    ).thenAnswer((_) async => const Success<List<String>>(<String>['aaa']));
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    final router = container.read(routerProvider)..go('/profile/security');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Emailed code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Current password'),
+      'secret',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your recovery codes'), findsOneWidget);
+
+    // When
+    router.go('/profile');
+    await tester.pumpAndSettle();
+    expect(find.text('Leave without your recovery codes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
     await tester.pumpAndSettle();
 
     // Then

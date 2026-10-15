@@ -363,6 +363,11 @@ void main() {
       find.textContaining('Change your email address from your profile'),
       findsOneWidget,
     );
+    // The field says so itself, where the person is looking.
+    expect(
+      find.text('Change your own email from your profile.'),
+      findsOneWidget,
+    );
   });
 
   // AF-18a — no such person.

@@ -86,28 +86,39 @@ void main() {
       (_, _) => sessionChanges.value++,
     );
 
-    router = GoRouter(
-      initialLocation: '/profile/security',
-      refreshListenable: sessionChanges,
-      redirect: (context, state) =>
-          container.read(sessionControllerProvider) is Unauthenticated
-          ? '/login'
-          : null,
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const Scaffold(body: Text('sign-in')),
-        ),
-        GoRoute(
-          path: '/profile',
-          builder: (context, state) => const Scaffold(body: Text('profile')),
-        ),
-        GoRoute(
-          path: '/profile/security',
-          builder: (context, state) => const SecurityScreen(),
-        ),
-      ],
+    // Built under a provider, as the application's is, so the security
+    // route's onExit has the Ref it reads the codes and the session through.
+    final routerProvider = Provider<GoRouter>(
+      (ref) => GoRouter(
+        initialLocation: '/profile/security',
+        refreshListenable: sessionChanges,
+        redirect: (context, state) =>
+            ref.read(sessionControllerProvider) is Unauthenticated
+            ? '/login'
+            : null,
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(body: Text('home')),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) => const Scaffold(body: Text('sign-in')),
+          ),
+          GoRoute(
+            path: '/profile',
+            builder: (context, state) => const Scaffold(body: Text('profile')),
+          ),
+          GoRoute(
+            path: '/profile/security',
+            builder: (context, state) => const SecurityScreen(),
+            onExit: (context, state) =>
+                confirmLeaveWithRecoveryCodes(context, ref),
+          ),
+        ],
+      ),
     );
+    router = container.read(routerProvider);
     addTearDown(router.dispose);
 
     await tester.pumpWidget(
@@ -568,7 +579,10 @@ void main() {
 
   // AF-09f — a wrong password is shown on the screen, the feature stays off,
   // and the person stays signed in to correct it.
-  testWidgets('GivenAWrongPassword_WhenTheSetupStarts_ThenItIsShownInline', (
+  // AF-09f — a wrong password keeps the dialog open with the refusal in it,
+  // so the person retypes it there; the feature stays off and the session
+  // stays.
+  testWidgets('GivenAWrongPassword_WhenTheSetupStarts_ThenTheDialogStays', (
     tester,
   ) async {
     // Given
@@ -586,9 +600,50 @@ void main() {
     await startSetup(tester, 'Authenticator app', password: 'wrong');
 
     // Then
-    expect(find.text('The current password is incorrect.'), findsOneWidget);
-    expect(find.text('Two-factor authentication is off'), findsOneWidget);
+    final dialog = find.byType(AlertDialog);
+    expect(dialog, findsOneWidget);
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.text('The current password is incorrect.'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.widgetWithText(TextField, 'Current password'), findsOneWidget);
+    expect(find.byType(QrCodeView), findsNothing);
     expect(session(), isA<Authenticated>());
+  });
+
+  testWidgets('GivenARefusedPassword_WhenRetyped_ThenTheSetupStarts', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.enableTwoFactor(any(), currentPassword: 'wrong'))
+        .thenAnswer(
+          (_) async => const FailureResult<TwoFactorSetup>(
+            Failure(
+              kind: FailureKind.validation,
+              errors: <String>['The current password is incorrect.'],
+            ),
+          ),
+        );
+    when(() => repository.enableTwoFactor(any(), currentPassword: 'secret'))
+        .thenAnswer((_) async => const Success<TwoFactorSetup>(_appSetup));
+    await pump(tester);
+    await startSetup(tester, 'Authenticator app', password: 'wrong');
+
+    // When
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Current password'),
+      'secret',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(find.byType(QrCodeView), findsOneWidget);
   });
 
   testWidgets('GivenRegeneratedCodes_WhenShown_ThenTheOldOnesAreSaidToStop', (
@@ -928,5 +983,141 @@ void main() {
 
     // Then
     expect(find.text('Your recovery codes'), findsOneWidget);
+  });
+
+  /// Confirms the app setup and leaves the recovery codes on screen.
+  Future<void> issueCodes(WidgetTester tester) async {
+    await pump(tester);
+    await startSetup(tester, 'Authenticator app');
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your recovery codes'), findsOneWidget);
+  }
+
+  // AF-09c — on the web a browser Back, Forward or typed address is a route
+  // change that PopScope and the shell never see, so the route itself asks.
+  testWidgets('GivenIssuedCodes_WhenTheRouteIsLeft_ThenItAsks', (tester) async {
+    // Given
+    await issueCodes(tester);
+
+    // When
+    router.go('/profile');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Leave without your recovery codes?'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenIssuedCodes_WhenTheRouteIsLeftButStayIsChosen_ThenTheyStay',
+    (tester) async {
+      // Given
+      await issueCodes(tester);
+      router.go('/profile');
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.tap(find.widgetWithText(TextButton, 'Stay'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Your recovery codes'), findsOneWidget);
+      expect(find.text('profile'), findsNothing);
+      expect(session(), isA<Authenticated>());
+    },
+  );
+
+  // Leaving them is leaving under a revoked token, so it signs the person out
+  // rather than letting the next screen's request be refused.
+  testWidgets('GivenIssuedCodes_WhenTheRouteIsLeftAnyway_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    await issueCodes(tester);
+    router.go('/profile');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
+  // A session redirect always wins: asking would strand it behind a dialog.
+  testWidgets('GivenIssuedCodes_WhenTheSessionEnds_ThenTheRedirectWins', (
+    tester,
+  ) async {
+    // Given
+    await issueCodes(tester);
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signOut(expired: true);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Leave without your recovery codes?'), findsNothing);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenIssuedCodes_WhenSystemBackIsLeftAnyway_ThenTheSessionEnds',
+    (tester) async {
+      // Given
+      await issueCodes(tester);
+
+      // When
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect((session() as Unauthenticated).credentialsChanged, isTrue);
+      expect(find.text('sign-in'), findsOneWidget);
+    },
+  );
+
+  // The shell's navigation does not go on to its destination: the sign-out
+  // already took the person off the screen.
+  testWidgets(
+    'GivenIssuedCodes_WhenADestinationIsLeftAnyway_ThenTheSessionEnds',
+    (tester) async {
+      // Given
+      await issueCodes(tester);
+
+      // When
+      await tester.tap(find.text('Home'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect((session() as Unauthenticated).credentialsChanged, isTrue);
+      expect(find.text('sign-in'), findsOneWidget);
+      expect(find.text('home'), findsNothing);
+    },
+  );
+
+  testWidgets('GivenIssuedCodes_WhenSignOutIsLeftAnyway_ThenTheReasonIsKept', (
+    tester,
+  ) async {
+    // Given
+    await issueCodes(tester);
+
+    // When
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
   });
 }

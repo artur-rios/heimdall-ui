@@ -50,11 +50,14 @@ final class ProfileUnavailable extends ProfileState {
 /// change asks for (FR-AU-16) is said to be: no emailed code is sent while
 /// signed in, so a person whose only method is email answers with a recovery
 /// code. It is `null` until read, when the factor is off, or when it could not
-/// be read.
+/// be read. [secondFactorSettled] says a read has finished, whatever it
+/// answered: until then the code field suggests nothing, so an email-only
+/// person is never first shown the authenticator wording.
 final class ProfileLoaded extends ProfileState {
   const ProfileLoaded(
     this.person, {
     this.secondFactor,
+    this.secondFactorSettled = false,
     this.saving = false,
     this.saveFailure,
     this.saved = false,
@@ -62,6 +65,7 @@ final class ProfileLoaded extends ProfileState {
 
   final Person person;
   final TwoFactorStatus? secondFactor;
+  final bool secondFactorSettled;
   final bool saving;
   final Failure? saveFailure;
   final bool saved;
@@ -69,6 +73,7 @@ final class ProfileLoaded extends ProfileState {
   ProfileLoaded copyWith({
     Person? person,
     TwoFactorStatus? secondFactor,
+    bool? secondFactorSettled,
     bool? saving,
     Failure? saveFailure,
     bool clearSaveFailure = false,
@@ -76,6 +81,7 @@ final class ProfileLoaded extends ProfileState {
   }) => ProfileLoaded(
     person ?? this.person,
     secondFactor: secondFactor ?? this.secondFactor,
+    secondFactorSettled: secondFactorSettled ?? this.secondFactorSettled,
     saving: saving ?? this.saving,
     saveFailure: clearSaveFailure ? null : (saveFailure ?? this.saveFailure),
     saved: saved ?? this.saved,
@@ -161,11 +167,11 @@ class ProfileController extends Notifier<ProfileState> {
 
     final result = await ref.read(authRepositoryProvider).twoFactorStatus();
 
-    if ((result.valueOrNull, state) case (
-      final TwoFactorStatus status,
-      final ProfileLoaded latest,
-    )) {
-      state = latest.copyWith(secondFactor: status);
+    if (state case final ProfileLoaded latest) {
+      state = latest.copyWith(
+        secondFactor: result.valueOrNull,
+        secondFactorSettled: true,
+      );
     }
   }
 
@@ -260,6 +266,7 @@ class ProfileController extends Notifier<ProfileState> {
           // cannot have changed one — so the state already read carries over.
           value.withTwoFactorEnabled(current.person.twoFactorEnabled),
           secondFactor: current.secondFactor,
+          secondFactorSettled: current.secondFactorSettled,
           saved: true,
         );
 

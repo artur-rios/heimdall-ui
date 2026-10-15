@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/unload/unload_guard.dart';
 import '../../auth/domain/two_factor.dart';
 import '../../auth/presentation/session_controller.dart';
 
@@ -114,7 +115,26 @@ twoFactorControllerProvider =
 /// the recovery codes that have not been acknowledged.
 class TwoFactorController extends Notifier<TwoFactorState> {
   @override
-  TwoFactorState build() => const TwoFactorLoading();
+  TwoFactorState build() {
+    // AF-09c: closing or reloading the tab is no route change, so while codes
+    // wait to be acknowledged the browser is asked to confirm that too. The
+    // guard follows the state here, so every way the codes go — acknowledged,
+    // left, or dropped with the session — drops it with them.
+    final guard = ref.watch(unloadGuardProvider);
+    var guarded = false;
+
+    void follow(bool pending) {
+      if (pending != guarded) {
+        guarded = pending;
+        pending ? guard.register() : guard.unregister();
+      }
+    }
+
+    listenSelf((previous, next) => follow(next is TwoFactorCodesIssued));
+    ref.onDispose(() => follow(false));
+
+    return const TwoFactorLoading();
+  }
 
   /// Reads the caller's own configuration.
   Future<void> load() async {
@@ -130,17 +150,18 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
   /// Starts enabling [method], which moves the screen to its confirmation.
   ///
-  /// FR-AU-17: the API asks for the [currentPassword] first. AF-09f: a wrong
-  /// one is refused like any other credential — shown here, with the feature
-  /// still off and the session untouched.
-  Future<void> beginSetup(
+  /// FR-AU-17: the API asks for the [currentPassword] first. AF-09f: a refusal
+  /// is returned rather than kept, for the password dialog to show while it
+  /// stays open; the feature stays off and the session untouched. `null` means
+  /// the setup started, or that another command was already under way.
+  Future<Failure?> beginSetup(
     TwoFactorMethod method, {
     required String currentPassword,
   }) async {
     final current = state;
 
     if (current is! TwoFactorSettled || current.busy) {
-      return;
+      return null;
     }
 
     state = current.copyWith(busy: true, clearFailure: true);
@@ -149,10 +170,16 @@ class TwoFactorController extends Notifier<TwoFactorState> {
         .read(authRepositoryProvider)
         .enableTwoFactor(method, currentPassword: currentPassword);
 
-    state = result.fold(
-      onSuccess: (setup) => TwoFactorConfirming(current.status, setup),
-      onFailure: (failure) => current.copyWith(busy: false, failure: failure),
-    );
+    switch (result) {
+      case Success<TwoFactorSetup>(:final value):
+        state = TwoFactorConfirming(current.status, value);
+
+        return null;
+      case FailureResult<TwoFactorSetup>(:final failure):
+        state = current.copyWith(busy: false);
+
+        return failure;
+    }
   }
 
   /// AF-09b — abandons a setup that was never confirmed.

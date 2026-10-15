@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/core/unload/unload_guard.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
@@ -13,6 +14,17 @@ import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// Records what the controller asked of the browser's leave confirmation.
+class _FakeUnloadGuard implements UnloadGuard {
+  final List<String> calls = <String>[];
+
+  @override
+  void register() => calls.add('register');
+
+  @override
+  void unregister() => calls.add('unregister');
+}
 
 String _jwt() {
   final payload = base64Url.encode(
@@ -44,6 +56,7 @@ const _on = TwoFactorStatus(
 void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
+  late _FakeUnloadGuard guard;
   late ProviderContainer container;
 
   TwoFactorController controllerUnderTest() {
@@ -51,6 +64,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        unloadGuardProvider.overrideWithValue(guard),
       ],
     );
     addTearDown(container.dispose);
@@ -117,6 +131,7 @@ void main() {
   setUp(() {
     repository = _MockAuthRepository();
     store = InMemoryTokenStore();
+    guard = _FakeUnloadGuard();
   });
 
   test('GivenAConfiguration_WhenLoaded_ThenItIsShown', () async {
@@ -403,7 +418,9 @@ void main() {
 
   // AF-09f — a wrong password is shown, the feature stays off, and the
   // person stays signed in to correct it.
-  test('GivenAWrongPassword_WhenStarted_ThenTheRefusalIsKept', () async {
+  // The refusal goes back to the password dialog, which stays open to show
+  // it; the section stays as it was, with nothing of its own to show.
+  test('GivenAWrongPassword_WhenStarted_ThenTheRefusalIsReturned', () async {
     // Given
     answerStatusWith(const Success<TwoFactorStatus>(_off));
     answerEnableWith(const FailureResult<TwoFactorSetup>(_wrongPassword));
@@ -411,15 +428,105 @@ void main() {
     await controller.load();
 
     // When
-    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'x');
+    final failure = await controller.beginSetup(
+      TwoFactorMethod.app,
+      currentPassword: 'x',
+    );
 
     // Then
+    expect(failure?.errors, <String>['The current password is incorrect.']);
     final state = currentState() as TwoFactorSettled;
-    expect(state.failure?.errors, <String>[
-      'The current password is incorrect.',
-    ]);
+    expect(state.failure, isNull);
+    expect(state.busy, isFalse);
     expect(state.status.isActive, isFalse);
     expect(session(), isA<Authenticated>());
+  });
+
+  test('GivenAPassword_WhenTheSetupStarts_ThenNoRefusalIsReturned', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(
+      const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.app, otpAuthUri: 'otpauth://x'),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final failure = await controller.beginSetup(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(failure, isNull);
+    expect(currentState(), isA<TwoFactorConfirming>());
+  });
+
+  // AF-09c — closing or reloading the tab asks first while codes wait.
+  test('GivenIssuedCodes_WhenShown_ThenTheUnloadGuardIsRegistered', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.regenerateRecoveryCodes(code: '123456');
+
+    // Then
+    expect(guard.calls, <String>['register']);
+  });
+
+  test(
+    'GivenIssuedCodes_WhenAcknowledged_ThenTheUnloadGuardIsUnregistered',
+    () async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+      final controller = await signedInControllerUnderTest();
+      await controller.load();
+      await controller.regenerateRecoveryCodes(code: '123456');
+
+      // When
+      await controller.acknowledgeCodes();
+
+      // Then
+      expect(guard.calls, <String>['register', 'unregister']);
+    },
+  );
+
+  // The session ending drops the codes with it, and their guard too.
+  test(
+    'GivenIssuedCodes_WhenTheControllerIsDropped_ThenTheGuardIsUnregistered',
+    () async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+      final controller = await signedInControllerUnderTest();
+      await controller.load();
+      await controller.regenerateRecoveryCodes(code: '123456');
+
+      // When
+      container.invalidate(twoFactorControllerProvider);
+      container.read(twoFactorControllerProvider);
+
+      // Then
+      expect(guard.calls, <String>['register', 'unregister']);
+    },
+  );
+
+  test('GivenNoCodes_WhenTheSectionLoads_ThenNoGuardIsRegistered', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    expect(guard.calls, isEmpty);
   });
 
   // AF-09c — the codes are shown once, and acknowledging them is what moves

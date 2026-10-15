@@ -10,8 +10,53 @@ import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../../shared/widgets/qr_code.dart';
+import '../../auth/domain/session.dart';
 import '../../auth/domain/two_factor.dart';
+import '../../auth/presentation/session_controller.dart';
 import 'two_factor_controller.dart';
+
+/// AF-09c — asks whether to leave recovery codes that are shown only once.
+Future<bool> _confirmLeavingCodes(BuildContext context) => showConfirm(
+  context: context,
+  title: 'Leave without your recovery codes?',
+  message:
+      'These codes are shown once and cannot be retrieved. If you '
+      'leave now you will not see them again, and you would have to '
+      'generate a new set.',
+  confirmLabel: 'Leave anyway',
+  cancelLabel: 'Stay',
+);
+
+/// `onExit` for the security route (AF-09c), as UI-37's is for a one-time
+/// secret.
+///
+/// On the web a browser Back, Forward or typed address is a route change that
+/// neither `PopScope` nor the shell sees, so the route asks itself while codes
+/// wait to be acknowledged. Leaving anyway acknowledges them, which signs the
+/// person out (FR-AU-28): the command that issued them revoked the token, and
+/// the screen being opened would only have its first request refused.
+Future<bool> confirmLeaveWithRecoveryCodes(
+  BuildContext context,
+  Ref ref,
+) async {
+  // A session redirect always wins: the codes go with the session, and asking
+  // would strand the redirect behind a dialog.
+  if (ref.read(sessionControllerProvider) is! Authenticated) {
+    return true;
+  }
+
+  if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
+    return true;
+  }
+
+  if (!await _confirmLeavingCodes(context)) {
+    return false;
+  }
+
+  await ref.read(twoFactorControllerProvider.notifier).acknowledgeCodes();
+
+  return true;
+}
 
 /// UI-09 — two-factor authentication and recovery codes.
 class SecurityScreen extends ConsumerStatefulWidget {
@@ -44,16 +89,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       return true;
     }
 
-    return showConfirm(
-      context: context,
-      title: 'Leave without your recovery codes?',
-      message:
-          'These codes are shown once and cannot be retrieved. If you '
-          'leave now you will not see them again, and you would have to '
-          'generate a new set.',
-      confirmLabel: 'Leave anyway',
-      cancelLabel: 'Stay',
-    );
+    return _confirmLeavingCodes(context);
   }
 
   /// AF-09c for the navigation and sign-out: asks, and acknowledges the codes
@@ -95,17 +131,17 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     }
   }
 
-  /// FR-AU-17 — starting a setup asks for the current password first.
-  Future<void> _enable(TwoFactorMethod method) async {
-    final password = await showDialog<String>(
-      context: context,
-      builder: (context) => _PasswordDialog(method: method),
-    );
-
-    if (password != null && mounted) {
-      await _controller.beginSetup(method, currentPassword: password);
-    }
-  }
+  /// FR-AU-17 — starting a setup asks for the current password first. The
+  /// dialog sends it, and stays open with the refusal when there is one
+  /// (AF-09f).
+  Future<void> _enable(TwoFactorMethod method) => showDialog<void>(
+    context: context,
+    builder: (context) => _PasswordDialog(
+      method: method,
+      onSubmit: (password) =>
+          _controller.beginSetup(method, currentPassword: password),
+    ),
+  );
 
   Future<void> _disable() async {
     final credential = await showDialog<_Credential>(
@@ -588,12 +624,19 @@ class _RecoveryCodes extends StatelessWidget {
   }
 }
 
-/// Asks for the current password before a setup starts (FR-AU-17), and
-/// answers with it, or with nothing when the person cancels.
+/// Asks for the current password before a setup starts (FR-AU-17), sends it
+/// through [onSubmit], and closes once the setup has started.
+///
+/// AF-09f: a refusal — a wrong password above all — is shown here and the
+/// dialog stays open, so the person retypes the password rather than choosing
+/// the method again.
 class _PasswordDialog extends StatefulWidget {
-  const _PasswordDialog({required this.method});
+  const _PasswordDialog({required this.method, required this.onSubmit});
 
   final TwoFactorMethod method;
+
+  /// Starts the setup; answers the refusal, or `null` when it started.
+  final Future<Failure?> Function(String password) onSubmit;
 
   @override
   State<_PasswordDialog> createState() => _PasswordDialogState();
@@ -601,6 +644,8 @@ class _PasswordDialog extends StatefulWidget {
 
 class _PasswordDialogState extends State<_PasswordDialog> {
   final _password = TextEditingController();
+  bool _busy = false;
+  Failure? _failure;
 
   @override
   void dispose() {
@@ -608,10 +653,32 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     super.dispose();
   }
 
-  void _submit() {
-    if (_password.text.isNotEmpty) {
-      Navigator.of(context).pop(_password.text);
+  Future<void> _submit() async {
+    if (_busy || _password.text.isEmpty) {
+      return;
     }
+
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
+
+    final failure = await widget.onSubmit(_password.text);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (failure == null) {
+      Navigator.of(context).pop();
+
+      return;
+    }
+
+    setState(() {
+      _busy = false;
+      _failure = failure;
+    });
   }
 
   @override
@@ -620,14 +687,20 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     content: SingleChildScrollView(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: <Widget>[
+          if (_failure case final failure?) ...<Widget>[
+            // AF-09f: the API's words, where the password is typed again.
+            ErrorBanner(failure: failure),
+            const SizedBox(height: 16),
+          ],
           const Text('Confirm it is you with your current password.'),
           const SizedBox(height: 16),
           TextField(
             controller: _password,
             autofocus: true,
             obscureText: true,
+            enabled: !_busy,
             decoration: const InputDecoration(labelText: 'Current password'),
             onChanged: (_) => setState(() {}),
             onSubmitted: (_) => _submit(),
@@ -637,12 +710,12 @@ class _PasswordDialogState extends State<_PasswordDialog> {
     ),
     actions: <Widget>[
       TextButton(
-        onPressed: () => Navigator.of(context).pop(),
+        onPressed: _busy ? null : () => Navigator.of(context).pop(),
         child: const Text('Cancel'),
       ),
       FilledButton(
         // Nothing typed is nothing to send.
-        onPressed: _password.text.isEmpty ? null : _submit,
+        onPressed: _busy || _password.text.isEmpty ? null : _submit,
         child: const Text('Continue'),
       ),
     ],

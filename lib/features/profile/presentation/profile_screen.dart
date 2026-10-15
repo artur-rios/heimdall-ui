@@ -275,6 +275,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                           code: _twoFactorCode,
                           secondFactorOn: person.twoFactorEnabled,
                           secondFactor: state.secondFactor,
+                          secondFactorKnown: state.secondFactorSettled,
                           onSubmitted: _save,
                         ),
                     ],
@@ -534,6 +535,7 @@ class _Reauthentication extends StatelessWidget {
     required this.code,
     required this.secondFactorOn,
     required this.secondFactor,
+    required this.secondFactorKnown,
     required this.onSubmitted,
   });
 
@@ -541,12 +543,29 @@ class _Reauthentication extends StatelessWidget {
   final TextEditingController code;
   final bool secondFactorOn;
   final TwoFactorStatus? secondFactor;
+
+  /// Whether the read of [secondFactor] has finished. Until it has, the code
+  /// field suggests nothing rather than the wrong thing.
+  final bool secondFactorKnown;
   final VoidCallback onSubmitted;
 
   bool get _emailOnly =>
       secondFactor != null &&
       secondFactor!.emailEnabled &&
       !secondFactor!.appEnabled;
+
+  /// What the code field suggests: nothing until the method is known, then a
+  /// recovery code for an email-only person, and both ways in otherwise — the
+  /// method unreadable included.
+  String? get _codeHint {
+    if (!secondFactorKnown) {
+      return null;
+    }
+
+    return _emailOnly
+        ? 'Use one of your recovery codes.'
+        : 'A code from your authenticator app, or a recovery code.';
+  }
 
   @override
   Widget build(BuildContext context) => Column(
@@ -573,9 +592,7 @@ class _Reauthentication extends StatelessWidget {
           controller: code,
           decoration: InputDecoration(
             labelText: 'Two-factor code',
-            helperText: _emailOnly
-                ? 'Use one of your recovery codes.'
-                : 'A code from your authenticator app, or a recovery code.',
+            helperText: _codeHint,
             helperMaxLines: 2,
           ),
           onFieldSubmitted: (_) => onSubmitted(),
