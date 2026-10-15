@@ -27,7 +27,7 @@ runtime, and no value is baked into source.
 
 | Key | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:8080` | The API root. A trailing slash is trimmed. The default is the local heimdall-api (§2.2). A release build of the Windows, Linux or Android app refuses to start unless it is `https://`, or `http://` to `localhost` or `127.0.0.1`; the error names the define to set. |
+| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:8080` | The API root. A trailing slash is trimmed. The default is the local heimdall-api (§2.2). A release build of the Windows, Linux or Android app refuses to start unless it is `https://`, or `http://` to `localhost` or `127.0.0.1`; it shows the reason on screen and in the log, naming the define to set. |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset | The Google client id for the target. When unset, the Google control is hidden rather than shown broken. |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset | The `PublicId` of the scope this build acts in. See §2.1 — on the web the calling application's value wins. |
 

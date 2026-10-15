@@ -20,7 +20,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   where other tabs can use it. Reloading the tab keeps you signed in, and signing out clears it. A browser that
   restores a closed tab may restore its session too, so sign out on a shared computer.
 - A release build of the Windows, Linux or Android app now refuses to start when its API address is not `https://`,
-  instead of sending passwords and tokens in the clear. The local API at `localhost` or `127.0.0.1` is still allowed.
+  instead of sending passwords and tokens in the clear, and shows a screen saying why. The local API at `localhost` or
+  `127.0.0.1` is still allowed.
 
 ### Fixed
 

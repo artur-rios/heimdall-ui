@@ -90,6 +90,7 @@ Configuration is supplied at build time. Nothing is read from a file at runtime.
 
 A release build of the Windows, Linux or Android app refuses to start unless `HEIMDALL_API_BASE_URL`
 is an `https://` address; only `http://localhost` and `http://127.0.0.1` are let through in the clear.
+It then shows a screen saying why, and writes the same line to the log.
 
 ### The target scope
 
