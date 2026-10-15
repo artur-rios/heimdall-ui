@@ -33,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Closing or refreshing the browser tab while a credential's secret was still to be stored lost the secret
+  without a word. The browser now asks before leaving, as the app already did for Back and in-app navigation.
 - The request log of a debug build printed every request's headers, the bearer token among them. It now
   writes one line per request, with the method, path, status and duration, and never headers, query strings, bodies
   or an error's text. Release builds log nothing, as before.

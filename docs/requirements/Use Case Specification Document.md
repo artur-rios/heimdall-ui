@@ -1533,7 +1533,9 @@ page while a secret is pending (the issue request is running, or the secret dial
 browser's Back control or any other navigation, the app asks "Leave without the secret?" with the
 message "The secret is shown only once. If you leave now, it cannot be shown again; revoke this
 credential and issue another." and the action **Leave**. If the session ends (sign-out or expiry),
-the app goes to sign-in without asking. Closing or refreshing the browser tab is not guarded.
+the app goes to sign-in without asking. On the web, closing or refreshing the browser tab while a
+secret is pending shows the browser's own leave confirmation, whose wording the browser chooses;
+the guard is removed as soon as nothing is pending.
 
 The card's state is held only while the application page is open. It is discarded when the page is
 left, so a return shows a fresh list and no earlier outcome.
