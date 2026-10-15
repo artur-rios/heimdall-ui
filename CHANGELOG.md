@@ -10,7 +10,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - The web image now sends an enforced Content-Security-Policy, which allows the page to load script and connect only
-  to its own origin, the API's origin and Google Sign-In. The API's origin comes from `HEIMDALL_API_BASE_URL`, which
+  to its own origin, the API's origin, Google Sign-In, and Google's font service for characters the bundled font has
+  no glyphs for, such as emoji and Chinese, Japanese or Arabic text. The API's origin comes from `HEIMDALL_API_BASE_URL`, which
   must now be an absolute `http(s)` URL.
 - On the web, a calling application now hands over the target scope in the URL, as `?scope=<scope id>` on any page,
   instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for

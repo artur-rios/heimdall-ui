@@ -240,9 +240,9 @@ The Content-Security-Policy:
 | `default-src` | `'self'` | Everything not listed below |
 | `script-src` | `'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client` | The bundle; compiling CanvasKit's or skwasm's WebAssembly; Google Sign-In's library |
 | `style-src` | `'self' 'unsafe-inline' https://accounts.google.com/gsi/style` | The engine and Google Sign-In inject `<style>` elements and style attributes; Google Sign-In's stylesheet |
-| `connect-src` | `'self'`, the API's origin, `https://accounts.google.com/gsi/`, `https://*.googleusercontent.com` | API calls; Google Sign-In's endpoints; Google profile pictures, which the engine fetches |
+| `connect-src` | `'self'`, the API's origin, `https://accounts.google.com/gsi/`, `https://*.googleusercontent.com`, `https://fonts.gstatic.com` | API calls; Google Sign-In's endpoints; Google profile pictures, which the engine fetches; the Noto fallback fonts the engine fetches for text the bundled Roboto has no glyphs for (emoji, CJK, Arabic and other scripts). The engine registers those bytes itself, so `font-src` needs no entry for them |
 | `img-src` | `'self' data: https://*.googleusercontent.com` | Inline images; Google profile pictures shown as images |
-| `font-src`, `manifest-src` | `'self'` | The bundled fonts (`--no-web-resources-cdn`) and the manifest |
+| `font-src`, `manifest-src` | `'self'` | The bundled fonts (`--no-web-resources-cdn` bundles CanvasKit and Roboto) and the manifest |
 | `frame-src` | `https://accounts.google.com/gsi/` | The Google Sign-In button and its prompts |
 | `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'none'`, `'self'`, `'self'`, `'none'` | Nothing else may embed, re-base, post from or frame the page |
 
@@ -253,7 +253,9 @@ entry repeats `'self'`.
 
 The policy was verified against release builds, CanvasKit and `--wasm` alike, served by the image's
 nginx with headless Chromium: the sign-in screen, Google Sign-In's button, a sign-in request to an API
-on another origin, the reset and verification links, and the not-found screen, with no violation.
+on another origin, an API answer in emoji, CJK and Arabic (its fallback fonts load from
+`fonts.gstatic.com` and render), the reset and verification links, and the not-found screen, with no
+violation. Without `https://fonts.gstatic.com` in `connect-src` such text renders as empty boxes.
 `'unsafe-inline'` in `style-src` is required; without it the engine's own styles are refused. No
 worker source is listed: neither renderer starts a worker on a page that is not cross-origin isolated,
 which this one is not, so skwasm runs single-threaded. Google profile pictures were not exercised. Before

@@ -79,8 +79,10 @@ RUN api_origin="$(printf '%s' "$HEIMDALL_API_BASE_URL" \
 
 # An empty HEIMDALL_API_BASE_URL would override the app's localhost default
 # with "", so a production image refuses to build without one.
-# --no-web-resources-cdn bundles CanvasKit and fonts into build/web so the
-# running app never fetches from gstatic.com.
+# --no-web-resources-cdn bundles CanvasKit and Roboto into build/web. Text that
+# Roboto has no glyphs for (emoji, CJK, Arabic...) still makes the engine fetch
+# Noto fallback fonts from fonts.gstatic.com, which the Content-Security-Policy
+# in docker/nginx.conf allows.
 RUN test -n "$HEIMDALL_API_BASE_URL" \
       || { echo "HEIMDALL_API_BASE_URL build argument is required" >&2; exit 1; } \
  && flutter build web --release --no-web-resources-cdn \

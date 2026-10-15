@@ -279,7 +279,7 @@ session screen.
 | NFR-07 | Every screen shall be operable by keyboard, shall preserve a sensible focus order, and shall give every icon-only control a semantic label. |
 | NFR-08 | The client shall enforce no authorization the API does not; hiding a control is a usability decision, never a security control. |
 | NFR-09 | The web target shall reach interactive in under three seconds over a warm cache on a broadband connection. |
-| NFR-10 | The web build shall be served with an enforced Content-Security-Policy that allows script only from its own origin and Google Sign-In's library, and connections only to its own origin, the configured API's origin and Google Sign-In's endpoints; and the pages opened by a password reset or verification link shall send no Referer. |
+| NFR-10 | The web build shall be served with an enforced Content-Security-Policy that allows script only from its own origin and Google Sign-In's library, and connections only to its own origin, the configured API's origin, Google Sign-In's endpoints and the fallback fonts the renderer fetches; and the pages opened by a password reset or verification link shall send no Referer. |
 
 ---
 
