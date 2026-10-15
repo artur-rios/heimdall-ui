@@ -189,7 +189,9 @@ abstract class AuthClient {
   /// anonymous callers, which is exactly what authentication alone enforces. AF-36b (Google User,.
   /// 403) is not a role the attribute can see — a Google-issued token names a.
   /// `GoogleUser`, not a `Person` — so the handler enforces it by resolving the caller.
-  /// against the `Person` table itself.
+  /// against the `Person` table itself. The request carries the caller's.
+  /// `currentPassword` (FR-2F-18), so the action sits under the credential endpoints' rate.
+  /// limit, as `2fa/confirm` and `2fa/disable` do.
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/2fa/enable')

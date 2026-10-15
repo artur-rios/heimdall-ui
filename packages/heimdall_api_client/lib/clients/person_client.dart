@@ -133,6 +133,11 @@ abstract class PersonClient {
   /// any authenticated actor because a User may update their own record; the per-actor rule and.
   /// the role-change restriction (AF-08c) are enforced by the handler.
   ///
+  /// A caller changing their own email presents `currentPassword`, and `twoFactorCode`.
+  /// when their second factor is active (FR-PE-14), so this action verifies a password like the.
+  /// credential endpoints do, and sits under their rate limit (NFR-18), as every.
+  /// password-verifying endpoint does.
+  ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @PUT('/api/persons/{id}')
   Future<UpdatePersonCommandOutputDataOutput> personUpdate({
