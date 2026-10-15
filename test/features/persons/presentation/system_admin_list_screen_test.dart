@@ -25,7 +25,7 @@ String _jwt() {
       jsonEncode(<String, dynamic>{
         'sub': 'admin-9',
         'email': 'admin@example.com',
-        'role': 0,
+        'role': 1,
       }),
     ),
   );
