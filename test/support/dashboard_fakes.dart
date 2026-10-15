@@ -4,6 +4,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/health/domain/health_repository.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission.dart';
@@ -39,8 +40,11 @@ class FakeDashboardRepositories {
     this.applications = 0,
     this.permissions = 0,
     this.googleUsers = 0,
+    this.systemAdmins = 1,
+    this.systemAdminsAnswer,
     this.scopesFailure,
     this.apiReachable = true,
+    this.googleMe,
     Person? me,
   }) : me =
            me ??
@@ -58,9 +62,22 @@ class FakeDashboardRepositories {
   final int? applications;
   final int? permissions;
   final int? googleUsers;
+  final int? systemAdmins;
+
+  /// When set, answers the n-th System Admins read (from 1) instead of
+  /// [systemAdmins], so a test can hold one read back.
+  final Future<int?> Function(int read)? systemAdminsAnswer;
   final Failure? scopesFailure;
   final bool apiReachable;
   final Person me;
+
+  /// How many times the System Admins listing was asked for.
+  int systemAdminsReads = 0;
+
+  /// The signed-in Google User's own record, for a Google session. When set,
+  /// the persons endpoint answers `404` for the caller, as the API does: a
+  /// Google User is not a person.
+  final GoogleUser? googleMe;
 
   List<Override> get overrides => <Override>[
     scopeRepositoryProvider.overrideWithValue(_Scopes(this)),
@@ -75,6 +92,11 @@ class FakeDashboardRepositories {
 const Failure _unreadable = Failure(
   kind: FailureKind.server,
   errors: <String>['Unreadable'],
+);
+
+const Failure _notFound = Failure(
+  kind: FailureKind.notFound,
+  errors: <String>['Not found'],
 );
 
 Result<Page<T>> _count<T>(int? count) => count == null
@@ -117,7 +139,43 @@ class _Persons extends Fake implements PersonRepository {
   Future<Result<Person>> getById(
     String id, {
     bool includeDeleted = false,
-  }) async => Success<Person>(fakes.me);
+  }) async => fakes.googleMe == null
+      ? Success<Person>(fakes.me)
+      : const FailureResult<Person>(_notFound);
+
+  /// Takes any edit to the caller's own record, as the API answers one.
+  @override
+  Future<Result<Person>> update({
+    required String id,
+    required String name,
+    required String email,
+    int? roleId,
+    String? currentPassword,
+    String? twoFactorCode,
+  }) async => Success<Person>(
+    Person(
+      id: fakes.me.id,
+      name: name,
+      email: email,
+      role: fakes.me.role,
+      emailVerified: email == fakes.me.email,
+    ),
+  );
+
+  @override
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    final read = ++fakes.systemAdminsReads;
+    final answer = fakes.systemAdminsAnswer;
+
+    return _count<PersonSummary>(
+      answer == null ? fakes.systemAdmins : await answer(read),
+    );
+  }
 
   @override
   Future<Result<Page<Person>>> listScopePersons({
@@ -170,6 +228,16 @@ class _GoogleUsers extends Fake implements GoogleUserRepository {
   Future<Result<int>> countIn(String scopeId) async => fakes.googleUsers == null
       ? const FailureResult<int>(_unreadable)
       : Success<int>(fakes.googleUsers!);
+
+  @override
+  Future<Result<GoogleUser>> getById({
+    required String scopeId,
+    required String id,
+    bool includeDeleted = true,
+  }) async => switch (fakes.googleMe) {
+    final GoogleUser me => Success<GoogleUser>(me),
+    null => const FailureResult<GoogleUser>(_notFound),
+  };
 }
 
 class _Health extends Fake implements HealthRepository {

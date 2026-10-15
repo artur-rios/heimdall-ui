@@ -11,6 +11,8 @@ UpdatePersonCommand _$UpdatePersonCommandFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String?,
       email: json['email'] as String?,
       roleId: (json['roleId'] as num?)?.toInt(),
+      currentPassword: json['currentPassword'] as String?,
+      twoFactorCode: json['twoFactorCode'] as String?,
     );
 
 Map<String, dynamic> _$UpdatePersonCommandToJson(
@@ -19,4 +21,6 @@ Map<String, dynamic> _$UpdatePersonCommandToJson(
   'name': instance.name,
   'email': instance.email,
   'roleId': instance.roleId,
+  'currentPassword': instance.currentPassword,
+  'twoFactorCode': instance.twoFactorCode,
 };

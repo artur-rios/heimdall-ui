@@ -1,6 +1,8 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
+import 'package:heimdall_ui/core/network/envelope.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 
@@ -46,6 +48,27 @@ void main() {
     // Then
     expect(find.text('Something went wrong.'), findsOneWidget);
   });
+
+  testWidgets(
+    'GivenATransportFailure_WhenRendered_ThenThePersonIsToldTheApiIsUnreachable',
+    (tester) async {
+      // Given
+      final failure = failureFromDioException(
+        DioException.connectionError(
+          requestOptions: RequestOptions(path: '/api/scopes'),
+          reason: 'Connection refused',
+        ),
+      );
+
+      // When
+      await pump(tester, ErrorBanner(failure: failure));
+
+      // Then
+      expect(find.text(kUnreachableMessage), findsOneWidget);
+      expect(find.textContaining('Connection refused'), findsNothing);
+      expect(find.textContaining('connection errored'), findsNothing);
+    },
+  );
 
   testWidgets('GivenARetryHandler_WhenTapped_ThenItIsCalled', (tester) async {
     // Given
@@ -109,4 +132,44 @@ void main() {
       matchesSemantics(label: 'First problem.', isLiveRegion: true),
     );
   });
+
+  testWidgets(
+    'GivenA429WithoutRetryAfter_WhenShown_ThenOnlyTheApiMessageAppears',
+    (tester) async {
+      // Given
+      const message =
+          'An email of this kind was sent to this person recently. Try again in a few minutes.';
+      const failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: <String>[message],
+      );
+
+      // When
+      await pump(tester, const ErrorBanner(failure: failure));
+
+      // Then
+      expect(find.text(message), findsOneWidget);
+      expect(find.textContaining('Try again later'), findsNothing);
+      expect(find.textContaining('seconds'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenA429WithRetryAfter_WhenShown_ThenTheHintFollowsTheMessage',
+    (tester) async {
+      // Given
+      const failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: <String>['Too many requests.'],
+        retryAfter: Duration(seconds: 12),
+      );
+
+      // When
+      await pump(tester, const ErrorBanner(failure: failure));
+
+      // Then
+      expect(find.text('Too many requests.'), findsOneWidget);
+      expect(find.text('Try again in 12 seconds.'), findsOneWidget);
+    },
+  );
 }

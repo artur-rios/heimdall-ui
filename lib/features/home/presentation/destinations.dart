@@ -30,6 +30,20 @@ List<AppDestination> destinationsFor(Principal principal) => <AppDestination>[
     selectedIcon: Icons.person,
     route: '/profile',
   ),
+  if (principal.isSystemAdmin)
+    const AppDestination(
+      label: 'Erasure requests',
+      icon: Icons.person_remove_outlined,
+      selectedIcon: Icons.person_remove,
+      route: '/erasure-requests',
+    ),
+  if (principal.isSystemAdmin)
+    const AppDestination(
+      label: 'Audit log',
+      icon: Icons.history_outlined,
+      selectedIcon: Icons.history,
+      route: '/audit-log',
+    ),
   // Full for a System Admin, read-only for a Scope Admin (the Authorization
   // Matrix, and `roleMayReach`): the screen already answers the detailed
   // report's refusal for a Scope Admin with what they may see.

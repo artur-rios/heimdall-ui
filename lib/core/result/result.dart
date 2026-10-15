@@ -5,10 +5,24 @@ enum FailureKind {
   forbidden,
   notFound,
   conflict,
+  rateLimited,
   server,
   network,
   unknown,
 }
+
+/// What a person is told when the API could not be reached at all: no
+/// connection, a refused connection, or a timeout. Such a failure carries no
+/// words of the API's own, and the HTTP library's are written for developers.
+const String kUnreachableMessage =
+    'Could not reach the API. Check your connection and try again.';
+
+/// What a person is told when the API answered, but not with anything the
+/// client could read: a 2xx body of the wrong shape, say. It is not the
+/// person's connection and not anything they can correct, so the screen offers
+/// Retry (FR-UX-07).
+const String kUnexpectedResponseMessage =
+    'The API returned an unexpected response.';
 
 /// A failed outcome, carrying the API's own error messages when it produced any.
 ///
@@ -16,18 +30,42 @@ enum FailureKind {
 /// shown as returned, so what a user reads matches what an operator finds in
 /// the API's logs.
 class Failure {
-  const Failure({required this.kind, required this.errors, this.message});
+  const Failure({
+    required this.kind,
+    required this.errors,
+    this.message,
+    this.retryAfter,
+  });
 
   final FailureKind kind;
   final List<String> errors;
   final String? message;
 
+  /// How long the API asked the caller to wait, from a `429`'s `Retry-After`.
+  /// `null` when the response carried none: a handler's own `429`, such as an
+  /// account email's cooldown, says how long in its message instead.
+  final Duration? retryAfter;
+
+  /// "Try again in N seconds." when the API said how long to wait, else `null`.
+  String? get retryHint => switch (retryAfter) {
+    final Duration wait when wait.inSeconds == 1 => 'Try again in 1 second.',
+    final Duration wait => 'Try again in ${wait.inSeconds} seconds.',
+    null => null,
+  };
+
   /// The single line worth showing when there is no field to attach errors to.
   String get displayMessage =>
-      message ?? (errors.isNotEmpty ? errors.first : 'Something went wrong.');
+      message ??
+      (errors.isNotEmpty
+          ? errors.first
+          : kind == FailureKind.rateLimited
+          ? 'Too many requests. ${retryHint ?? 'Try again later.'}'
+          : kind == FailureKind.network
+          ? kUnreachableMessage
+          : 'Something went wrong.');
 
   @override
-  String toString() => 'Failure($kind, $errors, $message)';
+  String toString() => 'Failure($kind, $errors, $message, $retryAfter)';
 }
 
 /// The outcome of an operation that can fail without throwing.

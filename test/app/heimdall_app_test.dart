@@ -10,11 +10,22 @@ import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
+import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
+import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
+import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
+import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
@@ -23,6 +34,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../support/dashboard_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockErasureRequestRepository extends Mock
+    implements ErasureRequestRepository {}
+
+class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
+
+class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 const String _systemAdminJwt =
     'header.'
@@ -43,17 +61,23 @@ void main() {
     rootBundle.clear();
   });
 
-  Future<ProviderContainer> pumpApp(WidgetTester tester) async {
+  Future<ProviderContainer> pumpApp(
+    WidgetTester tester, {
+    List<Override> overrides = const <Override>[],
+    FakeDashboardRepositories? fakes,
+  }) async {
     final container = ProviderContainer(
       overrides: <Override>[
-        ...FakeDashboardRepositories().overrides,
+        ...(fakes ?? FakeDashboardRepositories()).overrides,
         // The sign-in screen asks the configuration whether to offer the
         // Google control, so the whole app needs one to render.
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
+        ...overrides,
       ],
     );
     addTearDown(container.dispose);
@@ -128,6 +152,64 @@ void main() {
     // Then
     expect(find.text('Welcome back, Ada Lovelace'), findsOneWidget);
     expect(find.text('Your profile'), findsWidgets);
+  });
+
+  // #133 — a Google sign-in's subject is a Google User, which the persons
+  // endpoint answers `404` for. Home reads the Google User's own record
+  // instead, so the session is not mistaken for a deleted account and ended.
+  testWidgets('GivenAGoogleSession_WhenAppStarts_ThenItStaysSignedIn', (
+    tester,
+  ) async {
+    // Given
+    final payload = base64Url
+        .encode(
+          utf8.encode(
+            jsonEncode(<String, String>{
+              'id': '6f1d3a00-0000-0000-0000-000000000004',
+              'role': '3',
+              'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
+              'name': 'Grace Hopper',
+            }),
+          ),
+        )
+        .replaceAll('=', '');
+    await store.write(
+      AuthToken(
+        value: 'header.$payload.signature',
+        expiresAt: DateTime.utc(2030),
+        viaGoogle: true,
+      ),
+    );
+    final fakes = FakeDashboardRepositories(
+      googleMe: const GoogleUser(
+        id: '6f1d3a00-0000-0000-0000-000000000004',
+        name: 'Grace Hopper',
+        email: 'grace@example.com',
+        scopeId: '6f1d3a00-0000-0000-0000-0000000000aa',
+      ),
+    );
+    // Were the session ended, it would sign out of Google too.
+    final google = _MockGoogleSignInGateway();
+    when(google.signOut).thenAnswer((_) async {});
+
+    // When
+    final container = await pumpApp(
+      tester,
+      fakes: fakes,
+      overrides: <Override>[
+        googleSignInGatewayProvider.overrideWithValue(google),
+      ],
+    );
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    expect(
+      container.read(profileControllerProvider),
+      isA<GoogleProfileLoaded>(),
+    );
+    expect(find.text('Welcome back, Grace Hopper'), findsOneWidget);
+    expect(find.text('grace@example.com'), findsOneWidget);
+    expect(find.text('Sign in'), findsNothing);
   });
 
   testWidgets('GivenEmptyPassword_WhenSubmitted_ThenNoRequestIsMade', (
@@ -229,6 +311,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -264,6 +347,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -300,6 +384,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -390,6 +475,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -432,6 +518,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -544,6 +631,184 @@ void main() {
     );
   });
 
+  // UI-08, UI-09 — the token that changed the sign-in details is revoked, so
+  // the person signs in again, and the sign-in screen says why.
+  testWidgets('GivenChangedSignInDetails_WhenSignedOut_ThenTheReasonIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signOut(credentialsChanged: true);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-08 — FR-AU-28: a new address revokes the token that saved it, so the
+  // person lands on sign-in, told why.
+  testWidgets('GivenANewEmail_WhenSavedFromTheProfile_ThenSignInSaysWhy', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'me@example.com'),
+      'new@example.com',
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Current password'),
+      'secret',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    final save = find.widgetWithText(FilledButton, 'Save changes');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-09 AF-09c — on the web a browser Back or typed address is a route
+  // change; the security route asks before recovery codes are left behind,
+  // and leaving them signs the person out with the reason.
+  testWidgets('GivenIssuedCodes_WhenTheRouteChanges_ThenItAsksAndSignsOut', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.twoFactorStatus()).thenAnswer(
+      (_) async => const Success<TwoFactorStatus>(TwoFactorStatus()),
+    );
+    when(
+      () => repository.enableTwoFactor(
+        TwoFactorMethod.email,
+        currentPassword: 'secret',
+      ),
+    ).thenAnswer(
+      (_) async => const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.email, emailCodeSent: true),
+      ),
+    );
+    when(
+      () => repository.confirmTwoFactor(
+        method: TwoFactorMethod.email,
+        code: '123456',
+      ),
+    ).thenAnswer((_) async => const Success<List<String>>(<String>['aaa']));
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    final router = container.read(routerProvider)..go('/profile/security');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Emailed code'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Current password'),
+      'secret',
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your recovery codes'), findsOneWidget);
+
+    // When
+    router.go('/profile');
+    await tester.pumpAndSettle();
+    expect(find.text('Leave without your recovery codes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-33 — restricted from the profile, then signed out, and the sign-in
+  // screen says what signing in again leads to.
+  testWidgets('GivenAProfile_WhenProcessingIsRestricted_ThenTheNoteIsShown', (
+    tester,
+  ) async {
+    // Given
+    final dataRights = _MockDataRightsRepository();
+    when(
+      () =>
+          dataRights.restrictProcessing(RestrictionGround.neededForLegalClaim),
+    ).thenAnswer((_) async => const Success<void>(null));
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        dataRightsRepositoryProvider.overrideWithValue(dataRights),
+      ],
+    );
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+    final ground = find.text(
+      'Heimdall no longer needs my data, but I need it kept for a legal claim',
+    );
+    await tester.ensureVisible(ground);
+    await tester.pumpAndSettle();
+    await tester.tap(ground);
+    await tester.pump();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Restrict processing'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text(
+        'Processing of your account is restricted, and your account is '
+        'suspended until the restriction is lifted. Sign in again to lift it, '
+        'or to download or erase your data.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.byType(AlertDialog), findsNothing);
+  });
+
   // The next person to sign in on this device may be somebody else, so what
   // the last session was shown is forgotten when it ends.
   testWidgets('GivenASignedInDashboard_WhenSignedOut_ThenItIsForgotten', (
@@ -568,6 +833,56 @@ void main() {
     );
     expect(container.read(profileControllerProvider), isA<ProfileLoading>());
   });
+
+  testWidgets(
+    'GivenAnErasureListing_WhenSignedOut_ThenItsFilterAndPageAreForgotten',
+    (tester) async {
+      // Given
+      final erasures = _MockErasureRequestRepository();
+      when(
+        () => erasures.list(
+          overdueOnly: any(named: 'overdueOnly'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<envelope.Page<OutstandingErasure>>(
+          envelope.Page<OutstandingErasure>(
+            items: <OutstandingErasure>[],
+            pageNumber: 1,
+            pageSize: 20,
+            totalItems: 0,
+            totalPages: 1,
+          ),
+        ),
+      );
+      await store.write(
+        AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+      );
+      final container = await pumpApp(
+        tester,
+        overrides: <Override>[
+          erasureRequestRepositoryProvider.overrideWithValue(erasures),
+        ],
+      );
+      await container
+          .read(erasureRequestListControllerProvider.notifier)
+          .setOverdueOnly(true);
+      expect(
+        container.read(erasureRequestListControllerProvider),
+        isA<ErasureRequestListLoaded>(),
+      );
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+      await tester.pumpAndSettle();
+
+      // Then
+      final state = container.read(erasureRequestListControllerProvider);
+      expect(state, isA<ErasureRequestListLoading>());
+      expect(state.query.overdueOnly, isFalse);
+    },
+  );
 
   testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {
     // Given no stored token

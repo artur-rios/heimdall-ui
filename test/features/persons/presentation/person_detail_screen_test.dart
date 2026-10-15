@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -85,6 +86,7 @@ void main() {
     ThemeData? theme,
     String signedInAs = 'person-9',
     int role = 1,
+    String initialLocation = '/scopes/scope-1/persons/person-1',
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -107,7 +109,7 @@ void main() {
     await container.read(sessionControllerProvider.notifier).restore();
 
     router = GoRouter(
-      initialLocation: '/scopes/scope-1/persons/person-1',
+      initialLocation: initialLocation,
       routes: <RouteBase>[
         GoRoute(
           path: '/scopes/:scopeId/persons',
@@ -119,6 +121,16 @@ void main() {
             scopeId: state.pathParameters['scopeId']!,
             personId: state.pathParameters['personId']!,
           ),
+        ),
+        GoRoute(
+          path: '/persons/:personId',
+          builder: (context, state) =>
+              PersonDetailScreen(personId: state.pathParameters['personId']!),
+        ),
+        GoRoute(
+          path: '/system-admins',
+          builder: (context, state) =>
+              const Scaffold(body: Text('system admins')),
         ),
       ],
     );
@@ -188,6 +200,8 @@ void main() {
         name: any(named: 'name'),
         email: any(named: 'email'),
         roleId: any(named: 'roleId'),
+        currentPassword: any(named: 'currentPassword'),
+        twoFactorCode: any(named: 'twoFactorCode'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -277,6 +291,83 @@ void main() {
         email: 'ada@example.com',
       ),
     ).called(1);
+  });
+
+  // FR-AU-16 is about your own address: an administrator changing somebody
+  // else's is not asked for a password, and sends none.
+  testWidgets(
+    'GivenSomebodyElsesRecord_WhenTheEmailIsChanged_ThenNoPasswordIsAsked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      answerUpdateWith(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada',
+            email: 'new@example.com',
+            role: Role.user,
+          ),
+        ),
+      );
+      await pump(tester, signedInAs: 'person-9');
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'ada@example.com'),
+        'new@example.com',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Current password'), findsNothing);
+      verify(
+        () => repository.update(
+          id: 'person-1',
+          name: 'Ada',
+          email: 'new@example.com',
+          roleId: any(named: 'roleId'),
+          currentPassword: null,
+          twoFactorCode: null,
+        ),
+      ).called(1);
+    },
+  );
+
+  // FR-AU-16 — your own address is changed from your profile, which asks for
+  // the password and signs you in again; here it is not editable.
+  testWidgets('GivenYourOwnRecord_WhenEditing_ThenTheEmailIsNotEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester, signedInAs: 'person-1');
+
+    // When
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final email = tester.widget<TextField>(
+      find.descendant(
+        of: find.widgetWithText(TextFormField, 'ada@example.com'),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(email.readOnly, isTrue);
+    expect(
+      find.textContaining('Change your email address from your profile'),
+      findsOneWidget,
+    );
+    // The field says so itself, where the person is looking.
+    expect(
+      find.text('Change your own email from your profile.'),
+      findsOneWidget,
+    );
   });
 
   // AF-18a — no such person.
@@ -536,6 +627,196 @@ void main() {
       findsNothing,
     );
   });
+
+  // UI-36 — who is offered the account emails.
+  testWidgets(
+    'GivenAScopeAdminViewingAUser_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAScopeAdminViewingAnotherScopeAdmin_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester, role: 2);
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenTheCallersOwnRecord_WhenOpened_ThenAccountEmailsIsNotOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+
+      // When
+      await pump(tester, signedInAs: 'person-1');
+
+      // Then
+      expect(find.text('Account emails'), findsNothing);
+    },
+  );
+
+  testWidgets('GivenADeletedPerson_WhenOpened_ThenAccountEmailsIsNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_deleted));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Account emails'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenASystemAdminViewingAScopeAdmin_WhenOpened_ThenAccountEmailsIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_coOwner));
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Account emails'), findsOneWidget);
+    },
+  );
+
+  // AF-36c — the refusal stays on screen while the person is reloaded.
+  testWidgets(
+    'GivenTheAddressIsAlreadyVerified_WhenResendIsRefused_ThenTheMessageStaysAndTheActionGoes',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      const verified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      final reload = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => reload.future);
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      // Then — no spinner while the person is read again
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      reload.complete(const Success<Person>(verified));
+      await tester.pumpAndSettle();
+      expect(
+        find.text('The email address is already verified.'),
+        findsOneWidget,
+      );
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.text('Send password reset'), findsOneWidget);
+    },
+  );
+
+  // AF-36c must not undo what the admin has typed and not yet saved.
+  testWidgets(
+    'GivenAnUnsavedEdit_WhenResendIsRefusedAndTheReloadLands_ThenTheTypedNameStays',
+    (tester) async {
+      // Given
+      const unverified = Person(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'ada@example.com',
+        role: Role.user,
+        scopeId: 'scope-1',
+        emailVerified: false,
+      );
+      answerGetWith(const Success<Person>(unverified));
+      when(() => repository.sendVerificationEmail('person-1')).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['The email address is already verified.'],
+          ),
+        ),
+      );
+      await pump(tester);
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Ada'),
+        'Ada L',
+      );
+      await tester.pumpAndSettle();
+      answerGetWith(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada',
+            email: 'ada@example.com',
+            role: Role.user,
+            scopeId: 'scope-1',
+          ),
+        ),
+      );
+
+      // When
+      await tapAfterScrolling(tester, find.text('Resend verification email'));
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.text('Send'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Resend verification email'), findsNothing);
+      expect(find.widgetWithText(TextFormField, 'Ada L'), findsOneWidget);
+    },
+  );
 
   // AF-19d — the controls are disabled on your own record.
   testWidgets('GivenYourOwnRecord_WhenOpened_ThenDeletionIsDisabled', (
@@ -805,5 +1086,91 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Delete person'),
       findsOneWidget,
     );
+  });
+
+  // UI-38 — a person reached from the System Admins list has no scope.
+  const grace = Person(
+    id: 'person-1',
+    name: 'Grace',
+    email: 'grace@example.com',
+    role: Role.systemAdmin,
+  );
+
+  testWidgets('GivenNoScope_WhenOpened_ThenBackGoesToSystemAdmins', (
+    tester,
+  ) async {
+    // Given — a System Admin (role 1) opens another System Admin
+    answerGetWith(const Success<Person>(grace));
+    await pump(tester, initialLocation: '/persons/person-1');
+
+    // When
+    await tester.tap(find.byTooltip('Back to System Admins'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('system admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenNoScope_WhenPersonIsNotFound_ThenBackSaysSystemAdmins', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+
+    // When
+    await pump(tester, initialLocation: '/persons/person-1');
+
+    // Then
+    expect(
+      find.widgetWithText(FilledButton, 'Back to System Admins'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenNoScope_WhenOwnRecordOpened_ThenItStaysProtected', (
+    tester,
+  ) async {
+    // Given — the signed-in System Admin opens themselves
+    answerGetWith(const Success<Person>(grace));
+
+    // When
+    await pump(
+      tester,
+      signedInAs: 'person-1',
+      initialLocation: '/persons/person-1',
+    );
+
+    // Then — the own-record rules hold (AF-19d; UI-36 hides the card)
+    expect(find.text('Account emails'), findsNothing);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Delete person'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenNoScope_WhenDeleted_ThenSystemAdminsOpens', (tester) async {
+    // Given
+    answerGetWith(const Success<Person>(grace));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester, initialLocation: '/persons/person-1');
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete person'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('system admins'), findsOneWidget);
   });
 }

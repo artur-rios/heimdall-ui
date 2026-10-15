@@ -17,7 +17,14 @@ void main() {
           .toSet();
 
       // Then
-      for (final route in <String>['/', '/scopes', '/profile', '/health']) {
+      for (final route in <String>[
+        '/',
+        '/scopes',
+        '/profile',
+        '/health',
+        '/erasure-requests',
+        '/audit-log',
+      ]) {
         expect(
           routes.contains(route),
           roleMayReach(role: role, path: route),
@@ -26,4 +33,54 @@ void main() {
       }
     });
   }
+
+  test(
+    'GivenASystemAdmin_WhenNavigationIsBuilt_ThenErasureRequestsIsOffered',
+    () {
+      // Given
+      const principal = Principal(id: 'p', email: '', role: Role.systemAdmin);
+
+      // When
+      final routes = destinationsFor(principal).map((d) => d.route);
+
+      // Then
+      expect(routes, contains('/erasure-requests'));
+    },
+  );
+
+  test('GivenAScopeAdmin_WhenNavigationIsBuilt_ThenErasureRequestsIsNot', () {
+    // Given
+    const principal = Principal(id: 'p', email: '', role: Role.scopeAdmin);
+
+    // When
+    final routes = destinationsFor(principal).map((d) => d.route);
+
+    // Then
+    expect(routes, isNot(contains('/erasure-requests')));
+  });
+
+  test('GivenASystemAdmin_WhenNavigationIsBuilt_ThenTheAuditLogIsOffered', () {
+    // Given
+    const principal = Principal(id: 'p', email: '', role: Role.systemAdmin);
+
+    // When
+    final destinations = destinationsFor(principal);
+
+    // Then
+    expect(
+      destinations.where((d) => d.label == 'Audit log').map((d) => d.route),
+      <String>['/audit-log'],
+    );
+  });
+
+  test('GivenAScopeAdmin_WhenNavigationIsBuilt_ThenTheAuditLogIsNot', () {
+    // Given
+    const principal = Principal(id: 'p', email: '', role: Role.scopeAdmin);
+
+    // When
+    final routes = destinationsFor(principal).map((d) => d.route);
+
+    // Then
+    expect(routes, isNot(contains('/audit-log')));
+  });
 }

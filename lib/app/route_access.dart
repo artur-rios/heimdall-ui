@@ -19,8 +19,19 @@ bool roleMayReach({required Role role, required String path}) => switch (path) {
   '/scopes/new' => role == Role.systemAdmin,
   final String p when p == '/scopes' || p.startsWith('/scopes/') =>
     role != Role.user,
+  // UC-43 excludes a Scope Admin on purpose: who has asked to be erased is not
+  // theirs to know.
+  '/erasure-requests' => role == Role.systemAdmin,
+  // UC-48: the trail has no scope column, so it cannot be divided by scope.
+  '/audit-log' => role == Role.systemAdmin,
   // Full for a System Admin, read-only for a Scope Admin, hidden for a User.
   '/health' => role != Role.user,
+  // UC-07 read (e) is answered to a System Admin only: who else holds full
+  // access is not a Scope Admin's to know.
+  '/system-admins' => role == Role.systemAdmin,
+  // UI-38's person page has no scope to authorise against. A Scope Admin
+  // reaches the persons they may see through their scopes instead.
+  final String p when p.startsWith('/persons/') => role == Role.systemAdmin,
   // A route nobody has built yet is the error screen's business, not the
   // guard's: answering "not for your role" would be a guess about a screen
   // that does not exist.

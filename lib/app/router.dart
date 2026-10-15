@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_detail_screen.dart';
 import '../features/applications/presentation/application_list_screen.dart';
+import '../features/applications/presentation/pending_secret.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/password_recovery_screen.dart';
@@ -13,6 +14,8 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/data_rights/presentation/restricted_session_screen.dart';
+import '../features/audit_log/presentation/audit_log_screen.dart';
+import '../features/erasure_requests/presentation/erasure_request_list_screen.dart';
 import '../features/health/presentation/health_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
@@ -23,13 +26,16 @@ import '../features/permissions/presentation/permission_list_screen.dart';
 import '../features/persons/presentation/person_create_screen.dart';
 import '../features/persons/presentation/person_detail_screen.dart';
 import '../features/persons/presentation/person_list_screen.dart';
+import '../features/persons/presentation/system_admin_list_screen.dart';
 import '../features/privacy/presentation/privacy_notice_screen.dart';
 import '../features/profile/presentation/profile_screen.dart';
 import '../features/profile/presentation/security_screen.dart';
+import '../features/scopes/presentation/pending_registration_list_screen.dart';
 import '../features/scopes/presentation/scope_create_screen.dart';
 import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
 import '../features/scopes/presentation/scope_owners_screen.dart';
+import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
 import 'route_access.dart';
 
 /// Routes an unauthenticated caller may reach.
@@ -163,6 +169,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/security',
         builder: (context, state) => const SecurityScreen(),
+        // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
+        // leaving, and leaving them signs the person out.
+        onExit: (context, state) => confirmLeaveWithRecoveryCodes(context, ref),
       ),
       GoRoute(
         path: '/scopes',
@@ -193,6 +202,8 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           applicationId: state.pathParameters['applicationId']!,
         ),
+        // UI-37 — a one-time secret not yet stored is lost by leaving.
+        onExit: (context, state) => confirmLeaveWithPendingSecret(context, ref),
       ),
       GoRoute(
         path: '/scopes/:scopeId/permissions',
@@ -229,6 +240,18 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
             ScopeOwnersScreen(scopeId: state.pathParameters['scopeId']!),
       ),
       GoRoute(
+        path: '/scopes/:scopeId/sign-in-settings',
+        builder: (context, state) => ScopeSignInSettingsScreen(
+          scopeId: state.pathParameters['scopeId']!,
+        ),
+      ),
+      GoRoute(
+        path: '/scopes/:scopeId/pending-registrations',
+        builder: (context, state) => PendingRegistrationListScreen(
+          scopeId: state.pathParameters['scopeId']!,
+        ),
+      ),
+      GoRoute(
         path: '/scopes/:scopeId/persons',
         builder: (context, state) =>
             PersonListScreen(scopeId: state.pathParameters['scopeId']!),
@@ -244,6 +267,23 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           scopeId: state.pathParameters['scopeId']!,
           personId: state.pathParameters['personId']!,
         ),
+      ),
+      GoRoute(
+        path: '/persons/:personId',
+        builder: (context, state) =>
+            PersonDetailScreen(personId: state.pathParameters['personId']!),
+      ),
+      GoRoute(
+        path: '/system-admins',
+        builder: (context, state) => const SystemAdminListScreen(),
+      ),
+      GoRoute(
+        path: '/erasure-requests',
+        builder: (context, state) => const ErasureRequestListScreen(),
+      ),
+      GoRoute(
+        path: '/audit-log',
+        builder: (context, state) => const AuditLogScreen(),
       ),
       GoRoute(
         path: '/health',

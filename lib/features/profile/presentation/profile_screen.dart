@@ -8,7 +8,10 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import '../../auth/presentation/email_verification_controller.dart';
+import '../../auth/domain/two_factor.dart';
+import '../../data_rights/presentation/restrict_processing_dialog.dart';
+import '../../google_users/domain/google_user.dart';
+import '../../google_users/presentation/google_avatar.dart';
 import '../../home/presentation/home_screen.dart';
 import '../../persons/domain/person.dart';
 import 'profile_controller.dart';
@@ -18,7 +21,7 @@ import 'profile_controller.dart';
 /// Read and edit in one screen: the record is what the API returned, and the
 /// form starts from it, so there is never a version of the person on screen
 /// that the API has not confirmed. The fields stay read-only until **Edit** is
-/// pressed.
+/// pressed. A Google User's record is read-only throughout: Google owns it.
 class ProfileScreen extends ConsumerStatefulWidget {
   const ProfileScreen({super.key});
 
@@ -30,6 +33,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   var _formKey = GlobalKey<FormState>();
   final _name = TextEditingController();
   final _email = TextEditingController();
+
+  /// FR-AU-16 — what a change of address is confirmed with. Asked for only
+  /// while the address differs, and cleared whenever the edit ends.
+  final _currentPassword = TextEditingController();
+  final _twoFactorCode = TextEditingController();
 
   /// The record the fields were last seeded from, which is what AF-08d
   /// compares against to decide whether anything actually differs.
@@ -53,6 +61,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _currentPassword.dispose();
+    _twoFactorCode.dispose();
     super.dispose();
   }
 
@@ -72,11 +82,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _restore(Person person) {
     _name.text = person.name;
     _email.text = person.email;
+    _forgetReauthentication();
+  }
+
+  /// A password or code typed for one edit never waits in the form for the
+  /// next.
+  void _forgetReauthentication() {
+    _currentPassword.clear();
+    _twoFactorCode.clear();
   }
 
   void _startEditing() {
-    ref.read(profileControllerProvider.notifier).acknowledgeSave();
+    final controller = ref.read(profileControllerProvider.notifier)
+      ..acknowledgeSave();
     setState(() => _editing = true);
+    // FR-AU-16: which second factor is on decides what a new address's code
+    // field suggests, so it is read before one can be typed.
+    controller.readSecondFactor();
   }
 
   /// Leaving with unsaved changes — by the navigation, the back control or
@@ -108,15 +130,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _differsFrom(Person person) =>
       _name.text.trim() != person.name || _email.text.trim() != person.email;
 
+  /// FR-AU-16 — whether the edit changes the address, which is what asks for
+  /// the password (and the second factor, when it is on).
+  bool _changesEmail(Person person) =>
+      _editing && changesEmail(person, _email.text.trim());
+
   Future<void> _save() async {
-    // AF-08a: an empty name or a malformed address never reaches the API.
+    // AF-08a: an empty name or a malformed address never reaches the API, and
+    // nor does a new address without the password it needs.
     if (!validateAndReveal(_formKey)) {
       return;
     }
 
     await ref
         .read(profileControllerProvider.notifier)
-        .save(name: _name.text.trim(), email: _email.text.trim());
+        .save(
+          name: _name.text.trim(),
+          email: _email.text.trim(),
+          currentPassword: _currentPassword.text,
+          twoFactorCode: _twoFactorCode.text.trim(),
+        );
   }
 
   @override
@@ -153,6 +186,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
           sessionEnded: sessionEnded,
         ),
         final ProfileLoaded loaded => _form(loaded),
+        GoogleProfileLoaded(:final user) => _GoogleProfile(user: user),
       },
     );
   }
@@ -183,7 +217,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                 ],
                 if (state.saved) ...<Widget>[
-                  _SaveConfirmation(emailChanged: state.emailChanged),
+                  const _SaveConfirmation(),
                   const SizedBox(height: 16),
                 ],
                 EditableSection(
@@ -235,25 +269,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               : 'Enter a valid email address.';
                         },
                       ),
+                      if (_changesEmail(person))
+                        _Reauthentication(
+                          password: _currentPassword,
+                          code: _twoFactorCode,
+                          secondFactorOn: person.twoFactorEnabled,
+                          secondFactor: state.secondFactor,
+                          secondFactorKnown: state.secondFactorSettled,
+                          onSubmitted: _save,
+                        ),
                     ],
                   ),
                 ),
                 const SizedBox(height: 16),
                 _Facts(person: person),
                 const SizedBox(height: 16),
-                // UI-09 lives on its own screen: two-factor setup has states
-                // of its own that have no business interrupting an edit here.
-                Card(
-                  child: ListTile(
-                    leading: const Icon(Icons.shield_outlined),
-                    title: const Text('Security'),
-                    subtitle: const Text(
-                      'Two-factor authentication and recovery codes.',
-                    ),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => context.go('/profile/security'),
-                  ),
-                ),
+                const _AccountEntries(),
               ],
             ),
           ),
@@ -261,6 +292,146 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       ),
     );
   }
+}
+
+/// The entries a profile leads on to, whoever's profile it is.
+class _AccountEntries extends StatelessWidget {
+  const _AccountEntries();
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      // UI-09 lives on its own screen: two-factor setup has states of its own
+      // that have no business interrupting an edit here. A Google User finds
+      // there why it does not apply to them.
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.shield_outlined),
+          title: const Text('Security'),
+          subtitle: const Text('Two-factor authentication and recovery codes.'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => context.go('/profile/security'),
+        ),
+      ),
+      const SizedBox(height: 16),
+      // UI-33 — the one data-subject right a full session asks for here; the
+      // others are offered once processing is restricted (UI-30), which is
+      // where this leads.
+      Card(
+        child: ListTile(
+          leading: const Icon(Icons.pause_circle_outline),
+          title: const Text('Restrict processing of my account'),
+          subtitle: const Text(
+            'Have Heimdall keep your data but stop using it. Your account is '
+            'suspended until you lift the restriction.',
+          ),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => showRestrictProcessingDialog(context),
+        ),
+      ),
+    ],
+  );
+}
+
+/// A Google User's own profile (#133).
+///
+/// Read-only: the name, the address and the picture come from Google, and the
+/// API offers no way to change them, so there is no Edit and no resend. It
+/// says why rather than leaving the absence of controls to be puzzled over.
+class _GoogleProfile extends StatelessWidget {
+  const _GoogleProfile({required this.user});
+
+  final GoogleUser user;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(24),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 560),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: <Widget>[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: <Widget>[
+                      Row(
+                        children: <Widget>[
+                          // The picture, or the initials when there is none.
+                          GoogleAvatar(user: user, radius: 28),
+                          const SizedBox(width: 16),
+                          Expanded(
+                            child: Text(
+                              'Your details',
+                              style: theme.textTheme.titleMedium,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                      _ReadOnlyField(label: 'Name', value: user.name),
+                      const SizedBox(height: 16),
+                      _ReadOnlyField(label: 'Email', value: user.email),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Your name and email come from your Google account.',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: DefaultTextStyle.merge(
+                    style: theme.textTheme.bodyMedium,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: <Widget>[
+                        const _Fact(label: 'Signs in with', value: 'Google'),
+                        _Fact(
+                          label: 'Email verified',
+                          value: user.emailVerified ? 'Yes' : 'No',
+                        ),
+                        if (user.scopeId case final scopeId?)
+                          _Fact(label: 'Scope', value: scopeId),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+              const _AccountEntries(),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// A labelled value drawn like a record field in view mode, with no input
+/// behind it: there is nothing to type into.
+class _ReadOnlyField extends StatelessWidget {
+  const _ReadOnlyField({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => InputDecorator(
+    decoration: recordFieldDecoration(context, label: label, editing: false),
+    child: Text(value),
+  );
 }
 
 /// What the API knows about the person that they cannot edit here.
@@ -325,17 +496,17 @@ class _Fact extends StatelessWidget {
   );
 }
 
-/// What a successful save says — and, when the address changed, the resend
-/// AF-08c owes the user.
-class _SaveConfirmation extends ConsumerWidget {
-  const _SaveConfirmation({required this.emailChanged});
-
-  final bool emailChanged;
+/// What a successful save says.
+///
+/// A change of address never stays here to be told: it signs the person out
+/// (FR-AU-28), and the sign-in that follows reports the address unverified
+/// and offers the resend (AF-05e).
+class _SaveConfirmation extends StatelessWidget {
+  const _SaveConfirmation();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final resend = ref.watch(emailVerificationControllerProvider).resend;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -343,42 +514,95 @@ class _SaveConfirmation extends ConsumerWidget {
         color: scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            emailChanged
-                // AF-08c: the API marks a changed address unverified again, so
-                // saying only "saved" would leave the user to discover it.
-                ? 'Saved. Your new address is not verified yet, so we need to '
-                      'confirm it before it can be used.'
-                : 'Saved.',
-            style: TextStyle(color: scheme.onSecondaryContainer),
-          ),
-          if (emailChanged) ...<Widget>[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: switch (resend) {
-                ResendSent() => Text(
-                  'A verification email is on its way.',
-                  style: TextStyle(color: scheme.onSecondaryContainer),
-                ),
-                _ => TextButton(
-                  onPressed: resend is Resending
-                      ? null
-                      : () => ref
-                            .read(emailVerificationControllerProvider.notifier)
-                            .resend(),
-                  child: const Text('Send verification email'),
-                ),
-              },
-            ),
-          ],
-        ],
+      child: Text(
+        'Saved.',
+        style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );
   }
+}
+
+/// FR-AU-16 — what a change of the person's own address is confirmed with:
+/// the current password, and a second-factor code when that is on.
+///
+/// The API sends no emailed code while the person is signed in, so the code
+/// is one from an authenticator app or a recovery code; a person whose only
+/// method is email is pointed at their recovery codes. Changing the address
+/// signs them out to sign in again with it, which is said up front.
+class _Reauthentication extends StatelessWidget {
+  const _Reauthentication({
+    required this.password,
+    required this.code,
+    required this.secondFactorOn,
+    required this.secondFactor,
+    required this.secondFactorKnown,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController password;
+  final TextEditingController code;
+  final bool secondFactorOn;
+  final TwoFactorStatus? secondFactor;
+
+  /// Whether the read of [secondFactor] has finished. Until it has, the code
+  /// field suggests nothing rather than the wrong thing.
+  final bool secondFactorKnown;
+  final VoidCallback onSubmitted;
+
+  bool get _emailOnly =>
+      secondFactor != null &&
+      secondFactor!.emailEnabled &&
+      !secondFactor!.appEnabled;
+
+  /// What the code field suggests: nothing until the method is known, then a
+  /// recovery code for an email-only person, and both ways in otherwise — the
+  /// method unreadable included.
+  String? get _codeHint {
+    if (!secondFactorKnown) {
+      return null;
+    }
+
+    return _emailOnly
+        ? 'Use one of your recovery codes.'
+        : 'A code from your authenticator app, or a recovery code.';
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      const SizedBox(height: 16),
+      Text(
+        'Changing your email address signs you out. Confirm it is you, then '
+        'sign in again with the new address.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: password,
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Current password'),
+        onFieldSubmitted: secondFactorOn ? null : (_) => onSubmitted(),
+        validator: (value) =>
+            (value ?? '').isEmpty ? 'Enter your current password.' : null,
+      ),
+      if (secondFactorOn) ...<Widget>[
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: code,
+          decoration: InputDecoration(
+            labelText: 'Two-factor code',
+            helperText: _codeHint,
+            helperMaxLines: 2,
+          ),
+          onFieldSubmitted: (_) => onSubmitted(),
+          validator: (value) => (value?.trim().isEmpty ?? true)
+              ? 'Enter a code or a recovery code.'
+              : null,
+        ),
+      ],
+    ],
+  );
 }
 
 /// The record could not be read.

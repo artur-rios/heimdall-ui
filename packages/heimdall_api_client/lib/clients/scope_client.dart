@@ -8,11 +8,17 @@ import 'package:retrofit/retrofit.dart';
 import '../models/create_scope_command.dart';
 import '../models/create_scope_command_output_data_output.dart';
 import '../models/delete_scope_command_output_data_output.dart';
+import '../models/discard_pending_registration_command_output_data_output.dart';
 import '../models/hard_delete_scope_command_output_data_output.dart';
+import '../models/pending_registration_output_paginated_output.dart';
 import '../models/scope_output_data_output.dart';
 import '../models/scope_output_paginated_output.dart';
 import '../models/set_google_sign_in_command.dart';
 import '../models/set_google_sign_in_command_output_data_output.dart';
+import '../models/set_scope_email_links_command.dart';
+import '../models/set_scope_email_links_command_output_data_output.dart';
+import '../models/set_self_registration_command.dart';
+import '../models/set_self_registration_command_output_data_output.dart';
 import '../models/update_scope_command.dart';
 import '../models/update_scope_command_output_data_output.dart';
 
@@ -96,5 +102,55 @@ abstract class ScopeClient {
   Future<SetGoogleSignInCommandOutputDataOutput> scopeSetGoogleSignIn({
     @Path('id') required String id,
     @Body() SetGoogleSignInCommand? body,
+  });
+
+  /// Opens or closes anonymous self-registration for a scope (UC-47 toggle, FR-SR-02). Same.
+  /// actors and refusals as the Google Sign-In toggle (UC-24).
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @PUT('/api/scopes/{id}/self-registration')
+  Future<SetSelfRegistrationCommandOutputDataOutput> scopeSetSelfRegistration({
+    @Path('id') required String id,
+    @Body() SetSelfRegistrationCommand? body,
+  });
+
+  /// Sets the base links the scope's verification and password-reset emails point at. A client.
+  /// system with its own screens for those steps points its users there; a link left out, or.
+  /// sent as null or empty, is cleared and the global one applies again. Same actors and.
+  /// refusals as the self-registration toggle.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @PUT('/api/scopes/{id}/email-links')
+  Future<SetScopeEmailLinksCommandOutputDataOutput> scopeSetEmailLinks({
+    @Path('id') required String id,
+    @Body() SetScopeEmailLinksCommand? body,
+  });
+
+  /// Lists the scope's self-registrations awaiting confirmation (UC-49, FR-SR-11), newest first:.
+  /// each one's id, name, address, when it was stored and expires, how many wrong passwords it.
+  /// may still take, and whether it has already expired. Never the password hash, salt or token.
+  /// The attribute keeps a `User` out; whether the acting Scope Admin owns the scope.
+  /// (AF-49b) and whether the scope is live (AF-49a) are the handler's.
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @GET('/api/scopes/{id}/pending-registrations')
+  Future<PendingRegistrationOutputPaginatedOutput>
+  scopeListPendingRegistrations({
+    @Path('id') required String id,
+    @Query('PageNumber') int? pageNumber,
+    @Query('PageSize') int? pageSize,
+  });
+
+  /// Discards one of the scope's self-registrations awaiting confirmation (UC-50, FR-SR-12). Its.
+  /// link stops working — following it answers as for any unknown token — and the registrant may.
+  /// sign up again. Same actors as the listing; a registration of another scope answers 404 exactly.
+  /// like a missing one (AF-50c).
+  ///
+  /// **Requires role:** System Admin or Scope Admin.
+  @DELETE('/api/scopes/{id}/pending-registrations/{registrationId}')
+  Future<DiscardPendingRegistrationCommandOutputDataOutput>
+  scopeDiscardPendingRegistration({
+    @Path('id') required String id,
+    @Path('registrationId') required String registrationId,
   });
 }

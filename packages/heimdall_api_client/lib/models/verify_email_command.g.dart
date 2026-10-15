@@ -7,7 +7,10 @@ part of 'verify_email_command.dart';
 // **************************************************************************
 
 VerifyEmailCommand _$VerifyEmailCommandFromJson(Map<String, dynamic> json) =>
-    VerifyEmailCommand(token: json['token'] as String?);
+    VerifyEmailCommand(
+      token: json['token'] as String?,
+      password: json['password'] as String?,
+    );
 
 Map<String, dynamic> _$VerifyEmailCommandToJson(VerifyEmailCommand instance) =>
-    <String, dynamic>{'token': instance.token};
+    <String, dynamic>{'token': instance.token, 'password': instance.password};

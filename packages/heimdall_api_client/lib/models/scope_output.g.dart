@@ -11,8 +11,11 @@ ScopeOutput _$ScopeOutputFromJson(Map<String, dynamic> json) => ScopeOutput(
   name: json['name'] as String?,
   description: json['description'] as String?,
   googleSignInEnabled: json['googleSignInEnabled'] as bool?,
+  selfRegistrationEnabled: json['selfRegistrationEnabled'] as bool?,
   defaultLegalBasis: (json['defaultLegalBasis'] as num?)?.toInt(),
   privacyNoticeUri: json['privacyNoticeUri'] as String?,
+  emailVerificationUrl: json['emailVerificationUrl'] as String?,
+  passwordResetUrl: json['passwordResetUrl'] as String?,
   isDeleted: json['isDeleted'] as bool?,
   ownerIds: (json['ownerIds'] as List<dynamic>?)
       ?.map((e) => e as String)
@@ -31,8 +34,11 @@ Map<String, dynamic> _$ScopeOutputToJson(ScopeOutput instance) =>
       'name': instance.name,
       'description': instance.description,
       'googleSignInEnabled': instance.googleSignInEnabled,
+      'selfRegistrationEnabled': instance.selfRegistrationEnabled,
       'defaultLegalBasis': instance.defaultLegalBasis,
       'privacyNoticeUri': instance.privacyNoticeUri,
+      'emailVerificationUrl': instance.emailVerificationUrl,
+      'passwordResetUrl': instance.passwordResetUrl,
       'isDeleted': instance.isDeleted,
       'ownerIds': instance.ownerIds,
       'createdAt': instance.createdAt?.toIso8601String(),

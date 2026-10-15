@@ -26,6 +26,8 @@ import '../models/reapply_erasures_command.dart';
 import '../models/reapply_erasures_command_output_data_output.dart';
 import '../models/regenerate_recovery_codes_command.dart';
 import '../models/regenerate_recovery_codes_command_output_data_output.dart';
+import '../models/register_command.dart';
+import '../models/register_command_output_data_output.dart';
 import '../models/request_erasure_command.dart';
 import '../models/request_erasure_command_output_data_output.dart';
 import '../models/resend_two_factor_challenge_code_command.dart';
@@ -72,6 +74,22 @@ abstract class AuthClient {
     @Body() PasswordRecoveryCommand? body,
   });
 
+  /// Registers a password `User` in a scope that has opened self-registration (UC-47,.
+  /// FR-SR-03…FR-SR-09). Open to anonymous callers — someone without an account cannot hold a.
+  /// token.
+  ///
+  /// Answers 202 with the same message whether the address was free or taken (AF-47b), and in the.
+  /// same time: a pending registration is written and its link mailed, or the holder told of the.
+  /// attempt, after the response, by `RegistrationDispatcher`. No `User` exists until.
+  /// that link is followed (UC-14, FR-SR-07). A missing, deleted or closed scope answers 403.
+  /// (AF-47a); a malformed request 400 (AF-47c). Neither says anything about an address.
+  ///
+  /// **Anonymous** — no bearer token required.
+  @POST('/api/auth/register')
+  Future<RegisterCommandOutputDataOutput> authRegister({
+    @Body() RegisterCommand? body,
+  });
+
   /// Sets a new password from the reset token mailed by UC-12 (UC-13, FR-PR-03/04). Open to.
   /// anonymous callers for the same reason: the token is the only credential someone who has.
   /// lost their password can present.
@@ -96,6 +114,12 @@ abstract class AuthClient {
   /// (AF-14b) tokens all answer 400 with their own message, as does a request carrying no token.
   /// at all. An address that was already verified answers 200: UC-14 defines no alternative flow.
   /// for it, and the link did what it promised.
+  ///
+  /// A token that names a UC-47 pending registration also needs `password`, the one chosen.
+  ///     at sign-up: without it the answer is 422, and with a wrong one 401, and either leaves the.
+  ///     registration in place — except that the 10th wrong password discards it, after which the.
+  ///     token answers 400 "Invalid token" (FR-SR-09). `password` is read only for pending.
+  ///     registrations and ignored for an ordinary verification token.
   ///
   /// **Anonymous** — no bearer token required.
   @POST('/api/auth/verify-email')
@@ -165,7 +189,9 @@ abstract class AuthClient {
   /// anonymous callers, which is exactly what authentication alone enforces. AF-36b (Google User,.
   /// 403) is not a role the attribute can see — a Google-issued token names a.
   /// `GoogleUser`, not a `Person` — so the handler enforces it by resolving the caller.
-  /// against the `Person` table itself.
+  /// against the `Person` table itself. The request carries the caller's.
+  /// `currentPassword` (FR-2F-18), so the action sits under the credential endpoints' rate.
+  /// limit, as `2fa/confirm` and `2fa/disable` do.
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @POST('/api/auth/2fa/enable')
@@ -321,7 +347,10 @@ abstract class AuthClient {
   ///                     is not enough for an irreversible operation. Because it verifies a password, this.
   ///                     endpoint is governed by NFR-18 rather than NFR-05.
   ///
-  /// Reachable by a subject whose processing is restricted (NFR-24). A suspended identity.
+  /// Reachable by a subject whose processing is restricted (NFR-24), and a successful request.
+  ///                     lifts that restriction — without the Art. 18(3) notice, since the subject is lifting.
+  ///                     their own — so the erasure is not held behind it; `restrictionLifted` in the.
+  ///                     response says whether it did. A suspended identity.
   ///                     reaches the handler too, and is answered by AF-42c (409) if it asked already, AF-42b.
   ///                     (403) otherwise.
   ///

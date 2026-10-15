@@ -113,6 +113,26 @@ class PersonDetailController extends Notifier<PersonDetailState> {
     );
   }
 
+  /// Reads the person again without leaving the screen: the record on screen
+  /// stays put, with whatever the user is looking at, until the new one
+  /// replaces it. A read that fails changes nothing, since the page is still
+  /// showing the last record the API confirmed.
+  Future<void> refresh() async {
+    final result = await ref
+        .read(personRepositoryProvider)
+        .getById(arg, includeDeleted: true);
+
+    if (result case Success<Person>(:final value)) {
+      final current = state;
+
+      // The flags describe requests that are still in flight or outcomes the
+      // user has not yet seen; a reload changes the record, not those.
+      state = current is PersonDetailLoaded
+          ? current.copyWith(person: value)
+          : PersonDetailLoaded(value);
+    }
+  }
+
   /// Saves [name] and [email].
   ///
   /// The role is never sent. FR-PE-06 makes this screen's edit the name and

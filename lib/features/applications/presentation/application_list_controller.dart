@@ -150,22 +150,31 @@ class ApplicationListController extends Notifier<ApplicationListState> {
         : ApplicationListLoading(query);
 
     try {
-      final result = await ref
-          .read(applicationRepositoryProvider)
-          .list(
-            scopeId: arg,
-            name: query.name,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      // The owners are resolved inside the guard too: a read of theirs that
+      // throws must end in the failed state, not strand the list.
+      final result = await guardUnexpected(() async {
+        final listed = await ref
+            .read(applicationRepositoryProvider)
+            .list(
+              scopeId: arg,
+              name: query.name,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            );
 
-      switch (result) {
-        case Success<Page<Application>>(:final value):
+        if (listed case Success<Page<Application>>(:final value)) {
           // The owners are resolved before the page is shown, so a row never
           // flickers from an identifier to a name under the reader's eye.
           await _owners.resolve(
             value.items.map((application) => application.ownerId),
           );
+        }
+
+        return listed;
+      });
+
+      switch (result) {
+        case Success<Page<Application>>(:final value):
           state = ApplicationListLoaded(
             query,
             value,

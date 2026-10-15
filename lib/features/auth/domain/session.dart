@@ -93,6 +93,8 @@ final class Unauthenticated extends SessionState {
   const Unauthenticated({
     this.sessionExpired = false,
     this.restrictionLifted = false,
+    this.processingRestricted = false,
+    this.credentialsChanged = false,
   });
 
   /// Whether this state was reached by a session ending under the caller
@@ -108,6 +110,23 @@ final class Unauthenticated extends SessionState {
   /// so the person is signed out to sign in again for full access — and the
   /// sign-in screen says that this is why, rather than leaving them to guess.
   final bool restrictionLifted;
+
+  /// Whether this state was reached by restricting processing of the
+  /// person's own account.
+  ///
+  /// UI-33: the API stops admitting the token that asked to anything but the
+  /// rights endpoints, so the person is signed out — and the sign-in screen
+  /// says that signing in again opens the restricted session (UI-30).
+  final bool processingRestricted;
+
+  /// Whether this state was reached by a change to the person's own sign-in
+  /// details: their email address, or their second factor.
+  ///
+  /// The API stops accepting every token the person holds once such a change
+  /// is made, the one that made it included, so the client signs them out at
+  /// once rather than letting the next request be refused, and the sign-in
+  /// screen says why.
+  final bool credentialsChanged;
 }
 
 /// Credentials were accepted but a second factor is still outstanding. The

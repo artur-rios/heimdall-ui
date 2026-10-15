@@ -29,6 +29,8 @@ void main() {
     void Function(_Row item)? onTap,
     ValueChanged<int>? onPageChanged,
     ThemeData? theme,
+    String? titleLabel,
+    String Function(_Row item)? subtitle,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -40,6 +42,7 @@ void main() {
         home: Scaffold(
           body: AdaptiveCollection<_Row>(
             items: items,
+            titleLabel: titleLabel ?? 'Name',
             busy: busy,
             reservesFloatingAction: reservesFloatingAction,
             pageNumber: pageNumber,
@@ -48,7 +51,7 @@ void main() {
             onPageChanged: onPageChanged ?? (_) {},
             onTap: onTap,
             title: (item) => item.name,
-            subtitle: (item) => 'subtitle',
+            subtitle: subtitle ?? (item) => 'subtitle',
             columns: <CollectionColumn<_Row>>[
               CollectionColumn<_Row>(
                 label: 'State',
@@ -87,6 +90,53 @@ void main() {
 
     // Then
     expect(find.byType(DataTable), findsOneWidget);
+  });
+
+  testWidgets('GivenNoTitleLabel_WhenATableIsUsed_ThenTheFirstHeaderIsName', (
+    tester,
+  ) async {
+    // Given
+    tester.view.physicalSize = const Size(1400, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+
+    // When
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildLightTheme(),
+        home: Scaffold(
+          body: AdaptiveCollection<_Row>(
+            items: _rows,
+            pageNumber: 1,
+            totalPages: 1,
+            totalItems: _rows.length,
+            onPageChanged: (_) {},
+            title: (item) => item.name,
+            columns: <CollectionColumn<_Row>>[
+              CollectionColumn<_Row>(
+                label: 'State',
+                cell: (item) => Text(item.state),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Name'), findsOneWidget);
+  });
+
+  testWidgets('GivenATitleLabel_WhenATableIsUsed_ThenTheFirstHeaderNamesIt', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, size: const Size(1400, 900), titleLabel: 'Action');
+
+    // Then
+    expect(find.text('Action'), findsOneWidget);
+    expect(find.text('Name'), findsNothing);
   });
 
   testWidgets('GivenATableOnlyColumn_WhenCardsAreUsed_ThenItIsOmitted', (
@@ -220,6 +270,74 @@ void main() {
       tester.getBottomRight(find.byIcon(Icons.chevron_right)).dy,
       lessThan(900 - 72),
     );
+  });
+
+  testWidgets(
+    'GivenALongTitleAndSubtitle_WhenATableIsUsed_ThenBothAreBoundedAndTipped',
+    (tester) async {
+      // Given
+      final name = 'N' * 200;
+      final email = '${'e' * 200}@example.com';
+
+      // When
+      await pump(
+        tester,
+        size: const Size(1400, 900),
+        items: <_Row>[_Row(name, 'Active')],
+        subtitle: (item) => email,
+      );
+
+      // Then — one line each, cut short, the whole text a hover away.
+      for (final text in <String>[name, email]) {
+        final shown = tester.widget<Text>(find.text(text));
+        expect(tester.getSize(find.text(text)).width, lessThanOrEqualTo(260));
+        expect(shown.maxLines, 1);
+        expect(shown.overflow, TextOverflow.ellipsis);
+        expect(find.byTooltip(text), findsOneWidget);
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'GivenABoundedTitle_WhenReadAloud_ThenTheTitleAndSubtitleAreReadOnce',
+    (tester) async {
+      // Given
+      final semantics = tester.ensureSemantics();
+
+      // When
+      await pump(
+        tester,
+        size: const Size(1400, 900),
+        items: const <_Row>[_Row('Acme', 'Active')],
+        subtitle: (item) => 'acme@example.com',
+      );
+
+      // Then — the tooltip repeats the text on screen, so it is not read.
+      for (final text in <String>['Acme', 'acme@example.com']) {
+        final data = tester.getSemantics(find.text(text)).getSemanticsData();
+        final spoken = '${data.label}\n${data.tooltip}';
+        expect(text.allMatches(spoken).length, 1, reason: spoken);
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets('GivenALongTitle_WhenCardsAreUsed_ThenItIsShownWhole', (
+    tester,
+  ) async {
+    // Given
+    final name = 'N' * 200;
+
+    // When
+    await pump(
+      tester,
+      size: const Size(400, 900),
+      items: <_Row>[_Row(name, 'Active')],
+    );
+
+    // Then — a card wraps instead, so nothing is hidden there.
+    expect(tester.widget<Text>(find.text(name)).maxLines, isNull);
   });
 
   testWidgets('GivenTheDarkTheme_WhenRendered_ThenTheItemsAreStillShown', (

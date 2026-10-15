@@ -173,7 +173,12 @@ class SessionController extends Notifier<SessionState> {
     required String email,
     required String password,
   }) async {
-    final result = await _repository.login(email: email, password: password);
+    // The scope comes from the calling application, as it does for Google.
+    final result = await _repository.login(
+      email: email,
+      password: password,
+      scopeId: ref.read(scopeSourceProvider).read(),
+    );
 
     switch (result) {
       case Success<LoginOutcome>(:final value):
@@ -324,6 +329,25 @@ class SessionController extends Notifier<SessionState> {
     }
   }
 
+  /// UI-02 — a new email code for the challenge this session holds. The
+  /// challenge is not changed: the API never extends or reissues it.
+  Future<Result<void>> resendSecondFactorCode() async {
+    final current = state;
+
+    if (current is! Challenged) {
+      return const FailureResult<void>(
+        Failure(
+          kind: FailureKind.unknown,
+          errors: <String>['There is no sign-in to send a code for.'],
+        ),
+      );
+    }
+
+    return _repository.resendSecondFactorCode(
+      challengeToken: current.challengeToken,
+    );
+  }
+
   /// Whether a failure means the challenge itself is gone rather than the code
   /// being wrong. The envelope carries no code of its own for this, so the
   /// status is the signal: a challenge the API will not accept from anyone
@@ -356,9 +380,21 @@ class SessionController extends Notifier<SessionState> {
   /// subject-rights-only token is not sent to the API's Google sign-out
   /// either: that endpoint is not one of the four such a token is admitted to,
   /// so the call could only come back `403`.
+  ///
+  /// UI-33: [processingRestricted] marks a sign-out that follows restricting
+  /// processing of the person's own account. From then on the API refuses the
+  /// token everywhere but the rights endpoints, its Google sign-out included,
+  /// so that is not called either.
+  ///
+  /// UI-08, UI-09: [credentialsChanged] marks a sign-out that follows a change
+  /// to the person's own sign-in details — their email address, or their
+  /// second factor. The API has revoked every token they hold, this one
+  /// included, so nothing is sent under it.
   Future<void> signOut({
     bool expired = false,
     bool restrictionLifted = false,
+    bool processingRestricted = false,
+    bool credentialsChanged = false,
   }) async {
     if (_signingOut) {
       return;
@@ -369,7 +405,11 @@ class SessionController extends Notifier<SessionState> {
     try {
       if (state case Authenticated(:final token, :final principal)
           when token.viaGoogle) {
-        if (!expired && !token.isExpired && !principal.subjectRightsOnly) {
+        if (!expired &&
+            !processingRestricted &&
+            !credentialsChanged &&
+            !token.isExpired &&
+            !principal.subjectRightsOnly) {
           await _repository.signOutFromGoogle();
         }
 
@@ -380,6 +420,8 @@ class SessionController extends Notifier<SessionState> {
       state = Unauthenticated(
         sessionExpired: expired,
         restrictionLifted: restrictionLifted,
+        processingRestricted: processingRestricted,
+        credentialsChanged: credentialsChanged,
       );
     } finally {
       _signingOut = false;

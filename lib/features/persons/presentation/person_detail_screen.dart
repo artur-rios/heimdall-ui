@@ -14,18 +14,17 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
 import '../domain/person.dart';
+import 'account_emails_card.dart';
 import 'person_detail_controller.dart';
 import 'person_list_controller.dart';
 
 /// UI-18 — one person, as an administrator sees them.
 class PersonDetailScreen extends ConsumerStatefulWidget {
-  const PersonDetailScreen({
-    required this.scopeId,
-    required this.personId,
-    super.key,
-  });
+  const PersonDetailScreen({required this.personId, this.scopeId, super.key});
 
-  final String scopeId;
+  /// The scope the person was reached through, or `null` when they were
+  /// opened from the System Admins list (UI-38), which has no scope.
+  final String? scopeId;
   final String personId;
 
   @override
@@ -72,7 +71,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     }
 
     _seeded = person;
-    _restore(person);
+
+    // A background reload (AF-36c) can land mid-edit; what was typed and not
+    // yet saved stays. `_seeded` still moves on, so the leave guard compares
+    // the typing against the record the API now holds.
+    if (!_editing) {
+      _restore(person);
+    }
   }
 
   void _restore(Person person) {
@@ -146,6 +151,12 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
   bool _mayDelete(Person person) =>
       _maySeeHardDelete || person.role == Role.user;
 
+  /// UC-51/UC-52: a System Admin for anyone, a Scope Admin for the Users of
+  /// scopes they own. The API decides the ownership; this only decides what
+  /// is offered.
+  bool _mayEmail(Person person) =>
+      _maySeeHardDelete || person.role == Role.user;
+
   /// AF-19a — a dialog the user closes sends nothing.
   Future<void> _confirmDelete(Person person) async {
     final confirmed = await showConfirm(
@@ -201,7 +212,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     final controller = ref.read(
       personDetailControllerProvider(widget.personId).notifier,
     );
-    final backToListing = '/scopes/${widget.scopeId}/persons';
+    final scopeId = widget.scopeId;
+    final backToListing = scopeId == null
+        ? '/system-admins'
+        : '/scopes/$scopeId/persons';
+    final backTooltip = scopeId == null
+        ? 'Back to System Admins'
+        : 'Back to the listing';
 
     // A deleted person returns to the listing, which is now stale.
     ref.listen<PersonDetailState>(
@@ -216,23 +233,23 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         }
 
         if (next is PersonDeleted) {
-          ref
-              .read(personListControllerProvider(widget.scopeId).notifier)
-              .load();
+          if (scopeId != null) {
+            ref.read(personListControllerProvider(scopeId).notifier).load();
+          }
           context.go(backToListing);
         }
       },
     );
 
     return AppShell(
-      currentRoute: '/scopes',
+      currentRoute: scopeId == null ? '/' : '/scopes',
       title: Text(switch (state) {
         PersonDetailLoaded(:final person) => person.name,
         _ => 'Person',
       }),
       confirmLeave: _confirmLeave,
       backRoute: backToListing,
-      backTooltip: 'Back to the listing',
+      backTooltip: backTooltip,
       body: switch (state) {
         PersonDetailLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -244,7 +261,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               'There is nobody with that identifier. They may have been '
               'permanently deleted.',
           icon: Icons.search_off_outlined,
-          actionLabel: 'Back to the listing',
+          actionLabel: backTooltip,
           onAction: () => context.go(backToListing),
         ),
         // AF-18b — the API says this person is not within reach of this role.
@@ -254,7 +271,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               'This person is not one you administer. Nothing is wrong '
               'with your session.',
           icon: Icons.lock_person_outlined,
-          actionLabel: 'Back to the listing',
+          actionLabel: backTooltip,
           onAction: () => context.go(backToListing),
         ),
         PersonDetailUnavailable(:final failure) => CollectionFailed(
@@ -303,7 +320,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                   icon: Icons.person_outline,
                   message:
                       'This is your own record. Your role is not '
-                      'something you can change here.',
+                      'something you can change here. Change your email '
+                      'address from your profile.',
                 ),
                 const SizedBox(height: 16),
               ],
@@ -356,15 +374,24 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                                 : null,
                           ),
                           const SizedBox(height: 16),
+                          // FR-AU-16: your own address is changed from your
+                          // profile, which asks for your password and signs
+                          // you in again; this screen asks for neither.
                           TextFormField(
                             controller: _email,
-                            readOnly: !editing,
+                            readOnly: !editing || _isSelf,
                             keyboardType: TextInputType.emailAddress,
-                            decoration: recordFieldDecoration(
-                              context,
-                              label: 'Email',
-                              editing: editing,
-                            ),
+                            decoration:
+                                recordFieldDecoration(
+                                  context,
+                                  label: 'Email',
+                                  editing: editing && !_isSelf,
+                                ).copyWith(
+                                  helperText: editing && _isSelf
+                                      ? 'Change your own email from your '
+                                            'profile.'
+                                      : null,
+                                ),
                             validator: (value) {
                               final email = value?.trim() ?? '';
 
@@ -416,6 +443,22 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                   ),
                 ),
               ),
+              // UI-36 — people use the profile screen for their own account,
+              // and a deleted person has no account left to email.
+              if (!state.isReadOnly &&
+                  !_isSelf &&
+                  _mayEmail(person)) ...<Widget>[
+                const SizedBox(height: 24),
+                AccountEmailsCard(
+                  person: person,
+                  onVerificationRefused: () => ref
+                      .read(
+                        personDetailControllerProvider(widget.personId)
+                            .notifier,
+                      )
+                      .refresh(),
+                ),
+              ],
               // AF-19d — the controls are disabled on your own record, and
               // AF-18d leaves a deleted person nothing left to delete.
               if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[

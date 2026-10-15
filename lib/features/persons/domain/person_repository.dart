@@ -18,11 +18,16 @@ abstract interface class PersonRepository {
   ///
   /// [roleId] is the API's own role change, which only a System Admin may make.
   /// An ordinary edit leaves it null, which is how the command says "unchanged".
+  ///
+  /// [currentPassword] and [twoFactorCode] re-authenticate a caller changing
+  /// their own email address (FR-AU-16). Every other update leaves them null.
   Future<Result<Person>> update({
     required String id,
     required String name,
     required String email,
     int? roleId,
+    String? currentPassword,
+    String? twoFactorCode,
   });
 
   /// Creates a User within a scope.
@@ -86,6 +91,16 @@ abstract interface class PersonRepository {
     int pageSize = 20,
   });
 
+  /// UC-07 read (e) — the system's System Admins, projected to identifier,
+  /// name, and email. The API answers it to a System Admin only, leaves out
+  /// deleted and restricted accounts, and orders by name.
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  });
+
   /// Adds an existing Scope Admin as a co-owner of a scope.
   ///
   /// Whether that person is a usable Scope Admin, and whether they already own
@@ -118,4 +133,15 @@ abstract interface class PersonRepository {
     required String scopeId,
     required String personId,
   });
+
+  /// Asks the API to send a person a fresh verification email (UC-51).
+  ///
+  /// A cooldown arrives as [FailureKind.rateLimited], and a person whose data
+  /// is restricted as a refusal; both carry the API's own words.
+  Future<Result<void>> sendVerificationEmail(String personId);
+
+  /// Asks the API to send a person a password reset email (UC-52).
+  ///
+  /// Refused like [sendVerificationEmail], in the API's own words.
+  Future<Result<void>> sendPasswordReset(String personId);
 }

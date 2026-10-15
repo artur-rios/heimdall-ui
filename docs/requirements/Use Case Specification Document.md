@@ -59,6 +59,7 @@ graph LR
     subgraph "Profile & Security"
         UI08[UI-08: Own profile]
         UI09[UI-09: Manage two-factor]
+        UI33[UI-33: Restrict processing]
     end
 
     subgraph "Scope Management"
@@ -68,6 +69,8 @@ graph LR
         UI13[UI-13: Delete scope]
         UI14[UI-14: Manage scope owners]
         UI15[UI-15: Toggle Google Sign-In]
+        UI31[UI-31: Sign-in & sign-up settings]
+        UI35[UI-35: Pending registrations]
     end
 
     subgraph "Person Management"
@@ -75,6 +78,8 @@ graph LR
         UI17[UI-17: Create person]
         UI18[UI-18: View & update person]
         UI19[UI-19: Delete person]
+        UI36[UI-36: Account emails]
+        UI38[UI-38: List System Admins]
     end
 
     subgraph "Application Management"
@@ -82,6 +87,7 @@ graph LR
         UI21[UI-21: Create application]
         UI22[UI-22: View & update application]
         UI23[UI-23: Delete application]
+        UI37[UI-37: Application credentials]
     end
 
     subgraph "Scope Permission Management"
@@ -91,20 +97,30 @@ graph LR
         UI27[UI-27: Delete permission]
     end
 
+    subgraph "Data Subject Administration"
+        UI32[UI-32: Erasure requests]
+    end
+
+    subgraph "Audit"
+        UI34[UI-34: Review the audit trail]
+    end
+
     subgraph "Google Users"
         UI28[UI-28: Browse & view Google users]
         UI29[UI-29: Delete Google user]
     end
 
     AN --> UI01 & UI02 & UI03 & UI04 & UI05 & UI06
-    SA & SCA & U --> UI07 & UI08 & UI09
+    SA & SCA & U --> UI07 & UI08 & UI09 & UI33
     RS --> UI30
-    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15
-    SCA --> UI10 & UI12 & UI14 & UI15
-    SA & SCA --> UI16 & UI17 & UI18 & UI19
-    SA & SCA --> UI20 & UI21 & UI22 & UI23
+    SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
+    SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
+    SA & SCA --> UI16 & UI17 & UI18 & UI19 & UI36
+    SA --> UI38
+    SA & SCA --> UI20 & UI21 & UI22 & UI23 & UI37
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
+    SA --> UI32 & UI34
 ```
 
 ### 1.4 Inventory and traceability
@@ -112,13 +128,13 @@ graph LR
 | ID | Use case | Traces to |
 | --- | --- | --- |
 | UI-01 | Login | UC-11 |
-| UI-02 | Complete two-factor challenge at login | UC-38 |
+| UI-02 | Complete two-factor challenge at login | UC-38, UC-46 |
 | UI-03 | Request password recovery | UC-12 |
 | UI-04 | Reset password | UC-13 |
 | UI-05 | Verify email and resend verification | UC-14, UC-15 |
 | UI-06 | Sign in and sign out with Google | UC-25, UC-26 |
 | UI-07 | Guard routes by session and role | — |
-| UI-08 | View and edit own profile | UC-07, UC-08 |
+| UI-08 | View and edit own profile | UC-07, UC-08, UC-27 |
 | UI-09 | Manage two-factor authentication | UC-36, UC-37, UC-39, UC-40 |
 | UI-10 | Browse and search scopes | UC-02 |
 | UI-11 | Create a scope | UC-01 |
@@ -141,6 +157,14 @@ graph LR
 | UI-28 | Browse and view Google users | UC-27 |
 | UI-29 | Delete a Google user, logically and permanently | UC-28, UC-29 |
 | UI-30 | Use a restricted session | UC-11 (AF-11i), UC-25 (AF-25e), UC-38, UC-41, UC-42, UC-45 |
+| UI-31 | Configure a scope's sign-in and sign-up | UC-24, UC-47 |
+| UI-32 | Review outstanding erasure requests | UC-43 |
+| UI-33 | Restrict processing of my account | UC-44, UC-45 |
+| UI-34 | Review the audit trail | UC-48 |
+| UI-35 | Manage a scope's pending registrations | UC-49, UC-50 |
+| UI-36 | Send account emails to a person | UC-51, UC-52 |
+| UI-37 | Manage an application's credentials | UC-53, UC-54, UC-55 |
+| UI-38 | List System Admins | UC-07 (read e) |
 
 ### 1.5 Platform items
 
@@ -183,7 +207,9 @@ delivered the same way.
 1. The user opens the application and is redirected to the login screen.
 2. The user enters an email address and a password.
 3. The user submits the form.
-4. The client calls `POST /api/auth/login`.
+4. The client calls `POST /api/auth/login` with the email, the password, and the configured scope. The
+   scope is the one the calling application named, or the build's own; without one the API finds only
+   administrators, because a User's email is unique only within their scope.
 5. The API answers with a token and its expiry.
 6. The client stores the token, establishes the session, and redirects to the screen the user
    originally requested, or to the home screen.
@@ -207,7 +233,7 @@ delivered the same way.
 ### UI-02: Complete two-factor challenge at login
 
 **Actor:** Anonymous (holding a challenge)
-**Traces to:** UC-38 (Verify Second Factor)
+**Traces to:** UC-38 (Verify Second Factor), UC-46 (Resend Second-Factor Email Code)
 **Precondition:** The session is in the `challenged` state with a challenge token and a list of available methods.
 
 **Main flow**
@@ -215,9 +241,14 @@ delivered the same way.
 1. The client shows the challenge screen, naming the method in use.
 2. The user enters the code from their authenticator application, from the email the API sent, or a
    recovery code.
-3. The client calls `POST /api/auth/2fa/verify` with the challenge token and the code.
-4. The API answers with a token and its expiry.
-5. The client stores the token, establishes the session, and redirects onward.
+3. While the method in use is email and no recovery code is being entered, the user may choose
+   **Send a new code**. The client calls `POST /api/auth/2fa/challenge/resend` with the challenge
+   token and shows "If your sign-in is still open, a new code is on its way. Codes sent before it no
+   longer work." The button is disabled for 30 seconds, counting down in its label, and a challenge
+   allows three sends. The code the user typed is kept.
+4. The client calls `POST /api/auth/2fa/verify` with the challenge token and the code.
+5. The API answers with a token and its expiry.
+6. The client stores the token, establishes the session, and redirects onward.
 
 **Alternative flows**
 
@@ -231,6 +262,13 @@ delivered the same way.
   success the client reminds them that the code is now spent, and points at UI-09.
 - **AF-02e — Abandoned challenge.** The user leaves the screen. The challenge token is discarded and
   the session returns to unauthenticated; it is never persisted.
+- **AF-02f — No resend control.** The method in use is the authenticator app, or a recovery code is
+  being entered. The client shows no **Send a new code** button.
+- **AF-02g — Third send made.** After the third send for the challenge, **Send a new code** is
+  replaced by **Start over** and the note "For another code, sign in again." Choosing **Start over**
+  discards the challenge and returns to UI-01.
+- **AF-02h — Transport or server failure.** The client shows an error banner. The send is not
+  counted and the countdown does not start.
 
 ---
 
@@ -371,8 +409,10 @@ delivered the same way.
 - **AF-07d — Role not permitted.** An authenticated caller requesting a route their role cannot use
   is shown a "not available for your role" screen, not a redirect loop.
 - **AF-07e — Token rejected mid-session.** A `401` to a request made under the session clears it
-  and redirects to login, explaining that the session ended. A `401` that refuses a password or code
-  typed into the request (AF-02a, AF-09d) is not a rejected token, and leaves the session alone.
+  and redirects to login, explaining that the session ended — a token the API has revoked ("This
+  token has been revoked. Sign in again.") included. A `401` that refuses a password or code typed
+  into the request (AF-02a, AF-08h, AF-09d, AF-09f) is not a rejected token, and leaves the session
+  alone.
 - **AF-07f — Already signed in.** An authenticated caller requesting login or the challenge screen
   is redirected to the home screen.
 - **AF-07g — Expired stored token.** A token whose expiry has passed is discarded at start-up
@@ -385,8 +425,9 @@ delivered the same way.
 
 ### UI-08: View and edit own profile
 
-**Actor:** System Admin, Scope Admin, User
-**Traces to:** UC-07 (View Person), UC-08 (Update Person)
+**Actor:** System Admin, Scope Admin, User — a Google User included (AF-08f)
+**Traces to:** UC-07 (View Person), UC-08 (Update Person); UC-27 (View Google User) for a Google
+User's own record
 **Precondition:** A session exists.
 
 **Main flow**
@@ -394,21 +435,49 @@ delivered the same way.
 1. The user opens their profile.
 2. The client calls `GET /api/persons/{id}` for the signed-in person and shows name, email, role,
    verification status, and scope membership.
-3. The user edits their name or email and saves.
-4. The client calls `PUT /api/persons/{id}` and shows the updated record.
+3. The user edits their name or email and saves. A new email address is confirmed first (AF-08g).
+4. The client calls `PUT /api/persons/{id}` and shows the updated record. A new email address
+   signs the user out instead (AF-08c).
 
 **Alternative flows**
 
-- **AF-08a — Client-side validation fails.** An empty name or a malformed email blocks submission.
+- **AF-08a — Client-side validation fails.** An empty name or a malformed email blocks submission,
+  and so does a new email address without the confirmation AF-08g asks for.
 - **AF-08b — Update rejected.** The API answers unsuccessfully, for instance because the email is
   already taken. The client shows the returned errors against the offending field and keeps the
   user's input.
-- **AF-08c — Email changed.** The API marks the address unverified again. The client says so and
-  offers the resend action from UI-05.
+- **AF-08c — Email changed.** Changing the address ends every session the person holds, the one
+  that changed it included, and the API marks the address unverified again. On success the client
+  signs the user out and the sign-in screen says "Your sign-in details changed. Sign in again." The
+  user signs in with the new address, and UI-05's prompt then offers the resend. The API compares
+  the trimmed addresses exactly, so a change of case alone is a change of address too.
 - **AF-08d — Nothing changed.** Saving with no modification is a no-op; the save control stays
   disabled until a field actually differs.
 - **AF-08e — Record unavailable.** The API answers `404`, meaning the person was deleted from under
   the session. The client signs the user out and explains why.
+- **AF-08f — Signed in with Google.** A Google session (UI-06) belongs to a Google User, not a
+  person, so `GET /api/persons/{id}` would answer `404` for it. The client instead calls
+  `GET /api/scopes/{scopeId}/google-users/{id}` with the scope and identifier the token names —
+  UC-27 admits a Google User reading their own record — and shows the name, the email, the picture
+  (the initials when there is none), whether Google verified the address, and the scope. The record
+  is read-only, with the note "Your name and email come from your Google account.": there is no
+  **Edit** and no resend, because the API offers no way to change a Google User's name or email.
+  **Security** (UI-09, which tells a Google User that two-factor authentication does not apply to
+  them) and **Restrict processing of my account** (UI-33) are offered as for a person. A `404` is
+  AF-08e: the Google User was deleted from under the session.
+- **AF-08g — Confirming a new email address.** While the email field differs from the current
+  address (compared exactly, once trimmed), the form asks for the **Current password**, and — when
+  the person's two-factor authentication is on — a **Two-factor code**. No emailed code is sent
+  while signed in, so the code field says "A code from your authenticator app, or a recovery code.";
+  when email is the person's only method it says "Use one of your recovery codes." The method is
+  read through `GET /api/auth/2fa` once an edit starts, and the field suggests nothing until that
+  read finishes; when it cannot be read, the first wording is used. The client sends
+  `currentPassword` and, when the factor is on, `twoFactorCode` with the update. A name-only edit
+  asks for neither and sends neither. Cancelling the edit clears both fields.
+- **AF-08h — Confirmation refused.** The API answers `401` with "The current password is
+  incorrect." or "The code or recovery code is missing, incorrect, or already used.". The client
+  shows the message above the form, keeps the input, and leaves the session alone: the token is
+  still good, and the person is meant to correct what they typed.
 
 ---
 
@@ -422,8 +491,8 @@ delivered the same way.
 
 1. The user opens the security section of their profile, which states whether two-factor
    authentication is on.
-2. The user chooses a method and starts enabling it.
-3. The client calls `POST /api/auth/2fa/enable`.
+2. The user chooses a method, and the client asks for their current password.
+3. The client calls `POST /api/auth/2fa/enable` with the method and `currentPassword`.
 4. For an authenticator method the API returns an `otpAuthUri`; the client renders it as a QR code
    and also shows the secret as text for manual entry. For the email method the API reports that a
    code was sent.
@@ -431,19 +500,23 @@ delivered the same way.
 6. The client calls `POST /api/auth/2fa/confirm`.
 7. The API confirms and returns the recovery codes. The client shows them once, offers to copy or
    download them, and requires the user to acknowledge before leaving.
+8. Confirming ended every session the person holds, so once they acknowledge the codes the client
+   signs them out (AF-09g). They sign in again with their second factor (UI-02).
 
 **Main flow — disabling**
 
 1. The user chooses to turn two-factor authentication off and confirms.
 2. The client calls `POST /api/auth/2fa/disable` with the current password and a second factor — a
    generated code or a recovery code. The API requires both, and refuses either alone.
-3. The section returns to the disabled state.
+3. Turning it off ended every session the person holds, so the client signs them out (AF-09g).
 
 **Main flow — regenerating recovery codes**
 
 1. The user asks for new recovery codes and confirms that the current ones stop working.
 2. The client calls `POST /api/auth/2fa/recovery-codes/regenerate` and shows the new codes once,
    under the same acknowledgement rule.
+3. Regenerating ended every session the person holds, so once they acknowledge the codes the client
+   signs them out (AF-09g).
 
 **Alternative flows**
 
@@ -451,12 +524,24 @@ delivered the same way.
   keeps the setup alive so the user can try again without restarting.
 - **AF-09b — Setup abandoned.** The user leaves before confirming. Two-factor authentication stays
   off, and the pending secret is discarded from client memory.
-- **AF-09c — Recovery codes not acknowledged.** Navigation away is blocked by a confirmation, since
-  the codes are shown exactly once.
+- **AF-09c — Recovery codes not acknowledged.** Leaving is stopped by a confirmation, since the
+  codes are shown exactly once: by the screen's back control, the navigation, signing out, a system
+  back, and — on the web — a browser Back or Forward or a typed address, which the route itself asks
+  about. While the codes wait, closing or reloading the tab asks the browser to confirm too. Leaving
+  anyway signs the user out, as acknowledging does (AF-09g). A session that ends meanwhile is not
+  held behind the confirmation.
 - **AF-09d — Disable rejected.** The API rejects the credential. The client shows the returned
   errors and leaves the feature on.
 - **AF-09e — QR code cannot be rendered.** The client always shows the secret as selectable text
   next to the QR code, so a rendering failure never blocks setup.
+- **AF-09f — Password refused when enabling.** The API answers `401` with "The current password is
+  incorrect.". The password dialog stays open with the message in it, so the user types the password
+  again there; the feature stays off and the session is left alone.
+- **AF-09g — Signed out after a change.** After a confirmation (once the codes are acknowledged or
+  left), a disable, or a regeneration (once the codes are acknowledged or left), the client asks
+  nothing more under the session's token, signs the user out, and the sign-in screen says "Your
+  sign-in details changed. Sign in again." The recovery codes screen says so before they get
+  there.
 
 ---
 
@@ -529,8 +614,9 @@ delivered the same way.
 **Main flow**
 
 1. The user opens a scope from the listing, or by URL.
-2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, its Google Sign-In
-   state, and links to its persons, applications, permissions, and Google users.
+2. The client calls `GET /api/scopes/{id}` and shows the scope with its owners, a summary of its
+   sign-in and sign-up settings, and an **In this scope** list linking to its persons, applications,
+   permissions, Google users, and **Sign-in & sign-up** (UI-31).
 3. The user edits the name or description and saves.
 4. The client calls `PUT /api/scopes/{id}` and shows the updated record.
 
@@ -622,9 +708,12 @@ delivered the same way.
 **Traces to:** UC-24 (Enable/Disable Google Sign-In)
 **Precondition:** A session exists, and a Scope Admin may only change a scope they own.
 
+> Since UI-31, the switch lives on the scope's **Sign-in & sign-up** screen
+> (`/scopes/:scopeId/sign-in-settings`) rather than on the scope detail. Its flows are unchanged.
+
 **Main flow**
 
-1. The scope detail shows a control reflecting the current `googleSignInEnabled` state.
+1. The **Sign-in & sign-up** screen (UI-31) shows a control reflecting the current `googleSignInEnabled` state.
 2. The user toggles it.
 3. The client calls `PUT /api/scopes/{id}/google-signin` with the new value.
 4. The control settles on the confirmed state.
@@ -707,7 +796,9 @@ delivered the same way.
 2. The client calls `GET /api/persons/{id}` and shows the record with its role, scope membership,
    owned scopes, and verification state.
 3. The user edits the name or email and saves.
-4. The client calls `PUT /api/persons/{id}` and shows the updated record.
+4. The client calls `PUT /api/persons/{id}` and shows the updated record. Changing somebody else's
+   address asks for no password: the request carries none, and the signed-in user's own session is
+   unaffected.
 
 **Alternative flows**
 
@@ -715,8 +806,13 @@ delivered the same way.
 - **AF-18b — Forbidden.** The API answers `403`; the not-available-for-your-role panel is shown.
 - **AF-18c — Update rejected.** The returned errors are shown against the offending field.
 - **AF-18d — Deleted person.** A logically deleted person is shown read-only, marked as deleted.
-- **AF-18e — Editing yourself.** Opening your own record from the administrative listing offers the
-  same editing as UI-08, and never lets you change your own role.
+- **AF-18e — Editing yourself.** Opening your own record from the administrative listing lets you
+  change your name, never your role, and shows your email address read-only, with "Change your own
+  email from your profile." beneath it while editing: changing it is done from your profile (UI-08),
+  which asks for your password (AF-08g) and signs you in again.
+- **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
+  `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
+  **Back to System Admins**) returns to the System Admins list, and so does a delete.
 
 ---
 
@@ -961,7 +1057,8 @@ delivered the same way.
 **Alternative flows**
 
 - **AF-28a — Empty result.** The empty state explains that Google users appear only after someone
-  signs in with Google, and links to UI-15 when the scope has the feature switched off.
+  signs in with Google, and opens the **Sign-in & sign-up** screen (UI-31), where UI-15's switch lives, when the scope has the
+  feature switched off.
 - **AF-28b — Request fails.** An error panel shows the returned errors and offers a retry.
 - **AF-28c — Forbidden.** The not-available-for-your-role panel is shown.
 - **AF-28d — Picture unavailable.** A missing or unreachable picture falls back to an initials
@@ -1007,7 +1104,7 @@ delivered the same way.
 Second Factor), UC-41 (Export Own Personal Data), UC-42 (Request Erasure of Own Identity), UC-45
 (Lift a Restriction on Processing)
 **Precondition:** Processing of the signing-in identity is restricted at its subject's request
-(the API's UC-44, NFR-24).
+(the API's UC-44, NFR-24), through UI-33 or directly through the API.
 
 The API answers such a sign-in with a **subject-rights-only token**: it names the person and their
 role, claims no scope, and is admitted to data export, erasure, restriction and its lift — and
@@ -1086,19 +1183,500 @@ restricted person would land on the home screen and watch every request fail.
 
 ---
 
+### UI-31: Configure a scope's sign-in and sign-up
+
+**Actor:** System Admin, Scope Admin
+**Traces to:** UC-24 (Enable/Disable Google Sign-In), UC-47 (Enable/Disable Self-Registration), and the
+API's email-links endpoint (FR-SR-10 in the API)
+**Precondition:** A session exists, and a Scope Admin may only change a scope they own. A Scope Admin
+who does not own the scope is refused by the API and shown that refusal, as on the other scope
+screens.
+
+**Placement**
+
+- Route `/scopes/:scopeId/sign-in-settings`, screen title **Sign-in & sign-up**.
+- Reached from the scope detail's **In this scope** list, as an entry after Owners. Its subtitle
+  summarises the scope's state, e.g. `Google on · Self-registration off · Custom email links` (or
+  `Default email links` when neither link is set).
+- The Google Sign-In switch of UI-15 lives here, not on the scope detail.
+
+**Main flow**
+
+1. The user opens **Sign-in & sign-up** from the scope's **In this scope** list.
+2. The screen shows two cards. **Ways in** holds the **Google Sign-In** switch (UI-15, including
+   AF-15b's warning before switching off) and the **Self-registration** switch, each showing the
+   confirmed state. A note explains the second: "Lets people create their own account in this scope
+   from your application's sign-up screen. Each one confirms by email before the account exists."
+3. The user toggles **Self-registration**. Opening it while the scope has no verification link asks
+   first: "Sign-up confirmation emails will link to Heimdall's default page, not your application's.
+   Open self-registration anyway?" (**Open** / **Cancel**); with a verification link set it opens
+   without asking. Closing it always asks first: "New sign-ups will be refused. People who have
+   signed up but have not yet followed the link in their email will not be able to finish, and will
+   need to sign up again once it reopens." (**Close** / **Cancel**).
+4. The client calls `PUT /api/scopes/{id}/self-registration` with `{"enabled": bool}`, and the
+   switch settles on the confirmed state. Both switches are disabled while either switch's request
+   or the email links' save is outstanding.
+5. The **Email links** card shows **Verification link** and **Password-reset link**, seeded from the
+   scope. Help text names what uses each: "Sign-up confirmation and email verification. Leave empty
+   to use Heimdall's default." and "Password recovery. Leave empty to use Heimdall's default."
+6. The user chooses **Edit** (the shared edit mode), changes the links, and chooses **Save changes**.
+   When non-empty after trimming, a link must be an absolute `http` or `https` URL with a host, at
+   most 2048 characters (a path such as `/verify-email` is refused). **Cancel** leaves edit mode,
+   restores the saved values and sends nothing.
+7. The client calls `PUT /api/scopes/{id}/email-links` with **both** values, trimmed, an empty link
+   sent as `null` (the API treats the body as the whole state, so an omitted link would be cleared).
+8. The card shows the saved notice and the scope state reflects the new links, including the
+   condition of the self-registration dialog.
+
+**Alternative flows**
+
+- **AF-31a — Scope missing.** The "Scope not found" state of the scope detail, with a way back to
+  `/scopes`.
+- **AF-31b — Scope logically deleted.** Everything is read-only, with the deleted notice of the
+  scope detail.
+- **AF-31c — Switch refused.** The API refuses a switch (403, 404, 400). The switch stays at the
+  API's state and an error banner beneath it shows the returned errors.
+- **AF-31d — Links refused.** The API refuses the links (400). The returned errors are shown on the
+  fields they name, or in a banner otherwise, and the typed values are kept.
+- **AF-31e — Link fails the client-side check.** Nothing is sent; the field says why.
+- **AF-31f — Opening cancelled.** Opening self-registration with no verification link, dialog
+  cancelled. Nothing is sent and the switch stays off.
+- **AF-31g — Closing cancelled.** Closing self-registration, dialog cancelled. Nothing is sent and
+  the switch stays on.
+- **AF-31h — Transport failure on load.** The retryable error state (FR-UX-07).
+- **AF-31i — Transport failure on a switch or save.** An error banner is shown; the switch keeps its
+  confirmed state and the typed links are kept.
+
+---
+
+### UI-32: Review outstanding erasure requests
+
+**Actor:** System Admin only. A Scope Admin is deliberately excluded (UC-43): who has asked to be
+erased is not theirs to know.
+**Traces to:** UC-43 (List Outstanding Erasure Requests) and the API's erasure reconciliation
+endpoint (`POST /api/auth/erasure-reconciliation`), which has no use case number
+**Precondition:** The user is signed in as a System Admin.
+
+The screen is the route `/erasure-requests`, titled **Erasure requests**. It is a navigation
+destination shown only to a System Admin, and the route is refused for a Scope Admin and a User.
+
+**Main flow**
+
+1. The System Admin opens **Erasure requests**.
+2. The client calls `GET /api/auth/erasure-requests` with `PageNumber`, `PageSize` and `OverdueOnly`,
+   and renders the answer as every collection is rendered: cards when compact, a paginated table
+   when expanded (FR-UX-04). The soonest deadline comes first.
+3. Above the list, the line "Names and email addresses are not shown: these people have asked to be
+   erased." and an **Overdue only** filter chip.
+4. Each row shows the subject id (in the default face) with a copy button (it says "Identifier copied."), the
+   kind (**Person** or **Google user**), the **Requested** and **Due** dates, an **Overdue** chip or
+   "Within deadline", and the blocked reason when there is one. The blocked rows are those that need
+   an administrator, usually to transfer a scope's ownership.
+
+**Re-apply erasures after a restore**
+
+A **Re-apply erasures** action opens a dialog for the Operations runbook step that follows a database
+restore.
+
+1. The dialog explains: "Paste the identifiers the anonymisation pass logged since the backup was
+   taken. Commas, spaces and new lines all separate them."
+2. The System Admin pastes them into the **Identifiers** field. Entries are split on commas,
+   whitespace and new lines, trimmed and de-duplicated without regard to case.
+3. Each entry must be an identifier (a UUID); an empty list is refused.
+4. The System Admin chooses **Re-apply**, and the dialog asks "Re-apply erasure to N identifier(s)?",
+   N being the count after de-duplication.
+5. On confirmation the client calls `POST /api/auth/erasure-reconciliation` with
+   `{"subjectIds": [...]}`. The dialog cannot be dismissed while the run is in progress.
+6. The dialog shows **Anonymised: N**, **Already anonymised: N** and **Not found: N** with the list,
+   a **Copy** button for it, and the note "Not found is the ordinary case for most of the ledger."
+7. **Done** closes the dialog, and the list refreshes after a run.
+
+**Alternative flows**
+
+- **AF-32a — No outstanding requests.** The list says "No outstanding erasure requests." (FR-UX-06).
+- **AF-32b — Overdue only, none overdue.** The list says "Nothing is overdue." with a **Show all**
+  action (FR-UX-06).
+- **AF-32c — List refused.** The API answers `401` or `403`. The returned errors are shown; the `401`
+  path is the shell's usual session handling (UI-07).
+- **AF-32d — Pasted entries are not identifiers.** The dialog says "These are not identifiers: …" and
+  lists them. Nothing is sent.
+- **AF-32e — The paste is empty.** The dialog says "Paste at least one identifier." Nothing is sent
+  (the API refuses an empty list too, deliberately).
+- **AF-32f — Confirmation cancelled.** Nothing is sent and the paste is kept.
+- **AF-32g — Reconciliation refused.** The returned errors are shown in the dialog and the paste is
+  kept.
+- **AF-32h — Transport failure.** The list shows the retryable error state (FR-UX-07); the dialog
+  shows an error banner and keeps the paste.
+
+---
+
+### UI-33: Restrict processing of my account
+
+**Actor:** System Admin, Scope Admin, User — anyone signed in with a full session, a Google User
+included (their profile is AF-08f).
+**Traces to:** UC-44 (Restrict Processing of Own Identity); UC-45 (Lift a Restriction on
+Processing) for lifting it, which UI-30 already offers
+**Precondition:** A full session exists. A restricted session (UI-30) never reaches this screen: it
+is already restricted.
+
+The API exposes the right to restriction (GDPR Art. 18) at `POST /api/auth/processing-restriction`,
+admitted to any token and acting on the caller. Without this use case the restricted session of
+UI-30 could only be entered by calling the API directly.
+
+**Placement**
+
+- On the profile (UI-08), as an entry after **Security**: **Restrict processing of my account**,
+  subtitled "Have Heimdall keep your data but stop using it. Your account is suspended until you
+  lift the restriction." The other data-subject rights — download, erasure, lift — are offered by
+  the restricted session (UI-30), which is where this one leads.
+
+**Main flow**
+
+1. The person chooses **Restrict processing of my account**. A dialog titled **Restrict processing
+   of your account?** explains that while processing is restricted Heimdall keeps their data
+   exactly as it is and uses it for nothing else, that the account is suspended until the
+   restriction is lifted, and that they will be signed out; and that they can still sign in to lift
+   the restriction, or to download or erase their data.
+2. Under **Why are you asking for it?** the dialog offers the four grounds of GDPR Art. 18(1) in
+   the person's own words, none preselected:
+   - **I believe my data is inaccurate** — the accuracy is contested (ground 1);
+   - **My data is being processed unlawfully, but I do not want it erased** — restriction preferred
+     to erasure (ground 2);
+   - **Heimdall no longer needs my data, but I need it kept for a legal claim** (ground 3);
+   - **I have objected to Heimdall processing my data** — pending verification of the
+     controller's grounds (ground 4).
+
+   **Restrict processing** stays disabled until one is chosen.
+3. The person chooses a ground and **Restrict processing**.
+4. The client calls `POST /api/auth/processing-restriction` with `{"ground": n}`; the body names
+   nobody else, so the API acts on the caller. The dialog cannot be dismissed, and its controls are
+   disabled, while the request is in flight.
+5. The API restricts processing and suspends the account. From then on it refuses the session's
+   token on everything but the data-subject-right endpoints, so the client closes the dialog and
+   ends the session (without calling the API's Google sign-out, which that token can no longer
+   reach).
+6. The sign-in screen says that processing of the account is restricted and the account suspended
+   until the restriction is lifted, and that signing in again lets them lift it, or download or
+   erase their data. Signing in again opens the restricted session (UI-30), from which the
+   restriction is lifted (UC-45).
+
+**Alternative flows**
+
+- **AF-33a — Cancelled.** **Cancel**, the barrier or the back control closes the dialog. Nothing is
+  sent and the session is unchanged.
+- **AF-33b — Already restricted.** The API answers `409` (the API's AF-44a), "Processing of this
+  account is already restricted." A full session only hears this when the account was restricted
+  elsewhere — on another device, or directly through the API — so the API already refuses this
+  session's token on everything but the data-subject-right endpoints. The dialog shows the returned
+  errors, says the session can do nothing more, and replaces its actions with a single **Sign out**;
+  it can no longer be dismissed. **Sign out** ends the session exactly as in step 5, and the
+  sign-in screen shows the note of step 6.
+- **AF-33c — Request refused.** Any other refusal, such as `400` for an unknown ground, is shown in
+  the dialog as returned. The chosen ground is kept and the person may try again or cancel.
+- **AF-33d — Transport failure.** The dialog says the API could not be reached. The chosen ground
+  is kept and the person may try again or cancel.
+
+---
+
+### UI-34: Review the audit trail
+
+**Actor:** System Admin only. The audit trail has no scope column, so it cannot be divided by scope
+(UC-48), and a Scope Admin is refused.
+**Traces to:** UC-48 (List the Audit Trail)
+**Precondition:** The user is signed in as a System Admin.
+
+The screen is the route `/audit-log`, titled **Audit log**. It is a navigation destination shown
+only to a System Admin, and the route is refused for a Scope Admin and a User.
+
+**Main flow**
+
+1. The System Admin opens **Audit log**.
+2. The client calls `GET /api/audit-log` with `PageNumber` and `PageSize`, and renders the answer as
+   every collection is rendered (FR-UX-04): newest first.
+3. Above the list, a filter bar: **Dates** (a date range picked between 2020 and today; the chosen
+   local days are sent as UTC bounds, and a clear control beside the button removes the range
+   alone), **Action** (the exact command name), **Actor** and **Target** (identifiers), and
+   **All** / **Succeeded** / **Refused**. Text filters apply when submitted (Enter or the search
+   button). Each change returns to page 1; **Clear filters** resets them. On a compact or short
+   window the bar and its note fold behind a **Filters** toggle, which counts the active filters,
+   e.g. **Filters (2)**. The filters and the page are kept while the System Admin moves around the
+   app and are forgotten when the session ends. Under the bar: "An entry shows no actor when the
+   action was anonymous, such as a sign-in, or when its attribution was cleared — after the
+   attribution period, or once the person was erased. Filtering by actor cannot find these."
+4. Each entry shows when it was recorded (local date and time, with the year), the action, a
+   **Succeeded** or **Refused** chip with the refusal reason, the actor's identifier and role
+   ("None" when the API returns none) and the target's identifier ("—" when none). Each
+   identifier has a copy button ("Identifier copied.") and a **Filter by this** action. Nothing is
+   looked up by identifier.
+
+**Alternative flows**
+
+- **AF-34a — Nothing matches.** "No entries match these filters." with **Clear filters**, or "The
+  audit log is empty." when no filter is set (FR-UX-06).
+- **AF-34b — Refused.** The API answers `401` or `403`; the shell's usual handling (UI-07).
+- **AF-34c — Filters refused.** The API answers `400`; its errors are shown and the filters kept.
+- **AF-34d — Not an identifier.** The Actor or Target field says "Enter an identifier." Nothing is
+  sent.
+- **AF-34e — Transport failure.** The retryable error state (FR-UX-07).
+
+---
+
+### UI-35: Manage a scope's pending registrations
+
+**Actor:** System Admin, or a Scope Admin who owns the scope
+**Traces to:** UC-49 (List a Scope's Pending Registrations), UC-50 (Discard a Pending Registration)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin who owns the scope.
+
+The screen is the route `/scopes/:scopeId/pending-registrations`, titled **Pending registrations**,
+opened from the **Pending registrations** entry in the scope page's **In this scope** links. The
+entry is shown to a System Admin, and to a Scope Admin whose token's owned scopes hold this scope,
+but not on a deleted scope, for which the API answers `404`. The scope page's own controls are
+System-Admin-only, so this is a separate check; the API remains the authority. The screen has a
+back control (tooltip **Back to the scope**).
+
+**Main flow**
+
+1. The user opens **Pending registrations** from the scope page.
+2. The client calls `GET /api/scopes/{id}/pending-registrations` with `PageNumber` and `PageSize`,
+   and renders the answer as every collection is rendered (FR-UX-04): newest first. The subtitle
+   shows the scope's name. When the scope page has not read the scope already (a deep link or a
+   refresh), the client reads it once; the scope's identifier shows until then, and stays if the
+   scope cannot be read. A line above the list says that these people signed up but have not
+   confirmed yet, that discarding a registration makes its emailed link stop working, and that the
+   person may sign up again.
+3. Each row shows the name, the email address, **Signed up** and **Expires** (local date and time;
+   "—" when the API returns no instant), **Attempts left**, and an **Expired** chip when the
+   registration has expired. No secret is shown.
+4. Each row has **Discard**: in the table, a delete icon beside the name whose tooltip is "Discard
+   the registration for {email}". A long name or address is cut short there, whole in a tooltip.
+5. The user chooses **Discard**. A confirmation asks "Discard the registration for {email}?" with
+   the message "Its confirmation link will stop working." and the action **Discard**.
+6. On confirmation the client calls `DELETE /api/scopes/{id}/pending-registrations/{registrationId}`.
+7. On success the list reloads, staying on the same page, and a notice says "Registration
+   discarded." Discarding the last row of the last page returns to the last page that remains.
+
+The listing is held per scope while the user moves around the app and is forgotten when the session
+ends.
+
+**Alternative flows**
+
+- **AF-35a — None pending.** "No pending registrations."
+- **AF-35b — Refused.** The API answers `403` on the list: the forbidden state, the
+  not-available-for-your-role panel with **Back to scopes**. A `401` is the shell's usual handling
+  (UI-07). A refused discard shows the returned errors in a banner and keeps the list.
+- **AF-35c — Scope not found.** The API answers `404` on the list; "Scope not found." is shown with
+  **Back to scopes**.
+- **AF-35d — Already gone.** The API answers `404` on the discard (the registration was confirmed,
+  purged or discarded elsewhere). The list reloads and a notice says "That registration no longer
+  exists."
+- **AF-35e — Discard cancelled.** **Cancel**, the barrier or the back control closes the
+  confirmation. Nothing is sent.
+- **AF-35f — Transport failure.** The retryable error state (FR-UX-07) on the list, or an error
+  banner for the discard.
+
+---
+
+### UI-36: Send account emails to a person
+
+**Actor:** System Admin for anyone; a Scope Admin for a User of a scope they own
+**Traces to:** UC-51 (Send a Verification Email on a Person's Behalf), UC-52 (Send a Password Reset on a Person's Behalf)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin, and the person is open.
+
+**Placement.** The **Account emails** card on the person page (UI-18), above the danger zone. It is
+shown to a System Admin, and to a Scope Admin viewing a User of a scope they own. It is not shown on
+one's own record, where the profile screen (UI-08) is used, nor on a logically deleted person. The
+API remains the authority, and a `403` is shown like any refusal.
+
+A line in the card says that links go only to the person's own address and that none is ever shown
+there.
+
+**Main flow**
+
+1. The user opens a person.
+2. The card offers **Resend verification email**, only while the person's address is not verified,
+   and **Send password reset**, always.
+3. The user chooses an action. A confirmation names the address: "Send a new verification link to
+   {email}?" or "Send a password reset link to {email}?", with the message "The link goes only to
+   their own address. No link or code is shown here." and the action **Send**.
+4. On confirmation the client calls `POST /api/persons/{id}/verification-email` or
+   `POST /api/persons/{id}/password-reset`. Both actions are disabled while either request is in flight.
+5. On success the card shows "Sent to {email}." Neither action shows a link or a code.
+
+The card's outcome is held only while the person page is open. It is discarded when the page is
+left, so a return shows no earlier outcome.
+
+**Alternative flows**
+
+Each answer is shown with the API's own message, in an error banner within the card.
+
+- **AF-36a — Sent recently.** A `429` (the cooldown): the API's "An email of this kind was sent to
+  this person recently. Try again in a few minutes."
+- **AF-36b — Cannot be sent.** A `409`: the person is deleted or restricted, or (for a reset)
+  cannot sign in.
+- **AF-36c — Already verified.** A `400` on the resend. The banner keeps the API's message. The
+  person is then reloaded in the background, without a spinner. When the reload succeeds,
+  **Resend verification email** disappears and the message stays. If it fails, the action and the
+  message both stay.
+- **AF-36d — Refused.** A `403` or `404`.
+- **AF-36e — Cancelled.** **Cancel**, the barrier or the back control closes the confirmation.
+  Nothing is sent.
+- **AF-36f — Transport failure.** An error banner says "Could not reach the API. Check your
+  connection and try again."
+
+---
+
+### UI-37: Manage an application's credentials
+
+**Actor:** System Admin; a Scope Admin who owns the application and still owns its scope
+**Traces to:** UC-53 (Issue an Application Credential), UC-54 (List an Application's Credentials), UC-55 (Revoke an Application Credential)
+**Precondition:** The user is signed in as a System Admin, or as a Scope Admin, and the application is open.
+
+**Placement.** The **Credentials** card on the application page (UI-22), between the facts card and
+the danger zone. It is not shown for a logically deleted application. The API remains the authority,
+and a `403` or `404` is shown like any refusal.
+
+A line in the card says that an application exchanges a secret for a token at
+`POST /api/applications/token`, and that at most two secrets may be live, so a new one can be
+deployed before the old one is revoked.
+
+**Main flow**
+
+1. The user opens an application. The card loads the credentials through
+   `GET /api/scopes/{scopeId}/applications/{id}/credentials`, newest first. No secret or hash is
+   ever listed.
+2. Each row shows a status chip and the credential's identifier and, below them, "Issued … ·
+   Expires … · Last used …". **Expires** and **Last used** say "Never" when the API returns none. A
+   revoked credential adds "· Revoked …" with its date.
+   - The chip is **Live**, **Revoked** or **Expired**. A credential that is both revoked and
+     expired shows **Revoked**.
+   - The identifier can be selected and copied ("Identifier copied.").
+   - Below the expanded width, the actions sit on their own line below the row.
+3. **Issue credential** is unavailable before the list has loaded, after a load failure, while an
+   issue or revoke is running, and while two credentials are live. Only the last case shows the
+   hint "Revoke a credential before issuing another."
+4. The user opens **Issue credential**. The dialog, titled "Issue a credential", offers an optional
+   **Expires on** date; **No expiry** clears it. The dialog repeats the card's explanatory line. The
+   date button reads "Never expires" until a day is chosen, then "Expires on {date}". The picker
+   runs from today to five years ahead. The expiry is the end of that day, local time, sent as UTC.
+   Without a date, the credential never expires.
+5. The user chooses **Issue**. The client calls `POST …/credentials`. While the request runs, the
+   dialog cannot be closed: **Cancel** and the date buttons are disabled, and the back control and
+   the barrier do nothing.
+6. On success, a one-time secret dialog replaces the issue dialog. It shows the secret, which can be
+   selected and copied ("Secret copied."), under the title "Store this secret now", and warns: "This is the only time the secret is shown.
+   Store it in the application's secret store now." The dialog closes only through **I've stored
+   it**; Escape, the back control and the barrier leave it open. The list then shows the new
+   credential.
+7. The user chooses **Revoke** on a credential that is not revoked. A confirmation asks "Revoke this
+   credential?" with the message "Tokens issued from it stop working at the next check." and the
+   action **Revoke**. On confirmation the client calls `DELETE …/credentials/{credentialId}`. The
+   card says "Credential revoked." and the list reloads. **Revoke** is disabled while another
+   issue or revoke is running.
+
+**The secret is shown once.** The client holds it only in the dialogs' own state, never in a provider,
+a log or storage, and discards it when the dialog closes. If the user tries to leave the application
+page while a secret is pending (the issue request is running, or the secret dialog is open), by the
+browser's Back control or any other navigation, the app asks "Leave without the secret?" with the
+message "The secret is shown only once. If you leave now, it cannot be shown again; revoke this
+credential and issue another." and the action **Leave**. If the session ends (sign-out or expiry),
+the app goes to sign-in without asking. On the web, closing or refreshing the browser tab while a
+secret is pending shows the browser's own leave confirmation, whose wording the browser chooses;
+the guard is removed as soon as nothing is pending.
+
+The card's state is held only while the application page is open. It is discarded when the page is
+left, so a return shows a fresh list and no earlier outcome.
+
+**Alternative flows**
+
+Each refusal is shown with the API's own message, in an error banner within the card; a refusal of
+an issue is also shown in the issue dialog.
+
+- **AF-37a — No credentials.** "This application has no credentials yet."
+- **AF-37b — Limit reached.** A `409` on issue (another admin issued the second credential
+  meanwhile): the API's message in the dialog and on the card, and the list reloads.
+- **AF-37c — Expiry refused.** A `400` on issue: the API's message in the issue dialog, which stays
+  open, and on the card.
+- **AF-37d — Already revoked.** A `409` on revoke: the API's message, and the list reloads.
+- **AF-37e — Refused.** A `403` or `404`: the API's message.
+- **AF-37f — Cancelled.** **Cancel** on the revoke confirmation closes it and sends nothing.
+  **Cancel** or the back control closes the issue dialog while no request is running, and the
+  barrier never does; nothing is sent and no secret is shown. On the leave prompt, **Cancel**
+  keeps the user on the page, with the secret still shown.
+- **AF-37g — Transport failure.** An error banner, in the issue dialog and on the card for an
+  issue, and on the card for a revoke. A list that fails to load shows the banner with **Retry**.
+  If the issue request fails after sending, the secret is not known to the client. The list
+  reloads, so an issued-but-unseen credential appears and can be revoked.
+  The issue dialog adds the line "A credential may have been issued without its secret being shown.
+  Check the list, and revoke any credential you don't recognise." for a transport failure or an
+  incomplete response, but not for an API refusal such as AF-37b or AF-37c.
+
+---
+
+### UI-38: List System Admins
+
+**Actor:** System Admin
+**Traces to:** UC-07 (View Person), read (e): the listing of System Admins
+**Precondition:** The user is signed in as a System Admin.
+
+**Placement.** The **System Admins** tile on Home, in the **Overview** grid, shows how many System
+Admins there are, with the caption "Full access to every scope", and opens `/system-admins`. If the
+count cannot be read, the tile shows "—" and still opens the list. A Scope Admin's and a User's Home
+do not show the tile, and `/system-admins` and `/persons/:personId` are not available to them: the
+not-available-for-your-role screen is shown. The screen, titled **System Admins**, has a back control
+(tooltip **Back to Home**). There is no navigation destination of its own. Rows open
+`/persons/:personId`.
+
+A line above the list says: "System Admins can administer every scope. Deleted and restricted
+accounts are not listed."
+
+**Main flow**
+
+1. The admin opens the **System Admins** tile.
+2. The client calls `GET /api/persons/system-admins` with `PageNumber`, `PageSize` (20) and the
+   filters, and renders the answer as every collection is rendered (FR-UX-04), ordered by name.
+3. Each row shows the name and, under it, the email address; there is no separate email column. The
+   API returns nothing more. The signed-in admin's own row is marked "(you)" after the name.
+4. The admin searches by name or email (Enter in either field, or **Search**), which returns to
+   page 1, or moves between pages. Overlapping requests queue the newest query, so a search typed
+   during a load is not lost.
+5. The admin opens a row, and the person page opens at `/persons/:personId`, without a scope. Its
+   back control (tooltip **Back to System Admins**) goes to the list, and so does a delete.
+
+The listing is forgotten when the screen is left, so a return loads it fresh.
+
+**Alternative flows**
+
+- **AF-38a — No System Admins.** "No System Admins."
+- **AF-38b — No matches.** "No System Admins match." with **Clear filters**.
+- **AF-38c — Refused.** The API answers `403`: the forbidden state, the not-available-for-your-role
+  panel with **Back to Home**.
+- **AF-38d — Failure.** Any other failure shows the errors with **Retry**, keeping the filters.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
 | --- | --- |
 | UI-01, UI-02, UI-06, UI-07 | FR-AU-01 … FR-AU-09 |
 | UI-03, UI-04, UI-05 | FR-AU-10 … FR-AU-14 |
-| UI-08, UI-09 | FR-AU-15 … FR-AU-20 |
+| UI-08, UI-09 | FR-AU-15 … FR-AU-20, FR-AU-28 |
 | UI-10 … UI-15 | FR-SC-01 … FR-SC-12 |
 | UI-16 … UI-19 | FR-PE-01 … FR-PE-08 |
 | UI-20 … UI-23 | FR-AP-01 … FR-AP-08 |
 | UI-24 … UI-27 | FR-PM-01 … FR-PM-08 |
 | UI-28, UI-29 | FR-GU-01 … FR-GU-05 |
 | UI-07, UI-30 | FR-AU-21 … FR-AU-25 |
+| UI-02 | FR-AU-26 |
+| UI-31 | FR-SC-12, FR-SC-13, FR-SC-14 |
+| UI-32 | FR-DA-01, FR-DA-02 |
+| UI-33 | FR-AU-27 |
+| UI-34 | FR-AL-01 … FR-AL-03 |
+| UI-35 | FR-SC-15, FR-SC-16 |
+| UI-36 | FR-PE-10, FR-PE-11 |
+| UI-37 | FR-AP-09 … FR-AP-11 |
+| UI-38 | FR-PE-12 |
+| UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 
 The requirements themselves are defined in the
@@ -1117,7 +1695,7 @@ stateDiagram-v2
     Unauthenticated --> Authenticated: login succeeds
     Challenged --> Authenticated: second factor verified
     Challenged --> Unauthenticated: challenge abandoned or expired
-    Authenticated --> Unauthenticated: sign out, or a rejected token
+    Authenticated --> Unauthenticated: sign out, processing restricted, sign-in details changed, or a rejected token
     Unauthenticated --> Restricted: login answers processingRestricted
     Challenged --> Restricted: second factor verified, processing restricted
     Restoring --> Restricted: stored token claims subjectRightsOnly

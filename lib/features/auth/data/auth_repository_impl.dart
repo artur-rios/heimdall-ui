@@ -20,10 +20,11 @@ class ApiAuthRepository implements AuthRepository {
   Future<Result<LoginOutcome>> login({
     required String email,
     required String password,
+    String? scopeId,
   }) async {
     try {
       final response = await _client.authLogin(
-        body: LoginCommand(email: email, password: password),
+        body: LoginCommand(email: email, password: password, scopeId: scopeId),
       );
 
       return _outcomeFrom(response);
@@ -80,6 +81,32 @@ class ApiAuthRepository implements AuthRepository {
       );
     } on DioException catch (error) {
       return FailureResult<AuthToken>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<void>> resendSecondFactorCode({
+    required String challengeToken,
+  }) async {
+    try {
+      final response = await _client.authResendTwoFactorChallengeCode(
+        body: ResendTwoFactorChallengeCodeCommand(
+          challengeToken: challengeToken,
+        ),
+      );
+
+      if (response.success != true) {
+        return FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      return const Success<void>(null);
+    } on DioException catch (error) {
+      return FailureResult<void>(failureFromDioException(error));
     }
   }
 
@@ -275,10 +302,16 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Result<TwoFactorSetup>> enableTwoFactor(TwoFactorMethod method) async {
+  Future<Result<TwoFactorSetup>> enableTwoFactor(
+    TwoFactorMethod method, {
+    required String currentPassword,
+  }) async {
     try {
       final response = await _client.authEnableTwoFactorAuth(
-        body: EnableTwoFactorAuthCommand(methods: <String>[method.wireValue]),
+        body: EnableTwoFactorAuthCommand(
+          methods: <String>[method.wireValue],
+          currentPassword: currentPassword,
+        ),
       );
 
       if (response.success != true) {

@@ -422,4 +422,85 @@ void main() {
     // Then
     verify(() => repository.delete('person-1')).called(1);
   });
+
+  test(
+    'GivenALoadedPerson_WhenRefreshed_ThenThePersonIsReplacedWithoutLoading',
+    () async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      final controller = controllerUnderTest();
+      await controller.load();
+      final pending = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => pending.future);
+
+      // When
+      final refreshing = controller.refresh();
+
+      // Then
+      expect(currentState(), isA<PersonDetailLoaded>());
+      pending.complete(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada Lovelace',
+            email: 'ada@example.com',
+            role: Role.user,
+          ),
+        ),
+      );
+      await refreshing;
+      expect(
+        (currentState() as PersonDetailLoaded).person.name,
+        'Ada Lovelace',
+      );
+    },
+  );
+
+  test(
+    'GivenALoadedPerson_WhenARefreshFails_ThenTheLoadedStateIsKept',
+    () async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      final controller = controllerUnderTest();
+      await controller.load();
+      answerGetWith(
+        const FailureResult<Person>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await controller.refresh();
+
+      // Then
+      final state = currentState();
+      expect(state, isA<PersonDetailLoaded>());
+      expect((state as PersonDetailLoaded).person, _ada);
+    },
+  );
+
+  test('GivenARefusedSave_WhenRefreshed_ThenTheFlagsAreKept', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.validation, errors: <String>['Refused.']),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    await controller.save(name: 'Ada L', email: 'ada@example.com');
+
+    // When
+    await controller.refresh();
+
+    // Then
+    final state = currentState() as PersonDetailLoaded;
+    expect(state.saveFailure?.errors, <String>['Refused.']);
+  });
 }

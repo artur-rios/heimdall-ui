@@ -102,6 +102,9 @@ class ApiScopeRepository implements ScopeRepository {
           name: data.name ?? name,
           description: data.description ?? description,
           googleSignInEnabled: data.googleSignInEnabled ?? false,
+          selfRegistrationEnabled: data.selfRegistrationEnabled ?? false,
+          emailVerificationUrl: _link(data.emailVerificationUrl),
+          passwordResetUrl: _link(data.passwordResetUrl),
           ownerIds: data.ownerIds ?? ownerIds,
           createdAt: data.createdAt,
         ),
@@ -187,6 +190,9 @@ class ApiScopeRepository implements ScopeRepository {
           name: data.name ?? name,
           description: data.description ?? description,
           googleSignInEnabled: data.googleSignInEnabled ?? false,
+          selfRegistrationEnabled: data.selfRegistrationEnabled ?? false,
+          emailVerificationUrl: _link(data.emailVerificationUrl),
+          passwordResetUrl: _link(data.passwordResetUrl),
           defaultLegalBasis: defaultLegalBasis,
           privacyNoticeUri: privacyNoticeUri,
           ownerIds: data.ownerIds ?? const <String>[],
@@ -232,6 +238,105 @@ class ApiScopeRepository implements ScopeRepository {
           name: data.name ?? '',
           description: data.description ?? '',
           googleSignInEnabled: data.googleSignInEnabled ?? enabled,
+          emailVerificationUrl: _link(data.emailVerificationUrl),
+          passwordResetUrl: _link(data.passwordResetUrl),
+          ownerIds: data.ownerIds ?? const <String>[],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Scope>> setSelfRegistration({
+    required String id,
+    required bool enabled,
+  }) async {
+    try {
+      final response = await _client.scopeSetSelfRegistration(
+        id: id,
+        body: SetSelfRegistrationCommand(enabled: enabled),
+      );
+
+      if (response.success != true) {
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(_incompleteResponse);
+      }
+
+      // Its output carries no privacy settings and no `isDeleted`: the API
+      // refuses a deleted scope, and the controller keeps the privacy
+      // settings it already knows.
+      return Success<Scope>(
+        Scope(
+          id: data.id ?? id,
+          name: data.name ?? '',
+          description: data.description ?? '',
+          googleSignInEnabled: data.googleSignInEnabled ?? false,
+          selfRegistrationEnabled: data.selfRegistrationEnabled ?? enabled,
+          emailVerificationUrl: _link(data.emailVerificationUrl),
+          passwordResetUrl: _link(data.passwordResetUrl),
+          ownerIds: data.ownerIds ?? const <String>[],
+          createdAt: data.createdAt,
+          updatedAt: data.updatedAt,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Scope>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Scope>> setEmailLinks({
+    required String id,
+    required String? emailVerificationUrl,
+    required String? passwordResetUrl,
+  }) async {
+    try {
+      final response = await _client.scopeSetEmailLinks(
+        id: id,
+        body: SetScopeEmailLinksCommand(
+          emailVerificationUrl: emailVerificationUrl,
+          passwordResetUrl: passwordResetUrl,
+        ),
+      );
+
+      if (response.success != true) {
+        return FailureResult<Scope>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      if (data == null) {
+        return const FailureResult<Scope>(_incompleteResponse);
+      }
+
+      return Success<Scope>(
+        Scope(
+          id: data.id ?? id,
+          name: data.name ?? '',
+          description: data.description ?? '',
+          googleSignInEnabled: data.googleSignInEnabled ?? false,
+          selfRegistrationEnabled: data.selfRegistrationEnabled ?? false,
+          emailVerificationUrl: _link(data.emailVerificationUrl),
+          passwordResetUrl: _link(data.passwordResetUrl),
           ownerIds: data.ownerIds ?? const <String>[],
           createdAt: data.createdAt,
           updatedAt: data.updatedAt,
@@ -287,12 +392,20 @@ const Failure _incompleteResponse = Failure(
   errors: <String>['The API returned an incomplete response.'],
 );
 
+/// An empty link is no link: the API clears one sent empty, and the screen
+/// should not show a blank override as if one were set.
+String? _link(String? value) =>
+    (value == null || value.trim().isEmpty) ? null : value;
+
 /// Maps the generated output onto the domain entity.
 Scope scopeFromOutput(ScopeOutput output) => Scope(
   id: output.id ?? '',
   name: output.name ?? '',
   description: output.description ?? '',
   googleSignInEnabled: output.googleSignInEnabled ?? false,
+  selfRegistrationEnabled: output.selfRegistrationEnabled ?? false,
+  emailVerificationUrl: _link(output.emailVerificationUrl),
+  passwordResetUrl: _link(output.passwordResetUrl),
   defaultLegalBasis: output.defaultLegalBasis,
   privacyNoticeUri: output.privacyNoticeUri,
   isDeleted: output.isDeleted ?? false,

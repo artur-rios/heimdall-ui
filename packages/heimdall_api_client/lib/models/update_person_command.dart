@@ -8,7 +8,13 @@ part 'update_person_command.g.dart';
 
 @JsonSerializable()
 class UpdatePersonCommand {
-  const UpdatePersonCommand({this.name, this.email, this.roleId});
+  const UpdatePersonCommand({
+    this.name,
+    this.email,
+    this.roleId,
+    this.currentPassword,
+    this.twoFactorCode,
+  });
 
   factory UpdatePersonCommand.fromJson(Map<String, Object?> json) =>
       _$UpdatePersonCommandFromJson(json);
@@ -16,6 +22,8 @@ class UpdatePersonCommand {
   final String? name;
   final String? email;
   final int? roleId;
+  final String? currentPassword;
+  final String? twoFactorCode;
 
   Map<String, Object?> toJson() => _$UpdatePersonCommandToJson(this);
 }

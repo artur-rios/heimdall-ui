@@ -26,6 +26,7 @@ describes the flows that satisfy these requirements; the
 | `FR-AP` | Application management |
 | `FR-PM` | Scope permission management |
 | `FR-GU` | Google user management |
+| `FR-AL` | Audit trail |
 | `FR-UX` | Shell, navigation, responsiveness, and theming |
 | `NFR` | Non-functional |
 
@@ -37,31 +38,34 @@ describes the flows that satisfy these requirements; the
 
 | ID | Requirement | Use case |
 | --- | --- | --- |
-| FR-AU-01 | The client shall authenticate a person by email and password through `POST /api/auth/login`. | UI-01 |
+| FR-AU-01 | The client shall authenticate a person by email and password through `POST /api/auth/login`, sending the configured scope as Google sign-in does. | UI-01 |
 | FR-AU-02 | The client shall detect a two-factor challenge in the login response and continue into the challenge flow instead of establishing a session. | UI-01, UI-02 |
 | FR-AU-03 | The client shall send a challenge token to `POST /api/auth/2fa/verify` and to no other endpoint, and shall never persist it. | UI-02 |
 | FR-AU-04 | The client shall accept a generated code or a recovery code as the second factor, and shall let the user choose among the methods the API reports as available. | UI-02 |
 | FR-AU-05 | The client shall store the bearer token and its expiry in the platform's secure storage, and shall restore the session from it at start-up. | UI-01, UI-07 |
 | FR-AU-06 | The client shall discard a stored token whose expiry has passed without contacting the API. | UI-07 |
 | FR-AU-07 | The client shall attach the bearer token to every authenticated request as an `Authorization: Bearer` header. | UI-07 |
-| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401`. | UI-07 |
+| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401` to a request made under the session, except a `401` refusing a password or code typed into that request, which the screen shows instead. | UI-07 |
 | FR-AU-09 | The client shall offer Google sign-in when a Google client id is configured, exchange the resulting ID token at `POST /api/auth/google`, and sign out through `POST /api/auth/google/sign-out`. | UI-06 |
 | FR-AU-10 | The client shall request a password reset through `POST /api/auth/password-recovery` and shall show the same confirmation whether or not the address is registered. | UI-03 |
 | FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. | UI-04 |
 | FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. | UI-05 |
 | FR-AU-13 | The client shall offer to resend a verification email through `POST /api/auth/resend-verification`. | UI-05 |
 | FR-AU-14 | The client shall show an authenticated user with an unverified address a dismissible prompt offering to resend the verification email. | UI-05 |
-| FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}`. | UI-08 |
-| FR-AU-16 | The client shall let the signed-in person update their own name and email through `PUT /api/persons/{id}`. | UI-08 |
-| FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable` and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
+| FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}` — or, for a Google User, through `GET /api/scopes/{scopeId}/google-users/{id}`, read-only. | UI-08 |
+| FR-AU-16 | The client shall let the signed-in person update their own name and email through `PUT /api/persons/{id}`. A change of email address (the trimmed values compared exactly, so case counts) shall be confirmed with `currentPassword`, and with `twoFactorCode` — an authenticator code or a recovery code — when the person's two-factor authentication is on; a name-only change sends neither. | UI-08 |
+| FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable`, sending the person's `currentPassword`, and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
 | FR-AU-18 | The client shall render an `otpAuthUri` as a scannable code and shall also present the secret as selectable text. | UI-09 |
-| FR-AU-19 | The client shall display recovery codes exactly once, offer to copy or download them, and require acknowledgement before navigating away. | UI-09 |
+| FR-AU-19 | The client shall display recovery codes exactly once, offer to copy or download them, and require acknowledgement before navigating away — a browser Back, Forward or typed address included — and ask the browser to confirm closing or reloading the tab while they wait. | UI-09 |
 | FR-AU-20 | The client shall disable two-factor authentication through `POST /api/auth/2fa/disable` and regenerate recovery codes through `POST /api/auth/2fa/recovery-codes/regenerate`. | UI-09 |
 | FR-AU-21 | The client shall recognise a subject-rights-only session — one whose processing is restricted — from `processingRestricted` in the answers of `POST /api/auth/login`, `POST /api/auth/2fa/verify` and `POST /api/auth/google`, and from the token's `subjectRightsOnly` claim when a session is restored. | UI-30 |
 | FR-AU-22 | The client shall confine a subject-rights-only session, whatever its role, to the restricted session screen and the privacy notice. | UI-07, UI-30 |
 | FR-AU-23 | The client shall lift the caller's own restriction on processing through `POST /api/auth/processing-restriction/lift`, then end the session, since the token that lifted it stays confined to the rights endpoints. | UI-30 |
 | FR-AU-24 | The client shall obtain the caller's own data through `POST /api/auth/data-export` and save it as a JSON file: a browser download on the web, the downloads folder on every other target. | UI-30 |
 | FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
+| FR-AU-26 | The client shall request a new second-factor email code through `POST /api/auth/2fa/challenge/resend` while a challenge answered by email is outstanding, waiting 30 seconds between sends and offering at most three per challenge, after which it offers to start the sign-in again. | UI-02 |
+| FR-AU-27 | The client shall let a signed-in person restrict processing of their own identity through `POST /api/auth/processing-restriction`, sending one of the four GDPR Art. 18(1) grounds the person chose (none preselected) after a confirmation that says the account is suspended until the restriction is lifted, and shall then end the session and say on the sign-in screen that signing in again opens the restricted session. | UI-33 |
+| FR-AU-28 | After the signed-in person changes their own email address, confirms or disables two-factor authentication, or regenerates their recovery codes, the client shall send nothing more under the session's token and shall end the session — after the recovery codes have been shown, when there are any — saying on the sign-in screen "Your sign-in details changed. Sign in again." | UI-08, UI-09 |
 
 ### 2.2 Scope management (`FR-SC`)
 
@@ -70,7 +74,7 @@ describes the flows that satisfy these requirements; the
 | FR-SC-01 | The client shall list scopes through `GET /api/scopes`, paginated by the API. | UI-10 |
 | FR-SC-02 | The client shall filter the scope listing by name and shall let the user include logically deleted scopes. | UI-10 |
 | FR-SC-03 | The client shall create a scope through `POST /api/scopes`, with a name, a description, and at least one owner. | UI-11 |
-| FR-SC-04 | The client shall show a scope through `GET /api/scopes/{id}`, including its owners and its Google Sign-In state. | UI-12 |
+| FR-SC-04 | The client shall show a scope through `GET /api/scopes/{id}`, including its owners, and a summary of its sign-in and sign-up settings. | UI-12 |
 | FR-SC-05 | The client shall update a scope's name and description through `PUT /api/scopes/{id}`. | UI-12 |
 | FR-SC-06 | The client shall logically delete a scope through `DELETE /api/scopes/{id}` after confirmation. | UI-13 |
 | FR-SC-07 | The client shall permanently delete a scope through `DELETE /api/scopes/{id}/hard` after a confirmation requiring the scope's name to be typed. | UI-13 |
@@ -78,7 +82,11 @@ describes the flows that satisfy these requirements; the
 | FR-SC-09 | The client shall add an existing Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners/{personId}`. | UI-14 |
 | FR-SC-10 | The client shall create a new Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners`. | UI-14 |
 | FR-SC-11 | The client shall promote a user of the scope to owner through `POST /api/scopes/{scopeId}/users/{personId}/promote`, and shall remove an owner through `DELETE /api/scopes/{scopeId}/owners/{personId}`, each after confirmation. | UI-14 |
-| FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15 |
+| FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
+| FR-SC-13 | The client shall show and toggle a scope's self-registration through `PUT /api/scopes/{id}/self-registration`, asking before opening it while the scope has no verification link and before closing it. | UI-31 |
+| FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
+| FR-SC-15 | A System Admin or an owning Scope Admin can list a scope's pending self-registrations, newest first and paginated, with name, address, sign-up and expiry instants, attempts left and whether each has expired. No secret is shown. | UI-35 |
+| FR-SC-16 | They can discard one after confirming. A registration already gone is reported as such and the list refreshed. | UI-35 |
 
 ### 2.3 Person management (`FR-PE`)
 
@@ -89,10 +97,13 @@ describes the flows that satisfy these requirements; the
 | FR-PE-03 | The client shall create a person within a scope through `POST /api/scopes/{scopeId}/persons`. | UI-17 |
 | FR-PE-04 | The client shall let a System Admin create a person belonging to no scope through `POST /api/persons`. | UI-17 |
 | FR-PE-05 | The client shall show a person through `GET /api/persons/{id}`, including role, scope membership, owned scopes, verification state, and whether a second factor is configured. | UI-18 |
-| FR-PE-06 | The client shall update a person's name and email through `PUT /api/persons/{id}`. | UI-18 |
+| FR-PE-06 | The client shall update a person's name and email through `PUT /api/persons/{id}`, asking for no password. On the signed-in person's own record the email address is read-only, since it is changed from the profile (FR-AU-16). | UI-18 |
 | FR-PE-07 | The client shall logically delete a person through `DELETE /api/persons/{id}` after confirmation. | UI-19 |
 | FR-PE-08 | The client shall permanently delete a person through `DELETE /api/persons/{id}/hard` after a confirmation requiring the person's email to be typed. | UI-19 |
 | FR-PE-09 | The client shall offer the owners a scope may be given from `GET /api/persons/scope-admins`, leaving out the persons who already own the scope being managed. | UI-11, UI-14 |
+| FR-PE-10 | A System Admin, or a Scope Admin viewing a User of a scope they own, can have a fresh verification link sent to a person whose address is unverified, after confirming. | UI-36 |
+| FR-PE-11 | They can have a password reset link sent, after confirming. Neither action shows a link or code; the API's refusals — including its cooldown — are shown as returned. | UI-36 |
+| FR-PE-12 | A System Admin can list the system's System Admins, filtered by name or email and paged, through `GET /api/persons/system-admins`, and open each one's person page. | UI-38 |
 
 ### 2.4 Application management (`FR-AP`)
 
@@ -106,6 +117,9 @@ describes the flows that satisfy these requirements; the
 | FR-AP-06 | The client shall logically delete an application through `DELETE /api/scopes/{scopeId}/applications/{id}` after confirmation. | UI-23 |
 | FR-AP-07 | The client shall permanently delete an application through `DELETE /api/scopes/{scopeId}/applications/{id}/hard` after a confirmation requiring the application's name to be typed. | UI-23 |
 | FR-AP-08 | The client shall resolve each application's owner to a person, and shall fall back to the identifier when it cannot. | UI-20, UI-22 |
+| FR-AP-09 | A System Admin or the owning Scope Admin can list an application's credentials, newest first, with status, issue, expiry and last-use instants. No secret or hash is shown. | UI-37 |
+| FR-AP-10 | They can issue a credential with an optional expiry date; its secret is shown once, in a dialog that only closes when the user says it is stored. Issuing is not offered while two credentials are live. | UI-37 |
+| FR-AP-11 | They can revoke a credential after confirming. | UI-37 |
 
 ### 2.5 Scope permission management (`FR-PM`)
 
@@ -134,14 +148,30 @@ describes the flows that satisfy these requirements; the
 
 | ID | Requirement | Use case |
 | --- | --- | --- |
-| FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. | UI-07 |
+| FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. A rail scrolls when the window, or what a soft keyboard leaves of it, is too short for its destinations, so every destination stays reachable. | UI-07 |
 | FR-UX-02 | The client shall show only the destinations the signed-in role can use. | UI-07 |
 | FR-UX-03 | The client shall support light, dark, and system theme modes, and shall remember the choice between launches. | — |
-| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28 |
+| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35, UI-38 |
 | FR-UX-05 | The client shall render the API's `errors` array as returned, against the offending field where the error names one and in a banner otherwise. | All |
-| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28 |
-| FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. | All |
+| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35, UI-38 |
+| FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. Wherever a transport failure is shown, it reads "Could not reach the API. Check your connection and try again.", never the HTTP library's own text. An answer the client cannot read, such as a success response whose body is not the expected shape, shows "The API returned an unexpected response." with Retry, never an endless placeholder. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
+| FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
+
+### 2.8 Data subject administration (`FR-DA`)
+
+| ID | Requirement | Use case |
+| --- | --- | --- |
+| FR-DA-01 | The client shall list outstanding erasure requests through `GET /api/auth/erasure-requests`, paginated by the API, soonest deadline first, with an overdue-only filter, showing no name or email address. | UI-32 |
+| FR-DA-02 | The client shall re-apply erasures after a restore through `POST /api/auth/erasure-reconciliation`, sending only a non-empty, de-duplicated list of identifiers after confirmation, and shall show how many were anonymised, already anonymised and not found. | UI-32 |
+
+### 2.9 Audit trail (`FR-AL`)
+
+| ID | Requirement | Use case |
+| --- | --- | --- |
+| FR-AL-01 | A System Admin can list the audit trail, newest first and paginated, filtered by an inclusive range of local days, by exact action, actor identifier, target identifier and outcome. | UI-34 |
+| FR-AL-02 | Each entry shows the instant in local date and time, the action, the outcome with its reason, and the actor (identifier and role) and target identifiers as returned. An entry with no actor — an anonymous action, or an attribution cleared after the attribution period or once the person was erased — reads "None"; nothing is resolved to a name. | UI-34 |
+| FR-AL-03 | Actor and target filters accept only identifiers, trimmed and lowercased before they are sent. | UI-34 |
 
 ---
 
@@ -156,23 +186,29 @@ describes the flows that satisfy these requirements; the
 | `/verify-email` | Verify an email address | UI-05 |
 | `/restricted` | Restricted session — lift the restriction, download one's data, request erasure | UI-30 |
 | `/` | Home | UI-07 |
-| `/profile` | Own profile | UI-08 |
+| `/profile` | Own profile; restrict processing of one's own account | UI-08, UI-33 |
 | `/profile/security` | Two-factor and recovery codes | UI-09 |
 | `/scopes` | Scope listing | UI-10 |
 | `/scopes/new` | Create a scope | UI-11 |
-| `/scopes/:scopeId` | Scope detail | UI-12, UI-13, UI-15 |
+| `/scopes/:scopeId` | Scope detail | UI-12, UI-13 |
 | `/scopes/:scopeId/owners` | Scope owners | UI-14 |
+| `/scopes/:scopeId/sign-in-settings` | Sign-in & sign-up | UI-31, UI-15 |
+| `/scopes/:scopeId/pending-registrations` | Pending registrations — list and discard | UI-35 |
 | `/scopes/:scopeId/persons` | Person listing | UI-16 |
 | `/scopes/:scopeId/persons/new` | Create a person | UI-17 |
-| `/scopes/:scopeId/persons/:personId` | Person detail | UI-18, UI-19 |
+| `/scopes/:scopeId/persons/:personId` | Person detail, with the account emails card | UI-18, UI-19, UI-36 |
 | `/scopes/:scopeId/applications` | Application listing | UI-20 |
 | `/scopes/:scopeId/applications/new` | Create an application | UI-21 |
-| `/scopes/:scopeId/applications/:applicationId` | Application detail | UI-22, UI-23 |
+| `/scopes/:scopeId/applications/:applicationId` | Application detail, with the credentials card | UI-22, UI-23, UI-37 |
 | `/scopes/:scopeId/permissions` | Permission listing | UI-24 |
 | `/scopes/:scopeId/permissions/new` | Create a permission | UI-25 |
 | `/scopes/:scopeId/permissions/:permissionId` | Permission detail | UI-26, UI-27 |
 | `/scopes/:scopeId/google-users` | Google user listing | UI-28 |
 | `/scopes/:scopeId/google-users/:googleUserId` | Google user detail | UI-29 |
+| `/system-admins` | System Admins — list, search and page; rows open the person page | UI-38 |
+| `/persons/:personId` | Person detail without a scope, opened from the System Admins list; back returns to it | UI-38, UI-18, UI-19 |
+| `/erasure-requests` | Outstanding erasure requests; re-apply erasures after a restore | UI-32 |
+| `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
 | `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
 
@@ -198,19 +234,26 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Logical delete scope | Full | Hidden | Hidden | Hidden |
 | Permanent delete scope | Full | Hidden | Hidden | Hidden |
 | Scope owners | Full | Owned scopes only | Hidden | Hidden |
-| Toggle Google Sign-In | Full | Owned scopes only | Hidden | Hidden |
+| Sign-in & sign-up settings | Full | Owned scopes only | Hidden | Hidden |
+| Pending registrations: list, discard | Full | Owned scopes only | Hidden | Hidden |
 | Person listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |
+| Account emails: resend verification, send password reset | Full | Users of owned scopes only | Hidden | Hidden |
+| System Admins: list | Full | Hidden | Hidden | Hidden |
+| Person detail without a scope (`/persons/:personId`) | Full | Hidden | Hidden | Hidden |
 | Application listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete application | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete application | Full | Hidden | Hidden | Hidden |
+| Application credentials: list, issue, revoke | Full | Owned scopes only | Hidden | Hidden |
 | Permission listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete permission | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete permission | Full | Hidden | Hidden | Hidden |
 | Google user listing and detail | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete Google user | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete Google user | Full | Hidden | Hidden | Hidden |
+| Erasure requests | Full | Hidden | Hidden | Hidden |
+| Audit log | Full | Hidden | Hidden | Hidden |
 | Health and diagnostics | Full | Read-only | Hidden | Hidden |
 
 A **restricted session** — one holding the subject-rights-only token the API issues to an identity

@@ -150,6 +150,58 @@ void main() {
     expect(adapter.requests.single['roleId'], isNull);
   });
 
+  // FR-AU-16 — changing your own address re-authenticates in the request.
+  test(
+    'GivenAReauthentication_WhenUpdated_ThenThePasswordAndCodeAreSent',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'id': 'person-1'},
+          },
+        ),
+      );
+
+      // When
+      await repository.update(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'new@example.com',
+        currentPassword: 'secret',
+        twoFactorCode: '123456',
+      );
+
+      // Then
+      expect(adapter.requests.single['currentPassword'], 'secret');
+      expect(adapter.requests.single['twoFactorCode'], '123456');
+    },
+  );
+
+  test('GivenAnOrdinaryEdit_WhenUpdated_ThenNoPasswordIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'id': 'person-1'},
+        },
+      ),
+    );
+
+    // When
+    await repository.update(id: 'person-1', name: 'Ada', email: 'a@b.c');
+
+    // Then
+    expect(adapter.requests.single['currentPassword'], isNull);
+    expect(adapter.requests.single['twoFactorCode'], isNull);
+  });
+
   // AF-08b — the API's own strings are what the screen shows.
   test('GivenARejectedUpdate_WhenUpdated_ThenApiErrorsAreReturned', () async {
     // Given
@@ -303,6 +355,179 @@ void main() {
     // Then
     expect(result.valueOrNull?.twoFactorEnabled, isTrue);
   });
+
+  test(
+    'GivenAPerson_WhenAVerificationEmailIsSent_ThenTheirIdIsAddressed',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'id': 'p1'},
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.sendVerificationEmail('p1');
+
+      // Then
+      expect(result.isSuccess, isTrue);
+      expect(adapter.paths.single, '/api/persons/p1/verification-email');
+    },
+  );
+
+  test('GivenAPerson_WhenAResetIsSent_ThenTheirIdIsAddressed', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'id': 'p1'},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.sendPasswordReset('p1');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.paths.single, '/api/persons/p1/password-reset');
+  });
+
+  test('GivenACooldown_WhenAResetIsSent_ThenTheFailureIsRateLimitedWithTheApiMessage', () async {
+    // Given — AF-36a
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 429,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>[
+            'An email of this kind was sent to this person recently. Try again in a few minutes.',
+          ],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.sendPasswordReset('p1');
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.rateLimited);
+    expect(
+      result.failureOrNull!.errors.single,
+      startsWith('An email of this kind'),
+    );
+  });
+
+  test('GivenSystemAdmins_WhenListed_ThenTheyAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'admin-1',
+              'name': 'Ada',
+              'email': 'ada@example.com',
+            },
+          ],
+          'pageNumber': 2,
+          'pageSize': 20,
+          'totalItems': 21,
+          'totalPages': 2,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.listSystemAdmins(pageNumber: 2);
+
+    // Then
+    final page = result.valueOrNull!;
+    expect(page.items.single.id, 'admin-1');
+    expect(page.items.single.name, 'Ada');
+    expect(page.totalItems, 21);
+    expect(adapter.paths.single, '/api/persons/system-admins');
+    expect(adapter.queries.single['PageNumber'], '2');
+    expect(adapter.queries.single['PageSize'], '20');
+  });
+
+  test('GivenFilters_WhenSystemAdminsListed_ThenTheyAreSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[],
+        },
+      ),
+    );
+
+    // When
+    await repository.listSystemAdmins(name: 'Ada', email: '  ');
+
+    // Then
+    expect(adapter.queries.single['Name'], 'Ada');
+    expect(adapter.queries.single.containsKey('Email'), isFalse);
+    expect(adapter.queries.single['PageNumber'], '1');
+    expect(adapter.queries.single['PageSize'], '20');
+  });
+
+  test('GivenA403_WhenSystemAdminsListed_ThenForbiddenIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 403,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['Only a System Admin may list System Admins.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.listSystemAdmins();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.forbidden);
+  });
+
+  test(
+    'GivenSuccessFalse_WhenSystemAdminsListed_ThenValidationErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['The page size is too large.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.listSystemAdmins();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>[
+        'The page size is too large.',
+      ]);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that
@@ -328,6 +553,10 @@ class _StubAdapter implements HttpClientAdapter {
   /// reached the API and which were left off.
   final List<Map<String, String>> queries = <Map<String, String>>[];
 
+  /// The paths it was asked for, so a test can assert which endpoint a call
+  /// addressed.
+  final List<String> paths = <String>[];
+
   @override
   Future<ResponseBody> fetch(
     RequestOptions options,
@@ -335,6 +564,7 @@ class _StubAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     queries.add(options.uri.queryParameters);
+    paths.add(options.uri.path);
 
     if (requestStream != null) {
       final bytes = <int>[];

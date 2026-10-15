@@ -30,9 +30,13 @@ final class TwoFactorRequired extends LoginOutcome {
 /// Implemented in `features/auth/data` over the generated client, and faked in
 /// tests — which is why nothing here mentions a transport.
 abstract interface class AuthRepository {
+  /// [scopeId] is the scope being entered: the one the calling application
+  /// named, or else the build's own. Without it the API finds only
+  /// administrators: a User's email is unique only within their scope.
   Future<Result<LoginOutcome>> login({
     required String email,
     required String password,
+    String? scopeId,
   });
 
   /// Answers a login challenge.
@@ -44,6 +48,12 @@ abstract interface class AuthRepository {
     required String code,
     bool isRecoveryCode,
   });
+
+  /// UC-46 — asks for a fresh email code for an outstanding challenge.
+  ///
+  /// The API answers alike whether or not it sent one (AF-46a…AF-46e), so a
+  /// success here means only that the request was taken.
+  Future<Result<void>> resendSecondFactorCode({required String challengeToken});
 
   /// Asks the API to mail a password reset link.
   ///
@@ -100,14 +110,23 @@ abstract interface class AuthRepository {
 
   /// Starts enabling [method].
   ///
+  /// The API asks for the caller's [currentPassword] first (FR-AU-17), and
+  /// refuses a wrong one with `401` under a token that is still good.
+  ///
   /// An authenticator method comes back with an `otpAuthUri`; the email method
   /// comes back saying a code was sent.
-  Future<Result<TwoFactorSetup>> enableTwoFactor(TwoFactorMethod method);
+  Future<Result<TwoFactorSetup>> enableTwoFactor(
+    TwoFactorMethod method, {
+    required String currentPassword,
+  });
 
   /// Confirms a setup with the code the person received or generated.
   ///
   /// Returns the recovery codes, which the API issues exactly once — which is
   /// why AF-09c makes the screen refuse to leave until they are acknowledged.
+  ///
+  /// A success revokes the token that asked (FR-AU-28), as turning the feature
+  /// off and regenerating the codes do: nothing more is asked under it.
   Future<Result<List<String>>> confirmTwoFactor({
     required TwoFactorMethod method,
     required String code,

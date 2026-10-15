@@ -92,6 +92,30 @@ Result<Page<T>> unwrapPage<T>(
   );
 }
 
+/// The [Failure] for an answer the client could not read (see
+/// [guardUnexpected]).
+Failure failureFromUnexpected() => const Failure(
+  kind: FailureKind.unknown,
+  errors: <String>[kUnexpectedResponseMessage],
+);
+
+/// Runs a repository [call], turning the two shapes a malformed 2xx body takes
+/// in the generated client — an [Exception] such as a `FormatException`, and a
+/// `TypeError` from a failed cast — into a [FailureResult].
+///
+/// A list screen that let either escape would stay on its placeholder for good,
+/// with no error panel and no Retry. Any other [Error] is a bug and still
+/// propagates.
+Future<Result<T>> guardUnexpected<T>(Future<Result<T>> Function() call) async {
+  try {
+    return await call();
+  } on Exception {
+    return FailureResult<T>(failureFromUnexpected());
+  } on TypeError {
+    return FailureResult<T>(failureFromUnexpected());
+  }
+}
+
 /// Maps a transport or HTTP failure onto the domain's [Failure] model.
 Failure failureFromDioException(DioException error) {
   final response = error.response;
@@ -106,7 +130,9 @@ Failure failureFromDioException(DioException error) {
         _ => FailureKind.unknown,
       },
       errors: const <String>[],
-      message: error.message,
+      // Never Dio's own text ("The connection errored: …"), which is written
+      // for developers; a person is told what they can do about it.
+      message: kUnreachableMessage,
     );
   }
 
@@ -125,9 +151,20 @@ Failure failureFromDioException(DioException error) {
       403 => FailureKind.forbidden,
       404 => FailureKind.notFound,
       409 => FailureKind.conflict,
+      429 => FailureKind.rateLimited,
       final int status when status >= 500 => FailureKind.server,
       _ => FailureKind.unknown,
     },
     errors: errors,
+    retryAfter: response.statusCode == 429 ? _retryAfterOf(response) : null,
   );
+}
+
+/// `Retry-After` as whole seconds (RFC 9110 §10.2.3). The HTTP-date form is not
+/// used by the API and is ignored rather than guessed at.
+Duration? _retryAfterOf(Response<dynamic> response) {
+  final raw = response.headers.value('retry-after');
+  final seconds = raw == null ? null : int.tryParse(raw.trim());
+
+  return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
 }

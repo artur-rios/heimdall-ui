@@ -129,13 +129,15 @@ class ScopeListController extends Notifier<ScopeListState> {
         : ScopeListLoading(query);
 
     try {
-      final result = await ref
-          .read(scopeRepositoryProvider)
-          .list(
-            name: query.name,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      final result = await guardUnexpected(
+        () => ref
+            .read(scopeRepositoryProvider)
+            .list(
+              name: query.name,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            ),
+      );
 
       state = result.fold(
         onSuccess: (page) => ScopeListLoaded(query, page),

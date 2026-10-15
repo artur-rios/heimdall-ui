@@ -8,6 +8,7 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
@@ -72,6 +73,7 @@ void main() {
         overrides: <Override>[
           appConfigProvider.overrideWithValue(config),
           authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(
             _FakeGoogleSignInGateway(google),
@@ -106,20 +108,30 @@ void main() {
     'GivenLoginScreen_WhenSubmittedWithValidInput_ThenControllerIsCalled',
     (tester) async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async => Success<LoginOutcome>(
-              LoggedIn(AuthToken(value: _jwt, expiresAt: DateTime.utc(2030))),
-            ),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(
+          LoggedIn(AuthToken(value: _jwt, expiresAt: DateTime.utc(2030))),
+        ),
+      );
       await pump(tester);
 
       // When
       await fillAndSubmit(tester);
 
       // Then
-      verify(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .called(1);
+      verify(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).called(1);
     },
   );
 
@@ -149,7 +161,13 @@ void main() {
     tester,
   ) async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => const FailureResult<LoginOutcome>(
         Failure(
           kind: FailureKind.validation,
@@ -171,7 +189,13 @@ void main() {
     tester,
   ) async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => const FailureResult<LoginOutcome>(
         Failure(kind: FailureKind.validation, errors: <String>['Rejected.']),
       ),
@@ -202,6 +226,7 @@ void main() {
       () => repository.login(
         email: any(named: 'email'),
         password: any(named: 'password'),
+        scopeId: any(named: 'scopeId'),
       ),
     );
     expect(find.text('Enter your password.'), findsOneWidget);
@@ -222,6 +247,7 @@ void main() {
       () => repository.login(
         email: any(named: 'email'),
         password: any(named: 'password'),
+        scopeId: any(named: 'scopeId'),
       ),
     );
     expect(find.text('Enter a valid email address.'), findsOneWidget);
@@ -232,7 +258,13 @@ void main() {
     tester,
   ) async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => const FailureResult<LoginOutcome>(
         Failure(kind: FailureKind.network, errors: <String>[]),
       ),
@@ -251,7 +283,13 @@ void main() {
     tester,
   ) async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => const FailureResult<LoginOutcome>(
         Failure(kind: FailureKind.network, errors: <String>[]),
       ),
@@ -264,8 +302,13 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(() => repository.login(email: 'a@b.c', password: 'secret'))
-        .called(2);
+    verify(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).called(2);
   });
 
   // AF-01e — the Google control, offered only when the build configures it.
@@ -369,8 +412,13 @@ void main() {
   ) async {
     // Given
     final pending = Completer<Result<LoginOutcome>>();
-    when(() => repository.login(email: 'a@b.c', password: 'secret'))
-        .thenAnswer((_) => pending.future);
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer((_) => pending.future);
     await pump(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email'),
@@ -394,7 +442,12 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(() => repository.login(email: 'a@b.c', password: 'secret'))
-        .called(1);
+    verify(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).called(1);
   });
 }

@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-30 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-38 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -238,12 +238,13 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-01: Login | ✅ | [#1](https://github.com/artur-rios/heimdall-ui/issues/1) |
 | UI-02: Complete two-factor challenge at login | ✅ | [#2](https://github.com/artur-rios/heimdall-ui/issues/2) |
+| UI-02 amendment: Send a new second-factor code | ✅ | [#122](https://github.com/artur-rios/heimdall-ui/issues/122) |
 | UI-03: Request password recovery | ✅ | [#3](https://github.com/artur-rios/heimdall-ui/issues/3) |
 | UI-04: Reset password | ✅ | [#4](https://github.com/artur-rios/heimdall-ui/issues/4) |
 | UI-05: Verify email and resend verification | ✅ | [#5](https://github.com/artur-rios/heimdall-ui/issues/5) |
 | UI-06: Sign in and sign out with Google | ✅ | [#6](https://github.com/artur-rios/heimdall-ui/issues/6) |
 | UI-07: Guard routes by session and role | ✅ | [#7](https://github.com/artur-rios/heimdall-ui/issues/7) |
-| UI-30: Use a restricted session | 🚧 | [#103](https://github.com/artur-rios/heimdall-ui/issues/103) |
+| UI-30: Use a restricted session | ✅ | [#103](https://github.com/artur-rios/heimdall-ui/issues/103) |
 
 ### Profile & Security
 
@@ -251,6 +252,7 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-08: View and edit own profile | ✅ | [#8](https://github.com/artur-rios/heimdall-ui/issues/8) |
 | UI-09: Manage two-factor authentication | ✅ | [#9](https://github.com/artur-rios/heimdall-ui/issues/9) |
+| UI-33: Restrict processing of my account | ✅ | [#125](https://github.com/artur-rios/heimdall-ui/issues/125) |
 
 ### Scope Management
 
@@ -262,6 +264,8 @@ the board is where an item's status changes as it moves.
 | UI-13: Delete a scope, logically and permanently | ✅ | [#13](https://github.com/artur-rios/heimdall-ui/issues/13) |
 | UI-14: Manage scope owners | ✅ | [#14](https://github.com/artur-rios/heimdall-ui/issues/14) |
 | UI-15: Toggle Google Sign-In for a scope | ✅ | [#15](https://github.com/artur-rios/heimdall-ui/issues/15) |
+| UI-31: Configure a scope's sign-in and sign-up | ✅ | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
+| UI-35: Manage a scope's pending registrations | ✅ | [#137](https://github.com/artur-rios/heimdall-ui/issues/137) |
 
 ### Person Management
 
@@ -271,6 +275,8 @@ the board is where an item's status changes as it moves.
 | UI-17: Create a person | ✅ | [#17](https://github.com/artur-rios/heimdall-ui/issues/17) |
 | UI-18: View and update a person | ✅ | [#18](https://github.com/artur-rios/heimdall-ui/issues/18) |
 | UI-19: Delete a person, logically and permanently | ✅ | [#19](https://github.com/artur-rios/heimdall-ui/issues/19) |
+| UI-36: Send account emails to a person | ✅ | [#138](https://github.com/artur-rios/heimdall-ui/issues/138) |
+| UI-38: List System Admins | ✅ | [#149](https://github.com/artur-rios/heimdall-ui/issues/149) |
 
 ### Application Management
 
@@ -280,6 +286,7 @@ the board is where an item's status changes as it moves.
 | UI-21: Create an application | ✅ | [#21](https://github.com/artur-rios/heimdall-ui/issues/21) |
 | UI-22: View and update an application | ✅ | [#22](https://github.com/artur-rios/heimdall-ui/issues/22) |
 | UI-23: Delete an application, logically and permanently | ✅ | [#23](https://github.com/artur-rios/heimdall-ui/issues/23) |
+| UI-37: Manage an application's credentials | ✅ | [#139](https://github.com/artur-rios/heimdall-ui/issues/139) |
 
 ### Scope Permission Management
 
@@ -296,6 +303,18 @@ the board is where an item's status changes as it moves.
 | --- | --- | --- |
 | UI-28: Browse and view Google users | ✅ | [#28](https://github.com/artur-rios/heimdall-ui/issues/28) |
 | UI-29: Delete a Google user, logically and permanently | ✅ | [#29](https://github.com/artur-rios/heimdall-ui/issues/29) |
+
+### Data Subject Erasure
+
+| Use case | Status | Issue |
+| --- | --- | --- |
+| UI-32: Review outstanding erasure requests | ✅ | [#123](https://github.com/artur-rios/heimdall-ui/issues/123) |
+
+### Audit
+
+| Use case | Status | Issue |
+| --- | --- | --- |
+| UI-34: Review the audit trail | ✅ | [#136](https://github.com/artur-rios/heimdall-ui/issues/136) |
 
 ### Platform
 
@@ -323,4 +342,6 @@ are described in [CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Legal
 
-Proprietary. See [LICENSE](LICENSE). Copyright (c) 2026 Artur Rios. All rights reserved.
+This project is licensed under the [Artur Rios Attribution License](LICENSE). It is free and open source: you may view, use, fork, modify, and extend it, provided you credit the author, Artur Rios, with a link to [artur-rios.tech](https://artur-rios.tech) or [github.com/artur-rios](https://github.com/artur-rios).
+
+Copyright (c) 2026 Artur Rios.

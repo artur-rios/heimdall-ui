@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -8,8 +9,13 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
+import 'package:heimdall_ui/features/google_users/presentation/google_avatar.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
@@ -20,6 +26,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
+
+class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 String _jwt({int role = 3}) {
   final payload = base64Url.encode(
@@ -35,11 +45,51 @@ String _jwt({int role = 3}) {
   return 'header.$payload.signature';
 }
 
+/// A Google sign-in's token: the subject is the Google User, in its scope.
+String _googleJwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'google-1',
+        'role': 3,
+        'scopeId': 'scope-1',
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
+
+const _grace = GoogleUser(
+  id: 'google-1',
+  name: 'Grace Hopper',
+  email: 'grace@example.com',
+  scopeId: 'scope-1',
+);
+
 const _ada = Person(
   id: 'person-1',
   name: 'Ada',
   email: 'ada@example.com',
   role: Role.user,
+);
+
+/// Ada with a second factor on, which the API reports on her record.
+const _adaWithTwoFactor = Person(
+  id: 'person-1',
+  name: 'Ada',
+  email: 'ada@example.com',
+  role: Role.user,
+  twoFactorEnabled: true,
+);
+
+/// What Ada's address becomes once a change to it is saved.
+const _adaMoved = Person(
+  id: 'person-1',
+  name: 'Ada',
+  email: 'new@example.com',
+  role: Role.user,
+  emailVerified: false,
 );
 
 /// The three window classes the shell lays out differently.
@@ -50,6 +100,8 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockPersonRepository persons;
   late _MockAuthRepository auth;
+  late _MockGoogleUserRepository googleUsers;
+  late _MockGoogleSignInGateway google;
   late InMemoryTokenStore store;
   late ProviderContainer container;
 
@@ -58,6 +110,7 @@ void main() {
     Size size = _compact,
     ThemeData? theme,
     int role = 3,
+    bool viaGoogle = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -65,14 +118,17 @@ void main() {
 
     await store.write(
       AuthToken(
-        value: _jwt(role: role),
+        value: viaGoogle ? _googleJwt() : _jwt(role: role),
         expiresAt: DateTime.utc(2030),
+        viaGoogle: viaGoogle,
       ),
     );
 
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(persons),
+        googleUserRepositoryProvider.overrideWithValue(googleUsers),
+        googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWithValue(auth),
         tokenStoreProvider.overrideWithValue(store),
       ],
@@ -99,6 +155,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerGoogleGetWith(Result<GoogleUser> result) {
+    when(
+      () => googleUsers.getById(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
   void answerUpdateWith(Result<Person> result) {
     when(
       () => persons.update(
@@ -106,14 +172,40 @@ void main() {
         name: any(named: 'name'),
         email: any(named: 'email'),
         roleId: any(named: 'roleId'),
+        currentPassword: any(named: 'currentPassword'),
+        twoFactorCode: any(named: 'twoFactorCode'),
       ),
     ).thenAnswer((_) async => result);
   }
+
+  void answerStatusWith(TwoFactorStatus status) {
+    when(() => auth.twoFactorStatus())
+        .thenAnswer((_) async => Success<TwoFactorStatus>(status));
+  }
+
+  /// Opens the edit and types [email] over the address.
+  Future<void> changeEmailTo(WidgetTester tester, String email) async {
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'ada@example.com'),
+      email,
+    );
+    await tester.pumpAndSettle();
+  }
+
+  Finder passwordField() =>
+      find.widgetWithText(TextFormField, 'Current password');
+
+  Finder codeField() => find.widgetWithText(TextFormField, 'Two-factor code');
 
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     persons = _MockPersonRepository();
     auth = _MockAuthRepository();
+    googleUsers = _MockGoogleUserRepository();
+    google = _MockGoogleSignInGateway();
+    when(() => google.signOut()).thenAnswer((_) async {});
     store = InMemoryTokenStore();
   });
 
@@ -252,6 +344,8 @@ void main() {
       'taken@example.com',
     );
     await tester.pumpAndSettle();
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
     await tester.pumpAndSettle();
 
@@ -279,6 +373,8 @@ void main() {
       'taken@example.com',
     );
     await tester.pumpAndSettle();
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
     await tester.pumpAndSettle();
 
@@ -289,44 +385,221 @@ void main() {
     );
   });
 
-  // AF-08c — a changed address is unverified again, and the resend is offered.
-  testWidgets('GivenAChangedEmail_WhenSaved_ThenTheResendIsOffered', (
+  // FR-AU-16 — a new address asks for the current password.
+  testWidgets('GivenAnEmailChange_WhenTyped_ThenThePasswordIsAsked', (
     tester,
   ) async {
     // Given
     answerGetWith(const Success<Person>(_ada));
-    answerUpdateWith(
-      const Success<Person>(
-        Person(
-          id: 'person-1',
-          name: 'Ada',
-          email: 'new@example.com',
-          role: Role.user,
-          emailVerified: false,
-        ),
-      ),
-    );
+    await pump(tester);
+
+    // When
+    await changeEmailTo(tester, 'new@example.com');
+
+    // Then
+    expect(passwordField(), findsOneWidget);
+    // The second factor is off, so there is no code to ask for.
+    expect(codeField(), findsNothing);
+  });
+
+  // The API compares addresses exactly, so a change of case alone is a change
+  // of address, and asks for the password like any other.
+  testWidgets('GivenACaseOnlyEmailChange_WhenTyped_ThenThePasswordIsAsked', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+
+    // When
+    await changeEmailTo(tester, 'Ada@example.com');
+
+    // Then
+    expect(passwordField(), findsOneWidget);
+  });
+
+  testWidgets('GivenANameChange_WhenTyped_ThenNoPasswordIsAsked', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, appEnabled: true));
     await pump(tester);
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
 
     // When
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'ada@example.com'),
-      'new@example.com',
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), 'Ada L');
     await tester.pumpAndSettle();
 
     // Then
+    expect(passwordField(), findsNothing);
+    expect(codeField(), findsNothing);
+  });
+
+  // FR-AU-16 — and the second factor too, when it is on. Both an
+  // authenticator code and a recovery code are taken.
+  testWidgets('GivenTwoFactorOn_WhenTheEmailIsChanged_ThenACodeIsAsked', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, appEnabled: true));
+    await pump(tester);
+
+    // When
+    await changeEmailTo(tester, 'new@example.com');
+
+    // Then
+    expect(passwordField(), findsOneWidget);
+    expect(codeField(), findsOneWidget);
     expect(
-      find.widgetWithText(TextButton, 'Send verification email'),
+      find.text('A code from your authenticator app, or a recovery code.'),
       findsOneWidget,
     );
   });
 
-  testWidgets('GivenAChangedEmail_WhenResendTapped_ThenTheApiIsAsked', (
+  // No emailed code is sent while signed in, so a person whose only second
+  // factor is email is pointed at their recovery codes.
+  testWidgets(
+    'GivenEmailOnlyTwoFactor_WhenTheEmailIsChanged_ThenARecoveryCodeIsSuggested',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      answerStatusWith(
+        const TwoFactorStatus(isActive: true, emailEnabled: true),
+      );
+      await pump(tester);
+
+      // When
+      await changeEmailTo(tester, 'new@example.com');
+
+      // Then
+      expect(codeField(), findsOneWidget);
+      expect(find.text('Use one of your recovery codes.'), findsOneWidget);
+    },
+  );
+
+  // Until the method is known the field suggests nothing, so a person whose
+  // only method is email is never shown the authenticator wording first.
+  testWidgets(
+    'GivenTheMethodBeingRead_WhenTheEmailIsChanged_ThenNoHintIsShownYet',
+    (tester) async {
+      // Given
+      final status = Completer<Result<TwoFactorStatus>>();
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      when(() => auth.twoFactorStatus()).thenAnswer((_) => status.future);
+      await pump(tester);
+
+      // When
+      await changeEmailTo(tester, 'new@example.com');
+
+      // Then
+      expect(codeField(), findsOneWidget);
+      expect(
+        find.text('A code from your authenticator app, or a recovery code.'),
+        findsNothing,
+      );
+      expect(find.text('Use one of your recovery codes.'), findsNothing);
+
+      // And once it is known
+      status.complete(
+        const Success<TwoFactorStatus>(
+          TwoFactorStatus(isActive: true, emailEnabled: true),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Use one of your recovery codes.'), findsOneWidget);
+    },
+  );
+
+  // When the methods could not be read, the hint covers both ways in.
+  testWidgets(
+    'GivenUnreadableMethods_WhenTheEmailIsChanged_ThenTheCombinedHintIsShown',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      when(() => auth.twoFactorStatus()).thenAnswer(
+        (_) async => const FailureResult<TwoFactorStatus>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+      await pump(tester);
+
+      // When
+      await changeEmailTo(tester, 'new@example.com');
+
+      // Then
+      expect(
+        find.text('A code from your authenticator app, or a recovery code.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets(
+    'GivenAnEmailChangeWithoutAPassword_WhenSubmitted_ThenNoRequestIsMade',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      answerUpdateWith(const Success<Person>(_adaMoved));
+      await pump(tester);
+      await changeEmailTo(tester, 'new@example.com');
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Enter your current password.'), findsOneWidget);
+      verifyNever(
+        () => persons.update(
+          id: any(named: 'id'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          roleId: any(named: 'roleId'),
+          currentPassword: any(named: 'currentPassword'),
+          twoFactorCode: any(named: 'twoFactorCode'),
+        ),
+      );
+    },
+  );
+
+  testWidgets('GivenAPasswordAndACode_WhenTheEmailIsSaved_ThenBothAreSent', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, appEnabled: true));
+    answerUpdateWith(const Success<Person>(_adaMoved));
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.enterText(codeField(), '123456');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    // Signed out, the shell shows its placeholder until the application's
+    // guard redirects, which this screen alone does not have: it never
+    // settles.
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    verify(
+      () => persons.update(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'new@example.com',
+        roleId: any(named: 'roleId'),
+        currentPassword: 'secret',
+        twoFactorCode: '123456',
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenANameChange_WhenSaved_ThenNoPasswordIsSent', (
     tester,
   ) async {
     // Given
@@ -335,34 +608,111 @@ void main() {
       const Success<Person>(
         Person(
           id: 'person-1',
-          name: 'Ada',
-          email: 'new@example.com',
+          name: 'Ada L',
+          email: 'ada@example.com',
           role: Role.user,
-          emailVerified: false,
         ),
       ),
     );
-    when(() => auth.resendVerificationEmail())
-        .thenAnswer((_) async => const Success<void>(null));
     await pump(tester);
     await tester.tap(find.text('Edit'));
     await tester.pumpAndSettle();
-    await tester.enterText(
-      find.widgetWithText(TextFormField, 'ada@example.com'),
-      'new@example.com',
-    );
-    await tester.pumpAndSettle();
-    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), 'Ada L');
     await tester.pumpAndSettle();
 
     // When
-    await tester.tap(
-      find.widgetWithText(TextButton, 'Send verification email'),
-    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
     await tester.pumpAndSettle();
 
     // Then
-    verify(() => auth.resendVerificationEmail()).called(1);
+    verify(
+      () => persons.update(
+        id: 'person-1',
+        name: 'Ada L',
+        email: 'ada@example.com',
+        roleId: any(named: 'roleId'),
+        currentPassword: null,
+        twoFactorCode: null,
+      ),
+    ).called(1);
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+  });
+
+  // AF-08h — a wrong password is shown where it was typed, and the person
+  // stays signed in to correct it.
+  testWidgets('GivenAWrongPassword_WhenSaved_ThenItIsShownInline', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(
+      const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['The current password is incorrect.'],
+        ),
+      ),
+    );
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'wrong');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('The current password is incorrect.'), findsOneWidget);
+    expect(passwordField(), findsOneWidget);
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+  });
+
+  // FR-AU-28 — the change revokes the token that made it, so the person is
+  // signed out, with the reason kept for the sign-in screen.
+  testWidgets('GivenAnEmailChange_WhenSaved_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(const Success<Person>(_adaMoved));
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    // Signed out, the shell shows its placeholder until the application's
+    // guard redirects, which this screen alone does not have: it never
+    // settles.
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    final session = container.read(sessionControllerProvider);
+    expect((session as Unauthenticated).credentialsChanged, isTrue);
+  });
+
+  // A password typed for an edit that was dropped does not wait in the form
+  // for the next one.
+  testWidgets('GivenATypedPassword_WhenTheEditIsCancelled_ThenItIsCleared', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    await changeEmailTo(tester, 'other@example.com');
+
+    // Then
+    expect(tester.widget<TextFormField>(passwordField()).controller?.text, '');
   });
 
   testWidgets('GivenAnUnchangedEmail_WhenSaved_ThenOnlySavedIsSaid', (
@@ -502,5 +852,177 @@ void main() {
 
     // Then
     expect(find.text('Your details'), findsOneWidget);
+  });
+
+  // UI-33 — offered beside the person's own security settings, at every width
+  // and in the dark theme.
+  for (final (label, size, dark) in <(String, Size, bool)>[
+    ('Compact', _compact, false),
+    ('Medium', _medium, false),
+    ('Expanded', _expanded, false),
+    ('Dark', _medium, true),
+  ]) {
+    testWidgets(
+      'Given${label}Profile_WhenRendered_ThenRestrictingProcessingIsOffered',
+      (tester) async {
+        // Given
+        answerGetWith(const Success<Person>(_ada));
+
+        // When
+        await pump(tester, size: size, theme: dark ? buildDarkTheme() : null);
+
+        // Then
+        expect(find.text('Restrict processing of my account'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('GivenTheRestrictionEntry_WhenTapped_ThenTheDialogOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Restrict processing of your account?'), findsOneWidget);
+  });
+
+  // #133 — a Google User's own record, read-only: Google owns the name and the
+  // address, and the API offers no way to change either.
+  testWidgets('GivenAGoogleSession_WhenOpened_ThenTheirRecordIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    expect(find.text('Grace Hopper'), findsOneWidget);
+    expect(find.text('grace@example.com'), findsOneWidget);
+    expect(
+      find.text('Your name and email come from your Google account.'),
+      findsOneWidget,
+    );
+    expect(find.byType(GoogleAvatar), findsOneWidget);
+  });
+
+  testWidgets('GivenAGoogleSession_WhenOpened_ThenNothingIsEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    expect(find.text('Edit'), findsNothing);
+    expect(find.byType(EditableText), findsNothing);
+    expect(find.text('Send verification email'), findsNothing);
+  });
+
+  testWidgets('GivenAGooglePicture_WhenOpened_ThenItIsShown', (tester) async {
+    // Given
+    answerGoogleGetWith(
+      const Success<GoogleUser>(
+        GoogleUser(
+          id: 'google-1',
+          name: 'Grace Hopper',
+          email: 'grace@example.com',
+          profilePictureUrl: 'https://example.invalid/grace.png',
+        ),
+      ),
+    );
+
+    // When
+    await pump(tester, viaGoogle: true);
+
+    // Then
+    final avatar = tester.widget<CircleAvatar>(
+      find.descendant(
+        of: find.byType(GoogleAvatar),
+        matching: find.byType(CircleAvatar),
+      ),
+    );
+    expect(avatar.foregroundImage, isA<NetworkImage>());
+  });
+
+  // AF-08e still holds for a Google User deleted from under the session.
+  testWidgets(
+    'GivenAMissingGoogleRecord_WhenOpened_ThenTheSignOutIsExplained',
+    (tester) async {
+      // Given
+      answerGoogleGetWith(
+        const FailureResult<GoogleUser>(
+          Failure(kind: FailureKind.notFound, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await pump(tester, viaGoogle: true);
+
+      // Then
+      expect(find.text('Your account no longer exists'), findsOneWidget);
+    },
+  );
+
+  // UI-33 serves a Google User too, beside the security entry, at every width
+  // and in the dark theme.
+  for (final (label, size, dark) in <(String, Size, bool)>[
+    ('Compact', _compact, false),
+    ('Medium', _medium, false),
+    ('Expanded', _expanded, false),
+    ('Dark', _medium, true),
+  ]) {
+    testWidgets(
+      'Given${label}GoogleProfile_WhenRendered_ThenItsEntriesAreOffered',
+      (tester) async {
+        // Given
+        answerGoogleGetWith(const Success<GoogleUser>(_grace));
+
+        // When
+        await pump(
+          tester,
+          size: size,
+          theme: dark ? buildDarkTheme() : null,
+          viaGoogle: true,
+        );
+
+        // Then
+        expect(find.text('Grace Hopper'), findsOneWidget);
+        expect(find.text('Security'), findsOneWidget);
+        expect(find.text('Restrict processing of my account'), findsOneWidget);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
+  testWidgets('GivenAGoogleProfile_WhenRestrictionTapped_ThenTheDialogOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGoogleGetWith(const Success<GoogleUser>(_grace));
+    await pump(tester, viaGoogle: true);
+    final entry = find.text('Restrict processing of my account');
+    await tester.ensureVisible(entry);
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(entry);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Restrict processing of your account?'), findsOneWidget);
   });
 }

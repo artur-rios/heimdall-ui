@@ -152,6 +152,50 @@ void main() {
     expect(failure.kind, FailureKind.network);
   });
 
+  // A transport failure has no words of the API's own; Dio's are written for
+  // developers ("The connection errored: …"), so a person is told what to do.
+  for (final type in <DioExceptionType>[
+    DioExceptionType.connectionError,
+    DioExceptionType.connectionTimeout,
+    DioExceptionType.sendTimeout,
+    DioExceptionType.receiveTimeout,
+  ]) {
+    test(
+      'GivenA${_capitalized(type.name)}_WhenMapped_ThenThePersonIsToldTheApiIsUnreachable',
+      () {
+        // Given
+        final error = DioException(
+          requestOptions: RequestOptions(path: '/api/scopes'),
+          type: type,
+          message: 'The connection errored: Connection refused',
+        );
+
+        // When
+        final failure = failureFromDioException(error);
+
+        // Then
+        expect(failure.kind, FailureKind.network);
+        expect(failure.message, kUnreachableMessage);
+        expect(failure.displayMessage, kUnreachableMessage);
+      },
+    );
+  }
+
+  test('GivenAnUnknownErrorWithoutAResponse_WhenMapped_ThenThePersonIsToldTheApiIsUnreachable', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/scopes'),
+      message: 'XMLHttpRequest onError callback was called',
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.message, kUnreachableMessage);
+  });
+
   test('GivenResponseWithoutABody_WhenMapped_ThenErrorsAreEmpty', () {
     // Given
     final error = DioException(
@@ -223,4 +267,81 @@ void main() {
     // Then
     expect(failure.kind, FailureKind.unauthorized);
   });
+
+  test('GivenA429WithRetryAfter_WhenMapped_ThenTheHintNamesTheSeconds', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/login'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/login'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['37'],
+        }),
+        data: <String, dynamic>{
+          'errors': <String>['Too many requests. Try again later.'],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, const Duration(seconds: 37));
+    expect(failure.retryHint, 'Try again in 37 seconds.');
+    expect(failure.errors, <String>['Too many requests. Try again later.']);
+  });
+
+  test('GivenA429WithoutRetryAfter_WhenMapped_ThenThereIsNoHint', () {
+    // Given — a handler's 429, such as an account email's cooldown
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/persons/x/password-reset'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/persons/x/password-reset'),
+        statusCode: 429,
+        data: <String, dynamic>{
+          'errors': <String>[
+            'An email of this kind was sent to this person recently. Try again in a few minutes.',
+          ],
+        },
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, isNull);
+    expect(failure.retryHint, isNull);
+  });
+
+  test('GivenAnUnreadableRetryAfter_WhenMapped_ThenItIsIgnored', () {
+    // Given — an HTTP-date, or garbage, rather than whole seconds
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/login'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/login'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['Wed, 21 Oct 2026 07:28:00 GMT'],
+        }),
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, isNull);
+  });
 }
+
+String _capitalized(String name) =>
+    '${name[0].toUpperCase()}${name.substring(1)}';

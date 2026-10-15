@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
@@ -76,10 +77,11 @@ void main() {
   AuthToken tokenFor(String value) =>
       AuthToken(value: value, expiresAt: DateTime.utc(2030));
 
-  ProviderContainer containerWith() {
+  ProviderContainer containerWith({String? scopeId}) {
     final container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(FixedScopeSource(scopeId)),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -93,7 +95,13 @@ void main() {
   Future<ProviderContainer> challengedContainer({
     List<String> methods = const <String>['Totp'],
   }) async {
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => Success<LoginOutcome>(
         TwoFactorRequired(
           challengeToken: 'challenge',
@@ -115,15 +123,72 @@ void main() {
     store = InMemoryTokenStore();
   });
 
+  // The scope belongs to the calling application, as it does for Google.
+  test('GivenAConfiguredScope_WhenSignedIn_ThenTheScopeIsHandedOn', () async {
+    // Given
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: 'scope-public-id',
+      ),
+    ).thenAnswer(
+      (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+    );
+    final container = containerWith(scopeId: 'scope-public-id');
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signIn(email: 'a@b.c', password: 'secret');
+
+    // Then
+    verify(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: 'scope-public-id',
+      ),
+    ).called(1);
+  });
+
+  test('GivenNoScope_WhenSignedIn_ThenNoScopeIsHandedOn', () async {
+    // Given
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
+      (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+    );
+    final container = containerWith();
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signIn(email: 'a@b.c', password: 'secret');
+
+    // Then
+    verify(
+      () => repository.login(email: 'a@b.c', password: 'secret', scopeId: null),
+    ).called(1);
+  });
+
   test(
     'GivenValidCredentials_WhenSignedIn_ThenSessionIsAuthenticated',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async =>
-                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+      );
       final container = containerWith();
 
       // When
@@ -141,7 +206,13 @@ void main() {
 
   test('GivenTwoFactorRequired_WhenSignedIn_ThenSessionIsChallenged', () async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => const Success<LoginOutcome>(
         TwoFactorRequired(
           challengeToken: 'challenge',
@@ -168,12 +239,17 @@ void main() {
     'GivenTransportFailure_WhenSignedIn_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async => const FailureResult<LoginOutcome>(
-              Failure(kind: FailureKind.network, errors: <String>[]),
-            ),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => const FailureResult<LoginOutcome>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
       final container = containerWith();
 
       // When
@@ -192,15 +268,20 @@ void main() {
     'GivenChallengedSession_WhenCodeAccepted_ThenSessionIsAuthenticated',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async => const Success<LoginOutcome>(
-              TwoFactorRequired(
-                challengeToken: 'challenge',
-                availableMethods: <String>['Totp'],
-              ),
-            ),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<LoginOutcome>(
+          TwoFactorRequired(
+            challengeToken: 'challenge',
+            availableMethods: <String>['Totp'],
+          ),
+        ),
+      );
       when(
         () => repository.verifySecondFactor(
           challengeToken: 'challenge',
@@ -247,15 +328,20 @@ void main() {
     'GivenInvalidCredentials_WhenSignedIn_ThenSessionStaysUnauthenticated',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'wrong'))
-          .thenAnswer(
-            (_) async => const FailureResult<LoginOutcome>(
-              Failure(
-                kind: FailureKind.validation,
-                errors: <String>['Invalid credentials'],
-              ),
-            ),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'wrong',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => const FailureResult<LoginOutcome>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['Invalid credentials'],
+          ),
+        ),
+      );
       final container = containerWith();
 
       // When
@@ -272,7 +358,13 @@ void main() {
 
   test('GivenAuthenticatedSession_WhenSignedOut_ThenTokenIsCleared', () async {
     // Given
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
     );
     final container = containerWith();
@@ -450,11 +542,15 @@ void main() {
     'GivenAuthenticatedSession_WhenAbandonCalled_ThenSessionStands',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async =>
-                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+      );
       final container = containerWith();
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.signIn(email: 'a@b.c', password: 'secret');
@@ -548,6 +644,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
@@ -576,6 +673,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
@@ -616,6 +714,7 @@ void main() {
       final container = ProviderContainer(
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
@@ -793,6 +892,7 @@ void main() {
     final container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
       ],
     );
@@ -809,14 +909,19 @@ void main() {
     'GivenAnUnwritableStore_WhenSignedIn_ThenTheFailureIsReported',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async =>
-                Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
-          );
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
+      );
       final container = ProviderContainer(
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
         ],
       );
@@ -848,6 +953,7 @@ void main() {
       final container = ProviderContainer(
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
         ],
       );
@@ -921,18 +1027,23 @@ void main() {
     'GivenARestrictedPerson_WhenSignedIn_ThenTheSessionIsRestricted',
     () async {
       // Given
-      when(() => repository.login(email: 'a@b.c', password: 'secret'))
-          .thenAnswer(
-            (_) async => Success<LoginOutcome>(
-              LoggedIn(
-                AuthToken(
-                  value: _systemAdminJwt,
-                  expiresAt: DateTime.utc(2030),
-                  processingRestricted: true,
-                ),
-              ),
+      when(
+        () => repository.login(
+          email: 'a@b.c',
+          password: 'secret',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer(
+        (_) async => Success<LoginOutcome>(
+          LoggedIn(
+            AuthToken(
+              value: _systemAdminJwt,
+              expiresAt: DateTime.utc(2030),
+              processingRestricted: true,
             ),
-          );
+          ),
+        ),
+      );
       final container = containerWith();
 
       // When
@@ -1020,6 +1131,82 @@ void main() {
     expect(state.sessionExpired, isFalse);
   });
 
+  // UI-08, UI-09 — a change to the person's own sign-in details revokes the
+  // token that made it, and the sign-in screen says why they are there.
+  test('GivenChangedSignInDetails_WhenSignedOut_ThenTheReasonIsKept', () async {
+    // Given
+    await store.write(tokenFor(_systemAdminJwt));
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut(credentialsChanged: true);
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Unauthenticated).credentialsChanged, isTrue);
+    expect(state.sessionExpired, isFalse);
+    expect(await store.read(), isNull);
+  });
+
+  // UI-33 — the sign-in screen says signing in again opens the restricted
+  // session.
+  test(
+    'GivenARestrictionJustImposed_WhenSignedOut_ThenTheReasonIsKept',
+    () async {
+      // Given
+      await store.write(tokenFor(_systemAdminJwt));
+      final container = containerWith();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut(processingRestricted: true);
+
+      // Then
+      final state = container.read(sessionControllerProvider);
+      expect((state as Unauthenticated).processingRestricted, isTrue);
+      expect(state.restrictionLifted, isFalse);
+      expect(state.sessionExpired, isFalse);
+      expect(await store.read(), isNull);
+    },
+  );
+
+  // UI-33 — once restricted, the API refuses the full token everywhere but
+  // the rights endpoints, its Google sign-out included; Google still is told.
+  test(
+    'GivenAGoogleSessionJustRestricted_WhenSignedOut_ThenTheApiIsNotCalled',
+    () async {
+      // Given
+      final gateway = _FakeGoogleSignInGateway();
+      await store.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          viaGoogle: true,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      await controller.signOut(processingRestricted: true);
+
+      // Then
+      verifyNever(() => repository.signOutFromGoogle());
+      expect(gateway.signOuts, 1);
+    },
+  );
+
   // UI-30 — the API's Google sign-out is not one of the four endpoints a
   // restricted token is admitted to, so it is not asked; Google still is.
   test(
@@ -1038,6 +1225,7 @@ void main() {
       final container = ProviderContainer(
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
@@ -1054,6 +1242,47 @@ void main() {
       expect(gateway.signOuts, 1);
     },
   );
+
+  // UC-46 — the session holds the token, so the screen never handles it.
+  test('GivenAChallenge_WhenACodeIsResent_ThenTheHeldTokenIsUsed', () async {
+    // Given
+    final container = await challengedContainer(
+      methods: const <String>['Email'],
+    );
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => const Success<void>(null));
+
+    // When
+    final result = await container
+        .read(sessionControllerProvider.notifier)
+        .resendSecondFactorCode();
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    verify(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .called(1);
+  });
+
+  test('GivenNoChallenge_WhenACodeIsResent_ThenNothingIsSent', () async {
+    // Given
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    final result = await controller.resendSecondFactorCode();
+
+    // Then
+    expect(result.isSuccess, isFalse);
+    expect(result.failureOrNull?.errors, <String>[
+      'There is no sign-in to send a code for.',
+    ]);
+    verifyNever(
+      () => repository.resendSecondFactorCode(
+        challengeToken: any(named: 'challengeToken'),
+      ),
+    );
+  });
 }
 
 /// Reads a token but refuses to delete it.

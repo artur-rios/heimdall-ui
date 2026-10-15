@@ -16,6 +16,7 @@ RequestErasureCommandOutput _$RequestErasureCommandOutputFromJson(
   dueAt: json['dueAt'] == null ? null : DateTime.parse(json['dueAt'] as String),
   blocked: json['blocked'] as bool?,
   blockedReason: json['blockedReason'] as String?,
+  restrictionLifted: json['restrictionLifted'] as bool?,
 );
 
 Map<String, dynamic> _$RequestErasureCommandOutputToJson(
@@ -26,4 +27,5 @@ Map<String, dynamic> _$RequestErasureCommandOutputToJson(
   'dueAt': instance.dueAt?.toIso8601String(),
   'blocked': instance.blocked,
   'blockedReason': instance.blockedReason,
+  'restrictionLifted': instance.restrictionLifted,
 };

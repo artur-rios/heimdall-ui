@@ -129,6 +129,33 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                      // UI-33: the person has just restricted processing of
+                      // their account, so a fresh sign-in opens the restricted
+                      // session (UI-30), not the one they had.
+                      if (ref.watch(sessionControllerProvider)
+                          case Unauthenticated(
+                            processingRestricted: true,
+                          )) ...<Widget>[
+                        const _NoticeBanner(
+                          'Processing of your account is restricted, and your '
+                          'account is suspended until the restriction is '
+                          'lifted. Sign in again to lift it, or to download or '
+                          'erase your data.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+                      // UI-08, UI-09: the person changed their own sign-in
+                      // details, which ended every session they had, this one
+                      // included.
+                      if (ref.watch(sessionControllerProvider)
+                          case Unauthenticated(
+                            credentialsChanged: true,
+                          )) ...<Widget>[
+                        const _NoticeBanner(
+                          'Your sign-in details changed. Sign in again.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       if (_failure case final Failure failure) ...<Widget>[
                         if (failure.kind == FailureKind.network)
                           // AF-01d: nothing was rejected, so the only useful

@@ -7,6 +7,71 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.7.0] - 2026-10-15
+
+### Added
+
+- **System Admins list** — a System Admin can see and search the system's System Admins from Home, and open their
+  person pages.
+- **Application credentials** — administrators can issue an application a secret (shown once), see its credentials, and
+  revoke them.
+- **Account emails** — administrators can have a verification link or a password reset link sent to a person's own
+  address.
+- **Pending registrations** — a scope's owners and System Admins can see who signed up but has not confirmed, and
+  discard a registration.
+- **Audit log** — System Admins can browse the audit trail, newest first, filtered by dates, action, actor, target and
+  outcome; identifiers can be copied or used as a filter.
+- A **Sign-in & sign-up** screen for each scope, opened from the scope's page. It holds the Google Sign-In switch
+  (moved from the scope's page), a new self-registration switch, and the links the scope's verification and
+  password-reset emails point at, so a client application's own screens can receive them. Opening self-registration
+  without a verification link, and closing it, each ask first and say what will happen.
+- **Send a new code** on the two-step verification screen when the code comes by email. It waits 30 seconds between
+  sends and, after three, offers to start the sign-in again, matching the API's limit.
+- An **Erasure requests** screen for System Admins: the erasure requests not yet carried out, soonest deadline first,
+  with the overdue and blocked ones marked and an overdue-only filter. From it, **Re-apply erasures** runs the
+  post-restore step: paste the identifiers from the logs, confirm, and see what was anonymised again.
+- **Restrict processing of my account** on the profile. It asks why, offering the four grounds the law allows in
+  plain words, says that the account is suspended until the restriction is lifted, and then signs the person out.
+  Signing in again opens the restricted session, from which the restriction is lifted or the person's data
+  downloaded or erased. The API's answer is shown as it comes, including when processing is already restricted.
+
+### Changed
+
+- Changing your email or turning on 2FA now asks for your password; you sign in again afterwards. Changing your email
+  also asks for a code from your authenticator app, or a recovery code, when two-factor authentication is on. Turning
+  two-factor authentication off, and generating new recovery codes, sign you out too, once any new codes have been
+  shown, and you sign in again. The sign-in screen says "Your sign-in details changed. Sign in again." A wrong
+  password or code is shown on the form and keeps you signed in.
+- On a person's page, your own email address is read-only; it is changed from your profile. Administrators changing
+  somebody else's address are not asked for a password.
+
+### Fixed
+
+- A list screen stayed on its loading placeholder for good, with no error and no Retry, when the API answered with a
+  body the app could not read. The eight lists (people, scopes, applications, permissions, Google users, erasure
+  requests, pending registrations and System Admins) now show "The API returned an unexpected response." with Retry.
+- The System Admins list could be left on an empty page with no pager when the last admin of the last page went
+  away. It now steps back to the last page that still exists, as the other lists do.
+- On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its
+  last destinations could not be reached. The rail now scrolls.
+- Closing or refreshing the browser tab while a credential's secret was still to be stored lost the secret
+  without a word. The browser now asks before leaving, as the app already did for Back and in-app navigation.
+- The request log of a debug build printed every request's headers, the bearer token among them. It now
+  writes one line per request, with the method, path, status and duration, and never headers, query strings, bodies
+  or an error's text. Release builds log nothing, as before.
+- When the API could not be reached, most screens showed the HTTP library's own text, such as "The connection
+  errored: … This indicates an error which most likely cannot be solved by the library." Every screen now says
+  "Could not reach the API. Check your connection and try again."
+- Rate-limited requests now say so, and how long to wait when the API tells us.
+- Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
+  It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can
+  sign in, as before.
+- Signing in with Google ended the session almost at once: the home screen read the account as a person, the API
+  answered that no such person exists, and the interface took that to mean the account had been deleted. A Google
+  session now reads its own Google user record. The profile shows the name, email and picture read-only, since they
+  come from the Google account, and offers **Security** and **Restrict processing of my account**; the home screen
+  shows the Google account's name and email.
+
 ## [1.6.1] - 2026-10-12
 
 ### Fixed
@@ -251,7 +316,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.7.0...HEAD
+[1.7.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...v1.6.0
 [1.5.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.0...v1.5.1

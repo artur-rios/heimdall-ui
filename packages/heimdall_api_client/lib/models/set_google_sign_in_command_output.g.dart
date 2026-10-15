@@ -13,6 +13,8 @@ SetGoogleSignInCommandOutput _$SetGoogleSignInCommandOutputFromJson(
   name: json['name'] as String?,
   description: json['description'] as String?,
   googleSignInEnabled: json['googleSignInEnabled'] as bool?,
+  emailVerificationUrl: json['emailVerificationUrl'] as String?,
+  passwordResetUrl: json['passwordResetUrl'] as String?,
   ownerIds: (json['ownerIds'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -31,6 +33,8 @@ Map<String, dynamic> _$SetGoogleSignInCommandOutputToJson(
   'name': instance.name,
   'description': instance.description,
   'googleSignInEnabled': instance.googleSignInEnabled,
+  'emailVerificationUrl': instance.emailVerificationUrl,
+  'passwordResetUrl': instance.passwordResetUrl,
   'ownerIds': instance.ownerIds,
   'createdAt': instance.createdAt?.toIso8601String(),
   'updatedAt': instance.updatedAt?.toIso8601String(),

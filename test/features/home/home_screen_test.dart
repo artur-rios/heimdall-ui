@@ -10,6 +10,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
@@ -18,13 +19,16 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../support/dashboard_fakes.dart';
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
-String _jwt({int role = 1}) {
+///
+/// A Google sign-in's token names a Google User instead, in its scope.
+String _jwt({int role = 1, bool viaGoogle = false}) {
   final payload = base64Url.encode(
     utf8.encode(
       jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
+        'sub': viaGoogle ? 'google-1' : 'person-1',
         'name': 'Ada',
         'role': role,
+        if (viaGoogle) 'scopeId': 'scope-1',
       }),
     ),
   );
@@ -40,6 +44,13 @@ const _acme = Scope(
 );
 
 const _globex = Scope(id: 'scope-2', name: 'Globex', description: '');
+
+const _grace = GoogleUser(
+  id: 'google-1',
+  name: 'Grace Hopper',
+  email: 'grace@example.com',
+  scopeId: 'scope-1',
+);
 
 const Size _compact = Size(400, 1400);
 const Size _expanded = Size(1400, 1400);
@@ -58,6 +69,7 @@ void main() {
     int role = 1,
     Size size = _expanded,
     ThemeData? theme,
+    bool viaGoogle = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -65,8 +77,9 @@ void main() {
 
     await store.write(
       AuthToken(
-        value: _jwt(role: role),
+        value: _jwt(role: role, viaGoogle: viaGoogle),
         expiresAt: DateTime.utc(2030),
+        viaGoogle: viaGoogle,
       ),
     );
 
@@ -88,6 +101,7 @@ void main() {
           '/profile',
           '/profile/security',
           '/health',
+          '/system-admins',
         ])
           GoRoute(
             path: path,
@@ -184,6 +198,65 @@ void main() {
 
     // Then
     expect(find.text('opened /scopes'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenASystemAdmin_WhenHomeOpens_ThenTheSystemAdminsTileShowsTheCount',
+    (tester) async {
+      // Given three System Admins
+      final fakes = FakeDashboardRepositories(systemAdmins: 3);
+
+      // When
+      await pump(tester, fakes: fakes);
+
+      // Then
+      expect(find.text('System Admins'), findsOneWidget);
+      expect(find.text('Full access to every scope'), findsOneWidget);
+      expect(find.text('3'), findsWidgets);
+    },
+  );
+
+  testWidgets('GivenTheSystemAdminsTile_WhenTapped_ThenTheListOpens', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('System Admins'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenTheCountFails_WhenHomeOpens_ThenTheTileStillOpensTheList', (
+    tester,
+  ) async {
+    // Given
+    final fakes = FakeDashboardRepositories(systemAdmins: null);
+
+    // When
+    await pump(tester, fakes: fakes);
+
+    // Then
+    expect(find.byTooltip('Could not be read'), findsWidgets);
+
+    await tester.tap(find.text('System Admins'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScopeAdmin_WhenHomeOpens_ThenNoSystemAdminsTile', (
+    tester,
+  ) async {
+    // Given a Scope Admin
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(find.text('System Admins'), findsNothing);
   });
 
   testWidgets('GivenAnUnreadableCount_WhenOpened_ThenItIsShownAsUnknown', (
@@ -350,4 +423,54 @@ void main() {
     expect(find.text('Overview'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  // #133 — a Google User's own account is their Google record. A second
+  // factor does not apply to them, so it is not offered as "not set up".
+  testWidgets('GivenAGoogleUser_WhenOpened_ThenTheirGoogleAccountIsShown', (
+    tester,
+  ) async {
+    // Given
+    final fakes = FakeDashboardRepositories(googleMe: _grace);
+
+    // When
+    await pump(tester, fakes: fakes, role: 3, viaGoogle: true);
+
+    // Then
+    expect(find.text('Your account'), findsOneWidget);
+    expect(find.text('Grace Hopper'), findsOneWidget);
+    expect(find.text('grace@example.com'), findsOneWidget);
+    expect(find.text('Verified'), findsOneWidget);
+    expect(find.text('Signs in with Google'), findsOneWidget);
+    expect(find.text('Not set up'), findsNothing);
+    expect(
+      find.text('Your account details could not be read just now.'),
+      findsNothing,
+    );
+  });
+
+  for (final (label, size, dark) in <(String, Size, bool)>[
+    ('Compact', _compact, false),
+    ('Dark', _expanded, true),
+  ]) {
+    testWidgets('Given${label}GoogleHome_WhenRendered_ThenNothingOverflows', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(googleMe: _grace);
+
+      // When
+      await pump(
+        tester,
+        fakes: fakes,
+        role: 3,
+        viaGoogle: true,
+        size: size,
+        theme: dark ? buildDarkTheme() : null,
+      );
+
+      // Then
+      expect(find.text('Grace Hopper'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    });
+  }
 }

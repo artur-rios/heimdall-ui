@@ -12,13 +12,19 @@ import 'core/network/dio_client.dart';
 import 'core/scope/scope_source.dart';
 import 'core/scope/session_scope_source.dart';
 import 'core/storage/token_store.dart';
+import 'features/applications/data/application_credential_repository_impl.dart';
 import 'features/applications/data/application_repository_impl.dart';
+import 'features/applications/domain/application_credential_repository.dart';
 import 'features/applications/domain/application_repository.dart';
+import 'features/audit_log/data/audit_log_repository_impl.dart';
+import 'features/audit_log/domain/audit_log_repository.dart';
 import 'features/auth/data/auth_repository_impl.dart';
 import 'features/auth/data/google_sign_in_gateway_impl.dart';
 import 'features/auth/presentation/session_controller.dart';
 import 'features/data_rights/data/data_rights_repository_impl.dart';
 import 'features/data_rights/domain/data_rights_repository.dart';
+import 'features/erasure_requests/data/erasure_request_repository_impl.dart';
+import 'features/erasure_requests/domain/erasure_request_repository.dart';
 import 'features/google_users/data/google_user_repository_impl.dart';
 import 'features/google_users/domain/google_user_repository.dart';
 import 'features/health/data/health_repository_impl.dart';
@@ -27,7 +33,9 @@ import 'features/permissions/data/scope_permission_repository_impl.dart';
 import 'features/permissions/domain/scope_permission_repository.dart';
 import 'features/persons/data/person_repository_impl.dart';
 import 'features/profile/presentation/profile_controller.dart';
+import 'features/scopes/data/pending_registration_repository_impl.dart';
 import 'features/scopes/data/scope_repository_impl.dart';
+import 'features/scopes/domain/pending_registration_repository.dart';
 import 'features/scopes/presentation/scope_list_controller.dart';
 
 void main() {
@@ -64,12 +72,24 @@ void main() {
         dataRightsRepositoryProvider.overrideWith(
           (ref) => ApiDataRightsRepository(AuthClient(ref.watch(dioProvider))),
         ),
+        erasureRequestRepositoryProvider.overrideWith(
+          (ref) =>
+              ApiErasureRequestRepository(AuthClient(ref.watch(dioProvider))),
+        ),
+        auditLogRepositoryProvider.overrideWith(
+          (ref) => ApiAuditLogRepository(AuditClient(ref.watch(dioProvider))),
+        ),
         personRepositoryProvider.overrideWith(
           (ref) => ApiPersonRepository(PersonClient(ref.watch(dioProvider))),
         ),
         applicationRepositoryProvider.overrideWith(
           (ref) => ApiApplicationRepository(
             ApplicationClient(ref.watch(dioProvider)),
+          ),
+        ),
+        applicationCredentialRepositoryProvider.overrideWith(
+          (ref) => ApiApplicationCredentialRepository(
+            ApplicationCredentialClient(ref.watch(dioProvider)),
           ),
         ),
         googleUserRepositoryProvider.overrideWith(
@@ -87,6 +107,11 @@ void main() {
         ),
         scopeRepositoryProvider.overrideWith(
           (ref) => ApiScopeRepository(ScopeClient(ref.watch(dioProvider))),
+        ),
+        pendingRegistrationRepositoryProvider.overrideWith(
+          (ref) => ApiPendingRegistrationRepository(
+            ScopeClient(ref.watch(dioProvider)),
+          ),
         ),
         googleSignInGatewayProvider.overrideWithValue(
           PluginGoogleSignInGateway(

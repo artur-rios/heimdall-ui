@@ -113,6 +113,11 @@ void main() {
           builder: (context, state) => const Scaffold(body: Text('scope')),
         ),
         GoRoute(
+          path: '/scopes/:scopeId/sign-in-settings',
+          builder: (context, state) =>
+              const Scaffold(body: Text('sign-in settings')),
+        ),
+        GoRoute(
           path: '/scopes/:scopeId/google-users',
           builder: (context, state) =>
               GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
@@ -304,10 +309,13 @@ void main() {
 
     // Then
     expect(find.textContaining('switched off, so nobody can'), findsOneWidget);
-    expect(find.widgetWithText(FilledButton, 'Scope settings'), findsOneWidget);
+    expect(
+      find.widgetWithText(FilledButton, 'Sign-in settings'),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('GivenGoogleOff_WhenScopeSettingsTapped_ThenTheScopeOpens', (
+  testWidgets('GivenGoogleOff_WhenSignInSettingsTapped_ThenTheSettingsOpen', (
     tester,
   ) async {
     // Given
@@ -318,11 +326,11 @@ void main() {
     await pump(tester);
 
     // When
-    await tester.tap(find.widgetWithText(FilledButton, 'Scope settings'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Sign-in settings'));
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('scope'), findsOneWidget);
+    expect(find.text('sign-in settings'), findsOneWidget);
   });
 
   // AF-28a — a search that matched nothing is not the same thing.

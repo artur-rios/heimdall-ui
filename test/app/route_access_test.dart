@@ -78,6 +78,39 @@ void main() {
     expect(allowed, isTrue);
   });
 
+  // UC-43 excludes a Scope Admin on purpose.
+  test('GivenASystemAdmin_WhenErasureRequestsAsked_ThenTheyAreReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.systemAdmin,
+      path: '/erasure-requests',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenErasureRequestsAsked_ThenTheyAreNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/erasure-requests');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
+
+  // UC-48: the trail has no scope column, so only a System Admin reads it.
+  test(
+    'GivenEachRole_WhenAskingForTheAuditLog_ThenOnlyASystemAdminMayReachIt',
+    () {
+      // Given / When / Then
+      expect(roleMayReach(role: Role.systemAdmin, path: '/audit-log'), isTrue);
+      expect(roleMayReach(role: Role.scopeAdmin, path: '/audit-log'), isFalse);
+      expect(roleMayReach(role: Role.user, path: '/audit-log'), isFalse);
+    },
+  );
+
   // Health: full for a System Admin, read-only for a Scope Admin, hidden for
   // a User — read-only is still reaching it.
   test('GivenScopeAdmin_WhenAskingHealth_ThenItIsAllowed', () {
@@ -105,4 +138,65 @@ void main() {
     // Then
     expect(allowed, isTrue);
   });
+
+  test('GivenAScopeAdmin_WhenSignInSettingsAsked_ThenItIsReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.scopeAdmin,
+      path: '/scopes/scope-id/sign-in-settings',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  test('GivenAUser_WhenSignInSettingsAsked_ThenItIsNot', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.user,
+      path: '/scopes/scope-id/sign-in-settings',
+    );
+
+    // Then
+    expect(allowed, isFalse);
+  });
+
+  test('GivenASystemAdmin_WhenSystemAdminsAsked_ThenTheyAreReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.systemAdmin,
+      path: '/system-admins',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenSystemAdminsAsked_ThenTheyAreNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/system-admins');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
+
+  test('GivenASystemAdmin_WhenAPersonPageAsked_ThenItIsReachable', () {
+    // Given / When
+    final allowed = roleMayReach(role: Role.systemAdmin, path: '/persons/p1');
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenAPersonPageAsked_ThenItIsNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/persons/p1');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
 }

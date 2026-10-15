@@ -4,11 +4,13 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/two_factor_screen.dart';
+import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -39,7 +41,13 @@ void main() {
     tester.view.devicePixelRatio = 1;
     addTearDown(tester.view.reset);
 
-    when(() => repository.login(email: 'a@b.c', password: 'secret')).thenAnswer(
+    when(
+      () => repository.login(
+        email: 'a@b.c',
+        password: 'secret',
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer(
       (_) async => Success<LoginOutcome>(
         TwoFactorRequired(
           challengeToken: 'challenge',
@@ -50,6 +58,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -95,6 +104,13 @@ void main() {
       ),
     ).thenAnswer((_) async => result);
   }
+
+  void answerResendWith(Result<void> result) {
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => result);
+  }
+
+  Finder sendButton() => find.textContaining('Send a new code');
 
   setUp(() {
     repository = _MockAuthRepository();
@@ -410,6 +426,335 @@ void main() {
     // Then
     expect(find.text('Two-step verification'), findsOneWidget);
     expect(find.widgetWithText(FilledButton, 'Verify'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GivenAnEmailChallenge_WhenRendered_ThenResendIsOffered', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, methods: const <String>['Email']);
+
+    // Then
+    expect(sendButton(), findsOneWidget);
+  });
+
+  // AF-02f
+  testWidgets('GivenAnAppChallenge_WhenRendered_ThenNoResendIsOffered', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, methods: const <String>['Totp']);
+
+    // Then
+    expect(sendButton(), findsNothing);
+  });
+
+  testWidgets('GivenARecoveryCode_WhenChosen_ThenNoResendIsOffered', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(find.text('Use a recovery code instead'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(sendButton(), findsNothing);
+  });
+
+  testWidgets('GivenAnEmailChallenge_WhenResent_ThenTheOutcomeIsHedged', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    verify(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .called(1);
+    expect(
+      find.text(
+        'If your sign-in is still open, a new code is on its way. Codes '
+        'sent before it no longer work.',
+      ),
+      findsOneWidget,
+    );
+
+    await tester.pump(resendCooldown);
+  });
+
+  testWidgets('GivenAResend_WhenWithinTheCooldown_ThenItWaits', (tester) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump(const Duration(seconds: 10));
+
+    // Then
+    verify(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .called(1);
+    expect(find.text('Send a new code (20s)'), findsOneWidget);
+
+    await tester.pump(resendCooldown);
+  });
+
+  testWidgets('GivenTheCooldown_WhenItEnds_ThenResendIsOfferedAgain', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // When
+    await tester.pump(const Duration(seconds: 30));
+
+    // Then
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
+  });
+
+  // AF-02g
+  testWidgets('GivenThreeResends_WhenRendered_ThenStartOverReplacesIt', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    for (var send = 0; send < 3; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // Then
+    expect(sendButton(), findsNothing);
+    expect(find.text('For another code, sign in again.'), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsOneWidget);
+  });
+
+  testWidgets('GivenStartOver_WhenTapped_ThenTheChallengeIsDiscarded', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+    for (var send = 0; send < 3; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // When
+    await tester.tap(find.widgetWithText(OutlinedButton, 'Start over'));
+    await flush(tester);
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
+
+  // AF-02h
+  testWidgets('GivenAFailedResend_WhenTapped_ThenItIsNotCounted', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
+    expect(find.byType(ErrorBanner), findsOneWidget);
+  });
+
+  testWidgets('GivenFailedResends_WhenSendsSucceedAfter_ThenOnlyTheyCount', (
+    tester,
+  ) async {
+    // Given
+    final results = <Result<void>>[
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+      const Success<void>(null),
+      const Success<void>(null),
+      const Success<void>(null),
+    ];
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => results.removeAt(0));
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    for (var send = 0; send < 4; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // Then: two failures and two successes leave one send in hand.
+    expect(sendButton(), findsOneWidget);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsNothing);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // Then
+    expect(sendButton(), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsOneWidget);
+  });
+
+  testWidgets('GivenASentCode_WhenALaterSendFails_ThenTheNoteIsGone', (
+    tester,
+  ) async {
+    // Given
+    final results = <Result<void>>[
+      const Success<void>(null),
+      const FailureResult<void>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    ];
+    when(() => repository.resendSecondFactorCode(challengeToken: 'challenge'))
+        .thenAnswer((_) async => results.removeAt(0));
+    await pump(tester, methods: const <String>['Email']);
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.byType(ErrorBanner), findsOneWidget);
+    expect(find.textContaining('a new code is on its way'), findsNothing);
+  });
+
+  testWidgets('GivenSendsOnEmail_WhenTheMethodIsSwitched_ThenTheyStillCount', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Totp', 'Email']);
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+    await tester.tap(sendButton());
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 30));
+
+    // When
+    await tester.tap(find.text('Authenticator'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Email'));
+    await tester.pumpAndSettle();
+    for (var send = 0; send < 2; send++) {
+      await tester.tap(sendButton());
+      await tester.pump();
+      await tester.pump(const Duration(seconds: 30));
+    }
+
+    // Then
+    expect(sendButton(), findsNothing);
+    expect(find.widgetWithText(OutlinedButton, 'Start over'), findsOneWidget);
+  });
+
+  testWidgets('GivenATypedCode_WhenResent_ThenItIsKept', (tester) async {
+    // Given
+    answerResendWith(const Success<void>(null));
+    await pump(tester, methods: const <String>['Email']);
+    await tester.enterText(find.byType(TextFormField), '12');
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.text('12'), findsOneWidget);
+
+    await tester.pump(resendCooldown);
+  });
+
+  testWidgets('GivenCompactWidth_WhenEmailRendered_ThenResendIsShown', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, methods: const <String>['Email']);
+
+    // Then
+    expect(sendButton(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GivenMediumWidth_WhenEmailRendered_ThenResendIsShown', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(
+      tester,
+      size: const Size(800, 900),
+      methods: const <String>['Email'],
+    );
+
+    // Then
+    expect(sendButton(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GivenExpandedWidth_WhenEmailRendered_ThenResendIsShown', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(
+      tester,
+      size: const Size(1400, 900),
+      methods: const <String>['Email'],
+    );
+
+    // Then
+    expect(sendButton(), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('GivenDarkTheme_WhenEmailRendered_ThenResendIsShown', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(
+      tester,
+      theme: buildDarkTheme(),
+      methods: const <String>['Email'],
+    );
+
+    // Then
+    expect(sendButton(), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
 }

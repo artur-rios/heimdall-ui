@@ -63,6 +63,60 @@ void main() {
     expect((result.valueOrNull! as LoggedIn).token.value, 'jwt');
   });
 
+  // The scope travels as it does for Google, so a User can be found.
+  test('GivenAScope_WhenLoggingIn_ThenItTravelsInTheBody', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.login(
+      email: 'a@b.c',
+      password: 'secret',
+      scopeId: 'scope-public-id',
+    );
+
+    // Then
+    expect(adapter.requests.single['email'], 'a@b.c');
+    expect(adapter.requests.single['scopeId'], 'scope-public-id');
+  });
+
+  test('GivenNoScope_WhenLoggingIn_ThenTheBodyCarriesNone', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'token': 'jwt',
+            'expiresAt': '2030-01-01T00:00:00Z',
+            'requiresTwoFactor': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect(adapter.requests.single['scopeId'], isNull);
+  });
+
   // AF-01c — the API answers with a challenge instead of a token.
   test(
     'GivenTwoFactorResponse_WhenLoggingIn_ThenTwoFactorRequiredIsReturned',
@@ -1014,10 +1068,37 @@ void main() {
     );
 
     // When
-    await repository.enableTwoFactor(TwoFactorMethod.app);
+    await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(adapter.requests.single['methods'], <String>['App']);
+  });
+
+  // FR-AU-17 — starting a setup asks for the current password.
+  test('GivenAPassword_WhenEnabled_ThenItIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'otpAuthUri': 'otpauth://totp/x?secret=A'},
+        },
+      ),
+    );
+
+    // When
+    await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(adapter.requests.single['currentPassword'], 'secret');
   });
 
   test('GivenTheAppMethod_WhenEnabled_ThenTheUriIsReturned', () async {
@@ -1036,7 +1117,10 @@ void main() {
     );
 
     // When
-    final result = await repository.enableTwoFactor(TwoFactorMethod.app);
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(result.valueOrNull?.secret, 'JBSWY3DPEHPK3PXP');
@@ -1056,7 +1140,10 @@ void main() {
     );
 
     // When
-    final result = await repository.enableTwoFactor(TwoFactorMethod.email);
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.email,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(result.valueOrNull?.emailCodeSent, isTrue);
@@ -1332,6 +1419,48 @@ void main() {
 
       // Then
       expect(result.valueOrNull?.processingRestricted, isTrue);
+    },
+  );
+
+  // UC-46 — the held challenge token is what asks for a new code.
+  test('GivenAChallenge_WhenACodeIsResent_ThenTheTokenTravels', () async {
+    // Given
+    repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.resendSecondFactorCode(
+      challengeToken: 'challenge',
+    );
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.requests.single, <String, dynamic>{
+      'challengeToken': 'challenge',
+    });
+  });
+
+  test(
+    'GivenNoConnection_WhenACodeIsResent_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(const _Answer(status: 0));
+
+      // When
+      final result = await repository.resendSecondFactorCode(
+        challengeToken: 'challenge',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
 }
