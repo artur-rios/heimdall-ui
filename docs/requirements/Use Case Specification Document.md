@@ -790,6 +790,9 @@ User's own record
 - **AF-17d — Role not permitted.** A Scope Admin may not create a System Admin; that option is not
   offered, and a rejection from the API is shown as returned.
 - **AF-17e — Cancelled with changes.** Leaving a modified form asks for confirmation first.
+- **AF-17f — System Admin chosen.** Submitting with the System Admin role asks for confirmation first, saying the
+  person will be able to administer every scope. Nothing is sent until it is accepted. The password field is marked
+  as a new password, so a password manager does not offer the creator's own.
 
 ---
 

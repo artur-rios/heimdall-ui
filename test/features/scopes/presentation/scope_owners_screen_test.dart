@@ -470,6 +470,27 @@ void main() {
     );
   });
 
+  testWidgets(
+    'GivenTheCreateDialog_WhenRendered_ThenThePasswordIsANewPassword',
+    (tester) async {
+      // Given
+      await pump(tester);
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Create owner'));
+      await tester.pumpAndSettle();
+
+      // Then
+      final field = tester.widget<TextField>(
+        find.descendant(
+          of: find.widgetWithText(TextFormField, 'Password'),
+          matching: find.byType(TextField),
+        ),
+      );
+      expect(field.autofillHints, <String>[AutofillHints.newPassword]);
+    },
+  );
+
   testWidgets('GivenTheCreateDialog_WhenCompleted_ThenTheOwnerIsCreated', (
     tester,
   ) async {

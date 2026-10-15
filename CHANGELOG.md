@@ -26,6 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Choosing the System Admin role when creating a person now asks for confirmation before anything is sent, saying the
+  person will be able to administer every scope. The password fields for a new person and a new scope co-owner are
+  now marked as new passwords, so a password manager no longer offers, or offers to overwrite, the creating admin's
+  own saved password.
 - A copied credential secret, authenticator setup key or set of recovery codes stayed on the clipboard indefinitely,
   where a clipboard history or another application could read it. It is now cleared after 60 seconds, unless
   something else has been copied since. On Android the window is also kept out of screenshots, screen recordings and

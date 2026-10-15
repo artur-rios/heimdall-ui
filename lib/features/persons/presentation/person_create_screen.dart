@@ -64,6 +64,12 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
       return;
     }
 
+    // A System Admin administers every scope, whichever scope this form was
+    // opened from, so choosing it takes a deliberate second step.
+    if (_role == Role.systemAdmin && !await _confirmSystemAdmin()) {
+      return;
+    }
+
     await ref
         .read(personCreateControllerProvider(widget.scopeId).notifier)
         .create(
@@ -73,6 +79,16 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
           role: _role,
         );
   }
+
+  Future<bool> _confirmSystemAdmin() => showConfirm(
+    context: context,
+    title: 'Create a System Admin?',
+    message:
+        'This person will be able to administer every scope, not only this '
+        'one. Only continue if that is what you mean.',
+    confirmLabel: 'Create System Admin',
+    cancelLabel: 'Go back',
+  );
 
   /// AF-17e — leaving a modified form asks first, whichever way it is left:
   /// Cancel, the back control, the navigation, or signing out.
@@ -181,6 +197,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
                   TextFormField(
                     controller: _password,
                     obscureText: true,
+                    autofillHints: const <String>[AutofillHints.newPassword],
                     decoration: const InputDecoration(labelText: 'Password'),
                     validator: (value) => validateNewPassword(
                       value,
