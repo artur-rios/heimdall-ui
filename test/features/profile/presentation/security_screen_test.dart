@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/secrets/screen_security.dart';
+import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -16,6 +18,8 @@ import 'package:heimdall_ui/features/profile/presentation/security_screen.dart';
 import 'package:heimdall_ui/shared/widgets/qr_code.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../support/secret_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -54,6 +58,8 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
+  late RecordingSecretClipboard secrets;
+  late RecordingScreenSecurity security;
   late ProviderContainer container;
   late GoRouter router;
 
@@ -72,6 +78,8 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        secretClipboardProvider.overrideWithValue(secrets),
+        screenSecurityProvider.overrideWithValue(security),
       ],
     );
     addTearDown(container.dispose);
@@ -199,6 +207,8 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockAuthRepository();
+    secrets = RecordingSecretClipboard();
+    security = RecordingScreenSecurity();
     store = InMemoryTokenStore();
     answerStatusWith(const Success<TwoFactorStatus>(_off));
     answerEnableWith(const Success<TwoFactorSetup>(_appSetup));
@@ -994,6 +1004,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Your recovery codes'), findsOneWidget);
   }
+
+  // The setup key and the recovery codes are secrets: the window is kept out of
+  // screenshots while they show, and a copy of them does not linger.
+  testWidgets(
+    'GivenTheAppSetup_WhenShownAndLeft_ThenTheWindowIsSecuredMeanwhile',
+    (tester) async {
+      // Given
+      await pump(tester);
+      expect(security.held, 0);
+
+      // When
+      await startSetup(tester, 'Authenticator app');
+
+      // Then
+      expect(security.held, 1);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(security.held, 0);
+    },
+  );
+
+  testWidgets(
+    'GivenTheSetupKey_WhenCopied_ThenItGoesThroughTheSecretClipboard',
+    (tester) async {
+      // Given
+      await pump(tester);
+      await startSetup(tester, 'Authenticator app');
+
+      // When
+      await tester.tap(find.byTooltip('Copy setup key'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(secrets.copied, <String>['JBSWY3DPEHPK3PXP']);
+    },
+  );
+
+  testWidgets('GivenRecoveryCodes_WhenShown_ThenTheWindowIsSecured', (
+    tester,
+  ) async {
+    // When
+    await issueCodes(tester);
+
+    // Then
+    expect(security.held, 1);
+  });
+
+  testWidgets(
+    'GivenRecoveryCodes_WhenCopied_ThenTheyGoThroughTheSecretClipboard',
+    (tester) async {
+      // Given
+      await issueCodes(tester);
+
+      // When
+      await tester.tap(find.text('Copy codes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(secrets.copied, <String>['aaa\nbbb']);
+    },
+  );
 
   // AF-09c — on the web a browser Back, Forward or typed address is a route
   // change that PopScope and the shell never see, so the route itself asks.

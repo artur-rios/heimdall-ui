@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/secrets/screen_security.dart';
+import '../../../core/secrets/secret_clipboard.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
@@ -440,7 +441,7 @@ class _ConfirmState extends State<_Confirm> {
     final uri = setup.otpAuthUri;
     final secret = setup.secret;
 
-    return ListView(
+    final content = ListView(
       padding: const EdgeInsets.all(24),
       children: <Widget>[
         Text(setup.method.label, style: theme.textTheme.headlineSmall),
@@ -512,17 +513,23 @@ class _ConfirmState extends State<_Confirm> {
         ),
       ],
     );
+
+    // The setup key, and the code that encodes it, must not end up in a
+    // screenshot or the recents thumbnail.
+    return uri == null && secret == null
+        ? content
+        : ScreenSecurityGuard(child: content);
   }
 }
 
 /// The setup key, shown so it can be selected and typed in by hand.
-class _SelectableSecret extends StatelessWidget {
+class _SelectableSecret extends ConsumerWidget {
   const _SelectableSecret({required this.secret});
 
   final String secret;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     return Card(
@@ -545,7 +552,7 @@ class _SelectableSecret extends StatelessWidget {
                   tooltip: 'Copy setup key',
                   icon: const Icon(Icons.copy_outlined),
                   onPressed: () =>
-                      Clipboard.setData(ClipboardData(text: secret)),
+                      ref.read(secretClipboardProvider).copy(secret),
                 ),
               ],
             ),
@@ -561,7 +568,7 @@ class _SelectableSecret extends StatelessWidget {
 const String _signInAgain = 'Once you have saved them, you will sign in again.';
 
 /// The recovery codes, shown exactly once.
-class _RecoveryCodes extends StatelessWidget {
+class _RecoveryCodes extends ConsumerWidget {
   const _RecoveryCodes({
     required this.codes,
     required this.regenerated,
@@ -573,7 +580,7 @@ class _RecoveryCodes extends StatelessWidget {
   final VoidCallback onAcknowledge;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final asText = codes.join('\n');
     final intro = regenerated
@@ -583,43 +590,47 @@ class _RecoveryCodes extends StatelessWidget {
               'save them somewhere safe now. Each one works once, and they are '
               'the way back in if your second factor is unavailable.';
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: <Widget>[
-        Text('Your recovery codes', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SelectableText(
-              asText,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    return ScreenSecurityGuard(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: <Widget>[
+          Text('Your recovery codes', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText(
+                asText,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            FilledButton.tonalIcon(
-              onPressed: () => Clipboard.setData(ClipboardData(text: asText)),
-              icon: const Icon(Icons.copy_outlined),
-              label: const Text('Copy codes'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        // AF-09c — the only way onward.
-        FilledButton(
-          onPressed: onAcknowledge,
-          child: const Text('I have saved my codes'),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilledButton.tonalIcon(
+                onPressed: () => ref.read(secretClipboardProvider).copy(asText),
+                icon: const Icon(Icons.copy_outlined),
+                label: const Text('Copy codes'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // AF-09c — the only way onward.
+          FilledButton(
+            onPressed: onAcknowledge,
+            child: const Text('I have saved my codes'),
+          ),
+        ],
+      ),
     );
   }
 }

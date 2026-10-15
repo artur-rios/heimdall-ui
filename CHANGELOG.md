@@ -26,6 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A copied credential secret, authenticator setup key or set of recovery codes stayed on the clipboard indefinitely,
+  where a clipboard history or another application could read it. It is now cleared after 60 seconds, unless
+  something else has been copied since. On Android the window is also kept out of screenshots, screen recordings and
+  the recents thumbnail while a secret or recovery codes are on screen.
 - The token of a password reset or email verification link stayed in the address bar, in the page's history entry,
   and in the Referer of every request the page made. On the web it is now removed from the address as the page opens,
   so later requests no longer carry it; reloading the page afterwards needs the link again. The web image also asks
