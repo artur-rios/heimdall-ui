@@ -7,8 +7,8 @@ import 'envelope.dart';
 class AuthInterceptor extends Interceptor {
   AuthInterceptor({required this.sessionToken, required this.onUnauthorized});
 
-  /// Marks a request made under a session, whether or not its token was still
-  /// fresh enough to attach.
+  /// Marks a request made under a session with that session's token, whether
+  /// or not it was still fresh enough to attach.
   static const String _underSessionKey = 'heimdall.underSession';
 
   /// The token of the session this client is acting for, or null when there
@@ -34,7 +34,7 @@ class AuthInterceptor extends Interceptor {
     final token = sessionToken();
 
     if (token != null) {
-      options.extra[_underSessionKey] = true;
+      options.extra[_underSessionKey] = token.value;
 
       if (!token.isExpired) {
         options.headers['Authorization'] = 'Bearer ${token.value}';
@@ -49,7 +49,7 @@ class AuthInterceptor extends Interceptor {
     DioException err,
     ErrorInterceptorHandler handler,
   ) async {
-    if (_endsTheSession(err)) {
+    if (_endsTheSession(err, sessionToken()?.value)) {
       await onUnauthorized();
     }
 
@@ -63,11 +63,17 @@ class AuthInterceptor extends Interceptor {
   /// sign-in or second factor, where there is no session to end), and one
   /// refusing a password or code typed into the request (AF-02a, AF-09d),
   /// which the person is meant to correct rather than be signed out over.
-  static bool _endsTheSession(DioException err) {
+  ///
+  /// Only the session that made the request can be ended by its refusal: one
+  /// that has ended since, or been replaced by another — perhaps somebody
+  /// else's — is not [current], and the refusal is not about it.
+  static bool _endsTheSession(DioException err, String? current) {
     final response = err.response;
+    final madeUnder = err.requestOptions.extra[_underSessionKey];
 
     return response?.statusCode == 401 &&
-        err.requestOptions.extra[_underSessionKey] == true &&
+        madeUnder is String &&
+        madeUnder == current &&
         !rejectsSubmittedCredential(response?.data);
   }
 }

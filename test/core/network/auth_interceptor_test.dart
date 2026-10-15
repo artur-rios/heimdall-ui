@@ -220,6 +220,53 @@ void main() {
     // Then
     expect(unauthorizedCalls, 1);
   });
+
+  // A 401 answering a request of an earlier session is that session's
+  // business: the one now on screen, perhaps somebody else's, is left alone.
+  test(
+    'GivenANewSession_WhenAnEarlierOnesRequestIsRefused_ThenItSurvives',
+    () async {
+      // Given
+      token = AuthToken(value: 'earlier', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter((_) {
+        token = AuthToken(value: 'current', expiresAt: DateTime.utc(2030));
+
+        return 401;
+      });
+
+      // When
+      await expectLater(
+        dio.get<dynamic>('/api/scopes'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    },
+  );
+
+  // Nor is a session that has already ended said to have ended again.
+  test(
+    'GivenAnEndedSession_WhenItsRequestIsRefused_ThenNothingIsCleared',
+    () async {
+      // Given
+      token = AuthToken(value: 'earlier', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter((_) {
+        token = null;
+
+        return 401;
+      });
+
+      // When
+      await expectLater(
+        dio.get<dynamic>('/api/scopes'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    },
+  );
 }
 
 /// An adapter that answers locally and reports what it was asked for, so no
