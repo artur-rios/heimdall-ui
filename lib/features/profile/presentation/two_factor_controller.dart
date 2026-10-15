@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../../core/unload/unload_guard.dart';
 import '../../auth/domain/two_factor.dart';
 import '../../auth/presentation/session_controller.dart';
@@ -113,9 +114,12 @@ twoFactorControllerProvider =
 
 /// Owns the security section: the configuration, the setup in progress, and
 /// the recovery codes that have not been acknowledged.
-class TwoFactorController extends Notifier<TwoFactorState> {
+class TwoFactorController extends Notifier<TwoFactorState>
+    with BuildEpoch<TwoFactorState> {
   @override
   TwoFactorState build() {
+    startEpoch();
+
     // AF-09c: closing or reloading the tab is no route change, so while codes
     // wait to be acknowledged the browser is asked to confirm that too. The
     // guard follows the state here, so every way the codes go — acknowledged,
@@ -140,7 +144,13 @@ class TwoFactorController extends Notifier<TwoFactorState> {
   Future<void> load() async {
     state = const TwoFactorLoading();
 
+    final epoch = this.epoch;
     final result = await ref.read(authRepositoryProvider).twoFactorStatus();
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: TwoFactorSettled.new,
@@ -166,9 +176,15 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     state = current.copyWith(busy: true, clearFailure: true);
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .enableTwoFactor(method, currentPassword: currentPassword);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return result.failureOrNull;
+    }
 
     switch (result) {
       case Success<TwoFactorSetup>(:final value):
@@ -205,9 +221,15 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     state = current.copyWith(busy: true, clearFailure: true);
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .confirmTwoFactor(method: current.setup.method, code: code);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<List<String>>(:final value):
@@ -251,6 +273,7 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     state = current.copyWith(busy: true, clearFailure: true);
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .disableTwoFactor(
@@ -258,6 +281,11 @@ class TwoFactorController extends Notifier<TwoFactorState> {
           code: code,
           recoveryCode: recoveryCode,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():
@@ -286,9 +314,15 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     state = current.copyWith(busy: true, clearFailure: true);
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .regenerateRecoveryCodes(code: code, recoveryCode: recoveryCode);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<List<String>>(:final value):

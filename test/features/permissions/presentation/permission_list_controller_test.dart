@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/permissions/presentation/permission_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopePermissionRepository extends Mock
     implements ScopePermissionRepository {}
 
@@ -349,4 +351,36 @@ void main() {
     expect(failure.kind, FailureKind.unknown);
     expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<ScopePermission>>>();
+      when(
+        () => repository.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        permissionListControllerProvider('scope-1'),
+        reset: permissionListControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(Success<Page<ScopePermission>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<PermissionListLoading>());
+    },
+  );
 }

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/google_user.dart';
 import '../domain/google_user_repository.dart';
 
@@ -93,21 +94,32 @@ googleUserDetailControllerProvider =
     >(GoogleUserDetailController.new);
 
 /// Owns one Google user's detail. Reading it is all there is to do.
-class GoogleUserDetailController extends Notifier<GoogleUserDetailState> {
+class GoogleUserDetailController extends Notifier<GoogleUserDetailState>
+    with BuildEpoch<GoogleUserDetailState> {
   GoogleUserDetailController(this.arg);
 
   /// The family argument this controller was created for.
   final GoogleUserRef arg;
 
   @override
-  GoogleUserDetailState build() => const GoogleUserDetailLoading();
+  GoogleUserDetailState build() {
+    startEpoch();
+
+    return const GoogleUserDetailLoading();
+  }
 
   Future<void> load() async {
     state = const GoogleUserDetailLoading();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(googleUserRepositoryProvider)
         .getById(scopeId: arg.scopeId, id: arg.googleUserId);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: GoogleUserDetailLoaded.new,
@@ -139,7 +151,13 @@ class GoogleUserDetailController extends Notifier<GoogleUserDetailState> {
 
     state = current.copyWith(deleting: true, clearDeleteFailure: true);
 
+    final epoch = this.epoch;
     final result = await send(ref.read(googleUserRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():

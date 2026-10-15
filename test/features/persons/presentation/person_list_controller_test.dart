@@ -12,6 +12,8 @@ import 'package:heimdall_ui/features/persons/presentation/person_list_controller
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 const _ada = Person(
@@ -428,6 +430,39 @@ void main() {
 
       // When / Then
       await expectLater(controller.load(), throwsA(isA<StateError>()));
+    },
+  );
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer, the previous session's people, must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<Person>>>();
+      when(
+        () => repository.listScopePersons(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        personListControllerProvider('scope-1'),
+        reset: personListControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(Success<Page<Person>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<PersonListLoading>());
     },
   );
 }

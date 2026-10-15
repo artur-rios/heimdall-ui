@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 const _acme = Scope(
@@ -410,4 +412,33 @@ void main() {
     // Then
     verify(() => repository.delete('scope-1')).called(1);
   });
+
+  // A sign-out resets the page while its read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Scope>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeDetailControllerProvider('scope-1'),
+        reset: scopeDetailControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<Scope>(_acme)),
+      );
+
+      // Then
+      expect(currentState(), isA<ScopeDetailLoading>());
+    },
+  );
 }

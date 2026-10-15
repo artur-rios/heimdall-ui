@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/domain/person_repository.dart';
 import '../../persons/presentation/scope_members.dart';
@@ -82,14 +83,19 @@ scopeOwnersControllerProvider =
     );
 
 /// Owns one scope's owner list and the four things that can be done to it.
-class ScopeOwnersController extends Notifier<ScopeOwnersState> {
+class ScopeOwnersController extends Notifier<ScopeOwnersState>
+    with BuildEpoch<ScopeOwnersState> {
   ScopeOwnersController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  ScopeOwnersState build() => const ScopeOwnersLoading();
+  ScopeOwnersState build() {
+    startEpoch();
+
+    return const ScopeOwnersLoading();
+  }
 
   PersonRepository get _repository => ref.read(personRepositoryProvider);
 
@@ -98,13 +104,24 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
   /// The users are not what this screen is about, so a listing that fails does
   /// not take the owners down with it: the promotion is simply not offered.
   Future<void> load() async {
+    final epoch = this.epoch;
     final owners = await _repository.listScopeOwners(scopeId: arg);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (owners) {
       case FailureResult<Page<Person>>(:final failure):
         state = ScopeOwnersUnavailable(failure);
       case Success<Page<Person>>(:final value):
         final users = await _repository.listScopePersons(scopeId: arg);
+
+        // Reset since it was asked: the answer is an earlier build's.
+        if (!isCurrent(epoch)) {
+          return;
+        }
 
         state = ScopeOwnersLoaded(
           owners: value.items,
@@ -172,7 +189,13 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState> {
 
     state = current.copyWith(busy: true, clearFailure: true);
 
+    final epoch = this.epoch;
     final result = await send();
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return result.failureOrNull;
+    }
 
     switch (result) {
       case Success<void>():

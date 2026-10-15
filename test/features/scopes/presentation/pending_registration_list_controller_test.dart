@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/scopes/domain/pending_registration_reposito
 import 'package:heimdall_ui/features/scopes/presentation/pending_registration_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockPendingRegistrationRepository extends Mock
     implements PendingRegistrationRepository {}
 
@@ -394,4 +396,61 @@ void main() {
     expect(failure.kind, FailureKind.unknown);
     expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        pendingRegistrationListControllerProvider('s1'),
+        reset: pendingRegistrationListControllerProvider,
+        start: controller.load,
+        answer: () =>
+            answer.complete(Success<Page<PendingRegistration>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<PendingRegistrationListLoading>());
+    },
+  );
+
+  // A discard answered after a reset neither reloads nor leaves its notice in
+  // the reset state.
+  test(
+    'GivenADiscardInFlight_WhenTheSessionResets_ThenNothingFollows',
+    () async {
+      // Given
+      answerListWith(Success<Page<PendingRegistration>>(_page()));
+      final answer = Completer<Result<void>>();
+      when(() => repository.discard('s1', 'r1'))
+          .thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        pendingRegistrationListControllerProvider('s1'),
+        reset: pendingRegistrationListControllerProvider,
+        start: () => controller.discard(_ada),
+        answer: () => answer.complete(const Success<void>(null)),
+      );
+
+      // Then
+      expect(currentState(), isA<PendingRegistrationListLoading>());
+    },
+  );
 }

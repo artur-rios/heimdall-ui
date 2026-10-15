@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/domain/two_factor.dart';
 import '../../auth/presentation/session_controller.dart';
@@ -113,9 +114,14 @@ profileControllerProvider = NotifierProvider<ProfileController, ProfileState>(
 );
 
 /// Owns the signed-in person's own record: reading it, and saving edits to it.
-class ProfileController extends Notifier<ProfileState> {
+class ProfileController extends Notifier<ProfileState>
+    with BuildEpoch<ProfileState> {
   @override
-  ProfileState build() => const ProfileLoading();
+  ProfileState build() {
+    startEpoch();
+
+    return const ProfileLoading();
+  }
 
   PersonRepository get _repository => ref.read(personRepositoryProvider);
 
@@ -139,7 +145,13 @@ class ProfileController extends Notifier<ProfileState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await _repository.getById(session.principal.id);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<Person>(:final value):
@@ -165,7 +177,13 @@ class ProfileController extends Notifier<ProfileState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await ref.read(authRepositoryProvider).twoFactorStatus();
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     if (state case final ProfileLoaded latest) {
       state = latest.copyWith(
@@ -200,9 +218,15 @@ class ProfileController extends Notifier<ProfileState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await ref
         .read(googleUserRepositoryProvider)
         .getById(scopeId: scopeId, id: principal.id, includeDeleted: false);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<GoogleUser>(:final value):
@@ -249,6 +273,7 @@ class ProfileController extends Notifier<ProfileState> {
       saved: false,
     );
 
+    final epoch = this.epoch;
     final result = await _repository.update(
       id: current.person.id,
       name: name,
@@ -258,6 +283,11 @@ class ProfileController extends Notifier<ProfileState> {
           ? twoFactorCode
           : null,
     );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<Person>(:final value):

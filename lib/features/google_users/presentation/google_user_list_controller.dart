@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/google_user.dart';
 import '../domain/google_user_repository.dart';
 
@@ -81,7 +82,8 @@ googleUserListControllerProvider =
     >(GoogleUserListController.new);
 
 /// Owns one scope's Google user listing.
-class GoogleUserListController extends Notifier<GoogleUserListState> {
+class GoogleUserListController extends Notifier<GoogleUserListState>
+    with BuildEpoch<GoogleUserListState> {
   GoogleUserListController(this.arg);
 
   /// The family argument this controller was created for.
@@ -94,7 +96,15 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
   GoogleUserQuery? _queued;
 
   @override
-  GoogleUserListState build() => const GoogleUserListLoading(GoogleUserQuery());
+  GoogleUserListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const GoogleUserListLoading(GoogleUserQuery());
+  }
 
   Future<void> load() => _fetch(state.query);
 
@@ -119,6 +129,7 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -139,12 +150,19 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
             ),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => GoogleUserListLoaded(query, page),
         onFailure: (failure) => GoogleUserListFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../auth/domain/session.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
@@ -43,14 +44,19 @@ personCreateControllerProvider =
     );
 
 /// Owns one create attempt from filled in to created.
-class PersonCreateController extends Notifier<PersonCreateState> {
+class PersonCreateController extends Notifier<PersonCreateState>
+    with BuildEpoch<PersonCreateState> {
   PersonCreateController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  PersonCreateState build() => const PersonCreateEditing();
+  PersonCreateState build() {
+    startEpoch();
+
+    return const PersonCreateEditing();
+  }
 
   /// Creates the person.
   ///
@@ -70,6 +76,7 @@ class PersonCreateController extends Notifier<PersonCreateState> {
     state = const PersonCreateSending();
 
     final repository = ref.read(personRepositoryProvider);
+    final epoch = this.epoch;
     final result = role == Role.user
         ? await repository.createUser(
             scopeId: arg,
@@ -83,6 +90,11 @@ class PersonCreateController extends Notifier<PersonCreateState> {
             password: password,
             role: role,
           );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: PersonCreated.new,

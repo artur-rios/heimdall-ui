@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/health.dart';
 import '../domain/health_repository.dart';
 
@@ -47,9 +48,14 @@ final NotifierProvider<HealthController, HealthState> healthControllerProvider =
     NotifierProvider<HealthController, HealthState>(HealthController.new);
 
 /// Owns the two health checks and the refresh that repeats them.
-class HealthController extends Notifier<HealthState> {
+class HealthController extends Notifier<HealthState>
+    with BuildEpoch<HealthState> {
   @override
-  HealthState build() => const HealthState();
+  HealthState build() {
+    startEpoch();
+
+    return const HealthState();
+  }
 
   /// Runs both checks.
   ///
@@ -63,10 +69,16 @@ class HealthController extends Notifier<HealthState> {
     state = HealthState(checking: true, liveness: state.liveness);
 
     final repository = ref.read(healthRepositoryProvider);
+    final epoch = this.epoch;
     final results = await Future.wait<Object>(<Future<Object>>[
       repository.ping(),
       repository.detailed(),
     ]);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     final liveness = results[0] as Result<String>;
     final detailed = results[1] as Result<Health>;

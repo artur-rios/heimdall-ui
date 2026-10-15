@@ -53,11 +53,16 @@ dashboardControllerProvider =
 /// dashboard can never show a number the API would not.
 class DashboardController extends Notifier<DashboardState> {
   /// Increments with every load, so an answer to a superseded load is dropped
-  /// rather than overwriting a newer one.
+  /// rather than overwriting a newer one — and with every reset, so an answer
+  /// to a load of an earlier build is dropped too (see `BuildEpoch`).
   int _generation = 0;
 
   @override
-  DashboardState build() => const DashboardLoading();
+  DashboardState build() {
+    ref.onDispose(() => _generation++);
+
+    return const DashboardLoading();
+  }
 
   Future<void> load() async {
     final generation = ++_generation;

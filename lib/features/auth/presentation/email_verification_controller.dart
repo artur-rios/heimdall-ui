@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import 'session_controller.dart';
 
 /// How far the verification of a token has got.
@@ -90,9 +91,14 @@ emailVerificationControllerProvider =
     );
 
 /// Owns email verification and the resend that backs it up.
-class EmailVerificationController extends Notifier<EmailVerificationState> {
+class EmailVerificationController extends Notifier<EmailVerificationState>
+    with BuildEpoch<EmailVerificationState> {
   @override
-  EmailVerificationState build() => const EmailVerificationState();
+  EmailVerificationState build() {
+    startEpoch();
+
+    return const EmailVerificationState();
+  }
 
   /// Verifies [token], which the screen calls as soon as it opens.
   ///
@@ -111,9 +117,15 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
 
     state = state.copyWith(verification: const Verifying());
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .verifyEmail(token: token);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = state.copyWith(
       verification: result.fold(
@@ -138,9 +150,15 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
 
     state = state.copyWith(resend: const Resending());
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .resendVerificationEmail();
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = state.copyWith(
       resend: result.fold(

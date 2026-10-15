@@ -14,6 +14,8 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
 
@@ -492,6 +494,39 @@ void main() {
         failure.displayMessage,
         'The API returned an unexpected response.',
       );
+    },
+  );
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<Application>>>();
+      when(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        applicationListControllerProvider('scope-1'),
+        reset: applicationListControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(Success<Page<Application>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<ApplicationListLoading>());
     },
   );
 }

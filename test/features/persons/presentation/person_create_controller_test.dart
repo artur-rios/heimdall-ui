@@ -11,6 +11,8 @@ import 'package:heimdall_ui/features/persons/presentation/person_create_controll
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 const _created = Person(
@@ -286,4 +288,40 @@ void main() {
     // Then
     expect(roles, <Role>[Role.user, Role.scopeAdmin, Role.systemAdmin]);
   });
+
+  // A sign-out resets the form while its submission is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenACreateInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Person>>();
+      when(
+        () => repository.createUser(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          password: any(named: 'password'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        personCreateControllerProvider('scope-1'),
+        reset: personCreateControllerProvider,
+        start: () => controller.create(
+          name: 'Ada',
+          email: 'ada@example.com',
+          password: 'Secret-123',
+          role: Role.user,
+        ),
+        answer: () => answer.complete(const Success<Person>(_created)),
+      );
+
+      // Then
+      expect(currentState(), isA<PersonCreateEditing>());
+    },
+  );
 }

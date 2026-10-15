@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/audit_log/domain/audit_log_repository.dart'
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockAuditLogRepository extends Mock implements AuditLogRepository {}
 
 Page<AuditEntry> _page({int totalPages = 1}) => Page<AuditEntry>(
@@ -283,4 +285,28 @@ void main() {
     // Then
     expect(currentState(), isA<AuditLogFailed>());
   });
+
+  // A sign-out resets the trail while its request is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<AuditEntry>>>();
+      when(anyList).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        auditLogControllerProvider,
+        reset: auditLogControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(Success<Page<AuditEntry>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<AuditLogLoading>());
+    },
+  );
 }

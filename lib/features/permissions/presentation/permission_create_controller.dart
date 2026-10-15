@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope_permission.dart';
 import '../domain/scope_permission_repository.dart';
 
@@ -47,14 +48,19 @@ permissionCreateControllerProvider =
     >(PermissionCreateController.new);
 
 /// Owns one create attempt from filled in to created.
-class PermissionCreateController extends Notifier<PermissionCreateState> {
+class PermissionCreateController extends Notifier<PermissionCreateState>
+    with BuildEpoch<PermissionCreateState> {
   PermissionCreateController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  PermissionCreateState build() => const PermissionCreateEditing();
+  PermissionCreateState build() {
+    startEpoch();
+
+    return const PermissionCreateEditing();
+  }
 
   Future<void> create({
     required String name,
@@ -67,6 +73,7 @@ class PermissionCreateController extends Notifier<PermissionCreateState> {
 
     state = const PermissionCreateSending();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(scopePermissionRepositoryProvider)
         .create(
@@ -75,6 +82,11 @@ class PermissionCreateController extends Notifier<PermissionCreateState> {
           description: description,
           includeAsJwtClaim: includeAsJwtClaim,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: PermissionCreated.new,

@@ -286,6 +286,9 @@ request into `main` to production once every check passes (§2.2) — see
   session could not be stored. On Android the app opts out of auto backup, so a restored device never
   holds a token it cannot decrypt.
 - **Nothing is cached across launches.** Every listing is fetched from the API, paginated by it.
+- **A session that ends takes what it showed with it.** Every screen's state is reset when the
+  session ends, and an answer to a request made before that is dropped when it arrives, so the next
+  person to sign in on the device starts from nothing.
 
 ---
 

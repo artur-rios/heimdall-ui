@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/pending_registration.dart';
 import '../domain/pending_registration_repository.dart';
 
@@ -52,7 +53,8 @@ final pendingRegistrationListControllerProvider =
 /// Owns a scope's pending-registration listing (UI-35). The family argument is
 /// the scope id.
 class PendingRegistrationListController
-    extends Notifier<PendingRegistrationListState> {
+    extends Notifier<PendingRegistrationListState>
+    with BuildEpoch<PendingRegistrationListState> {
   PendingRegistrationListController(this.arg);
 
   final String arg;
@@ -63,8 +65,15 @@ class PendingRegistrationListController
       ref.read(pendingRegistrationRepositoryProvider);
 
   @override
-  PendingRegistrationListState build() =>
-      const PendingRegistrationListLoading(1);
+  PendingRegistrationListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const PendingRegistrationListLoading(1);
+  }
 
   /// Ignored while the list is busy: the screen loads on every visit, and a
   /// visit during a discard would otherwise drop the discard's busy state and
@@ -95,6 +104,8 @@ class PendingRegistrationListController
       return;
     }
 
+    final epoch = this.epoch;
+
     if (state case final PendingRegistrationListLoaded loaded) {
       state = PendingRegistrationListLoaded(
         loaded.pageNumber,
@@ -105,6 +116,10 @@ class PendingRegistrationListController
 
     final result = await _repository.discard(arg, registration.id);
     final failure = result.failureOrNull;
+
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     if (failure != null && failure.kind != FailureKind.notFound) {
       if (state case final PendingRegistrationListLoaded loaded) {
@@ -119,6 +134,10 @@ class PendingRegistrationListController
     }
 
     await _fetch(state.pageNumber);
+
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     if (state case final PendingRegistrationListLoaded loaded) {
       state = PendingRegistrationListLoaded(
@@ -143,6 +162,7 @@ class PendingRegistrationListController
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -155,13 +175,20 @@ class PendingRegistrationListController
         () => _repository.list(arg, pageNumber: pageNumber),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => PendingRegistrationListLoaded(pageNumber, page),
         onFailure: (failure) =>
             PendingRegistrationListFailed(pageNumber, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

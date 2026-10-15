@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
@@ -81,7 +82,8 @@ personListControllerProvider =
 
 /// Owns one scope's person listing: the filters, the page, and the request in
 /// flight.
-class PersonListController extends Notifier<PersonListState> {
+class PersonListController extends Notifier<PersonListState>
+    with BuildEpoch<PersonListState> {
   PersonListController(this.arg);
 
   /// The family argument this controller was created for.
@@ -98,7 +100,15 @@ class PersonListController extends Notifier<PersonListState> {
   PersonQuery? _queued;
 
   @override
-  PersonListState build() => const PersonListLoading(PersonQuery());
+  PersonListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const PersonListLoading(PersonQuery());
+  }
 
   Future<void> load() => _fetch(state.query);
 
@@ -124,6 +134,7 @@ class PersonListController extends Notifier<PersonListState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -144,12 +155,19 @@ class PersonListController extends Notifier<PersonListState> {
             ),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => PersonListLoaded(query, page),
         onFailure: (failure) => PersonListFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

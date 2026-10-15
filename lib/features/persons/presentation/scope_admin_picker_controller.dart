@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
@@ -59,14 +60,19 @@ scopeAdminPickerControllerProvider =
 /// The family argument is the scope whose current owners are left out, or the
 /// empty string when there is none to leave out — UI-11 is creating the scope,
 /// so nobody owns it yet.
-class ScopeAdminPickerController extends Notifier<ScopeAdminsState> {
+class ScopeAdminPickerController extends Notifier<ScopeAdminsState>
+    with BuildEpoch<ScopeAdminsState> {
   ScopeAdminPickerController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  ScopeAdminsState build() => const ScopeAdminsLoading();
+  ScopeAdminsState build() {
+    startEpoch();
+
+    return const ScopeAdminsLoading();
+  }
 
   /// Reads the candidates, optionally narrowed by what was typed.
   ///
@@ -85,6 +91,7 @@ class ScopeAdminPickerController extends Notifier<ScopeAdminsState> {
           )
         : const ScopeAdminsLoading();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(personRepositoryProvider)
         .listScopeAdmins(
@@ -93,6 +100,11 @@ class ScopeAdminPickerController extends Notifier<ScopeAdminsState> {
           excludeOwnersOfScopeId: arg.isEmpty ? null : arg,
           pageSize: 50,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = switch (result) {
       Success<Page<PersonSummary>>(:final value) => ScopeAdminsLoaded(

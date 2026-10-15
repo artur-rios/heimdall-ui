@@ -19,6 +19,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Signing out of a Google session could leave you signed in, with the Sign out button doing nothing, when Google's
   sign-out or the API's failed unexpectedly. The session now always ends and the stored token is always removed. A
   refused Google sign-in whose clean-up failed kept its spinner turning; it now shows the refusal.
+- A response that arrived after signing out could fill the screen the next person to sign in on the same device opened
+  first: lists, records, the dashboard, the profile and two-factor screens. Such responses are now dropped. A scope's
+  Sign-in & sign-up settings are also cleared at sign-out, as every other screen's are.
 
 ## [1.7.0] - 2026-10-15
 

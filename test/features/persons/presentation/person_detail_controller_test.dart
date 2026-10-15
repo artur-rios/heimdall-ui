@@ -11,6 +11,8 @@ import 'package:heimdall_ui/features/persons/presentation/person_detail_controll
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 const _ada = Person(
@@ -503,4 +505,61 @@ void main() {
     final state = currentState() as PersonDetailLoaded;
     expect(state.saveFailure?.errors, <String>['Refused.']);
   });
+
+  // A sign-out resets the page while its read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        personDetailControllerProvider('person-1'),
+        reset: personDetailControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<Person>(_ada)),
+      );
+
+      // Then
+      expect(currentState(), isA<PersonDetailLoading>());
+    },
+  );
+
+  // A refresh answered after the reset must not fill it either.
+  test(
+    'GivenARefreshInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        personDetailControllerProvider('person-1'),
+        reset: personDetailControllerProvider,
+        start: controller.refresh,
+        answer: () => answer.complete(const Success<Person>(_ada)),
+      );
+
+      // Then
+      expect(currentState(), isA<PersonDetailLoading>());
+    },
+  );
 }
