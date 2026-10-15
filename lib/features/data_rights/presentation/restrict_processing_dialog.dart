@@ -115,7 +115,7 @@ class _RestrictProcessingDialog extends ConsumerWidget {
               if (state.failure case final Failure failure) ...<Widget>[
                 const SizedBox(height: 16),
                 // AF-33b / AF-33c: the API's own words, as returned.
-                ErrorBanner(failure: _shown(failure)),
+                ErrorBanner(failure: failure),
               ],
               if (state.alreadyRestricted) ...<Widget>[
                 const SizedBox(height: 8),
@@ -180,15 +180,4 @@ class _RestrictProcessingDialog extends ConsumerWidget {
       navigator.pop();
     }
   }
-
-  /// A transport failure carries no words of the API's own, so it is given
-  /// some; everything else is shown as the API said it.
-  static Failure _shown(Failure failure) => failure.kind == FailureKind.network
-      ? const Failure(
-          kind: FailureKind.network,
-          errors: <String>[
-            'Could not reach the API. Check your connection and try again.',
-          ],
-        )
-      : failure;
 }

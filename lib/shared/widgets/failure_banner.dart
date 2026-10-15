@@ -30,7 +30,7 @@ class RetryBanner extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
             Text(
-              'Could not reach the API. Check your connection and try again.',
+              kUnreachableMessage,
               style: TextStyle(color: scheme.onErrorContainer),
             ),
             const SizedBox(height: 8),

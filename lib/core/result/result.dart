@@ -11,6 +11,12 @@ enum FailureKind {
   unknown,
 }
 
+/// What a person is told when the API could not be reached at all: no
+/// connection, a refused connection, or a timeout. Such a failure carries no
+/// words of the API's own, and the HTTP library's are written for developers.
+const String kUnreachableMessage =
+    'Could not reach the API. Check your connection and try again.';
+
 /// A failed outcome, carrying the API's own error messages when it produced any.
 ///
 /// The strings in [errors] come straight from the response envelope and are
@@ -47,6 +53,8 @@ class Failure {
           ? errors.first
           : kind == FailureKind.rateLimited
           ? 'Too many requests. ${retryHint ?? 'Try again later.'}'
+          : kind == FailureKind.network
+          ? kUnreachableMessage
           : 'Something went wrong.');
 
   @override

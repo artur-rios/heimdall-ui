@@ -106,7 +106,9 @@ Failure failureFromDioException(DioException error) {
         _ => FailureKind.unknown,
       },
       errors: const <String>[],
-      message: error.message,
+      // Never Dio's own text ("The connection errored: …"), which is written
+      // for developers; a person is told what they can do about it.
+      message: kUnreachableMessage,
     );
   }
 

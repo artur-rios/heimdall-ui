@@ -123,25 +123,30 @@ void main() {
     // Given
     answerPingWith(
       const FailureResult<String>(
+        // As the envelope maps a refused connection.
         Failure(
           kind: FailureKind.network,
           errors: <String>[],
-          message: 'Connection refused',
+          message: kUnreachableMessage,
         ),
       ),
     );
     answerDetailedWith(
       const FailureResult<Health>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
+        Failure(
+          kind: FailureKind.network,
+          errors: <String>[],
+          message: kUnreachableMessage,
+        ),
       ),
     );
 
     // When
     await pump(tester);
 
-    // Then
+    // Then — the reachability check and the per-service report each say so.
     expect(find.text('The API did not answer'), findsOneWidget);
-    expect(find.text('Connection refused'), findsOneWidget);
+    expect(find.text(kUnreachableMessage), findsNWidgets(2));
   });
 
   testWidgets('GivenAHealthyApi_WhenOpened_ThenEveryServiceIsListed', (

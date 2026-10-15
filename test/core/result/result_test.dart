@@ -64,6 +64,18 @@ void main() {
     expect(message, 'Something went wrong.');
   });
 
+  // A network failure built anywhere but the envelope still reads as one.
+  test('GivenANetworkFailureWithNothingToSay_WhenDisplayed_ThenItSaysTheApiIsUnreachable', () {
+    // Given
+    const failure = Failure(kind: FailureKind.network, errors: <String>[]);
+
+    // When
+    final message = failure.displayMessage;
+
+    // Then
+    expect(message, kUnreachableMessage);
+  });
+
   test(
     'GivenARateLimitWithoutErrors_WhenDisplayed_ThenItSaysTryAgainLater',
     () {
