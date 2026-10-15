@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
 import '../../applications/domain/application_repository.dart';
+import '../../auth/domain/session.dart';
+import '../../auth/presentation/session_controller.dart';
 import '../../google_users/domain/google_user_repository.dart';
 import '../../health/domain/health_repository.dart';
 import '../../permissions/domain/scope_permission_repository.dart';
@@ -71,6 +73,13 @@ class DashboardController extends Notifier<DashboardState> {
     final active = scopes.list(pageSize: DashboardStats.summarisedScopeLimit);
     final everything = scopes.list(includeDeleted: true, pageSize: 1);
     final ping = health.ping();
+    final session = ref.read(sessionControllerProvider);
+    final isSystemAdmin =
+        session is Authenticated && session.principal.isSystemAdmin;
+    // UC-07 read (e) is a System Admin's only; nobody else is asked.
+    final systemAdmins = isSystemAdmin
+        ? ref.read(personRepositoryProvider).listSystemAdmins(pageSize: 1)
+        : null;
 
     final activeResult = await active;
 
@@ -100,6 +109,9 @@ class DashboardController extends Notifier<DashboardState> {
                 : (everythingTotal - page.totalItems).clamp(0, everythingTotal),
             scopes: summaries,
             apiReachable: reachable,
+            systemAdmins: systemAdmins == null
+                ? null
+                : (await systemAdmins).valueOrNull?.totalItems,
           ),
         );
     }

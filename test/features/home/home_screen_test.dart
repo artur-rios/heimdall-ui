@@ -101,6 +101,7 @@ void main() {
           '/profile',
           '/profile/security',
           '/health',
+          '/system-admins',
         ])
           GoRoute(
             path: path,
@@ -197,6 +198,65 @@ void main() {
 
     // Then
     expect(find.text('opened /scopes'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenASystemAdmin_WhenHomeOpens_ThenTheSystemAdminsTileShowsTheCount',
+    (tester) async {
+      // Given three System Admins
+      final fakes = FakeDashboardRepositories(systemAdmins: 3);
+
+      // When
+      await pump(tester, fakes: fakes);
+
+      // Then
+      expect(find.text('System Admins'), findsOneWidget);
+      expect(find.text('Full access to every scope'), findsOneWidget);
+      expect(find.text('3'), findsWidgets);
+    },
+  );
+
+  testWidgets('GivenTheSystemAdminsTile_WhenTapped_ThenTheListOpens', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('System Admins'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenTheCountFails_WhenHomeOpens_ThenTheTileStillOpensTheList', (
+    tester,
+  ) async {
+    // Given
+    final fakes = FakeDashboardRepositories(systemAdmins: null);
+
+    // When
+    await pump(tester, fakes: fakes);
+
+    // Then
+    expect(find.byTooltip('Could not be read'), findsWidgets);
+
+    await tester.tap(find.text('System Admins'));
+    await tester.pumpAndSettle();
+    expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScopeAdmin_WhenHomeOpens_ThenNoSystemAdminsTile', (
+    tester,
+  ) async {
+    // Given a Scope Admin
+
+    // When
+    await pump(tester, role: 2);
+
+    // Then
+    expect(find.text('System Admins'), findsNothing);
   });
 
   testWidgets('GivenAnUnreadableCount_WhenOpened_ThenItIsShownAsUnknown', (

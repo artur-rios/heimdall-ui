@@ -1,11 +1,31 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/home/domain/dashboard.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 
 import '../../support/dashboard_fakes.dart';
+
+/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
+String _jwt(int role) {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'person-1',
+        'name': 'Ada',
+        'role': role,
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
 
 const _acme = Scope(
   id: 'scope-1',
@@ -20,6 +40,29 @@ void main() {
   Future<DashboardState> load(FakeDashboardRepositories fakes) async {
     final container = ProviderContainer(overrides: fakes.overrides);
     addTearDown(container.dispose);
+
+    await container.read(dashboardControllerProvider.notifier).load();
+
+    return container.read(dashboardControllerProvider);
+  }
+
+  /// Loads the dashboard as a person of [role].
+  Future<DashboardState> loadAs(
+    int role,
+    FakeDashboardRepositories fakes,
+  ) async {
+    final store = InMemoryTokenStore();
+    await store.write(
+      AuthToken(value: _jwt(role), expiresAt: DateTime.utc(2030)),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        ...fakes.overrides,
+        tokenStoreProvider.overrideWithValue(store),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(sessionControllerProvider.notifier).restore();
 
     await container.read(dashboardControllerProvider.notifier).load();
 
@@ -152,6 +195,42 @@ void main() {
       ) as DashboardLoaded).refreshing,
       isFalse,
     );
+  });
+
+  test('GivenASystemAdmin_WhenLoaded_ThenTheSystemAdminCountIsRead', () async {
+    // Given
+    final fakes = FakeDashboardRepositories(systemAdmins: 3);
+
+    // When
+    final state = await loadAs(1, fakes);
+
+    // Then
+    expect((state as DashboardLoaded).stats.systemAdmins, 3);
+    expect(fakes.systemAdminsReads, 1);
+  });
+
+  test('GivenASystemAdminCountThatFails_WhenLoaded_ThenItIsUnknown', () async {
+    // Given
+    final fakes = FakeDashboardRepositories(systemAdmins: null);
+
+    // When
+    final state = await loadAs(1, fakes);
+
+    // Then
+    expect(state, isA<DashboardLoaded>());
+    expect((state as DashboardLoaded).stats.systemAdmins, isNull);
+  });
+
+  test('GivenAScopeAdmin_WhenLoaded_ThenTheSystemAdminsAreNotAsked', () async {
+    // Given
+    final fakes = FakeDashboardRepositories(systemAdmins: 3);
+
+    // When
+    final state = await loadAs(2, fakes);
+
+    // Then
+    expect((state as DashboardLoaded).stats.systemAdmins, isNull);
+    expect(fakes.systemAdminsReads, 0);
   });
 
   test('GivenNoScopes_WhenSummed_ThenEveryTotalIsZero', () {

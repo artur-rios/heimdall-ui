@@ -30,6 +30,7 @@ class DashboardStats {
     required this.scopes,
     this.deletedScopes,
     this.apiReachable,
+    this.systemAdmins,
   });
 
   /// How many scopes the caller can see that are not deleted — every scope
@@ -50,6 +51,10 @@ class DashboardStats {
   /// How many scopes the dashboard breaks down. The counts cost a request per
   /// scope and kind, so a system with many scopes is summarised over the
   /// first few rather than flooding the API from the home screen.
+  /// How many System Admins the system has (UI-38), or `null` when that could
+  /// not be read or the caller is not a System Admin and was never told.
+  final int? systemAdmins;
+
   static const int summarisedScopeLimit = 10;
 
   /// Whether the totals cover fewer scopes than the caller has.
