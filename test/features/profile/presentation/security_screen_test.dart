@@ -9,6 +9,7 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/security_screen.dart';
@@ -76,9 +77,27 @@ void main() {
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
 
+    // The application's guard sends a signed-out person to sign-in; this
+    // stands in for it, so a sign-out lands somewhere that settles.
+    final sessionChanges = ValueNotifier<int>(0);
+    addTearDown(sessionChanges.dispose);
+    container.listen(
+      sessionControllerProvider,
+      (_, _) => sessionChanges.value++,
+    );
+
     router = GoRouter(
       initialLocation: '/profile/security',
+      refreshListenable: sessionChanges,
+      redirect: (context, state) =>
+          container.read(sessionControllerProvider) is Unauthenticated
+          ? '/login'
+          : null,
       routes: <RouteBase>[
+        GoRoute(
+          path: '/login',
+          builder: (context, state) => const Scaffold(body: Text('sign-in')),
+        ),
         GoRoute(
           path: '/profile',
           builder: (context, state) => const Scaffold(body: Text('profile')),
@@ -108,9 +127,33 @@ void main() {
   }
 
   void answerEnableWith(Result<TwoFactorSetup> result) {
-    when(() => repository.enableTwoFactor(any()))
-        .thenAnswer((_) async => result);
+    when(
+      () => repository.enableTwoFactor(
+        any(),
+        currentPassword: any(named: 'currentPassword'),
+      ),
+    ).thenAnswer((_) async => result);
   }
+
+  /// Chooses [method] and confirms it with the current password, which is
+  /// what starting a setup takes (FR-AU-17).
+  Future<void> startSetup(
+    WidgetTester tester,
+    String method, {
+    String password = 'secret',
+  }) async {
+    await tester.tap(find.text(method));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Current password'),
+      password,
+    );
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
+    await tester.pumpAndSettle();
+  }
+
+  SessionState session() => container.read(sessionControllerProvider);
 
   void answerConfirmWith(Result<List<String>> result) {
     when(
@@ -208,8 +251,7 @@ void main() {
     await pump(tester);
 
     // When
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // Then
     expect(find.byType(QrCodeView), findsOneWidget);
@@ -223,8 +265,7 @@ void main() {
     await pump(tester);
 
     // When
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // Then
     expect(
@@ -250,8 +291,7 @@ void main() {
     await pump(tester);
 
     // When
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // Then
     expect(find.byType(QrCodeView), findsNothing);
@@ -271,8 +311,7 @@ void main() {
     await pump(tester);
 
     // When
-    await tester.tap(find.text('Emailed code'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Emailed code');
 
     // Then
     expect(find.textContaining('emailed you a code'), findsOneWidget);
@@ -284,8 +323,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // When
     await tester.enterText(find.byType(TextFormField), '123456');
@@ -311,8 +349,7 @@ void main() {
       ),
     );
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // When
     await tester.enterText(find.byType(TextFormField), '000000');
@@ -329,8 +366,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // When
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
@@ -351,8 +387,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
 
     // When
     await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
@@ -369,8 +404,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
     await tester.enterText(find.byType(TextFormField), '123456');
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
     await tester.pumpAndSettle();
@@ -388,8 +422,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
     await tester.enterText(find.byType(TextFormField), '123456');
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
     await tester.pumpAndSettle();
@@ -404,7 +437,9 @@ void main() {
     expect(find.text('Your recovery codes'), findsOneWidget);
   });
 
-  testWidgets('GivenIssuedCodes_WhenAcknowledged_ThenTheSectionSettles', (
+  // FR-AU-28 — new codes revoke the token, so once they are acknowledged the
+  // person signs in again.
+  testWidgets('GivenRegeneratedCodes_WhenAcknowledged_ThenTheSessionEnds', (
     tester,
   ) async {
     // Given
@@ -419,6 +454,7 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.widgetWithText(FilledButton, 'Generate'));
     await tester.pumpAndSettle();
+    expect(session(), isA<Authenticated>());
 
     // When
     await tester.tap(
@@ -427,7 +463,132 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Two-factor authentication is on'), findsOneWidget);
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
+  // FR-AU-28 — confirming revokes the token too: the codes are shown first,
+  // and acknowledging them signs the person out.
+  testWidgets('GivenConfirmedCodes_WhenAcknowledged_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await startSetup(tester, 'Authenticator app');
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your recovery codes'), findsOneWidget);
+    expect(session(), isA<Authenticated>());
+
+    // When
+    await tester.tap(
+      find.widgetWithText(FilledButton, 'I have saved my codes'),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
+  // Leaving without them is leaving all the same, under a revoked token.
+  testWidgets('GivenIssuedCodes_WhenLeftAnyway_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await startSetup(tester, 'Authenticator app');
+    await tester.enterText(find.byType(TextFormField), '123456');
+    await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Back to your profile'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Leave anyway'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
+  // FR-AU-17 — choosing a method asks for the current password first.
+  testWidgets('GivenAMethod_WhenChosen_ThenThePasswordIsAsked', (tester) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Authenticator app'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(TextField, 'Current password'), findsOneWidget);
+    verifyNever(
+      () => repository.enableTwoFactor(
+        any(),
+        currentPassword: any(named: 'currentPassword'),
+      ),
+    );
+  });
+
+  testWidgets('GivenNoPassword_WhenChoosingAMethod_ThenContinueIsDisabled', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Emailed code'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final button = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Continue'),
+    );
+    expect(button.onPressed, isNull);
+  });
+
+  testWidgets('GivenAPassword_WhenTheSetupStarts_ThenItIsSent', (tester) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Emailed code', password: 'pw');
+
+    // Then
+    verify(
+      () => repository.enableTwoFactor(
+        TwoFactorMethod.email,
+        currentPassword: 'pw',
+      ),
+    ).called(1);
+  });
+
+  // AF-09f — a wrong password is shown on the screen, the feature stays off,
+  // and the person stays signed in to correct it.
+  testWidgets('GivenAWrongPassword_WhenTheSetupStarts_ThenItIsShownInline', (
+    tester,
+  ) async {
+    // Given
+    answerEnableWith(
+      const FailureResult<TwoFactorSetup>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: <String>['The current password is incorrect.'],
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Authenticator app', password: 'wrong');
+
+    // Then
+    expect(find.text('The current password is incorrect.'), findsOneWidget);
+    expect(find.text('Two-factor authentication is off'), findsOneWidget);
+    expect(session(), isA<Authenticated>());
   });
 
   testWidgets('GivenRegeneratedCodes_WhenShown_ThenTheOldOnesAreSaidToStop', (
@@ -623,6 +784,35 @@ void main() {
     expect(find.text('Two-factor authentication is on'), findsOneWidget);
   });
 
+  // FR-AU-28 — turning it off revokes the token, so the person signs in
+  // again straight away.
+  testWidgets('GivenACredential_WhenDisabled_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+    await tester.tap(find.text('Turn off two-factor'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Password'),
+      'secret',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Code from your second factor'),
+      '123456',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Turn off'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(find.text('sign-in'), findsOneWidget);
+  });
+
   // Regenerating takes a code or a recovery code, never a password.
   testWidgets('GivenTheRegenerateDialog_WhenOpened_ThenNoPasswordIsAsked', (
     tester,
@@ -725,8 +915,7 @@ void main() {
   ) async {
     // Given
     await pump(tester);
-    await tester.tap(find.text('Authenticator app'));
-    await tester.pumpAndSettle();
+    await startSetup(tester, 'Authenticator app');
     await tester.enterText(find.byType(TextFormField), '123456');
     await tester.tap(find.widgetWithText(FilledButton, 'Confirm'));
     await tester.pumpAndSettle();

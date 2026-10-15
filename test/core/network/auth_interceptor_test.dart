@@ -152,6 +152,62 @@ void main() {
     );
   }
 
+  // FR-AU-16 and FR-AU-17 — changing your own address and starting a
+  // two-factor setup ask for the password, and for the address a code too.
+  // A mistyped one is answered 401 under a token that is still good.
+  for (final (method, path) in <(String, String)>[
+    ('PUT', '/api/persons/person-1'),
+    ('POST', '/api/auth/2fa/enable'),
+  ]) {
+    for (final message in <String>[
+      'The current password is incorrect.',
+      'The code or recovery code is missing, incorrect, or already used.',
+    ]) {
+      test('GivenASession_WhenAReauthenticationIsRefused_ThenItSurvives: '
+          '$method $path $message', () async {
+        // Given
+        await store.write(
+          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        );
+        dio.httpClientAdapter = _CapturingAdapter(
+          (_) => 401,
+          body: '{"success":false,"errors":["$message"]}',
+        );
+
+        // When
+        await expectLater(
+          dio.request<dynamic>(path, options: Options(method: method)),
+          throwsA(isA<DioException>()),
+        );
+
+        // Then
+        expect(unauthorizedCalls, 0);
+      });
+    }
+  }
+
+  // FR-AU-28 — a token revoked by a change to the sign-in details is a
+  // refused session, not a refused credential, and ends it.
+  test('GivenARevokedToken_WhenRefused_ThenTheSessionEnds', () async {
+    // Given
+    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    dio.httpClientAdapter = _CapturingAdapter(
+      (_) => 401,
+      body:
+          '{"success":false,"errors":'
+          '["This token has been revoked. Sign in again."]}',
+    );
+
+    // When
+    await expectLater(
+      dio.get<dynamic>('/api/auth/2fa'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(unauthorizedCalls, 1);
+  });
+
   // AF-07e — a stored token past its expiry is not sent, and the 401 that
   // answers for it still ends the session.
   test('GivenAnExpiredSession_WhenUnauthorizedReceived_ThenItEnds', () async {

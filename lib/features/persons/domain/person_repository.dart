@@ -18,11 +18,16 @@ abstract interface class PersonRepository {
   ///
   /// [roleId] is the API's own role change, which only a System Admin may make.
   /// An ordinary edit leaves it null, which is how the command says "unchanged".
+  ///
+  /// [currentPassword] and [twoFactorCode] re-authenticate a caller changing
+  /// their own email address (FR-AU-16). Every other update leaves them null.
   Future<Result<Person>> update({
     required String id,
     required String name,
     required String email,
     int? roleId,
+    String? currentPassword,
+    String? twoFactorCode,
   });
 
   /// Creates a User within a scope.

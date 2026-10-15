@@ -58,26 +58,52 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
 
   /// AF-09c for the navigation and sign-out: asks, and acknowledges the codes
   /// when the person chooses to leave them behind.
+  ///
+  /// FR-AU-28: acknowledging them signs the person out, because the command
+  /// that issued them revoked the token. The sign-in screen is then where they
+  /// are going, whatever they tapped, so the shell is not let go on.
   Future<bool> _confirmLeave() async {
-    if (!await _mayLeave()) {
-      return false;
+    if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
+      return true;
     }
 
-    _controller.acknowledgeCodes();
+    if (await _mayLeave()) {
+      await _controller.acknowledgeCodes();
+    }
 
-    return true;
+    return false;
   }
 
-  /// Leaves for the profile, once AF-09c is satisfied.
+  /// Leaves for the profile, once AF-09c is satisfied. With codes waiting,
+  /// leaving signs the person out instead (FR-AU-28).
   Future<void> _leave() async {
+    final hadCodes =
+        ref.read(twoFactorControllerProvider) is TwoFactorCodesIssued;
+
     if (!await _mayLeave()) {
       return;
     }
 
-    _controller.acknowledgeCodes();
+    if (hadCodes) {
+      await _controller.acknowledgeCodes();
+
+      return;
+    }
 
     if (mounted) {
       context.go('/profile');
+    }
+  }
+
+  /// FR-AU-17 — starting a setup asks for the current password first.
+  Future<void> _enable(TwoFactorMethod method) async {
+    final password = await showDialog<String>(
+      context: context,
+      builder: (context) => _PasswordDialog(method: method),
+    );
+
+    if (password != null && mounted) {
+      await _controller.beginSetup(method, currentPassword: password);
     }
   }
 
@@ -131,10 +157,11 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     return PopScope(
       // AF-09c: a system back gesture is a way off the screen too.
       canPop: state is! TwoFactorCodesIssued,
+      // FR-AU-28: leaving the codes signs the person out, which takes them to
+      // the sign-in screen rather than to the profile.
       onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop && await _mayLeave() && mounted) {
-          _controller.acknowledgeCodes();
-          this.context.go('/profile');
+        if (!didPop && await _mayLeave()) {
+          await _controller.acknowledgeCodes();
         }
       },
       child: AppShell(
@@ -175,7 +202,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           ),
           final TwoFactorSettled settled => _Settled(
             state: settled,
-            onEnable: _controller.beginSetup,
+            onEnable: _enable,
             onDisable: _disable,
             onRegenerate: _regenerate,
           ),
@@ -493,6 +520,10 @@ class _SelectableSecret extends StatelessWidget {
   }
 }
 
+/// FR-AU-28 — issuing the codes revoked this session's token, so moving on
+/// from them signs the person out. They are told before they get there.
+const String _signInAgain = 'Once you have saved them, you will sign in again.';
+
 /// The recovery codes, shown exactly once.
 class _RecoveryCodes extends StatelessWidget {
   const _RecoveryCodes({
@@ -509,22 +540,19 @@ class _RecoveryCodes extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final asText = codes.join('\n');
+    final intro = regenerated
+        ? 'These replace your previous codes, which no longer work. They are '
+              'shown once — save them somewhere safe now.'
+        : 'Two-factor authentication is on. These codes are shown once — '
+              'save them somewhere safe now. Each one works once, and they are '
+              'the way back in if your second factor is unavailable.';
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: <Widget>[
         Text('Your recovery codes', style: theme.textTheme.headlineSmall),
         const SizedBox(height: 8),
-        Text(
-          regenerated
-              ? 'These replace your previous codes, which no longer work. '
-                    'They are shown once — save them somewhere safe now.'
-              : 'Two-factor authentication is on. These codes are shown once '
-                    '— save them somewhere safe now. Each one works once, and '
-                    'they are the way back in if your second factor is '
-                    'unavailable.',
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -558,6 +586,67 @@ class _RecoveryCodes extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Asks for the current password before a setup starts (FR-AU-17), and
+/// answers with it, or with nothing when the person cancels.
+class _PasswordDialog extends StatefulWidget {
+  const _PasswordDialog({required this.method});
+
+  final TwoFactorMethod method;
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _password = TextEditingController();
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  void _submit() {
+    if (_password.text.isNotEmpty) {
+      Navigator.of(context).pop(_password.text);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Turn on ${widget.method.label.toLowerCase()}?'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          const Text('Confirm it is you with your current password.'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _password,
+            autofocus: true,
+            obscureText: true,
+            decoration: const InputDecoration(labelText: 'Current password'),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      TextButton(
+        onPressed: () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        // Nothing typed is nothing to send.
+        onPressed: _password.text.isEmpty ? null : _submit,
+        child: const Text('Continue'),
+      ),
+    ],
+  );
 }
 
 /// What the disable and regenerate commands need: a second factor — a code

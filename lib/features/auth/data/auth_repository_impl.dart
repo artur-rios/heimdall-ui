@@ -302,10 +302,16 @@ class ApiAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<Result<TwoFactorSetup>> enableTwoFactor(TwoFactorMethod method) async {
+  Future<Result<TwoFactorSetup>> enableTwoFactor(
+    TwoFactorMethod method, {
+    required String currentPassword,
+  }) async {
     try {
       final response = await _client.authEnableTwoFactorAuth(
-        body: EnableTwoFactorAuthCommand(methods: <String>[method.wireValue]),
+        body: EnableTwoFactorAuthCommand(
+          methods: <String>[method.wireValue],
+          currentPassword: currentPassword,
+        ),
       );
 
       if (response.success != true) {

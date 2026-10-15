@@ -630,6 +630,71 @@ void main() {
     );
   });
 
+  // UI-08, UI-09 — the token that changed the sign-in details is revoked, so
+  // the person signs in again, and the sign-in screen says why.
+  testWidgets('GivenChangedSignInDetails_WhenSignedOut_ThenTheReasonIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+
+    // When
+    await container
+        .read(sessionControllerProvider.notifier)
+        .signOut(credentialsChanged: true);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
+  // UI-08 — FR-AU-28: a new address revokes the token that saved it, so the
+  // person lands on sign-in, told why.
+  testWidgets('GivenANewEmail_WhenSavedFromTheProfile_ThenSignInSaysWhy', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'me@example.com'),
+      'new@example.com',
+    );
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Current password'),
+      'secret',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    final save = find.widgetWithText(FilledButton, 'Save changes');
+    await tester.ensureVisible(save);
+    await tester.pumpAndSettle();
+    await tester.tap(save);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Sign in to continue'), findsOneWidget);
+    expect(
+      find.text('Your sign-in details changed. Sign in again.'),
+      findsOneWidget,
+    );
+  });
+
   // UI-33 — restricted from the profile, then signed out, and the sign-in
   // screen says what signing in again leads to.
   testWidgets('GivenAProfile_WhenProcessingIsRestricted_ThenTheNoteIsShown', (

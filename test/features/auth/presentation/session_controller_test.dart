@@ -1131,6 +1131,25 @@ void main() {
     expect(state.sessionExpired, isFalse);
   });
 
+  // UI-08, UI-09 — a change to the person's own sign-in details revokes the
+  // token that made it, and the sign-in screen says why they are there.
+  test('GivenChangedSignInDetails_WhenSignedOut_ThenTheReasonIsKept', () async {
+    // Given
+    await store.write(tokenFor(_systemAdminJwt));
+    final container = containerWith();
+    final controller = container.read(sessionControllerProvider.notifier);
+    await controller.restore();
+
+    // When
+    await controller.signOut(credentialsChanged: true);
+
+    // Then
+    final state = container.read(sessionControllerProvider);
+    expect((state as Unauthenticated).credentialsChanged, isTrue);
+    expect(state.sessionExpired, isFalse);
+    expect(await store.read(), isNull);
+  });
+
   // UI-33 — the sign-in screen says signing in again opens the restricted
   // session.
   test(

@@ -320,7 +320,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                   icon: Icons.person_outline,
                   message:
                       'This is your own record. Your role is not '
-                      'something you can change here.',
+                      'something you can change here. Change your email '
+                      'address from your profile.',
                 ),
                 const SizedBox(height: 16),
               ],
@@ -373,14 +374,17 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                                 : null,
                           ),
                           const SizedBox(height: 16),
+                          // FR-AU-16: your own address is changed from your
+                          // profile, which asks for your password and signs
+                          // you in again; this screen asks for neither.
                           TextFormField(
                             controller: _email,
-                            readOnly: !editing,
+                            readOnly: !editing || _isSelf,
                             keyboardType: TextInputType.emailAddress,
                             decoration: recordFieldDecoration(
                               context,
                               label: 'Email',
-                              editing: editing,
+                              editing: editing && !_isSelf,
                             ),
                             validator: (value) {
                               final email = value?.trim() ?? '';

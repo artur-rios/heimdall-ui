@@ -129,7 +129,14 @@ class TwoFactorController extends Notifier<TwoFactorState> {
   }
 
   /// Starts enabling [method], which moves the screen to its confirmation.
-  Future<void> beginSetup(TwoFactorMethod method) async {
+  ///
+  /// FR-AU-17: the API asks for the [currentPassword] first. AF-09f: a wrong
+  /// one is refused like any other credential — shown here, with the feature
+  /// still off and the session untouched.
+  Future<void> beginSetup(
+    TwoFactorMethod method, {
+    required String currentPassword,
+  }) async {
     final current = state;
 
     if (current is! TwoFactorSettled || current.busy) {
@@ -140,7 +147,7 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     final result = await ref
         .read(authRepositoryProvider)
-        .enableTwoFactor(method);
+        .enableTwoFactor(method, currentPassword: currentPassword);
 
     state = result.fold(
       onSuccess: (setup) => TwoFactorConfirming(current.status, setup),
@@ -179,8 +186,20 @@ class TwoFactorController extends Notifier<TwoFactorState> {
       case Success<List<String>>(:final value):
         // The codes are shown once, so the state that holds them is the one
         // the screen will not leave until they are acknowledged.
+        //
+        // FR-AU-28: confirming revoked the token that confirmed, so the status
+        // is not read back under it — that read would be refused and end the
+        // session before the codes were seen. It follows from the command.
+        final method = current.setup.method;
         state = TwoFactorCodesIssued(
-          await _reread(fallback: current.status),
+          TwoFactorStatus(
+            isActive: true,
+            appEnabled:
+                current.status.appEnabled || method == TwoFactorMethod.app,
+            emailEnabled:
+                current.status.emailEnabled || method == TwoFactorMethod.email,
+            remainingRecoveryCodes: value.length,
+          ),
           value,
         );
       case FailureResult<List<String>>(:final failure):
@@ -189,6 +208,9 @@ class TwoFactorController extends Notifier<TwoFactorState> {
   }
 
   /// Turns the feature off with the password and the second factor supplied.
+  ///
+  /// FR-AU-28: a success revokes every token the person holds, this one
+  /// included, so they are signed out at once to sign in again.
   Future<void> disable({
     String? password,
     String? code,
@@ -212,7 +234,8 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     switch (result) {
       case Success<void>():
-        state = TwoFactorSettled(await _reread(fallback: current.status));
+        state = const TwoFactorSettled(TwoFactorStatus());
+        await _signOut();
       case FailureResult<void>(:final failure):
         // AF-09d: the credential was refused, and the feature stays on.
         state = current.copyWith(busy: false, failure: failure);
@@ -221,6 +244,9 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
   /// Issues a fresh set of recovery codes, under the same acknowledgement rule
   /// as the first set.
+  ///
+  /// FR-AU-28: like confirming, a success revokes the token, so the status is
+  /// not read back under it.
   Future<void> regenerateRecoveryCodes({
     String? code,
     String? recoveryCode,
@@ -239,8 +265,14 @@ class TwoFactorController extends Notifier<TwoFactorState> {
 
     switch (result) {
       case Success<List<String>>(:final value):
+        final status = current.status;
         state = TwoFactorCodesIssued(
-          await _reread(fallback: current.status),
+          TwoFactorStatus(
+            isActive: status.isActive,
+            appEnabled: status.appEnabled,
+            emailEnabled: status.emailEnabled,
+            remainingRecoveryCodes: value.length,
+          ),
           value,
           regenerated: true,
         );
@@ -249,22 +281,22 @@ class TwoFactorController extends Notifier<TwoFactorState> {
     }
   }
 
-  /// AF-09c — the person says they have the codes, and the screen moves on.
-  void acknowledgeCodes() {
+  /// AF-09c — the person says they have the codes, or chose to leave them,
+  /// and the screen moves on.
+  ///
+  /// FR-AU-28: the command that issued them revoked the token, so moving on
+  /// is signing out, to sign in again. Nothing happens when no codes are
+  /// waiting.
+  Future<void> acknowledgeCodes() async {
     if (state case TwoFactorCodesIssued(:final status)) {
       state = TwoFactorSettled(status);
+      await _signOut();
     }
   }
 
-  /// Re-reads the configuration after a command changed it.
-  ///
-  /// What is shown afterwards should be what the API now holds rather than
-  /// what the command implies; [fallback] is used only when the re-read itself
-  /// fails, which is better than dropping the screen into an error over a
-  /// command that worked.
-  Future<TwoFactorStatus> _reread({required TwoFactorStatus fallback}) async {
-    final result = await ref.read(authRepositoryProvider).twoFactorStatus();
-
-    return result.valueOrNull ?? fallback;
-  }
+  /// Ends the session whose token a change to the second factor revoked, with
+  /// the reason the sign-in screen gives.
+  Future<void> _signOut() => ref
+      .read(sessionControllerProvider.notifier)
+      .signOut(credentialsChanged: true);
 }

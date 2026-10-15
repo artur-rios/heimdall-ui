@@ -143,6 +143,25 @@ class _Persons extends Fake implements PersonRepository {
       ? Success<Person>(fakes.me)
       : const FailureResult<Person>(_notFound);
 
+  /// Takes any edit to the caller's own record, as the API answers one.
+  @override
+  Future<Result<Person>> update({
+    required String id,
+    required String name,
+    required String email,
+    int? roleId,
+    String? currentPassword,
+    String? twoFactorCode,
+  }) async => Success<Person>(
+    Person(
+      id: fakes.me.id,
+      name: name,
+      email: email,
+      role: fakes.me.role,
+      emailVerified: email == fakes.me.email,
+    ),
+  );
+
   @override
   Future<Result<Page<PersonSummary>>> listSystemAdmins({
     String? name,

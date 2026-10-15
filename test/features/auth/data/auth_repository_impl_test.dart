@@ -1068,10 +1068,37 @@ void main() {
     );
 
     // When
-    await repository.enableTwoFactor(TwoFactorMethod.app);
+    await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(adapter.requests.single['methods'], <String>['App']);
+  });
+
+  // FR-AU-17 — starting a setup asks for the current password.
+  test('GivenAPassword_WhenEnabled_ThenItIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'otpAuthUri': 'otpauth://totp/x?secret=A'},
+        },
+      ),
+    );
+
+    // When
+    await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(adapter.requests.single['currentPassword'], 'secret');
   });
 
   test('GivenTheAppMethod_WhenEnabled_ThenTheUriIsReturned', () async {
@@ -1090,7 +1117,10 @@ void main() {
     );
 
     // When
-    final result = await repository.enableTwoFactor(TwoFactorMethod.app);
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(result.valueOrNull?.secret, 'JBSWY3DPEHPK3PXP');
@@ -1110,7 +1140,10 @@ void main() {
     );
 
     // When
-    final result = await repository.enableTwoFactor(TwoFactorMethod.email);
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.email,
+      currentPassword: 'secret',
+    );
 
     // Then
     expect(result.valueOrNull?.emailCodeSent, isTrue);
