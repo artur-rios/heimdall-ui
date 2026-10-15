@@ -104,7 +104,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}',
+            '/api/scopes/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -133,7 +133,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}',
+            '/api/scopes/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -166,7 +166,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}',
+            '/api/scopes/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -195,7 +195,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}/hard',
+            '/api/scopes/${_pathSegment(id)}/hard',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -227,7 +227,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}/google-signin',
+            '/api/scopes/${_pathSegment(id)}/google-signin',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -259,7 +259,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}/self-registration',
+            '/api/scopes/${_pathSegment(id)}/self-registration',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -293,7 +293,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}/email-links',
+            '/api/scopes/${_pathSegment(id)}/email-links',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -331,7 +331,7 @@ class _ScopeClient implements ScopeClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${id}/pending-registrations',
+            '/api/scopes/${_pathSegment(id)}/pending-registrations',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -363,7 +363,7 @@ class _ScopeClient implements ScopeClient {
           Options(method: 'DELETE', headers: _headers, extra: _extra)
               .compose(
                 _dio.options,
-                '/api/scopes/${id}/pending-registrations/${registrationId}',
+                '/api/scopes/${_pathSegment(id)}/pending-registrations/${_pathSegment(registrationId)}',
                 queryParameters: queryParameters,
                 data: _data,
               )
@@ -413,3 +413,16 @@ class _ScopeClient implements ScopeClient {
 }
 
 // dart format on
+
+/// A path parameter as one percent-encoded segment.
+///
+/// Added by tool/generate_api_client.dart. `.`, `..` and the empty string
+/// cannot be one segment of a URI at all, since the URI would drop or climb a
+/// segment, so they are refused before anything is sent.
+String _pathSegment(String value) {
+  if (value.isEmpty || value == '.' || value == '..') {
+    throw ArgumentError.value(value, 'value', 'is not a path segment');
+  }
+
+  return Uri.encodeComponent(value);
+}

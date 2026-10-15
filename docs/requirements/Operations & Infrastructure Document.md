@@ -230,6 +230,11 @@ dart run tool/refresh_openapi.dart ../heimdall-api/docs/openapi/heimdall.json
 dart run tool/generate_api_client.dart
 ```
 
+The generator also rewrites every path parameter of the generated clients to go through a small
+`_pathSegment` helper, which percent-encodes it as one segment and refuses `.`, `..` and the empty
+string: retrofit would otherwise interpolate an id as it is, and an id holding `/` or `?` would reach
+a different endpoint.
+
 Commit the refreshed specification together with the regenerated client. CI regenerates and fails if
 the committed output differs, so the two cannot drift apart.
 

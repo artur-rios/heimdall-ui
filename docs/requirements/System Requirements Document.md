@@ -211,6 +211,7 @@ describes the flows that satisfy these requirements; the
 | `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
 | `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
+| `/not-found` | Not found — where a route whose id is not a `PublicId` lands | UI-07 |
 
 ---
 
@@ -223,6 +224,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | --- | --- | --- | --- | --- |
 | Sign in, recovery, reset, verification | — | — | — | Full |
 | Privacy notice | Full | Full | Full | Full |
+| Not found | Full | Full | Full | Full |
 | Second-factor challenge | Full | Full | Full | Held challenge only |
 | Restricted session | Restricted session only | Restricted session only | Restricted session only | Hidden |
 | Home | Full | Full | Full | Hidden |

@@ -35,7 +35,7 @@ class _ApplicationClient implements ApplicationClient {
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/applications',
+            '/api/scopes/${_pathSegment(scopeId)}/applications',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -76,7 +76,7 @@ class _ApplicationClient implements ApplicationClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/applications',
+            '/api/scopes/${_pathSegment(scopeId)}/applications',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -110,7 +110,7 @@ class _ApplicationClient implements ApplicationClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/applications/${id}',
+            '/api/scopes/${_pathSegment(scopeId)}/applications/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -143,7 +143,7 @@ class _ApplicationClient implements ApplicationClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/applications/${id}',
+            '/api/scopes/${_pathSegment(scopeId)}/applications/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -173,7 +173,7 @@ class _ApplicationClient implements ApplicationClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/applications/${id}',
+            '/api/scopes/${_pathSegment(scopeId)}/applications/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -204,7 +204,7 @@ class _ApplicationClient implements ApplicationClient {
           Options(method: 'DELETE', headers: _headers, extra: _extra)
               .compose(
                 _dio.options,
-                '/api/scopes/${scopeId}/applications/${id}/hard',
+                '/api/scopes/${_pathSegment(scopeId)}/applications/${_pathSegment(id)}/hard',
                 queryParameters: queryParameters,
                 data: _data,
               )
@@ -254,3 +254,16 @@ class _ApplicationClient implements ApplicationClient {
 }
 
 // dart format on
+
+/// A path parameter as one percent-encoded segment.
+///
+/// Added by tool/generate_api_client.dart. `.`, `..` and the empty string
+/// cannot be one segment of a URI at all, since the URI would drop or climb a
+/// segment, so they are refused before anything is sent.
+String _pathSegment(String value) {
+  if (value.isEmpty || value == '.' || value == '..') {
+    throw ArgumentError.value(value, 'value', 'is not a path segment');
+  }
+
+  return Uri.encodeComponent(value);
+}

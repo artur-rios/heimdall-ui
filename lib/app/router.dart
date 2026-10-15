@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/ids/public_id.dart';
 import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_detail_screen.dart';
 import '../features/applications/presentation/application_list_screen.dart';
@@ -38,13 +39,18 @@ import '../features/scopes/presentation/scope_owners_screen.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
 import 'route_access.dart';
 
+/// Where a link that names no record lands: one whose id is not a `PublicId`.
+const String notFoundRoute = '/not-found';
+
 /// Routes an unauthenticated caller may reach.
 ///
 /// The recovery, reset, and verification screens are here because they are all
 /// opened from an emailed link by someone who, by definition, cannot sign in.
 /// The privacy notice is here because Google's consent screen links to it, and
-/// the person reading it there has not signed in yet.
+/// the person reading it there has not signed in yet. The not-found screen is
+/// here because a link to nothing is that whoever follows it.
 const Set<String> publicRoutes = <String>{
+  notFoundRoute,
   '/login',
   '/login/two-factor',
   '/password-recovery',
@@ -64,9 +70,25 @@ const Set<String> _restrictedSessionPublicRoutes = <String>{'/privacy'};
 /// Decides where a caller in [session] asking for [location] should end up, or
 /// `null` when they may stay.
 ///
+/// [pathParameters] are the route's decoded parameters. Every one of them is a
+/// record's id, and an id that is not a `PublicId` sends the caller to
+/// [notFoundRoute] before any screen is built with it: go_router decodes a
+/// segment such as `..%2F..%2Fpersons%2F<id>`, and a screen handed that would
+/// load, and offer to delete, a record other than the one its link named.
+///
 /// Pure on purpose: the whole guard is then testable without a widget tree,
 /// which is where its edge cases actually live.
-String? redirectFor({required SessionState session, required String location}) {
+String? redirectFor({
+  required SessionState session,
+  required String location,
+  Map<String, String> pathParameters = const <String, String>{},
+}) {
+  // First, whatever the session: a link to nothing stays one after signing in,
+  // and the not-found screen is public, so this cannot loop.
+  if (pathParameters.values.any((id) => !isPublicId(id))) {
+    return notFoundRoute;
+  }
+
   final uri = Uri.parse(location);
   final path = uri.path;
   final isPublic = publicRoutes.contains(path);
@@ -132,6 +154,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
     redirect: (context, state) => redirectFor(
       session: ref.read(sessionControllerProvider),
       location: state.uri.toString(),
+      pathParameters: state.pathParameters,
     ),
     routes: <RouteBase>[
       GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
@@ -297,6 +320,10 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/not-available',
         builder: (context, state) => const _NotForYourRoleScreen(),
       ),
+      GoRoute(
+        path: notFoundRoute,
+        builder: (context, state) => const _NotFoundScreen(),
+      ),
     ],
     // Every screen beyond these two arrives with its own use case. Until then
     // an unknown route says so plainly instead of throwing.
@@ -341,6 +368,55 @@ class _NotForYourRoleScreen extends StatelessWidget {
                 Text(
                   'Your account is signed in, but this screen is not part of '
                   'what your role does. Nothing is wrong with your session.',
+                  style: theme.textTheme.bodyMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                FilledButton(
+                  onPressed: () => context.go('/'),
+                  child: const Text('Back to home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// What a link whose id is not a `PublicId` opens: nothing, said plainly.
+///
+/// The id itself is not repeated: it is whatever the link carried, and the
+/// screen has no business echoing it.
+class _NotFoundScreen extends StatelessWidget {
+  const _NotFoundScreen();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Not found')),
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: <Widget>[
+                Icon(Icons.link_off, size: 48, color: theme.colorScheme.error),
+                const SizedBox(height: 16),
+                Text(
+                  'Nothing at this address',
+                  style: theme.textTheme.headlineMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The link is incomplete or was changed, so it names no '
+                  'record. Nothing was opened.',
                   style: theme.textTheme.bodyMedium,
                   textAlign: TextAlign.center,
                 ),

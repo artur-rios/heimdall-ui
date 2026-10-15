@@ -432,4 +432,92 @@ void main() {
       expect(location, restrictedRoute, reason: start);
     }
   });
+
+  // Every id in a route is a PublicId GUID. Anything else, above all a decoded
+  // path such as `../../persons/<id>?x=`, is a link to nothing: it must not
+  // reach a screen, which would hand it to the API as part of a path.
+  const guid = '6f1d3a00-0000-0000-0000-000000000001';
+
+  test('GivenATraversalId_WhenVisitingItsRoute_ThenRedirectsToNotFound', () {
+    // Given
+    const location =
+        '/scopes/..%2F..%2Fpersons%2F$guid%3Fx%3D/google-users/$guid';
+
+    // When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: location,
+      pathParameters: const <String, String>{
+        'scopeId': '../../persons/$guid?x=',
+        'googleUserId': guid,
+      },
+    );
+
+    // Then
+    expect(redirect, notFoundRoute);
+  });
+
+  test('GivenANonGuidId_WhenVisitingItsRoute_ThenRedirectsToNotFound', () {
+    // Given
+    const location = '/scopes/$guid/applications/app-1';
+
+    // When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: location,
+      pathParameters: const <String, String>{
+        'scopeId': guid,
+        'applicationId': 'app-1',
+      },
+    );
+
+    // Then
+    expect(redirect, notFoundRoute);
+  });
+
+  test('GivenWellFormedIds_WhenVisitingTheirRoute_ThenNoRedirect', () {
+    // Given
+    const location = '/scopes/$guid/google-users/$guid';
+
+    // When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: location,
+      pathParameters: const <String, String>{
+        'scopeId': guid,
+        'googleUserId': guid,
+      },
+    );
+
+    // Then
+    expect(redirect, isNull);
+  });
+
+  // A link to nothing is a link to nothing whoever follows it; signing in
+  // first would not change that.
+  test('GivenUnauthenticated_WhenVisitingAMalformedId_ThenToNotFound', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(
+      session: session,
+      location: '/persons/..',
+      pathParameters: const <String, String>{'personId': '..'},
+    );
+
+    // Then
+    expect(redirect, notFoundRoute);
+  });
+
+  test('GivenUnauthenticated_WhenVisitingNotFound_ThenNoRedirect', () {
+    // Given
+    const session = Unauthenticated();
+
+    // When
+    final redirect = redirectFor(session: session, location: notFoundRoute);
+
+    // Then
+    expect(redirect, isNull);
+  });
 }

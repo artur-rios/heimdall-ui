@@ -884,6 +884,29 @@ void main() {
     },
   );
 
+  // A link whose id decodes to another path names a record the screen never
+  // loads: the router answers "not found" before any screen sees the id.
+  testWidgets('GivenATraversalLink_WhenOpened_ThenNotFoundIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000001';
+
+    // When
+    container
+        .read(routerProvider)
+        .go('/scopes/..%2F..%2Fpersons%2F$guid%3Fx%3D/google-users/$guid');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(AppBar, 'Not found'), findsOneWidget);
+    expect(container.read(routerProvider).state.uri.path, notFoundRoute);
+  });
+
   testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {
     // Given no stored token
 

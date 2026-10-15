@@ -16,6 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A link whose id was not a real identifier, for example one that decoded to another path, could open a screen that
+  loaded, and offered to delete, a different record from the one the link named. Such a link now shows "Not found",
+  and every id is sent to the API as a single encoded part of the address.
 - Requests now always act as the person the screen shows. A tab used to pick up the session of whoever signed in or
   out in another tab of the same browser, while still showing its own.
 - Signing out of a Google session could leave you signed in, with the Sign out button doing nothing, when Google's

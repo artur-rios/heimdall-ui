@@ -421,6 +421,9 @@ delivered the same way.
 - **AF-07h — Restricted session.** A subject-rights-only session (UI-30), whatever its role, is
   redirected to the restricted session screen from every route but that screen and the privacy
   notice. A full session asking for the restricted session screen is redirected to the home screen.
+- **AF-07i — Malformed id.** A route whose id is not a `PublicId` GUID (for example a link whose id
+  decodes to another path) is redirected to a "not found" screen, whatever the session, before any
+  screen is built with it or any request is made.
 
 ---
 

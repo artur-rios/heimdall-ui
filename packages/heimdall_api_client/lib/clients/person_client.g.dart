@@ -66,7 +66,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/persons',
+            '/api/scopes/${_pathSegment(scopeId)}/persons',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -107,7 +107,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/persons',
+            '/api/scopes/${_pathSegment(scopeId)}/persons',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -139,7 +139,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/owners',
+            '/api/scopes/${_pathSegment(scopeId)}/owners',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -180,7 +180,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/owners',
+            '/api/scopes/${_pathSegment(scopeId)}/owners',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -210,7 +210,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/owners/${personId}',
+            '/api/scopes/${_pathSegment(scopeId)}/owners/${_pathSegment(personId)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -240,7 +240,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/owners/${personId}',
+            '/api/scopes/${_pathSegment(scopeId)}/owners/${_pathSegment(personId)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -270,7 +270,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'POST', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/scopes/${scopeId}/users/${personId}/promote',
+            '/api/scopes/${_pathSegment(scopeId)}/users/${_pathSegment(personId)}/promote',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -302,7 +302,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'PUT', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/persons/${id}',
+            '/api/persons/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -331,7 +331,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/persons/${id}',
+            '/api/persons/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -364,7 +364,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'GET', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/persons/${id}',
+            '/api/persons/${_pathSegment(id)}',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -393,7 +393,7 @@ class _PersonClient implements PersonClient {
       Options(method: 'DELETE', headers: _headers, extra: _extra)
           .compose(
             _dio.options,
-            '/api/persons/${id}/hard',
+            '/api/persons/${_pathSegment(id)}/hard',
             queryParameters: queryParameters,
             data: _data,
           )
@@ -500,7 +500,7 @@ class _PersonClient implements PersonClient {
           Options(method: 'POST', headers: _headers, extra: _extra)
               .compose(
                 _dio.options,
-                '/api/persons/${id}/verification-email',
+                '/api/persons/${_pathSegment(id)}/verification-email',
                 queryParameters: queryParameters,
                 data: _data,
               )
@@ -533,7 +533,7 @@ class _PersonClient implements PersonClient {
           Options(method: 'POST', headers: _headers, extra: _extra)
               .compose(
                 _dio.options,
-                '/api/persons/${id}/password-reset',
+                '/api/persons/${_pathSegment(id)}/password-reset',
                 queryParameters: queryParameters,
                 data: _data,
               )
@@ -583,3 +583,16 @@ class _PersonClient implements PersonClient {
 }
 
 // dart format on
+
+/// A path parameter as one percent-encoded segment.
+///
+/// Added by tool/generate_api_client.dart. `.`, `..` and the empty string
+/// cannot be one segment of a URI at all, since the URI would drop or climb a
+/// segment, so they are refused before anything is sent.
+String _pathSegment(String value) {
+  if (value.isEmpty || value == '.' || value == '..') {
+    throw ArgumentError.value(value, 'value', 'is not a path segment');
+  }
+
+  return Uri.encodeComponent(value);
+}

@@ -83,6 +83,10 @@ const _ada = Person(
   role: Role.scopeAdmin,
 );
 
+// Real PublicIds: the app's router sends any other id to "not found".
+const String _scopeId = '6f1d3a00-0000-0000-0000-0000000000a1';
+const String _appId = '6f1d3a00-0000-0000-0000-0000000000b1';
+
 const _grace = Person(
   id: 'person-2',
   name: 'Grace',
@@ -91,17 +95,17 @@ const _grace = Person(
 );
 
 const _billing = Application(
-  id: 'app-1',
+  id: _appId,
   name: 'Billing',
   ownerId: 'person-1',
-  scopeId: 'scope-1',
+  scopeId: _scopeId,
 );
 
 const _deleted = Application(
-  id: 'app-1',
+  id: _appId,
   name: 'Billing',
   ownerId: 'person-1',
-  scopeId: 'scope-1',
+  scopeId: _scopeId,
   isDeleted: true,
 );
 
@@ -167,10 +171,10 @@ void main() {
     if (realRouter) {
       // The app's own router, so its `onExit` and redirect are the ones tested.
       router = container.read(routerProvider);
-      router.go('/scopes/scope-1/applications/app-1');
+      router.go('/scopes/$_scopeId/applications/$_appId');
     } else {
       router = GoRouter(
-        initialLocation: '/scopes/scope-1/applications/app-1',
+        initialLocation: '/scopes/$_scopeId/applications/$_appId',
         routes: <RouteBase>[
           GoRoute(
             path: '/scopes/:scopeId/applications',
@@ -513,7 +517,7 @@ void main() {
     answerGetWith(const Success<Application>(_billing));
     answerUpdateWith(
       const Success<Application>(
-        Application(id: 'app-1', name: 'Invoicing', ownerId: 'person-1'),
+        Application(id: _appId, name: 'Invoicing', ownerId: 'person-1'),
       ),
     );
     await pump(tester);
@@ -532,8 +536,8 @@ void main() {
     // Then
     verify(
       () => applications.update(
-        scopeId: 'scope-1',
-        id: 'app-1',
+        scopeId: _scopeId,
+        id: _appId,
         name: 'Invoicing',
         ownerId: 'person-1',
       ),
@@ -547,7 +551,7 @@ void main() {
     answerGetWith(const Success<Application>(_billing));
     answerUpdateWith(
       const Success<Application>(
-        Application(id: 'app-1', name: 'Billing', ownerId: 'person-2'),
+        Application(id: _appId, name: 'Billing', ownerId: 'person-2'),
       ),
     );
     await pump(tester);
@@ -565,8 +569,8 @@ void main() {
     // Then
     verify(
       () => applications.update(
-        scopeId: 'scope-1',
-        id: 'app-1',
+        scopeId: _scopeId,
+        id: _appId,
         name: 'Billing',
         ownerId: 'person-2',
       ),
@@ -869,8 +873,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(() => applications.delete(scopeId: 'scope-1', id: 'app-1'))
-        .called(1);
+    verify(() => applications.delete(scopeId: _scopeId, id: _appId)).called(1);
   });
 
   testWidgets('GivenADeletedApplication_WhenDeleted_ThenTheListingOpens', (
@@ -1021,7 +1024,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    verify(() => applications.hardDelete(scopeId: 'scope-1', id: 'app-1'))
+    verify(() => applications.hardDelete(scopeId: _scopeId, id: _appId))
         .called(1);
   });
 }
