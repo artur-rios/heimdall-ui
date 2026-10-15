@@ -41,6 +41,7 @@ class FakeDashboardRepositories {
     this.permissions = 0,
     this.googleUsers = 0,
     this.systemAdmins = 1,
+    this.systemAdminsAnswer,
     this.scopesFailure,
     this.apiReachable = true,
     this.googleMe,
@@ -62,6 +63,10 @@ class FakeDashboardRepositories {
   final int? permissions;
   final int? googleUsers;
   final int? systemAdmins;
+
+  /// When set, answers the n-th System Admins read (from 1) instead of
+  /// [systemAdmins], so a test can hold one read back.
+  final Future<int?> Function(int read)? systemAdminsAnswer;
   final Failure? scopesFailure;
   final bool apiReachable;
   final Person me;
@@ -145,9 +150,12 @@ class _Persons extends Fake implements PersonRepository {
     int pageNumber = 1,
     int pageSize = 20,
   }) async {
-    fakes.systemAdminsReads++;
+    final read = ++fakes.systemAdminsReads;
+    final answer = fakes.systemAdminsAnswer;
 
-    return _count<PersonSummary>(fakes.systemAdmins);
+    return _count<PersonSummary>(
+      answer == null ? fakes.systemAdmins : await answer(read),
+    );
   }
 
   @override

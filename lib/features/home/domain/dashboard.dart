@@ -48,13 +48,13 @@ class DashboardStats {
   /// Whether the API answered its liveness check, or `null` when nobody asked.
   final bool? apiReachable;
 
-  /// How many scopes the dashboard breaks down. The counts cost a request per
-  /// scope and kind, so a system with many scopes is summarised over the
-  /// first few rather than flooding the API from the home screen.
   /// How many System Admins the system has (UI-38), or `null` when that could
   /// not be read or the caller is not a System Admin and was never told.
   final int? systemAdmins;
 
+  /// How many scopes the dashboard breaks down. The counts cost a request per
+  /// scope and kind, so a system with many scopes is summarised over the
+  /// first few rather than flooding the API from the home screen.
   static const int summarisedScopeLimit = 10;
 
   /// Whether the totals cover fewer scopes than the caller has.

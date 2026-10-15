@@ -91,7 +91,7 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
 ## 9. Testing
 
 - **Repository.** The path and query (`/api/persons/system-admins`, the filters, paging), the mapping, and a 403.
-- **Controller.** Load, filters reset the page, overlapping loads refused, failure, and fresh state after disposal.
+- **Controller.** Load, filters reset the page, overlapping loads queue the newest query, failure, and fresh state after disposal.
 - **List screen.**
   - cards at 360 px and a table at 1400 px;
   - the **(you)** marker;
@@ -105,7 +105,7 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
   - A Scope Admin doesn't see the tile.
 - **Person page without a scope.**
   - The back control goes to `/system-admins`.
-  - An edit refreshes the System Admins list.
+  - Returning to the list after an edit loads it fresh.
   - The account emails card follows its existing rules: hidden on your own record.
 - **Routing.** A Scope Admin or a User opening `/system-admins` or `/persons/x` gets the not-available screen.
 - **Gate.** `dart format --set-exit-if-changed . && flutter analyze && flutter test`.

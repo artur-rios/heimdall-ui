@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -232,6 +233,41 @@ void main() {
     expect((state as DashboardLoaded).stats.systemAdmins, isNull);
     expect(fakes.systemAdminsReads, 0);
   });
+
+  test(
+    'GivenASupersededLoad_WhenItsCountArrivesLate_ThenTheNewerFiguresStay',
+    () async {
+      // Given — load 1 is held on its System Admins count
+      final held = Completer<int?>();
+      final fakes = FakeDashboardRepositories(
+        systemAdminsAnswer: (read) async => read == 1 ? held.future : 5,
+      );
+      final store = InMemoryTokenStore();
+      await store.write(
+        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          ...fakes.overrides,
+          tokenStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(sessionControllerProvider.notifier).restore();
+      final notifier = container.read(dashboardControllerProvider.notifier);
+      final first = notifier.load();
+      await Future<void>.delayed(Duration.zero);
+
+      // When — load 2 finishes first, then load 1's count arrives
+      await notifier.load();
+      held.complete(3);
+      await first;
+
+      // Then
+      final state = container.read(dashboardControllerProvider);
+      expect((state as DashboardLoaded).stats.systemAdmins, 5);
+    },
+  );
 
   test('GivenNoScopes_WhenSummed_ThenEveryTotalIsZero', () {
     // Given

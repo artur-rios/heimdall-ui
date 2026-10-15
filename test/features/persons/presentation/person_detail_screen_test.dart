@@ -1032,6 +1032,26 @@ void main() {
     expect(find.text('system admins'), findsOneWidget);
   });
 
+  testWidgets('GivenNoScope_WhenPersonIsNotFound_ThenBackSaysSystemAdmins', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.notFound, errors: <String>[]),
+      ),
+    );
+
+    // When
+    await pump(tester, initialLocation: '/persons/person-1');
+
+    // Then
+    expect(
+      find.widgetWithText(FilledButton, 'Back to System Admins'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenNoScope_WhenOwnRecordOpened_ThenItStaysProtected', (
     tester,
   ) async {

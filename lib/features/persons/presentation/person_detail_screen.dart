@@ -261,7 +261,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               'There is nobody with that identifier. They may have been '
               'permanently deleted.',
           icon: Icons.search_off_outlined,
-          actionLabel: 'Back to the listing',
+          actionLabel: backTooltip,
           onAction: () => context.go(backToListing),
         ),
         // AF-18b — the API says this person is not within reach of this role.
@@ -271,7 +271,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               'This person is not one you administer. Nothing is wrong '
               'with your session.',
           icon: Icons.lock_person_outlined,
-          actionLabel: 'Back to the listing',
+          actionLabel: backTooltip,
           onAction: () => context.go(backToListing),
         ),
         PersonDetailUnavailable(:final failure) => CollectionFailed(

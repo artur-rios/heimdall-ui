@@ -96,6 +96,11 @@ class DashboardController extends Notifier<DashboardState> {
         final summaries = await Future.wait(page.items.map(_summarise));
         final everythingTotal = (await everything).valueOrNull?.totalItems;
         final reachable = (await ping).isSuccess;
+        // Awaited before the guard: a suspension after it could let a
+        // superseded load overwrite a newer one.
+        final adminTotal = systemAdmins == null
+            ? null
+            : (await systemAdmins).valueOrNull?.totalItems;
 
         if (generation != _generation) {
           return;
@@ -109,9 +114,7 @@ class DashboardController extends Notifier<DashboardState> {
                 : (everythingTotal - page.totalItems).clamp(0, everythingTotal),
             scopes: summaries,
             apiReachable: reachable,
-            systemAdmins: systemAdmins == null
-                ? null
-                : (await systemAdmins).valueOrNull?.totalItems,
+            systemAdmins: adminTotal,
           ),
         );
     }
