@@ -51,8 +51,8 @@ const String scopeParameter = 'scope';
 /// - The session token builds before per-tab sessions kept in local storage,
 ///   and the raw key it was encrypted with beside it, are removed.
 ///
-/// The route is the address's last segment, so a build served under a
-/// sub-path is read the same way. The rest of the query and the fragment are
+/// The route is the address's last non-empty segment, so a build served under
+/// a sub-path, or a link with a trailing slash, is read the same way. The rest of the query and the fragment are
 /// kept, and the address is replaced only when something was taken out of it.
 EntryLink takeEntryLink(EntryBrowser browser) {
   for (final key in SecureTokenStore.legacyWebEntries) {
@@ -61,7 +61,12 @@ EntryLink takeEntryLink(EntryBrowser browser) {
 
   final address = browser.address;
   final query = Map<String, List<String>>.of(address.queryParametersAll);
-  final route = address.pathSegments.isEmpty ? '' : address.pathSegments.last;
+  // The last segment that is not empty: go_router opens `/password-reset/`
+  // as `/password-reset`, so a trailing slash must not hide the route.
+  final route = address.pathSegments.lastWhere(
+    (segment) => segment.isNotEmpty,
+    orElse: () => '',
+  );
 
   final scope = query.remove(scopeParameter);
   final scopeId = scope == null || scope.isEmpty ? null : scope.first;

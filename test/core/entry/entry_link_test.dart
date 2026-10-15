@@ -107,6 +107,30 @@ void main() {
     );
   });
 
+  // go_router opens `/password-reset/` as `/password-reset`, so a link with a
+  // trailing slash reaches the screen and must lose its token all the same.
+  for (final route in <String>['password-reset', 'verify-email']) {
+    test(
+      'GivenATrailingSlashLink_WhenTheAppStarts_ThenItsTokenIsTaken $route',
+      () {
+        // Given
+        final browser = _FakeBrowser(
+          'https://ui.example.com/$route/?token=slash-token',
+        );
+
+        // When
+        final link = takeEntryLink(browser);
+
+        // Then
+        expect(
+          route == 'password-reset' ? link.resetToken : link.verificationToken,
+          'slash-token',
+        );
+        expect(browser.address.toString(), 'https://ui.example.com/$route/');
+      },
+    );
+  }
+
   test('GivenOtherParameters_WhenStripped_ThenTheyAreKept', () {
     // Given
     final browser = _FakeBrowser(
