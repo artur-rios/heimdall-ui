@@ -35,6 +35,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its
+  last destinations could not be reached. The rail now scrolls.
+- Closing or refreshing the browser tab while a credential's secret was still to be stored lost the secret
+  without a word. The browser now asks before leaving, as the app already did for Back and in-app navigation.
+- The request log of a debug build printed every request's headers, the bearer token among them. It now
+  writes one line per request, with the method, path, status and duration, and never headers, query strings, bodies
+  or an error's text. Release builds log nothing, as before.
+- When the API could not be reached, most screens showed the HTTP library's own text, such as "The connection
+  errored: … This indicates an error which most likely cannot be solved by the library." Every screen now says
+  "Could not reach the API. Check your connection and try again."
 - Rate-limited requests now say so, and how long to wait when the API tells us.
 - Password sign-in sent no scope, so a person with the User role was always told their credentials were invalid.
   It now sends the configured scope, the same one Google sign-in sends; with none configured only administrators can

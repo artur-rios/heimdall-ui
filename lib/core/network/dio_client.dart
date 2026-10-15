@@ -6,6 +6,7 @@ import '../../features/auth/presentation/session_controller.dart';
 import '../config/app_config.dart';
 import '../storage/token_store.dart';
 import 'auth_interceptor.dart';
+import 'request_log_interceptor.dart';
 
 /// Overridden at start-up with the configuration read from the environment.
 final Provider<AppConfig> appConfigProvider = Provider<AppConfig>(
@@ -40,11 +41,10 @@ Dio createDio({
         );
 
   if (kDebugMode) {
-    // Bodies are omitted on purpose: they carry tokens, recovery codes, and
-    // email addresses, none of which belong in a console log.
-    dio.interceptors.add(
-      LogInterceptor(requestBody: false, responseBody: false),
-    );
+    // Method, path, status and duration only. Dio's own LogInterceptor also
+    // prints headers — the bearer token among them — query strings, `extra`,
+    // and the error's text; none of that belongs in a console log.
+    dio.interceptors.add(RequestLogInterceptor());
   }
 
   return dio;

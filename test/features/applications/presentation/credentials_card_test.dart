@@ -537,10 +537,11 @@ void main() {
         () => repository.issue('s1', 'a1', expiresAt: any(named: 'expiresAt')),
       ).thenAnswer(
         (_) async => const FailureResult<IssuedCredential>(
+          // As the envelope maps a refused connection.
           Failure(
             kind: FailureKind.network,
             errors: <String>[],
-            message: 'Connection refused.',
+            message: kUnreachableMessage,
           ),
         ),
       );
@@ -552,7 +553,7 @@ void main() {
       await tester.pumpAndSettle();
 
       // Then
-      expect(find.text('Connection refused.'), findsWidgets);
+      expect(find.text(kUnreachableMessage), findsWidgets);
       verify(() => repository.list('s1', 'a1')).called(2);
     },
   );

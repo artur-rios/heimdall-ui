@@ -78,25 +78,35 @@ class AdaptiveScaffold extends StatelessWidget {
       body: SafeArea(
         child: Row(
           children: <Widget>[
-            NavigationRail(
-              extended: breakpoint == Breakpoint.expanded,
-              selectedIndex: selectedIndex,
-              onDestinationSelected: onDestinationSelected,
-              // An extended rail shows its labels beside the icons already;
-              // asking for them twice throws.
-              labelType: breakpoint == Breakpoint.expanded
-                  ? NavigationRailLabelType.none
-                  : NavigationRailLabelType.all,
-              destinations: <NavigationRailDestination>[
-                for (final destination in destinations)
-                  NavigationRailDestination(
-                    icon: Icon(destination.icon),
-                    selectedIcon: Icon(
-                      destination.selectedIcon ?? destination.icon,
+            // A scrolling rail must not take the route's primary controller:
+            // on iOS and Android the body's list inherits it too, and a
+            // keyboard scroll then finds two positions and throws.
+            PrimaryScrollController.none(
+              child: NavigationRail(
+                extended: breakpoint == Breakpoint.expanded,
+                // The breakpoints read only the width: a short window, or a
+                // soft keyboard taking the bottom of a tall one, can leave less
+                // height than a System Admin's destinations need, so the rail
+                // scrolls rather than overflowing and clipping the last ones.
+                scrollable: true,
+                selectedIndex: selectedIndex,
+                onDestinationSelected: onDestinationSelected,
+                // An extended rail shows its labels beside the icons already;
+                // asking for them twice throws.
+                labelType: breakpoint == Breakpoint.expanded
+                    ? NavigationRailLabelType.none
+                    : NavigationRailLabelType.all,
+                destinations: <NavigationRailDestination>[
+                  for (final destination in destinations)
+                    NavigationRailDestination(
+                      icon: Icon(destination.icon),
+                      selectedIcon: Icon(
+                        destination.selectedIcon ?? destination.icon,
+                      ),
+                      label: Text(destination.label),
                     ),
-                    label: Text(destination.label),
-                  ),
-              ],
+                ],
+              ),
             ),
             const VerticalDivider(width: 1),
             Expanded(child: body),

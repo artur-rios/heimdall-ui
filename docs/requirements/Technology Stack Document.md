@@ -40,7 +40,7 @@ versions and roles are maintained in exactly one place.
 | --- | --- | --- |
 | **flutter_riverpod** | `^3.4.3` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
 | **go_router** | `^18.0.2` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
-| **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. |
+| **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. Debug builds add the application's own request log, one line per request with the method, path, status and duration; it never prints headers, query strings, bodies or an error's text. |
 | **retrofit** | `^4.10.0` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
 | **json_annotation** | `^4.12.0` | The generated models' runtime, paired with `json_serializable` at build time. |
 | **flutter_secure_storage** | `^11.2.0` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted local storage on the web. |
