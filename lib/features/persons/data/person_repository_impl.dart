@@ -303,6 +303,54 @@ class ApiPersonRepository implements PersonRepository {
   }
 
   @override
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _client.personListSystemAdmins(
+        name: _filter(name),
+        email: _filter(email),
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+
+      if (response.success != true) {
+        return FailureResult<Page<PersonSummary>>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final items = (response.data ?? const <PersonSummaryOutput>[])
+          .map(
+            (output) => PersonSummary(
+              id: output.id ?? '',
+              name: output.name ?? '',
+              email: output.email ?? '',
+            ),
+          )
+          .toList(growable: false);
+
+      return Success<Page<PersonSummary>>(
+        Page<PersonSummary>(
+          items: items,
+          pageNumber: response.pageNumber ?? pageNumber,
+          pageSize: response.pageSize ?? pageSize,
+          totalItems: response.totalItems ?? items.length,
+          totalPages: response.totalPages ?? 1,
+        ),
+      );
+    } on DioException catch (error) {
+      return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
+    }
+  }
+
+  @override
   Future<Result<void>> addScopeOwner({
     required String scopeId,
     required String personId,
