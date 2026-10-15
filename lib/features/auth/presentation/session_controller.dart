@@ -248,7 +248,9 @@ class SessionController extends Notifier<SessionState> {
         // AF-06b and AF-06d: Heimdall refused, but Google still considers the
         // user signed in. Dropping that leaves the next attempt to start from
         // the account chooser rather than silently reusing the refused one.
-        await _google.signOut();
+        // Best-effort: the refusal is what the caller is waiting to hear, and
+        // a Google sign-out that throws must not replace it.
+        await _bestEffort(_google.signOut);
         state = const Unauthenticated();
 
         return FailureResult<void>(failure);
@@ -363,8 +365,9 @@ class SessionController extends Notifier<SessionState> {
   /// token with a 401.
   ///
   /// A Google session is ended at the API and at Google as well as here. Both
-  /// are best-effort: a refusal from either must not leave the user signed in
-  /// locally, which is the part this side actually controls.
+  /// are best-effort: a refusal from either, or a throw, must not leave the
+  /// user signed in locally, which is the part this side actually controls.
+  /// The stored token and the session here go whatever those calls do.
   ///
   /// AF-07e: [expired] marks a session that ended under the caller rather than
   /// one they chose to leave, so the sign-in screen can say which happened.
@@ -410,12 +413,13 @@ class SessionController extends Notifier<SessionState> {
             !credentialsChanged &&
             !token.isExpired &&
             !principal.subjectRightsOnly) {
-          await _repository.signOutFromGoogle();
+          await _bestEffort(_repository.signOutFromGoogle);
         }
 
-        await _google.signOut();
+        await _bestEffort(_google.signOut);
       }
-
+    } finally {
+      // Neither of these throws: the store is cleared best-effort too.
       await _clearStore();
       state = Unauthenticated(
         sessionExpired: expired,
@@ -423,12 +427,21 @@ class SessionController extends Notifier<SessionState> {
         processingRestricted: processingRestricted,
         credentialsChanged: credentialsChanged,
       );
-    } finally {
       _signingOut = false;
     }
   }
 
   bool _signingOut = false;
+
+  /// Makes a call to the API or to Google whose failure, of whatever kind,
+  /// must not stop what follows it.
+  static Future<void> _bestEffort(Future<Object?> Function() call) async {
+    try {
+      await call();
+    } on Object {
+      // Best-effort by design; the caller goes on regardless.
+    }
+  }
 
   /// Drops the stored token. Best-effort: a store the platform will not touch
   /// must not keep the person signed in here, which is the part this side

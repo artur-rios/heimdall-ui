@@ -371,7 +371,8 @@ delivered the same way.
 
 1. A Google-authenticated user signs out.
 2. The client calls `POST /api/auth/google/sign-out`, clears the local Google session, discards the
-   token, and returns to the login screen.
+   token, and returns to the login screen. The API call and Google's sign-out are best-effort: when
+   either fails or throws, the token is still discarded and the session still ends.
 
 **Alternative flows**
 
@@ -381,7 +382,7 @@ delivered the same way.
   the returned errors and leaves the credentials form available.
 - **AF-06c — User cancels Google's flow.** No request is made and the login screen is unchanged.
 - **AF-06d — Exchange rejected.** The API rejects the ID token. The client shows the returned errors
-  and clears the pending Google session.
+  and clears the pending Google session; if clearing it fails, the errors are shown all the same.
 - **AF-06e — Platform without support.** On a target where the Google flow is unavailable the
   control is hidden, and the credentials form remains the only route in.
 
