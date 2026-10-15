@@ -90,7 +90,8 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      # Signed with the debug key: suitable for testing, never for release.
+      # Signed with the debug key (and a Gradle warning) unless the HEIMDALL_UI_KEYSTORE_*
+      # and HEIMDALL_UI_KEY_* variables are provided: suitable for testing, never for release.
       - run: flutter build apk --release
       - uses: actions/upload-artifact@v7
         with:

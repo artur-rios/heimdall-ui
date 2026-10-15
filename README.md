@@ -206,6 +206,21 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 | Linux | `build/linux/x64/release/bundle` |
 | Android | `build/app/outputs/flutter-apk` |
 
+**Signing the Android release.** The release APK is signed with a keystore held outside the repository. The Gradle
+build reads these environment variables, or `android/key.properties` (git-ignored; CI can write it from the same
+secrets) with the keys in the last column:
+
+| Variable | Meaning | `key.properties` key |
+| --- | --- | --- |
+| `HEIMDALL_UI_KEYSTORE_PATH` | The keystore file, absolute or relative to `android/` | `storeFile` |
+| `HEIMDALL_UI_KEYSTORE_PASSWORD` | The keystore password | `storePassword` |
+| `HEIMDALL_UI_KEY_ALIAS` | The key's alias | `keyAlias` |
+| `HEIMDALL_UI_KEY_PASSWORD` | The key's password; defaults to the keystore password | `keyPassword` |
+
+With none of them set, the release build signs with the **debug key** and prints a warning: that APK is for testing
+only and must not be distributed. Setting some of the first three but not all, or naming a keystore that does not
+exist, fails the build.
+
 ## Container image (web)
 
 `Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.47.7, the

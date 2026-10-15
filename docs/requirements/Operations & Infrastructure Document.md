@@ -285,8 +285,14 @@ source that silences them.
 
 - **Windows and Linux** builds are unsigned by default. Signing and packaging (MSIX, AppImage, deb)
   are deployment decisions and are not part of this repository.
-- **Android** release builds require a signing configuration. Until one is provided, `flutter build
-  apk --release` signs with the debug key, which is suitable for testing and not for distribution.
+- **Android** release builds are signed with a keystore held outside the repository, read from the
+  environment variables `HEIMDALL_UI_KEYSTORE_PATH`, `HEIMDALL_UI_KEYSTORE_PASSWORD`,
+  `HEIMDALL_UI_KEY_ALIAS` and (optionally, defaulting to the keystore password) `HEIMDALL_UI_KEY_PASSWORD`,
+  or from a git-ignored `android/key.properties` with the keys `storeFile`, `storePassword`, `keyAlias` and
+  `keyPassword`. When none is set, `flutter build apk --release` signs with the debug key and prints a
+  warning; that APK is suitable for testing and not for distribution, and `build.yml` produces exactly
+  that until the secrets are added. A partial configuration, or a keystore that does not exist, fails the
+  build.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 
 ---

@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The Android release build now signs with a keystore read from `HEIMDALL_UI_KEYSTORE_PATH`,
+  `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`, or from a git-ignored
+  `android/key.properties`. Without them it still falls back to the debug key, now with a loud Gradle warning, so a
+  build without the secrets keeps working but must not be distributed. A partial configuration fails the build.
 - The web image now sends an enforced Content-Security-Policy, which allows the page to load script and connect only
   to its own origin, the API's origin, Google Sign-In, and Google's font service for characters the bundled font has
   no glyphs for, such as emoji and Chinese, Japanese or Arabic text. The API's origin comes from `HEIMDALL_API_BASE_URL`, which
