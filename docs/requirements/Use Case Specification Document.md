@@ -470,10 +470,10 @@ User's own record
   the person's two-factor authentication is on — a **Two-factor code**. No emailed code is sent
   while signed in, so the code field says "A code from your authenticator app, or a recovery code.";
   when email is the person's only method it says "Use one of your recovery codes." The method is
-  read through `GET /api/auth/2fa` once an edit starts; when it cannot be read, the first wording is
-  used. The client sends `currentPassword` and, when the factor is on, `twoFactorCode` with the
-  update. A name-only edit asks for neither and sends neither. Cancelling the edit clears both
-  fields.
+  read through `GET /api/auth/2fa` once an edit starts, and the field suggests nothing until that
+  read finishes; when it cannot be read, the first wording is used. The client sends
+  `currentPassword` and, when the factor is on, `twoFactorCode` with the update. A name-only edit
+  asks for neither and sends neither. Cancelling the edit clears both fields.
 - **AF-08h — Confirmation refused.** The API answers `401` with "The current password is
   incorrect." or "The code or recovery code is missing, incorrect, or already used.". The client
   shows the message above the form, keeps the input, and leaves the session alone: the token is
@@ -524,15 +524,19 @@ User's own record
   keeps the setup alive so the user can try again without restarting.
 - **AF-09b — Setup abandoned.** The user leaves before confirming. Two-factor authentication stays
   off, and the pending secret is discarded from client memory.
-- **AF-09c — Recovery codes not acknowledged.** Navigation away is blocked by a confirmation, since
-  the codes are shown exactly once. Leaving anyway signs the user out, as acknowledging does
-  (AF-09g).
+- **AF-09c — Recovery codes not acknowledged.** Leaving is stopped by a confirmation, since the
+  codes are shown exactly once: by the screen's back control, the navigation, signing out, a system
+  back, and — on the web — a browser Back or Forward or a typed address, which the route itself asks
+  about. While the codes wait, closing or reloading the tab asks the browser to confirm too. Leaving
+  anyway signs the user out, as acknowledging does (AF-09g). A session that ends meanwhile is not
+  held behind the confirmation.
 - **AF-09d — Disable rejected.** The API rejects the credential. The client shows the returned
   errors and leaves the feature on.
 - **AF-09e — QR code cannot be rendered.** The client always shows the secret as selectable text
   next to the QR code, so a rendering failure never blocks setup.
 - **AF-09f — Password refused when enabling.** The API answers `401` with "The current password is
-  incorrect.". The client shows it, the feature stays off, and the session is left alone.
+  incorrect.". The password dialog stays open with the message in it, so the user types the password
+  again there; the feature stays off and the session is left alone.
 - **AF-09g — Signed out after a change.** After a confirmation (once the codes are acknowledged or
   left), a disable, or a regeneration (once the codes are acknowledged or left), the client asks
   nothing more under the session's token, signs the user out, and the sign-in screen says "Your
@@ -803,8 +807,9 @@ User's own record
 - **AF-18c — Update rejected.** The returned errors are shown against the offending field.
 - **AF-18d — Deleted person.** A logically deleted person is shown read-only, marked as deleted.
 - **AF-18e — Editing yourself.** Opening your own record from the administrative listing lets you
-  change your name, never your role, and shows your email address read-only: changing it is done
-  from your profile (UI-08), which asks for your password (AF-08g) and signs you in again.
+  change your name, never your role, and shows your email address read-only, with "Change your own
+  email from your profile." beneath it while editing: changing it is done from your profile (UI-08),
+  which asks for your password (AF-08g) and signs you in again.
 - **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
   `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
   **Back to System Admins**) returns to the System Admins list, and so does a delete.

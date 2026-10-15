@@ -35,11 +35,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Changing your email or turning on 2FA now asks for your password; you sign in again afterwards. Changing your
-  email also asks for a code from your authenticator app, or a recovery code, when two-factor authentication is on.
-  Turning two-factor authentication off, and generating new recovery codes, sign you in again too, once any new codes
-  have been shown. The sign-in screen says "Your sign-in details changed. Sign in again." A wrong password or code is
-  shown on the form and keeps you signed in.
+- Changing your email or turning on 2FA now asks for your password; you sign in again afterwards. Changing your email
+  also asks for a code from your authenticator app, or a recovery code, when two-factor authentication is on. Turning
+  two-factor authentication off, and generating new recovery codes, sign you out too, once any new codes have been
+  shown, and you sign in again. The sign-in screen says "Your sign-in details changed. Sign in again." A wrong
+  password or code is shown on the form and keeps you signed in.
 - On a person's page, your own email address is read-only; it is changed from your profile. Administrators changing
   somebody else's address are not asked for a password.
 
