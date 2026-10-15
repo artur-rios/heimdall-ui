@@ -42,13 +42,16 @@ String _apiJwt(Map<String, String> claims) {
 
 /// Google's half, faked. No test reaches Google's SDK.
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {
-  _FakeGoogleSignInGateway({this.signOutError});
+  _FakeGoogleSignInGateway({this.signOutError, this.signOutHangs = false});
 
   int signOuts = 0;
 
   /// What Google's sign-out throws, if anything — as the plugin can, offline
   /// on the web or when the platform refuses to clear its credential.
   final Object? signOutError;
+
+  /// Whether Google's sign-out never answers at all.
+  final bool signOutHangs;
 
   @override
   GoogleSignInAvailability get availability =>
@@ -68,6 +71,10 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
   @override
   Future<void> signOut() async {
     signOuts++;
+
+    if (signOutHangs) {
+      return Completer<void>().future;
+    }
 
     if (signOutError case final error?) {
       throw error;
@@ -811,6 +818,84 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
     expect(await store.read(), isNull);
   });
+
+  // A Google sign-out that never answers cannot hold the session open: it is
+  // given a few seconds, and the session ends regardless.
+  testWidgets('GivenAHangingGoogleSignOut_WhenSignedOut_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.signOutFromGoogle())
+        .thenAnswer((_) async => const Success<void>(null));
+    final gateway = _FakeGoogleSignInGateway(signOutHangs: true);
+    final container = await googleSession(gateway);
+
+    // When
+    unawaited(container.read(sessionControllerProvider.notifier).signOut());
+    await tester.pump(const Duration(seconds: 6));
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+  });
+
+  // The same for the API's half of a Google sign-out.
+  testWidgets('GivenAHangingApiSignOut_WhenSignedOut_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.signOutFromGoogle())
+        .thenAnswer((_) => Completer<Result<void>>().future);
+    final gateway = _FakeGoogleSignInGateway();
+    final container = await googleSession(gateway);
+
+    // When
+    unawaited(container.read(sessionControllerProvider.notifier).signOut());
+    await tester.pump(const Duration(seconds: 6));
+
+    // Then
+    expect(gateway.signOuts, 1);
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+  });
+
+  // An exchange whose answer the client cannot read is reported as such, not
+  // thrown at the control that asked.
+  test(
+    'GivenAnUnreadableExchange_WhenExchanged_ThenAFailureIsReturned',
+    () async {
+      // Given
+      when(
+        () => repository.signInWithGoogle(
+          idToken: 'id-token',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenThrow(const FormatException('not an envelope'));
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(
+            _FakeGoogleSignInGateway(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.exchangeGoogleIdToken('id-token');
+
+      // Then
+      expect(
+        result.failureOrNull?.displayMessage,
+        'The API returned an unexpected response.',
+      );
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
 
   // AF-06b — a refused exchange is reported as the refusal, even when telling
   // Google about it throws, so the control that asked stops waiting.

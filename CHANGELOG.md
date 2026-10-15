@@ -35,8 +35,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Requests now always act as the person the screen shows. A tab used to pick up the session of whoever signed in or
   out in another tab of the same browser, while still showing its own.
 - Signing out of a Google session could leave you signed in, with the Sign out button doing nothing, when Google's
-  sign-out or the API's failed unexpectedly. The session now always ends and the stored token is always removed. A
-  refused Google sign-in whose clean-up failed kept its spinner turning; it now shows the refusal.
+  sign-out or the API's failed unexpectedly or never answered. The session now always ends, within a few seconds, and
+  the stored token is always removed. A Google sign-in that failed unexpectedly, or was refused and whose clean-up
+  failed, kept its spinner turning; it now says so and offers the button again.
 - A response that arrived after signing out could fill the screen the next person to sign in on the same device opened
   first: lists, records, the dashboard, the profile, two-factor and restricted-account screens. Such responses are now
   dropped. A scope's Sign-in & sign-up settings are also cleared at sign-out, as every other screen's are.

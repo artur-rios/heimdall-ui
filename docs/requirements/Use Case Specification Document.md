@@ -376,7 +376,8 @@ delivered the same way.
 1. A Google-authenticated user signs out.
 2. The client calls `POST /api/auth/google/sign-out`, clears the local Google session, discards the
    token, and returns to the login screen. The API call and Google's sign-out are best-effort: when
-   either fails or throws, the token is still discarded and the session still ends.
+   either fails, throws, or does not answer within a few seconds, the token is still discarded and
+   the session still ends.
 
 **Alternative flows**
 

@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
 import '../../../core/scope/scope_source.dart';
 import '../../../core/storage/token_store.dart';
@@ -235,10 +236,15 @@ class SessionController extends Notifier<SessionState> {
   ///
   /// The scope comes from the calling application, which is the only party that
   /// knows which one is being entered.
+  ///
+  /// An answer the client cannot read is a failure like any other, returned
+  /// rather than thrown, so the control that asked can say so and stop.
   Future<Result<void>> exchangeGoogleIdToken(String idToken) async {
-    final result = await _repository.signInWithGoogle(
-      idToken: idToken,
-      scopeId: ref.read(scopeSourceProvider).read(),
+    final result = await guardUnexpected(
+      () => _repository.signInWithGoogle(
+        idToken: idToken,
+        scopeId: ref.read(scopeSourceProvider).read(),
+      ),
     );
 
     switch (result) {
@@ -445,11 +451,16 @@ class SessionController extends Notifier<SessionState> {
 
   bool _signingOut = false;
 
+  /// How long ending a session waits on the API, on Google, or on the
+  /// platform's store before going on without it.
+  static const Duration _externalCallTimeout = Duration(seconds: 5);
+
   /// Makes a call to the API or to Google whose failure, of whatever kind,
-  /// must not stop what follows it.
+  /// must not stop what follows it — nor its silence: one that has not
+  /// answered within [_externalCallTimeout] is given up on.
   static Future<void> _bestEffort(Future<Object?> Function() call) async {
     try {
-      await call();
+      await call().timeout(_externalCallTimeout);
     } on Object {
       // Best-effort by design; the caller goes on regardless.
     }
@@ -460,7 +471,7 @@ class SessionController extends Notifier<SessionState> {
   /// controls — the token it holds is one the next start-up cannot read anyway.
   Future<void> _clearStore() async {
     try {
-      await _store.clear();
+      await _store.clear().timeout(_externalCallTimeout);
     } on Object {
       // Nothing more to do; the session below ends regardless.
     }
