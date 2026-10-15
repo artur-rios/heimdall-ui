@@ -16,8 +16,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for
   the tab and removes it from the address bar; a value that is not a scope id is ignored. Callers must not be hosted
   on the UI's origin. Writing the session storage value from the same origin keeps working.
-- On the web, a session now lasts as long as its browser tab. Reloading the tab keeps you signed in; closing it signs
-  you out, and each tab signs in on its own.
+- On the web, a session now belongs to its browser tab: each tab signs in on its own, and the token is no longer kept
+  where other tabs can use it. Reloading the tab keeps you signed in, and signing out clears it. A browser that
+  restores a closed tab may restore its session too, so sign out on a shared computer.
 - A release build of the Windows, Linux or Android app now refuses to start when its API address is not `https://`,
   instead of sending passwords and tokens in the clear. The local API at `localhost` or `127.0.0.1` is still allowed.
 

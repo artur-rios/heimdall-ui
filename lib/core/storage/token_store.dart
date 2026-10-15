@@ -105,11 +105,11 @@ class SecureTokenStore implements TokenStore {
   /// The store the application runs with.
   ///
   /// NFR-04: on the web the token is kept in the tab's session storage, not in
-  /// local storage. It goes when the tab is closed, so a shared machine does
-  /// not hand it to the next person to open the interface, and no other tab of
-  /// the same browser reads it. The browser's storage is readable by any
-  /// script on the page, key and ciphertext alike, so the encryption is no
-  /// defence on its own; what this buys is a shorter life and a narrower
+  /// local storage, so no other tab of the same browser reads it and a new tab
+  /// does not inherit it. (A browser that restores a closed tab may restore its
+  /// session storage too; signing out is what clears it.) The browser's
+  /// storage is readable by any script on the page, key and ciphertext alike,
+  /// so the encryption is no defence on its own; what this buys is a narrower
   /// reach. Every other platform keeps the token in its own secure store.
   const SecureTokenStore.platform()
     : _storage = const FlutterSecureStorage(

@@ -332,11 +332,13 @@ request into `main` to production once every check passes (§2.2) — see
 
 - **The token is the only stored state**, held in the platform's secure storage. Signing out deletes
   it. A challenge token is never stored.
-- **On the web the token lives in the tab's session storage.** A reload of the tab keeps the
-  session; closing the tab ends it, and other tabs sign in on their own (a tab the browser duplicates
-  starts with a copy of the original's session storage, and so of its session). The token is
+- **On the web the token lives in the tab's session storage.** It is kept per tab and not shared:
+  other tabs sign in on their own, and signing out clears it. A reload keeps the session, and so may
+  a tab the browser brings back: a duplicated tab starts with a copy of the original's session
+  storage, and reopening a closed tab or restoring the browser's last session can restore it too.
+  On a shared machine, signing out is what ends the session; closing the tab may not. The token is
   encrypted there, but its key is kept in the same storage, so it is not protected from scripts
-  running on the UI's own origin: what limits it on the web is the tab's lifetime and the token's.
+  running on the UI's own origin: what limits it on the web is the token's own lifetime.
 - **An older build's token is removed.** Builds before per-tab sessions kept the token in local
   storage, beside the raw key it was encrypted with. Start-up on the web removes both, so it does not
   linger there until it expires.
