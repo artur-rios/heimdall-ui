@@ -6,6 +6,7 @@ import 'package:heimdall_ui/app/session_scoped_state.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_create_controller.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_detail_controller.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_list_controller.dart';
+import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/email_verification_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verification_banner.dart';
@@ -65,6 +66,7 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
   'erasureRequestListControllerProvider': erasureRequestListControllerProvider,
   'auditLogControllerProvider': auditLogControllerProvider,
   'restrictedSessionControllerProvider': restrictedSessionControllerProvider,
+  'pendingSecretProvider': pendingSecretProvider,
 };
 
 /// The stateful providers that are not reset at sign-out, and why.
@@ -73,7 +75,6 @@ const Map<String, String> _exempt = <String, String>{
   'themeModeControllerProvider': "the device's preference, not the person's",
   'passwordRecoveryControllerProvider': 'used signed out, about no session',
   'passwordResetControllerProvider': 'used signed out, about no session',
-  'pendingSecretProvider': 'a flag the session redirect clears',
   'accountEmailsControllerProvider': 'autoDispose: goes with its screen',
   'applicationCredentialsControllerProvider':
       'autoDispose: goes with its screen',

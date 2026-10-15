@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
 import '../features/applications/presentation/application_create_controller.dart';
 import '../features/applications/presentation/application_detail_controller.dart';
 import '../features/applications/presentation/application_list_controller.dart';
+import '../features/applications/presentation/pending_secret.dart';
 import '../features/audit_log/presentation/audit_log_controller.dart';
 import '../features/auth/presentation/email_verification_controller.dart';
 import '../features/auth/presentation/verification_banner.dart';
@@ -77,4 +78,7 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   erasureRequestListControllerProvider,
   auditLogControllerProvider,
   restrictedSessionControllerProvider,
+  // Holds no secret, only the flag that one is pending; resetting it also
+  // drops the unload guard that follows it.
+  pendingSecretProvider,
 ];
