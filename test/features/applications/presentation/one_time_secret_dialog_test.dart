@@ -85,7 +85,10 @@ void main() {
 
       // Then
       expect(secrets.copied, <String>['hds_abcdef']);
-      expect(find.text('Secret copied.'), findsOneWidget);
+      expect(
+        find.text('Secret copied (cleared in 60 s where possible).'),
+        findsOneWidget,
+      );
     },
   );
 

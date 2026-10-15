@@ -36,9 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   person will be able to administer every scope. The password fields for a new person and a new scope co-owner are
   now marked as new passwords, so a password manager no longer offers, or offers to overwrite, the creating admin's
   own saved password.
-- A copied credential secret, authenticator setup key or set of recovery codes stayed on the clipboard indefinitely,
-  where a clipboard history or another application could read it. It is now cleared after 60 seconds, unless
-  something else has been copied since. On Android the window is also kept out of screenshots, screen recordings and
+- A copied credential secret, authenticator setup key or set of recovery codes is now cleared from the clipboard after
+  60 seconds where the platform allows, unless something else has been copied since. The check runs again when the
+  app returns to the foreground; it is not attempted in a browser, and it does not happen if the app is closed first.
+  On Android the window is also kept out of screenshots, screen recordings and
   the recents thumbnail while a secret or recovery codes are on screen.
 - The token of a password reset or email verification link stayed in the address bar, in the page's history entry,
   and in the Referer of every request the page made. On the web it is now removed from the address as the page opens,

@@ -1,14 +1,17 @@
 import 'dart:async';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
 
 class _FakeClipboard implements ClipboardAccess {
   String? text;
   bool failReads = false;
+  int reads = 0;
 
   @override
   Future<String?> read() async {
+    reads++;
     if (failReads) {
       throw StateError('clipboard is not readable');
     }
@@ -23,10 +26,12 @@ class _FakeClipboard implements ClipboardAccess {
 void main() {
   late _FakeClipboard clipboard;
   late SecretClipboard secrets;
+  late DateTime now;
 
   setUp(() {
+    now = DateTime(2026, 10, 15, 12);
     clipboard = _FakeClipboard();
-    secrets = SecretClipboard(clipboard: clipboard);
+    secrets = SecretClipboard(clipboard: clipboard, now: () => now);
   });
 
   // The delay is the widget binding's fake clock: pump moves it.
@@ -112,4 +117,98 @@ void main() {
       expect(clipboard.text, 'hds_secret');
     },
   );
+
+  // A backgrounded app may not read the clipboard, or its timer may not run:
+  // coming back to the foreground is when the overdue check happens.
+  testWidgets(
+    'GivenTheDeadlinePassed_WhenTheAppResumes_ThenTheClipboardIsCleared',
+    (tester) async {
+      // Given
+      unawaited(secrets.copy('hds_secret'));
+      await tester.pump();
+      now = now.add(const Duration(seconds: 61));
+
+      // When
+      secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // Then
+      expect(clipboard.text, '');
+    },
+  );
+
+  testWidgets(
+    'GivenTheDeadlineNotReached_WhenTheAppResumes_ThenItIsStillThere',
+    (tester) async {
+      // Given
+      unawaited(secrets.copy('hds_secret'));
+      await tester.pump();
+      now = now.add(const Duration(seconds: 30));
+
+      // When
+      secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // Then
+      expect(clipboard.text, 'hds_secret');
+      await tester.pump(const Duration(seconds: 61));
+    },
+  );
+
+  testWidgets(
+    'GivenAClipboardReadingNull_WhenTheAppResumesLate_ThenNothingIsWritten',
+    (tester) async {
+      // Given
+      unawaited(secrets.copy('hds_secret'));
+      await tester.pump();
+      clipboard.text = null;
+      now = now.add(const Duration(seconds: 61));
+
+      // When
+      secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+      await tester.pump();
+
+      // Then
+      expect(clipboard.text, isNull);
+    },
+  );
+
+  testWidgets('GivenTheWeb_WhenTheDelayPasses_ThenTheClipboardIsNeverRead', (
+    tester,
+  ) async {
+    // Given
+    final web = SecretClipboard(
+      clipboard: clipboard,
+      readable: false,
+      now: () => now,
+    );
+    unawaited(web.copy('hds_secret'));
+    await tester.pump();
+
+    // When
+    now = now.add(const Duration(seconds: 61));
+    await tester.pump(const Duration(seconds: 61));
+    web.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pump();
+
+    // Then
+    expect(clipboard.reads, 0);
+    expect(clipboard.text, 'hds_secret');
+  });
+
+  testWidgets('GivenAClosedApp_WhenTheDelayPasses_ThenNoWorkIsPending', (
+    tester,
+  ) async {
+    // Given
+    unawaited(secrets.copy('hds_secret'));
+    await tester.pump();
+
+    // When
+    secrets.dispose();
+    await tester.pump(const Duration(seconds: 61));
+
+    // Then: the test would fail on a pending timer, and nothing was read.
+    expect(clipboard.reads, 0);
+    expect(clipboard.text, 'hds_secret');
+  });
 }

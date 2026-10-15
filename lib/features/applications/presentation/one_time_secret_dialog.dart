@@ -50,7 +50,11 @@ Future<void> showOneTimeSecretDialog(BuildContext context, String secret) =>
                         final messenger = ScaffoldMessenger.of(context);
                         await ref.read(secretClipboardProvider).copy(secret);
                         messenger.showSnackBar(
-                          const SnackBar(content: Text('Secret copied.')),
+                          const SnackBar(
+                            content: Text(
+                              'Secret copied (cleared in 60 s where possible).',
+                            ),
+                          ),
                         );
                       },
                     ),
