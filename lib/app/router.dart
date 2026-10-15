@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../core/entry/entry_link.dart';
 import '../core/ids/public_id.dart';
 import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_detail_screen.dart';
@@ -170,16 +171,23 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/password-reset',
         // AF-04a: a link without `token` still reaches the screen, which says
-        // what is wrong. Refusing to route would only show "not found".
-        builder: (context, state) =>
-            PasswordResetScreen(token: state.uri.queryParameters['token']),
+        // what is wrong. Refusing to route would only show "not found". On the
+        // web start-up has already taken the token out of the address.
+        builder: (context, state) => PasswordResetScreen(
+          token:
+              state.uri.queryParameters['token'] ??
+              ref.read(entryLinkProvider).resetToken,
+        ),
       ),
       GoRoute(
         path: '/verify-email',
         // AF-05a: as with the reset link, a link without `token` still reaches
         // the screen, which explains and offers the resend.
-        builder: (context, state) =>
-            VerifyEmailScreen(token: state.uri.queryParameters['token']),
+        builder: (context, state) => VerifyEmailScreen(
+          token:
+              state.uri.queryParameters['token'] ??
+              ref.read(entryLinkProvider).verificationToken,
+        ),
       ),
       GoRoute(
         path: '/privacy',

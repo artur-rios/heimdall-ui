@@ -48,8 +48,8 @@ describes the flows that satisfy these requirements; the
 | FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401` to a request made under the session, except a `401` refusing a password or code typed into that request, which the screen shows instead. | UI-07 |
 | FR-AU-09 | The client shall offer Google sign-in when a Google client id is configured, exchange the resulting ID token at `POST /api/auth/google`, and sign out through `POST /api/auth/google/sign-out`. | UI-06 |
 | FR-AU-10 | The client shall request a password reset through `POST /api/auth/password-recovery` and shall show the same confirmation whether or not the address is registered. | UI-03 |
-| FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. | UI-04 |
-| FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. | UI-05 |
+| FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. On the web it shall remove the token from the address once read. | UI-04 |
+| FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. On the web it shall remove the token from the address once read. | UI-05 |
 | FR-AU-13 | The client shall offer to resend a verification email through `POST /api/auth/resend-verification`. | UI-05 |
 | FR-AU-14 | The client shall show an authenticated user with an unverified address a dismissible prompt offering to resend the verification email. | UI-05 |
 | FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}` — or, for a Google User, through `GET /api/scopes/{scopeId}/google-users/{id}`, read-only. | UI-08 |

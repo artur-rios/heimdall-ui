@@ -307,7 +307,9 @@ delivered the same way.
 
 **Main flow**
 
-1. The client opens the reset screen with the token from the link.
+1. The client opens the reset screen with the token from the link. On the web it takes the token out
+   of the address bar at start-up, before anything else loads, so it is left in neither the browser
+   history nor the Referer of a later request.
 2. The user enters a new password and confirms it.
 3. The client calls `POST /api/auth/password-reset` with the token and the new password.
 4. The API confirms. The client shows a success message and offers to sign in.
@@ -315,7 +317,8 @@ delivered the same way.
 **Alternative flows**
 
 - **AF-04a — Missing token.** The screen opens without a token. The client explains that the link is
-  incomplete and offers UI-03.
+  incomplete and offers UI-03. On the web this includes a reload of the page after the link was
+  opened: the token was kept only in memory, so the link is opened again.
 - **AF-04b — Invalid or expired token.** The API rejects it. The client shows the returned errors
   and offers UI-03.
 - **AF-04c — Passwords do not match.** Client-side validation blocks submission and marks the
@@ -333,7 +336,8 @@ delivered the same way.
 
 **Main flow**
 
-1. The client opens the verification screen with the token from the link.
+1. The client opens the verification screen with the token from the link, taken out of the address
+   bar on the web as in UI-04.
 2. The client calls `POST /api/auth/verify-email` immediately, showing progress.
 3. The API confirms. The client shows a success message and routes onward — to the home screen when
    a session exists, and to login otherwise.

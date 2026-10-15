@@ -7,6 +7,8 @@ import 'package:heimdall_api_client/export.dart';
 
 import 'app/heimdall_app.dart';
 import 'core/config/app_config.dart';
+import 'core/entry/entry_link.dart';
+import 'core/entry/platform_entry_link.dart';
 import 'core/network/dio_client.dart';
 import 'core/scope/scope_source.dart';
 import 'core/scope/session_scope_source.dart';
@@ -38,6 +40,12 @@ import 'features/scopes/domain/pending_registration_repository.dart';
 import 'features/scopes/presentation/scope_list_controller.dart';
 
 void main() {
+  // Before anything reads the address: the scope a caller handed over and a
+  // reset or verification token are taken out of it, so the router starts
+  // from the address without them and no history entry keeps them. A no-op
+  // off the web.
+  final entry = takePlatformEntryLink();
+
   // Route on the path, not the fragment. The API e-mails links such as
   // `/password-reset?token=…`; under Flutter's default hash strategy those
   // resolve to `/` and the guard sends the caller to sign-in, token and all.
@@ -59,10 +67,12 @@ void main() {
       retry: (retryCount, error) => null,
       overrides: <Override>[
         appConfigProvider.overrideWithValue(config),
+        entryLinkProvider.overrideWithValue(entry),
         tokenStoreProvider.overrideWithValue(const SecureTokenStore.platform()),
         // The scope belongs to whichever application sent the user here; on the
-        // web it is read from session storage on every use, so a caller may
-        // change it between one attempt and the next.
+        // web it is read from session storage on every use (where start-up
+        // put a `?scope=` the caller handed over), so a caller may change it
+        // between one attempt and the next.
         scopeSourceProvider.overrideWithValue(
           sessionScopeSource(fallback: config.scopeId),
         ),

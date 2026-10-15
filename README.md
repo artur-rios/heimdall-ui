@@ -95,17 +95,31 @@ is an `https://` address; only `http://localhost` and `http://127.0.0.1` are let
 
 Heimdall UI is opened by the applications that use Heimdall's services, and the scope being entered
 is theirs to name — there is no screen here that asks for it, and no endpoint an anonymous caller
-could list scopes from. On the web the calling application writes the scope's `PublicId` into
-**session storage** before sending the user here:
+could list scopes from. On the web the calling application names the scope's `PublicId` in the
+**URL** it sends the user to, as the `scope` query parameter, on any route:
+
+```text
+https://heimdall.example.com/login?scope=<scope-public-id>
+```
+
+At start-up the UI checks that the value is a GUID, copies it into its own **session storage**
+(`heimdall.scopeId`), and removes it from the address bar. A value that is not a GUID is ignored and
+removed. Session storage rather than a cookie: it is scoped to the tab, so two tabs can act in two
+scopes; it is never attached to a request, so the scope cannot become a header the API did not ask
+for; and it dies with the tab, so a scope does not outlive the visit on a shared machine. It is read
+on every use, so opening the UI again with another `scope` changes it.
+
+> [!IMPORTANT]
+> Host the calling application on its own origin, never on the UI's (same scheme, host and port).
+> Script on the UI's origin can read everything the UI keeps in the browser, the session token
+> included, so a flaw in a co-hosted caller would become a flaw in Heimdall UI.
+
+A caller that already shares the UI's origin may still write the value itself, as earlier versions
+required; it keeps working, but move to the URL and to an origin of the caller's own:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
 ```
-
-Session storage rather than a cookie: it is scoped to the tab, so two tabs can act in two scopes; it
-is never attached to a request, so the scope cannot become a header the API did not ask for; and it
-dies with the tab, so a scope does not outlive the visit on a shared machine. It is read on every
-use, so a caller may change it between one attempt and the next.
 
 `HEIMDALL_SCOPE_ID` is the fallback for a build with no such caller — the desktop and Android
 targets, or a web build opened directly.

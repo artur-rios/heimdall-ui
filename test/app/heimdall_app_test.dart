@@ -10,6 +10,7 @@ import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/entry/entry_link.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -19,7 +20,9 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
+import 'package:heimdall_ui/features/auth/presentation/password_reset_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/auth/presentation/verify_email_screen.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
@@ -905,6 +908,58 @@ void main() {
     // Then
     expect(find.widgetWithText(AppBar, 'Not found'), findsOneWidget);
     expect(container.read(routerProvider).state.uri.path, notFoundRoute);
+  });
+
+  // On the web the token is taken out of the address at start-up, so the
+  // screen gets it from what start-up kept rather than from the URL.
+  testWidgets('GivenATakenResetToken_WhenTheResetOpens_ThenItHasTheToken', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWithValue(
+          const EntryLink(resetToken: 'reset-token'),
+        ),
+      ],
+    );
+
+    // When
+    container.read(routerProvider).go('/password-reset');
+    await tester.pumpAndSettle();
+
+    // Then
+    final screen = tester.widget<PasswordResetScreen>(
+      find.byType(PasswordResetScreen),
+    );
+    expect(screen.token, 'reset-token');
+  });
+
+  testWidgets('GivenATakenVerifyToken_WhenTheCheckOpens_ThenItHasTheToken', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.verifyEmail(token: any(named: 'token')))
+        .thenAnswer((_) => Completer<Result<List<String>>>().future);
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWithValue(
+          const EntryLink(verificationToken: 'verify-token'),
+        ),
+      ],
+    );
+
+    // When
+    container.read(routerProvider).go('/verify-email');
+    await tester.pump();
+
+    // Then
+    final screen = tester.widget<VerifyEmailScreen>(
+      find.byType(VerifyEmailScreen),
+    );
+    expect(screen.token, 'verify-token');
   });
 
   testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {

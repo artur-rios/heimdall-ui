@@ -37,8 +37,23 @@ Heimdall UI is opened by the applications that use Heimdall's services, and **th
 is theirs to name**. There is no screen here that asks for it, and no endpoint an anonymous caller
 could list scopes from, so it arrives from outside.
 
-On the **web**, the calling application writes the scope's `PublicId` into session storage before
-sending the user here:
+On the **web**, the calling application names the scope's `PublicId` as the `scope` query parameter
+of the URL it sends the user to, on any route:
+
+```text
+https://heimdall.example.com/login?scope=<scope-public-id>
+```
+
+At start-up, before the router reads the address, the UI checks that the value is a GUID, copies it
+into its own session storage under `heimdall.scopeId`, and replaces the address with one without it
+(`history.replaceState`), so the history entry does not keep it either. A value that is not a GUID is
+ignored, and removed all the same. Session storage is per origin, so a caller on another origin
+could never have written the UI's; the URL is what lets the caller live elsewhere.
+
+**The calling application must not be hosted on the UI's origin.** Script on that origin can read
+everything the UI keeps in the browser, the session token included, so a flaw in a co-hosted caller
+would hand over Heimdall sessions. A caller that does share the origin may still write the value
+itself, as earlier versions required, and that keeps working:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
@@ -51,8 +66,8 @@ Session storage rather than a cookie, deliberately:
   and cannot be replayed by a third party's form.
 - It dies with the tab, so a scope does not outlive the visit on a shared machine.
 
-The value is read on every use rather than captured at start-up, so a caller may change it between
-one attempt and the next.
+The value is read on every use rather than captured at start-up, so opening the UI again with another
+`scope` changes it.
 
 On **Windows, Linux, and Android** there is no calling web application, so `HEIMDALL_SCOPE_ID` is the
 whole answer. On the web it is the fallback used when the caller left nothing — a build opened
@@ -281,6 +296,13 @@ request into `main` to production once every check passes (§2.2) — see
   starts with a copy of the original's session storage, and so of its session). The token is
   encrypted there, but its key is kept in the same storage, so it is not protected from scripts
   running on the UI's own origin: what limits it on the web is the tab's lifetime and the token's.
+- **An older build's token is removed.** Builds before per-tab sessions kept the token in local
+  storage, beside the raw key it was encrypted with. Start-up on the web removes both, so it does not
+  linger there until it expires.
+- **Reset and verification links lose their token at start-up.** On the web the UI keeps the
+  `token` of a `/password-reset` or `/verify-email` link in memory and removes it from the address,
+  so neither the history entry nor the Referer of a later request carries it. Reloading the page
+  afterwards drops it, and the link has to be opened again.
 - **Theme mode** is the only other persisted preference, in `shared_preferences`.
 - **A `401` to any request made under the session** clears it and returns the user to sign-in; a
   session cannot outlive the API's opinion of its token. The exception is a `401` refusing a password

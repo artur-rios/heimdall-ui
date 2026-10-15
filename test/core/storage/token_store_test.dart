@@ -225,6 +225,23 @@ void main() {
     expect(options.useSessionStorage, isTrue);
   });
 
+  // What an older build left in local storage, named as the plugin names it:
+  // the encrypted token under `<publicKey>.<key>`, and the raw key that
+  // decrypts it under `<publicKey>` itself.
+  test('GivenTheLegacyWebStore_WhenNamed_ThenBothItsEntriesAreListed', () {
+    // Given
+    final publicKey = const FlutterSecureStorage().webOptions.publicKey;
+
+    // When
+    final entries = SecureTokenStore.legacyWebEntries;
+
+    // Then
+    expect(
+      entries,
+      unorderedEquals(<String>['$publicKey.heimdall.session.token', publicKey]),
+    );
+  });
+
   // Only the web changes; every other platform keeps its own secure store.
   test('GivenThePlatformStore_WhenBuilt_ThenOtherPlatformsAreUnchanged', () {
     // Given

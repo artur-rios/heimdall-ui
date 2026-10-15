@@ -118,6 +118,17 @@ class SecureTokenStore implements TokenStore {
 
   static const String _key = 'heimdall.session.token';
 
+  /// What builds before per-tab sessions left in the web origin's local
+  /// storage, named as the plugin names them: the encrypted token under
+  /// `<publicKey>.<key>`, and the raw key that decrypts it under `<publicKey>`
+  /// itself. Start-up removes both (see `takeEntryLink`); left there, the old
+  /// token would outlive the change until it expired.
+  static List<String> get legacyWebEntries {
+    final publicKey = WebOptions.defaultOptions.publicKey;
+
+    return <String>['$publicKey.$_key', publicKey];
+  }
+
   final FlutterSecureStorage _storage;
 
   /// The platform storage behind this store, for tests to inspect.

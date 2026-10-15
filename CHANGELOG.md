@@ -9,6 +9,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- On the web, a calling application now hands over the target scope in the URL, as `?scope=<scope id>` on any page,
+  instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for
+  the tab and removes it from the address bar; a value that is not a scope id is ignored. Callers must not be hosted
+  on the UI's origin. Writing the session storage value from the same origin keeps working.
 - On the web, a session now lasts as long as its browser tab. Reloading the tab keeps you signed in; closing it signs
   you out, and each tab signs in on its own.
 - A release build of the Windows, Linux or Android app now refuses to start when its API address is not `https://`,
@@ -16,6 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The token of a password reset or email verification link stayed in the address bar, the browser history, and the
+  Referer of every request the page made. On the web it is now removed from the address as the page opens; reloading
+  the page afterwards needs the link again.
+- A session token kept in the browser's local storage by an earlier version, and the key it was encrypted with, are
+  now removed when the UI opens, instead of lingering until the token expired.
 - A link whose id was not a real identifier, for example one that decoded to another path, could open a screen that
   loaded, and offered to delete, a different record from the one the link named. Such a link now shows "Not found",
   and every id is sent to the API as a single encoded part of the address.
