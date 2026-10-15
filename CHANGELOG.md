@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The System Admins list could be left on an empty page with no pager when the last admin of the last page went
+  away. It now steps back to the last page that still exists, as the other lists do.
 - On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its
   last destinations could not be reached. The rail now scrolls.
 - Closing or refreshing the browser tab while a credential's secret was still to be stored lost the secret

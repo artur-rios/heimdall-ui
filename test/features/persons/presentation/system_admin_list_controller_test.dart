@@ -141,6 +141,35 @@ void main() {
     expect(calls, 2);
   });
 
+  test(
+    'GivenAnEmptyPagePastTheEnd_WhenLoaded_ThenTheLastPageIsAsked',
+    () async {
+      // Given
+      answerWith(
+        () async => Success<Page<PersonSummary>>(
+          _page(items: const <PersonSummary>[], pageNumber: 2),
+        ),
+      );
+      when(
+        () => repository.listSystemAdmins(
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          pageNumber: 1,
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) async => Success<Page<PersonSummary>>(_page()));
+      final controller = controllerUnderTest();
+
+      // When
+      await controller.goToPage(2);
+
+      // Then
+      final state = currentState() as SystemAdminListLoaded;
+      expect(state.query.pageNumber, 1);
+      expect(state.page.items, <PersonSummary>[_ada]);
+    },
+  );
+
   test('GivenA403_WhenLoaded_ThenTheStateIsForbidden', () async {
     // Given
     answerWith(
