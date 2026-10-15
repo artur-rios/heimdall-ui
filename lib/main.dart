@@ -46,7 +46,10 @@ void main() {
   usePathUrlStrategy();
   WidgetsFlutterBinding.ensureInitialized();
 
-  final config = AppConfig.fromEnvironment();
+  final config = AppConfig.fromEnvironment()
+    // A release of the installed apps refuses a cleartext API before anything
+    // is sent to it.
+    ..requireSecureApi();
 
   runApp(
     ProviderScope(

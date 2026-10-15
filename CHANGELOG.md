@@ -11,6 +11,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - On the web, a session now lasts as long as its browser tab. Reloading the tab keeps you signed in; closing it signs
   you out, and each tab signs in on its own.
+- A release build of the Windows, Linux or Android app now refuses to start when its API address is not `https://`,
+  instead of sending passwords and tokens in the clear. The local API at `localhost` or `127.0.0.1` is still allowed.
 
 ### Fixed
 

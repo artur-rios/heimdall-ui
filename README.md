@@ -88,6 +88,9 @@ Configuration is supplied at build time. Nothing is read from a file at runtime.
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset — the Google control is hidden |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset — see below |
 
+A release build of the Windows, Linux or Android app refuses to start unless `HEIMDALL_API_BASE_URL`
+is an `https://` address; only `http://localhost` and `http://127.0.0.1` are let through in the clear.
+
 ### The target scope
 
 Heimdall UI is opened by the applications that use Heimdall's services, and the scope being entered
