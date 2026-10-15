@@ -4,25 +4,25 @@ import 'package:heimdall_ui/core/network/auth_interceptor.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 
 void main() {
-  late InMemoryTokenStore store;
+  AuthToken? token;
   late Dio dio;
   late int unauthorizedCalls;
 
   setUp(() {
-    store = InMemoryTokenStore();
+    token = null;
     unauthorizedCalls = 0;
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..interceptors.add(
         AuthInterceptor(
-          tokenStore: store,
+          sessionToken: () => token,
           onUnauthorized: () async => unauthorizedCalls++,
         ),
       );
   });
 
-  test('GivenStoredToken_WhenRequestSent_ThenBearerHeaderIsAttached', () async {
+  test('GivenAToken_WhenRequestSent_ThenBearerHeaderIsAttached', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     String? seenHeader;
     dio.httpClientAdapter = _CapturingAdapter((options) {
       seenHeader = options.headers['Authorization'] as String?;
@@ -55,7 +55,7 @@ void main() {
 
   test('GivenExpiredToken_WhenRequestSent_ThenItIsNotAttached', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000));
     String? seenHeader;
     dio.httpClientAdapter = _CapturingAdapter((options) {
       seenHeader = options.headers['Authorization'] as String?;
@@ -72,7 +72,7 @@ void main() {
 
   test('GivenUnauthorizedResponse_WhenReceived_ThenSessionIsCleared', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter((_) => 401);
 
     // When
@@ -87,7 +87,7 @@ void main() {
 
   test('GivenForbiddenResponse_WhenReceived_ThenSessionIsLeftAlone', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter((_) => 403);
 
     // When
@@ -132,9 +132,7 @@ void main() {
       'GivenASession_WhenATypedCredentialIsRefused_ThenItSurvives: $message',
       () async {
         // Given
-        await store.write(
-          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
-        );
+        token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
         dio.httpClientAdapter = _CapturingAdapter(
           (_) => 401,
           body: '{"success":false,"errors":["$message"]}',
@@ -166,9 +164,7 @@ void main() {
       test('GivenASession_WhenAReauthenticationIsRefused_ThenItSurvives: '
           '$method $path $message', () async {
         // Given
-        await store.write(
-          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
-        );
+        token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
         dio.httpClientAdapter = _CapturingAdapter(
           (_) => 401,
           body: '{"success":false,"errors":["$message"]}',
@@ -190,7 +186,7 @@ void main() {
   // refused session, not a refused credential, and ends it.
   test('GivenARevokedToken_WhenRefused_ThenTheSessionEnds', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter(
       (_) => 401,
       body:
@@ -208,11 +204,11 @@ void main() {
     expect(unauthorizedCalls, 1);
   });
 
-  // AF-07e — a stored token past its expiry is not sent, and the 401 that
+  // AF-07e — a session token past its expiry is not sent, and the 401 that
   // answers for it still ends the session.
   test('GivenAnExpiredSession_WhenUnauthorizedReceived_ThenItEnds', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000));
     dio.httpClientAdapter = _CapturingAdapter((_) => 401, body: '');
 
     // When

@@ -443,10 +443,10 @@ class SessionController extends Notifier<SessionState> {
 
   /// Stores [token] and makes it the session.
   ///
-  /// Every request reads its bearer token back from the store, so a token the
-  /// platform refused to keep is no session at all: it is reported rather than
-  /// left to fail every request after this one — or, thrown, to leave the
-  /// screen that asked spinning for good.
+  /// A token the platform refused to keep is no session at all — it would be
+  /// gone at the next start-up, and the store could not be relied on to clear
+  /// it at sign-out either — so it is reported rather than used, and never
+  /// thrown, which would leave the screen that asked spinning for good.
   Future<Result<void>> _establish(AuthToken token) async {
     try {
       await _store.write(token);

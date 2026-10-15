@@ -253,6 +253,78 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
     expect(await store.read(), isNull);
   });
+
+  // FR-AU-07 — a request carries the token of the session this tab holds,
+  // never whatever the store holds now: another tab of the same browser may
+  // have signed somebody else in behind it.
+  test(
+    'GivenALiveSession_WhenTheStoredTokenChanges_ThenItsOwnIsSent',
+    () async {
+      // Given
+      final own = _jwt(role: '3');
+      await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
+      final container = wired();
+      await container.read(sessionControllerProvider.notifier).restore();
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '1'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+
+      // When
+      await expectLater(
+        container.read(dioProvider).get<dynamic>('/api/persons'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(adapter.bearers.single, 'Bearer $own');
+    },
+  );
+
+  // The store emptied behind a live session changes nothing either: the
+  // session this tab shows is still the one that acts.
+  test('GivenALiveSession_WhenTheStoreIsCleared_ThenItsOwnIsSent', () async {
+    // Given
+    final own = _jwt(role: '3');
+    await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
+    final container = wired();
+    await container.read(sessionControllerProvider.notifier).restore();
+    await store.clear();
+
+    // When
+    await expectLater(
+      container.read(dioProvider).get<dynamic>('/api/persons'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(adapter.bearers.single, 'Bearer $own');
+  });
+
+  // A tab with no session sends no token, whoever signed in elsewhere.
+  test('GivenNoSession_WhenTheStoreGainsAToken_ThenNoneIsSent', () async {
+    // Given
+    final container = wired();
+    await container.read(sessionControllerProvider.notifier).restore();
+    await store.write(
+      AuthToken(
+        value: _jwt(role: '1'),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+
+    // When
+    await expectLater(
+      container.read(dioProvider).get<dynamic>('/api/persons'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(adapter.bearers.single, isNull);
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
 }
 
 /// A token shaped as the API mints it: string claims named `id` and `role`.
@@ -295,6 +367,9 @@ class _RoutingAdapter implements HttpClientAdapter {
 
   final List<String> calls = <String>[];
 
+  /// The `Authorization` header of each request, in order.
+  final List<String?> bearers = <String?>[];
+
   void answer(String path, int status, Map<String, dynamic> body) =>
       _answers[path] = (status, body);
 
@@ -305,6 +380,7 @@ class _RoutingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     calls.add(options.path);
+    bearers.add(options.headers['Authorization'] as String?);
 
     // A runaway loop of requests is what one of these tests guards against;
     // failing loudly beats spinning until the suite times out.

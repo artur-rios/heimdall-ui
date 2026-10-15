@@ -7,21 +7,18 @@ import 'package:heimdall_ui/core/network/request_log_interceptor.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 
 void main() {
-  late InMemoryTokenStore store;
+  late AuthToken token;
   late List<String> lines;
   late Dio dio;
 
-  setUp(() async {
-    store = InMemoryTokenStore();
-    await store.write(
-      AuthToken(value: 'jwt-secret', expiresAt: DateTime.utc(2030)),
-    );
+  setUp(() {
+    token = AuthToken(value: 'jwt-secret', expiresAt: DateTime.utc(2030));
     lines = <String>[];
     // The order the application uses: the bearer is attached first, so the
     // logger sees every request exactly as it leaves.
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..interceptors.addAll(<Interceptor>[
-        AuthInterceptor(tokenStore: store, onUnauthorized: () async {}),
+        AuthInterceptor(sessionToken: () => token, onUnauthorized: () async {}),
         RequestLogInterceptor(log: lines.add),
       ]);
   });
@@ -137,7 +134,7 @@ void main() {
       // When
       final built = createDio(
         config: const AppConfig(apiBaseUrl: 'https://example.invalid'),
-        tokenStore: store,
+        sessionToken: () => token,
         onUnauthorized: () async {},
       );
 

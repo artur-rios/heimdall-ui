@@ -12,6 +12,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - On the web, a session now lasts as long as its browser tab. Reloading the tab keeps you signed in; closing it signs
   you out, and each tab signs in on its own.
 
+### Fixed
+
+- Requests now always act as the person the screen shows. A tab used to pick up the session of whoever signed in or
+  out in another tab of the same browser, while still showing its own.
+
 ## [1.7.0] - 2026-10-15
 
 ### Added
