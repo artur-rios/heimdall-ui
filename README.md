@@ -210,11 +210,13 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 version CI uses) compiles `build/web`, and `nginxinc/nginx-unprivileged:alpine` serves it as a
 non-root user on port **8080**, with a deep-link fallback to `index.html` and a `/healthz` probe.
 The server configuration is [`docker/nginx.conf`](docker/nginx.conf). It expects TLS to be
-terminated in front of it.
+terminated in front of it. It sends an enforced Content-Security-Policy whose `connect-src` names the
+API's origin, taken from `HEIMDALL_API_BASE_URL` at build time, and sends no Referer from the password
+reset and verification pages; see the Operations document's *Security headers*.
 
 | Build argument | Required | Meaning |
 | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | Yes — the build fails without it | The Heimdall API root the app calls |
+| `HEIMDALL_API_BASE_URL` | Yes — the build fails without it, or when it is not an absolute `http(s)` URL | The Heimdall API root the app calls; its origin is allowed by the Content-Security-Policy |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | No | Google OAuth client id; empty hides Google Sign-In |
 | `HEIMDALL_SCOPE_ID` | No | Fallback scope when no calling application supplies one — see [The target scope](#the-target-scope) |
 | `FLUTTER_VERSION` / `FLUTTER_SHA256` | No | Override the SDK; pass both together (checksums are in Flutter's `releases_linux.json`) |

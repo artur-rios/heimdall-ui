@@ -9,6 +9,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The web image now sends an enforced Content-Security-Policy, which allows the page to load script and connect only
+  to its own origin, the API's origin and Google Sign-In. The API's origin comes from `HEIMDALL_API_BASE_URL`, which
+  must now be an absolute `http(s)` URL.
 - On the web, a calling application now hands over the target scope in the URL, as `?scope=<scope id>` on any page,
   instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for
   the tab and removes it from the address bar; a value that is not a scope id is ignored. Callers must not be hosted
@@ -21,8 +24,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - The token of a password reset or email verification link stayed in the address bar, the browser history, and the
-  Referer of every request the page made. On the web it is now removed from the address as the page opens; reloading
-  the page afterwards needs the link again.
+  Referer of every request the page made. On the web it is now removed from the address as the page opens, and the
+  web image tells the browser to send no Referer from those two pages; reloading the page afterwards needs the link
+  again.
 - A session token kept in the browser's local storage by an earlier version, and the key it was encrypted with, are
   now removed when the UI opens, instead of lingering until the token expired.
 - A link whose id was not a real identifier, for example one that decoded to another path, could open a screen that

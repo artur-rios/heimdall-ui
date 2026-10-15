@@ -66,6 +66,17 @@ ARG HEIMDALL_API_BASE_URL
 ARG HEIMDALL_GOOGLE_CLIENT_ID=
 ARG HEIMDALL_SCOPE_ID=
 
+# The server configuration's Content-Security-Policy lets the page connect to
+# the API's origin, which is taken from the same argument. Only an absolute
+# http(s) URL with a plain host name yields one, so nothing else can reach the
+# configuration; anything else fails the build here, before compiling.
+RUN api_origin="$(printf '%s' "$HEIMDALL_API_BASE_URL" \
+      | sed -nE 's#^(https?://[A-Za-z0-9.-]+(:[0-9]+)?)(/[^[:space:]]*)?$#\1#p')"; \
+    if [ -z "$api_origin" ]; then \
+      echo "HEIMDALL_API_BASE_URL must be an absolute http(s) URL" >&2; exit 1; \
+    fi; \
+    sed "s#@HEIMDALL_API_ORIGIN@#${api_origin}#" docker/nginx.conf > /home/flutter/nginx.conf
+
 # An empty HEIMDALL_API_BASE_URL would override the app's localhost default
 # with "", so a production image refuses to build without one.
 # --no-web-resources-cdn bundles CanvasKit and fonts into build/web so the
@@ -82,7 +93,7 @@ RUN test -n "$HEIMDALL_API_BASE_URL" \
 # ---------------------------------------------------------------------------
 FROM nginxinc/nginx-unprivileged:alpine
 
-COPY docker/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /home/flutter/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /home/flutter/app/build/web /usr/share/nginx/html
 
 EXPOSE 8080

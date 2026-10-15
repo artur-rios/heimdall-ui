@@ -220,6 +220,47 @@ Serve the bundle under a sub-path by building with a base href:
 flutter build web --release --base-href=/heimdall/
 ```
 
+### 5.1 Security headers
+
+The container image's [`docker/nginx.conf`](../../docker/nginx.conf) sends these headers; another
+host should send the same (NFR-10).
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL, and the page's scripts and assets are requested before start-up removes it. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing |
+| `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff` | |
+
+The Content-Security-Policy:
+
+| Directive | Sources | For |
+| --- | --- | --- |
+| `default-src` | `'self'` | Everything not listed below |
+| `script-src` | `'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client` | The bundle; compiling CanvasKit's or skwasm's WebAssembly; Google Sign-In's library |
+| `style-src` | `'self' 'unsafe-inline' https://accounts.google.com/gsi/style` | The engine and Google Sign-In inject `<style>` elements and style attributes; Google Sign-In's stylesheet |
+| `connect-src` | `'self'`, the API's origin, `https://accounts.google.com/gsi/`, `https://*.googleusercontent.com` | API calls; Google Sign-In's endpoints; Google profile pictures, which the engine fetches |
+| `img-src` | `'self' data: https://*.googleusercontent.com` | Inline images; Google profile pictures shown as images |
+| `font-src`, `manifest-src` | `'self'` | The bundled fonts (`--no-web-resources-cdn`) and the manifest |
+| `frame-src` | `https://accounts.google.com/gsi/` | The Google Sign-In button and its prompts |
+| `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'none'`, `'self'`, `'self'`, `'none'` | Nothing else may embed, re-base, post from or frame the page |
+
+The API's origin is taken from `HEIMDALL_API_BASE_URL` when the image is built: the Dockerfile
+replaces the `@HEIMDALL_API_ORIGIN@` placeholder in `nginx.conf`, and refuses to build when the URL is
+not an absolute `http(s)` URL with a plain host name. On the VPS it is the page's own origin, and the
+entry repeats `'self'`.
+
+The policy was verified against release builds, CanvasKit and `--wasm` alike, served by the image's
+nginx with headless Chromium: the sign-in screen, Google Sign-In's button, a sign-in request to an API
+on another origin, the reset and verification links, and the not-found screen, with no violation.
+`'unsafe-inline'` in `style-src` is required; without it the engine's own styles are refused. No
+worker source is listed: neither renderer starts a worker on a page that is not cross-origin isolated,
+which this one is not, so skwasm runs single-threaded. Google profile pictures were not exercised. Before
+widening the policy, check the browser console for `Refused to …` messages, and add the narrowest
+source that silences them.
+
+`flutter run` serves without these headers, so a development session runs without the policy.
+
 ---
 
 ## 6. Desktop and Android distribution
