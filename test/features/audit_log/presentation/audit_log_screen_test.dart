@@ -82,26 +82,6 @@ Future<List<FlutterErrorDetails>> _errorsDuring(
   return errors;
 }
 
-/// [errors] less the shell's navigation rail overflowing a short body, a
-/// known shell-level issue (M3): what is left is this screen's own.
-Iterable<FlutterErrorDetails> _screenErrors(
-  WidgetTester tester,
-  List<FlutterErrorDetails> errors,
-) {
-  final rail = tester.renderObject(find.byType(NavigationRail));
-  bool inRail(RenderObject? node) =>
-      node != null && (identical(node, rail) || inRail(node.parent));
-  // An overflow report names the render object that overflowed.
-  RenderObject? overflowing(FlutterErrorDetails details) => details
-      .informationCollector
-      ?.call()
-      .map((node) => node.value)
-      .whereType<RenderObject>()
-      .firstOrNull;
-
-  return errors.where((details) => !inRail(overflowing(details)));
-}
-
 void main() {
   late _MockAuditLogRepository repository;
   late InMemoryTokenStore store;
@@ -268,7 +248,7 @@ void main() {
     final errors = await _errorsDuring(tester.pumpAndSettle);
 
     // Then
-    expect(_screenErrors(tester, errors), isEmpty);
+    expect(errors, isEmpty);
     final actor = find.widgetWithText(TextField, 'Actor');
     expect(actor, findsOneWidget);
     expect(
@@ -294,7 +274,7 @@ void main() {
     );
 
     // Then
-    expect(_screenErrors(tester, errors), isEmpty);
+    expect(errors, isEmpty);
     expect(find.text('CreateScopeCommand').hitTestable(), findsOneWidget);
   });
 

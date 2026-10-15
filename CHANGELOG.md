@@ -33,6 +33,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its
+  last destinations could not be reached. The rail now scrolls.
 - Closing or refreshing the browser tab while a credential's secret was still to be stored lost the secret
   without a word. The browser now asks before leaving, as the app already did for Back and in-app navigation.
 - The request log of a debug build printed every request's headers, the bearer token among them. It now

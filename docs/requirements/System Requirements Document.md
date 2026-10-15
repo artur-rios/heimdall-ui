@@ -146,7 +146,7 @@ describes the flows that satisfy these requirements; the
 
 | ID | Requirement | Use case |
 | --- | --- | --- |
-| FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. | UI-07 |
+| FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. A rail scrolls when the window, or what a soft keyboard leaves of it, is too short for its destinations, so every destination stays reachable. | UI-07 |
 | FR-UX-02 | The client shall show only the destinations the signed-in role can use. | UI-07 |
 | FR-UX-03 | The client shall support light, dark, and system theme modes, and shall remember the choice between launches. | — |
 | FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |

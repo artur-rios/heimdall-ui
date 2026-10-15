@@ -80,6 +80,11 @@ class AdaptiveScaffold extends StatelessWidget {
           children: <Widget>[
             NavigationRail(
               extended: breakpoint == Breakpoint.expanded,
+              // The breakpoints read only the width: a short window, or a
+              // soft keyboard taking the bottom of a tall one, can leave less
+              // height than a System Admin's destinations need, so the rail
+              // scrolls rather than overflowing and clipping the last ones.
+              scrollable: true,
               selectedIndex: selectedIndex,
               onDestinationSelected: onDestinationSelected,
               // An extended rail shows its labels beside the icons already;
