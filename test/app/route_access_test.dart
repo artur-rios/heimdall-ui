@@ -181,4 +181,22 @@ void main() {
       expect(allowed, isFalse);
     });
   }
+
+  test('GivenASystemAdmin_WhenAPersonPageAsked_ThenItIsReachable', () {
+    // Given / When
+    final allowed = roleMayReach(role: Role.systemAdmin, path: '/persons/p1');
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenAPersonPageAsked_ThenItIsNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/persons/p1');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
 }

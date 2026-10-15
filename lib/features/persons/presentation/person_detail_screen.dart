@@ -20,13 +20,11 @@ import 'person_list_controller.dart';
 
 /// UI-18 — one person, as an administrator sees them.
 class PersonDetailScreen extends ConsumerStatefulWidget {
-  const PersonDetailScreen({
-    required this.scopeId,
-    required this.personId,
-    super.key,
-  });
+  const PersonDetailScreen({required this.personId, this.scopeId, super.key});
 
-  final String scopeId;
+  /// The scope the person was reached through, or `null` when they were
+  /// opened from the System Admins list (UI-38), which has no scope.
+  final String? scopeId;
   final String personId;
 
   @override
@@ -214,7 +212,13 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     final controller = ref.read(
       personDetailControllerProvider(widget.personId).notifier,
     );
-    final backToListing = '/scopes/${widget.scopeId}/persons';
+    final scopeId = widget.scopeId;
+    final backToListing = scopeId == null
+        ? '/system-admins'
+        : '/scopes/$scopeId/persons';
+    final backTooltip = scopeId == null
+        ? 'Back to System Admins'
+        : 'Back to the listing';
 
     // A deleted person returns to the listing, which is now stale.
     ref.listen<PersonDetailState>(
@@ -229,23 +233,23 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         }
 
         if (next is PersonDeleted) {
-          ref
-              .read(personListControllerProvider(widget.scopeId).notifier)
-              .load();
+          if (scopeId != null) {
+            ref.read(personListControllerProvider(scopeId).notifier).load();
+          }
           context.go(backToListing);
         }
       },
     );
 
     return AppShell(
-      currentRoute: '/scopes',
+      currentRoute: scopeId == null ? '/' : '/scopes',
       title: Text(switch (state) {
         PersonDetailLoaded(:final person) => person.name,
         _ => 'Person',
       }),
       confirmLeave: _confirmLeave,
       backRoute: backToListing,
-      backTooltip: 'Back to the listing',
+      backTooltip: backTooltip,
       body: switch (state) {
         PersonDetailLoading() => const Center(
           child: CircularProgressIndicator(),

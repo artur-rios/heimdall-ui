@@ -29,6 +29,9 @@ bool roleMayReach({required Role role, required String path}) => switch (path) {
   // UC-07 read (e) is answered to a System Admin only: who else holds full
   // access is not a Scope Admin's to know.
   '/system-admins' => role == Role.systemAdmin,
+  // UI-38's person page has no scope to authorise against. A Scope Admin
+  // reaches the persons they may see through their scopes instead.
+  final String p when p.startsWith('/persons/') => role == Role.systemAdmin,
   // A route nobody has built yet is the error screen's business, not the
   // guard's: answering "not for your role" would be a guess about a screen
   // that does not exist.

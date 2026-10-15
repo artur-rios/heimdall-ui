@@ -86,6 +86,7 @@ void main() {
     ThemeData? theme,
     String signedInAs = 'person-9',
     int role = 1,
+    String initialLocation = '/scopes/scope-1/persons/person-1',
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -108,7 +109,7 @@ void main() {
     await container.read(sessionControllerProvider.notifier).restore();
 
     router = GoRouter(
-      initialLocation: '/scopes/scope-1/persons/person-1',
+      initialLocation: initialLocation,
       routes: <RouteBase>[
         GoRoute(
           path: '/scopes/:scopeId/persons',
@@ -120,6 +121,16 @@ void main() {
             scopeId: state.pathParameters['scopeId']!,
             personId: state.pathParameters['personId']!,
           ),
+        ),
+        GoRoute(
+          path: '/persons/:personId',
+          builder: (context, state) =>
+              PersonDetailScreen(personId: state.pathParameters['personId']!),
+        ),
+        GoRoute(
+          path: '/system-admins',
+          builder: (context, state) =>
+              const Scaffold(body: Text('system admins')),
         ),
       ],
     );
@@ -996,5 +1007,71 @@ void main() {
       find.widgetWithText(OutlinedButton, 'Delete person'),
       findsOneWidget,
     );
+  });
+
+  // UI-38 — a person reached from the System Admins list has no scope.
+  const grace = Person(
+    id: 'person-1',
+    name: 'Grace',
+    email: 'grace@example.com',
+    role: Role.systemAdmin,
+  );
+
+  testWidgets('GivenNoScope_WhenOpened_ThenBackGoesToSystemAdmins', (
+    tester,
+  ) async {
+    // Given — a System Admin (role 1) opens another System Admin
+    answerGetWith(const Success<Person>(grace));
+    await pump(tester, initialLocation: '/persons/person-1');
+
+    // When
+    await tester.tap(find.byTooltip('Back to System Admins'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('system admins'), findsOneWidget);
+  });
+
+  testWidgets('GivenNoScope_WhenOwnRecordOpened_ThenItStaysProtected', (
+    tester,
+  ) async {
+    // Given — the signed-in System Admin opens themselves
+    answerGetWith(const Success<Person>(grace));
+
+    // When
+    await pump(
+      tester,
+      signedInAs: 'person-1',
+      initialLocation: '/persons/person-1',
+    );
+
+    // Then — the own-record rules hold (AF-19d; UI-36 hides the card)
+    expect(find.text('Account emails'), findsNothing);
+    expect(
+      tester
+          .widget<OutlinedButton>(
+            find.widgetWithText(OutlinedButton, 'Delete person'),
+          )
+          .onPressed,
+      isNull,
+    );
+  });
+
+  testWidgets('GivenNoScope_WhenDeleted_ThenSystemAdminsOpens', (tester) async {
+    // Given
+    answerGetWith(const Success<Person>(grace));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester, initialLocation: '/persons/person-1');
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete person'),
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('system admins'), findsOneWidget);
   });
 }

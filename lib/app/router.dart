@@ -266,6 +266,11 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         ),
       ),
       GoRoute(
+        path: '/persons/:personId',
+        builder: (context, state) =>
+            PersonDetailScreen(personId: state.pathParameters['personId']!),
+      ),
+      GoRoute(
         path: '/system-admins',
         builder: (context, state) => const SystemAdminListScreen(),
       ),
