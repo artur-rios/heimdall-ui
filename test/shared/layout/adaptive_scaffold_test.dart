@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -157,6 +158,56 @@ void main() {
       },
     );
   }
+
+  // On iOS and Android the route's PrimaryScrollController is handed to every
+  // primary scroll view below it. A scrolling rail must not claim it, or the
+  // body's list shares it and a keyboard scroll finds two positions.
+  testWidgets(
+    'GivenSixDestinationsAndAScrollableBody_WhenPageDownIsPressed_ThenOnlyTheBodyScrolls',
+    (tester) async {
+      // Given
+      final systemAdmin = destinationsFor(
+        const Principal(id: 'p', email: '', role: Role.systemAdmin),
+      );
+      tester.view.physicalSize = const Size(900, 800);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: buildLightTheme(),
+          home: AdaptiveScaffold(
+            destinations: systemAdmin,
+            selectedIndex: 0,
+            onDestinationSelected: (_) {},
+            title: const Text('Heimdall'),
+            body: ListView(
+              children: <Widget>[
+                for (var row = 0; row < 100; row++) Text('Row $row'),
+              ],
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      // The controller the body's list inherits as its primary one.
+      final primary = PrimaryScrollController.of(
+        tester.element(find.byType(ListView)),
+      );
+
+      // When
+      final errors = await _errorsDuring(() async {
+        await tester.sendKeyEvent(LogicalKeyboardKey.pageDown);
+        await tester.pumpAndSettle();
+      });
+
+      // Then
+      expect(errors, isEmpty);
+      expect(primary.positions, hasLength(1));
+      expect(primary.offset, greaterThan(0));
+    },
+    // The variant sets the platform and puts it back after each run.
+    variant: TargetPlatformVariant.mobile(),
+  );
 }
 
 /// Runs [body] and returns what it reported to [FlutterError.onError], such
