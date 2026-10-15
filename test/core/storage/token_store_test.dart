@@ -212,6 +212,36 @@ void main() {
     expect(restored.viaGoogle, isFalse);
   });
 
+  // NFR-04 — on the web the token is kept for the tab alone: it goes when the
+  // tab does, and no other tab reads it.
+  test('GivenThePlatformStore_WhenBuilt_ThenTheWebTokenIsPerTab', () {
+    // Given
+    const store = SecureTokenStore.platform();
+
+    // When
+    final options = store.storage.webOptions;
+
+    // Then
+    expect(options.useSessionStorage, isTrue);
+  });
+
+  // Only the web changes; every other platform keeps its own secure store.
+  test('GivenThePlatformStore_WhenBuilt_ThenOtherPlatformsAreUnchanged', () {
+    // Given
+    const store = SecureTokenStore.platform();
+    const defaults = FlutterSecureStorage();
+
+    // When
+    final storage = store.storage;
+
+    // Then
+    expect(storage.aOptions.toMap(), defaults.aOptions.toMap());
+    expect(storage.iOptions.toMap(), defaults.iOptions.toMap());
+    expect(storage.mOptions.toMap(), defaults.mOptions.toMap());
+    expect(storage.lOptions.toMap(), defaults.lOptions.toMap());
+    expect(storage.wOptions.toMap(), defaults.wOptions.toMap());
+  });
+
   // Well-formed JSON of the wrong shape is as unreadable as malformed JSON,
   // and must not fail every launch from then on.
   for (final raw in <String>['not json', '{"expiresAt":"2030-01-01"}', '[]']) {

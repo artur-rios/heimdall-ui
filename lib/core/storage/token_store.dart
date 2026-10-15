@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// A bearer token together with the moment it stops being valid.
@@ -97,13 +98,31 @@ class InMemoryTokenStore implements TokenStore {
 }
 
 /// The production store: Keystore on Android, DPAPI on Windows, libsecret on
-/// Linux, and WebCrypto-encrypted local storage on the web.
+/// Linux, and WebCrypto-encrypted session storage on the web.
 class SecureTokenStore implements TokenStore {
   const SecureTokenStore(this._storage);
+
+  /// The store the application runs with.
+  ///
+  /// NFR-04: on the web the token is kept in the tab's session storage, not in
+  /// local storage. It goes when the tab is closed, so a shared machine does
+  /// not hand it to the next person to open the interface, and no other tab of
+  /// the same browser reads it. The browser's storage is readable by any
+  /// script on the page, key and ciphertext alike, so the encryption is no
+  /// defence on its own; what this buys is a shorter life and a narrower
+  /// reach. Every other platform keeps the token in its own secure store.
+  const SecureTokenStore.platform()
+    : _storage = const FlutterSecureStorage(
+        webOptions: WebOptions(useSessionStorage: true),
+      );
 
   static const String _key = 'heimdall.session.token';
 
   final FlutterSecureStorage _storage;
+
+  /// The platform storage behind this store, for tests to inspect.
+  @visibleForTesting
+  FlutterSecureStorage get storage => _storage;
 
   @override
   Future<AuthToken?> read() async {

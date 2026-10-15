@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
-import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:heimdall_api_client/export.dart';
@@ -57,9 +56,7 @@ void main() {
       retry: (retryCount, error) => null,
       overrides: <Override>[
         appConfigProvider.overrideWithValue(config),
-        tokenStoreProvider.overrideWithValue(
-          const SecureTokenStore(FlutterSecureStorage()),
-        ),
+        tokenStoreProvider.overrideWithValue(const SecureTokenStore.platform()),
         // The scope belongs to whichever application sent the user here; on the
         // web it is read from session storage on every use, so a caller may
         // change it between one attempt and the next.

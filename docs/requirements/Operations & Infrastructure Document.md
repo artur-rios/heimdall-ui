@@ -271,6 +271,11 @@ request into `main` to production once every check passes (§2.2) — see
 
 - **The token is the only stored state**, held in the platform's secure storage. Signing out deletes
   it. A challenge token is never stored.
+- **On the web the token lives in the tab's session storage.** A reload of the tab keeps the
+  session; closing the tab ends it, and other tabs sign in on their own (a tab the browser duplicates
+  starts with a copy of the original's session storage, and so of its session). The token is
+  encrypted there, but its key is kept in the same storage, so it is not protected from scripts
+  running on the UI's own origin: what limits it on the web is the tab's lifetime and the token's.
 - **Theme mode** is the only other persisted preference, in `shared_preferences`.
 - **A `401` to any request made under the session** clears it and returns the user to sign-in; a
   session cannot outlive the API's opinion of its token. The exception is a `401` refusing a password
