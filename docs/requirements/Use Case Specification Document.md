@@ -79,6 +79,7 @@ graph LR
         UI18[UI-18: View & update person]
         UI19[UI-19: Delete person]
         UI36[UI-36: Account emails]
+        UI38[UI-38: List System Admins]
     end
 
     subgraph "Application Management"
@@ -115,6 +116,7 @@ graph LR
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
     SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
     SA & SCA --> UI16 & UI17 & UI18 & UI19 & UI36
+    SA --> UI38
     SA & SCA --> UI20 & UI21 & UI22 & UI23 & UI37
     SA & SCA --> UI24 & UI25 & UI26 & UI27
     SA & SCA --> UI28 & UI29
@@ -162,6 +164,7 @@ graph LR
 | UI-35 | Manage a scope's pending registrations | UC-49, UC-50 |
 | UI-36 | Send account emails to a person | UC-51, UC-52 |
 | UI-37 | Manage an application's credentials | UC-53, UC-54, UC-55 |
+| UI-38 | List System Admins | UC-07 (read e) |
 
 ### 1.5 Platform items
 
@@ -767,6 +770,9 @@ User's own record
 - **AF-18d — Deleted person.** A logically deleted person is shown read-only, marked as deleted.
 - **AF-18e — Editing yourself.** Opening your own record from the administrative listing offers the
   same editing as UI-08, and never lets you change your own role.
+- **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
+  `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
+  **Back to System Admins**) returns to the System Admins list, and so does a delete.
 
 ---
 
@@ -1563,6 +1569,48 @@ an issue is also shown in the issue dialog.
 
 ---
 
+### UI-38: List System Admins
+
+**Actor:** System Admin
+**Traces to:** UC-07 (View Person), read (e): the listing of System Admins
+**Precondition:** The user is signed in as a System Admin.
+
+**Placement.** The **System Admins** tile on Home, in the **Overview** grid, shows how many System
+Admins there are, with the caption "Full access to every scope", and opens `/system-admins`. If the
+count cannot be read, the tile shows "—" and still opens the list. A Scope Admin's and a User's Home
+do not show the tile, and `/system-admins` and `/persons/:personId` are not available to them: the
+not-available-for-your-role screen is shown. The screen, titled **System Admins**, has a back control
+(tooltip **Back to Home**). There is no navigation destination of its own. Rows open
+`/persons/:personId`.
+
+A line above the list says: "System Admins can administer every scope. Deleted and restricted
+accounts are not listed."
+
+**Main flow**
+
+1. The admin opens the **System Admins** tile.
+2. The client calls `GET /api/persons/system-admins` with `PageNumber`, `PageSize` (20) and the
+   filters, and renders the answer as every collection is rendered (FR-UX-04), ordered by name.
+3. Each row shows the name and, under it, the email address; there is no separate email column. The
+   API returns nothing more. The signed-in admin's own row is marked "(you)" after the name.
+4. The admin searches by name or email (Enter in either field, or **Search**), which returns to
+   page 1, or moves between pages. Overlapping requests queue the newest query, so a search typed
+   during a load is not lost.
+5. The admin opens a row, and the person page opens at `/persons/:personId`, without a scope. Its
+   back control (tooltip **Back to System Admins**) goes to the list, and so does a delete.
+
+The listing is forgotten when the screen is left, so a return loads it fresh.
+
+**Alternative flows**
+
+- **AF-38a — No System Admins.** "No System Admins."
+- **AF-38b — No matches.** "No System Admins match." with **Clear filters**.
+- **AF-38c — Refused.** The API answers `403`: the forbidden state, the not-available-for-your-role
+  panel with **Back to Home**.
+- **AF-38d — Failure.** Any other failure shows the errors with **Retry**, keeping the filters.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1584,6 +1632,7 @@ an issue is also shown in the issue dialog.
 | UI-35 | FR-SC-15, FR-SC-16 |
 | UI-36 | FR-PE-10, FR-PE-11 |
 | UI-37 | FR-AP-09 … FR-AP-11 |
+| UI-38 | FR-PE-12 |
 | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 

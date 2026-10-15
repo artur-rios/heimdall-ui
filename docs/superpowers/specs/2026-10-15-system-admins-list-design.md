@@ -39,11 +39,11 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
 ## 4. `/system-admins`: the list
 
 - **Route.** Route `/system-admins`, titled **System Admins**, with a back control to Home.
-- **Filters.** **Name** and **Email** text filters apply when submitted (Enter or the field's search button), as UI-34 does. A filter change resets to page 1.
+- **Filters.** **Name** and **Email** text filters apply when submitted (Enter or the **Search** button, as UI-16). A filter change resets to page 1.
 - **Rendering.** The list renders through `AdaptiveCollection`, as every collection does (FR-UX-04): cards on compact windows, a table on wide ones.
-  - The columns are **Name** and **Email**; the API returns nothing more.
+  - The row shows the name and, under it, the email; there is no column of its own for the email, and the API returns nothing more.
   - Each row opens `/persons/{id}`.
-  - The signed-in admin's own row is marked **(you)**.
+  - The signed-in admin's own row is marked " (you)" after the name.
 - **Paging.** Page size 20, with the app's pager.
 - **Explanatory line.** Above the list: "System Admins can administer every scope. Deleted and restricted accounts are not listed."
 - **Empty states** (FR-UX-06):
@@ -52,15 +52,14 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
 - **Failures:**
   - `403`: the app's forbidden state ("Not available for your role", **Back to Home**).
   - Other failures: `ErrorBanner` with **Retry**, keeping the filters.
-  - `429`: the API's message with its hint (FR-UX-09).
-- **State.** The controller is a plain `Notifier`, not a family, and is `autoDispose`, so leaving the screen forgets it. It refuses overlapping loads, using the busy pattern of UI-35 and UI-37.
+- **State.** The controller is a plain `Notifier`, not a family, and is `autoDispose`, so leaving the screen forgets it. Overlapping requests queue the newest query, as UI-16 does, building every change from the queued query.
 
 ## 5. `/persons/:personId`: a person page without a scope
 
 - **Route.** Route `/persons/:personId` reuses `PersonDetailScreen`, with `scopeId` made optional.
 - **When `scopeId` is null:**
   - The back control and its tooltip go to `/system-admins` (**Back to System Admins**) instead of the scope's persons list.
-  - After an edit or a delete, the screen refreshes the System Admins list provider, if it is alive, instead of the scope's list.
+  - After a delete it goes to `/system-admins`, which loads fresh; the list is disposed while the person page is open.
   - **Everything else is unchanged:** the fields, edit, delete and hard delete, and the account emails card. Each offer rule stays as it is, and the API decides each action.
 - **Scoped persons are unchanged.** Persons reached through a scope keep their current route and behaviour.
 - **Why not one route for every person?** Every link into a scoped person carries the scope, which the page uses for its back control and list refresh. Keeping both routes changes nothing for scoped persons.
@@ -80,12 +79,12 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
 
 - **Use Case Specification Document.** A new `### UI-38: List System Admins`.
   - Actor: System Admin. Traces to UC-07.
-  - Placement, main flow, and AF-38a–e: empty, no matches, forbidden, failure, and 429.
+  - Placement, main flow, and AF-38a–d: empty, no matches, forbidden, and failure.
   - Plus the inventory row, a diagram node with an SA edge, the traceability row, and a note on UI-18 (view a person) about the scope-less route.
 - **System Requirements Document.**
   - FR-PE-12: "A System Admin can list the system's System Admins, filtered by name or email and paged, through `GET /api/persons/system-admins`, and open each one's person page."
   - The route rows for `/system-admins` and `/persons/:personId`, and the Authorization Matrix rows.
-  - Add UI-38 to FR-UX-04, FR-UX-06 and FR-UX-09.
+  - Add UI-38 to FR-UX-04 and FR-UX-06.
 - **README.** Move "List System Admins" out of "Needs Heimdall API work" and into the person-management table, as `UI-38 … ✅ … #149`. Update the UI range to UI-01 … UI-38, in the README and in the Development Workflow Document.
 - **CHANGELOG.** Under `### Added`: "**System Admins list** — a System Admin can see and search the system's System Admins from Home, and open their person pages."
 
@@ -98,7 +97,7 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
   - the **(you)** marker;
   - filters applied on Enter and on the search button;
   - empty with and without a filter;
-  - 403 forbidden state, Retry, and a 429 message;
+  - 403 forbidden state and Retry;
   - tapping a row opens `/persons/{id}`.
 - **Home.**
   - A System Admin sees the tile with the count, and its tap opens `/system-admins`.
@@ -116,3 +115,5 @@ Today that page can't be reached: person pages exist only under a scope (`/scope
 - A System Admin opening their own record from the list: the page must keep its self-protections (AF-19d).
 - A deep link to `/persons/:id` for a scoped User, from a System Admin: it works, and back goes to `/system-admins`. Acceptable, since the page is the same.
 - The count tile on a slow API must not delay the rest of the dashboard: it loads in parallel.
+
+Amended while planning: Decisions 1–3 of the plan. Amended while documenting: the email shows under the name, not in a column. Amended after review (U1): `GET /api/persons/system-admins` is not rate limited, so there is no `429` flow (no AF-38e) and UI-38 is not in FR-UX-09; the `429` line in §4, the `429` in §8's AF list and §9's `429` test are removed.

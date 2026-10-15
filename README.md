@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-37 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-38 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -276,6 +276,7 @@ the board is where an item's status changes as it moves.
 | UI-18: View and update a person | ✅ | [#18](https://github.com/artur-rios/heimdall-ui/issues/18) |
 | UI-19: Delete a person, logically and permanently | ✅ | [#19](https://github.com/artur-rios/heimdall-ui/issues/19) |
 | UI-36: Send account emails to a person | ✅ | [#138](https://github.com/artur-rios/heimdall-ui/issues/138) |
+| UI-38: List System Admins | ✅ | [#149](https://github.com/artur-rios/heimdall-ui/issues/149) |
 
 ### Application Management
 
@@ -314,14 +315,6 @@ the board is where an item's status changes as it moves.
 | Use case | Status | Issue |
 | --- | --- | --- |
 | UI-34: Review the audit trail | ✅ | [#136](https://github.com/artur-rios/heimdall-ui/issues/136) |
-
-### Needs Heimdall API work
-
-Gaps the UI cannot close until the API gains the endpoint, tracked in the API repository.
-
-| Item | Status | Issue |
-| --- | --- | --- |
-| List System Admins | ⬜ | [heimdall-api#176](https://github.com/artur-rios/heimdall-api/issues/176) |
 
 ### Platform
 
