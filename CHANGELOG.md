@@ -26,6 +26,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- After saving a copy of your data, the screen now also says that the file holds your personal data and is not
+  encrypted, and that it should be kept somewhere private and deleted when no longer needed.
 - Choosing the System Admin role when creating a person now asks for confirmation before anything is sent, saying the
   person will be able to administer every scope. The password fields for a new person and a new scope co-owner are
   now marked as new passwords, so a password manager no longer offers, or offers to overwrite, the creating admin's

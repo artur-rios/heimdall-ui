@@ -1144,7 +1144,8 @@ restricted person would land on the home screen and watch every request fail.
 2. The client calls `POST /api/auth/data-export`.
 3. The client saves the document as an indented JSON file named
    `heimdall-data-export-<date>-<time>.json` — offered to the browser as a download on the web, and
-   written to the downloads folder on every other target — and says where it went.
+   written to the downloads folder on every other target — and says where it went. It also says that the file
+   holds personal data and is not encrypted, so it should be kept somewhere private and deleted when no longer needed.
 
 **Request erasure**
 

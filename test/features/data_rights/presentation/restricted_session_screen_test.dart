@@ -26,6 +26,9 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _FakeFileSaver implements FileSaver {
   final Map<String, String> saved = <String, String>{};
 
+  /// Whether the file goes to the browser, which reports no path.
+  bool toBrowser = false;
+
   @override
   Future<String?> saveText({
     required String fileName,
@@ -34,7 +37,7 @@ class _FakeFileSaver implements FileSaver {
   }) async {
     saved[fileName] = contents;
 
-    return '/home/ada/Downloads/$fileName';
+    return toBrowser ? null : '/home/ada/Downloads/$fileName';
   }
 }
 
@@ -310,6 +313,51 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  const sensitiveNote =
+      'This file holds your personal data and is not encrypted. Keep it '
+      'somewhere private, and delete it when you no longer need it.';
+
+  testWidgets('GivenASavedExport_WhenShown_ThenItSaysTheFileIsSensitive', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.exportMyData()).thenAnswer(
+      (_) async => Success<DataExport>(
+        DataExport(document: '{}', exportedAt: DateTime.utc(2026, 10, 11)),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tapButton(tester, 'Download my data');
+
+    // Then
+    expect(find.text(sensitiveNote), findsOneWidget);
+  });
+
+  testWidgets('GivenABrowserDownload_WhenShown_ThenItSaysTheFileIsSensitive', (
+    tester,
+  ) async {
+    // Given
+    saver.toBrowser = true;
+    when(() => repository.exportMyData()).thenAnswer(
+      (_) async => Success<DataExport>(
+        DataExport(document: '{}', exportedAt: DateTime.utc(2026, 10, 11)),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tapButton(tester, 'Download my data');
+
+    // Then
+    expect(
+      find.text('Your data was handed to your browser as a download.'),
+      findsOneWidget,
+    );
+    expect(find.text(sensitiveNote), findsOneWidget);
   });
 
   // AF-30c — the API's errors, shown as returned.
