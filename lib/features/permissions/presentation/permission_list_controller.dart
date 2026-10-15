@@ -123,14 +123,16 @@ class PermissionListController extends Notifier<PermissionListState> {
         : PermissionListLoading(query);
 
     try {
-      final result = await ref
-          .read(scopePermissionRepositoryProvider)
-          .list(
-            scopeId: arg,
-            name: query.name,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      final result = await guardUnexpected(
+        () => ref
+            .read(scopePermissionRepositoryProvider)
+            .list(
+              scopeId: arg,
+              name: query.name,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            ),
+      );
 
       state = result.fold(
         onSuccess: (page) => PermissionListLoaded(query, page),

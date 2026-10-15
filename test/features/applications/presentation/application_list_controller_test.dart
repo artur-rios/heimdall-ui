@@ -82,6 +82,19 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void failWith(Object error) {
+    when(
+      () => applications.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        ownerId: any(named: 'ownerId'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<Application>>>.error(error));
+  }
+
   setUp(() {
     applications = _MockApplicationRepository();
     persons = _MockPersonRepository();
@@ -434,4 +447,51 @@ void main() {
     final state = currentState() as ApplicationListLoaded;
     expect(state.ownerLabel('person-1'), 'Ada Lovelace');
   });
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<ApplicationListFailed>());
+    final failure = (state as ApplicationListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
+  });
+
+  test(
+    'GivenAnOwnerReadThatThrows_WhenLoaded_ThenTheStateIsFailedAsUnexpected',
+    () async {
+      // Given
+      answerWith(Success<Page<Application>>(_page()));
+      when(
+        () => persons.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer(
+        (_) =>
+            Future<Result<Person>>.error(const FormatException('not a person')),
+      );
+      final controller = controllerUnderTest();
+
+      // When
+      await controller.load();
+
+      // Then
+      final state = currentState();
+      expect(state, isA<ApplicationListFailed>());
+      final failure = (state as ApplicationListFailed).failure;
+      expect(failure.kind, FailureKind.unknown);
+      expect(
+        failure.displayMessage,
+        'The API returned an unexpected response.',
+      );
+    },
+  );
 }

@@ -114,13 +114,15 @@ class SystemAdminListController extends Notifier<SystemAdminListState> {
     final Result<Page<PersonSummary>> result;
 
     try {
-      result = await ref
-          .read(personRepositoryProvider)
-          .listSystemAdmins(
-            name: query.name,
-            email: query.email,
-            pageNumber: query.pageNumber,
-          );
+      result = await guardUnexpected(
+        () => ref
+            .read(personRepositoryProvider)
+            .listSystemAdmins(
+              name: query.name,
+              email: query.email,
+              pageNumber: query.pageNumber,
+            ),
+      );
     } finally {
       _inFlight = false;
     }
@@ -137,6 +139,20 @@ class SystemAdminListController extends Notifier<SystemAdminListState> {
     if (_queued case final queued?) {
       _queued = null;
       await _fetch(queued);
+
+      return;
+    }
+
+    // A page past the end — the last admin of the last page was deleted, say —
+    // would show "nothing here" with no pager to go back with. The last page
+    // that still exists is asked for instead.
+    if (state case SystemAdminListLoaded(:final page)
+        when page.items.isEmpty && query.pageNumber > 1) {
+      await _fetch(
+        query.copyWith(
+          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
+        ),
+      );
     }
   }
 }

@@ -92,6 +92,30 @@ Result<Page<T>> unwrapPage<T>(
   );
 }
 
+/// The [Failure] for an answer the client could not read (see
+/// [guardUnexpected]).
+Failure failureFromUnexpected() => const Failure(
+  kind: FailureKind.unknown,
+  errors: <String>[kUnexpectedResponseMessage],
+);
+
+/// Runs a repository [call], turning the two shapes a malformed 2xx body takes
+/// in the generated client — an [Exception] such as a `FormatException`, and a
+/// `TypeError` from a failed cast — into a [FailureResult].
+///
+/// A list screen that let either escape would stay on its placeholder for good,
+/// with no error panel and no Retry. Any other [Error] is a bug and still
+/// propagates.
+Future<Result<T>> guardUnexpected<T>(Future<Result<T>> Function() call) async {
+  try {
+    return await call();
+  } on Exception {
+    return FailureResult<T>(failureFromUnexpected());
+  } on TypeError {
+    return FailureResult<T>(failureFromUnexpected());
+  }
+}
+
 /// Maps a transport or HTTP failure onto the domain's [Failure] model.
 Failure failureFromDioException(DioException error) {
   final response = error.response;

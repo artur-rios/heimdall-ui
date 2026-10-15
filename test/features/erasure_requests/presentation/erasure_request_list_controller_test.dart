@@ -64,6 +64,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void failWith(Object error) {
+    when(
+      () => repository.list(
+        overdueOnly: any(named: 'overdueOnly'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<OutstandingErasure>>>.error(error));
+  }
+
   setUp(() {
     repository = _MockErasureRequestRepository();
   });
@@ -152,4 +162,20 @@ void main() {
           .called(1);
     },
   );
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<ErasureRequestListFailed>());
+    final failure = (state as ErasureRequestListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
+  });
 }

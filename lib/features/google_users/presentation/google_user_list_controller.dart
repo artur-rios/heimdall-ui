@@ -127,15 +127,17 @@ class GoogleUserListController extends Notifier<GoogleUserListState> {
         : GoogleUserListLoading(query);
 
     try {
-      final result = await ref
-          .read(googleUserRepositoryProvider)
-          .list(
-            scopeId: arg,
-            name: query.name,
-            email: query.email,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      final result = await guardUnexpected(
+        () => ref
+            .read(googleUserRepositoryProvider)
+            .list(
+              scopeId: arg,
+              name: query.name,
+              email: query.email,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            ),
+      );
 
       state = result.fold(
         onSuccess: (page) => GoogleUserListLoaded(query, page),

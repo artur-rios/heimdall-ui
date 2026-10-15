@@ -132,15 +132,17 @@ class PersonListController extends Notifier<PersonListState> {
         : PersonListLoading(query);
 
     try {
-      final result = await ref
-          .read(personRepositoryProvider)
-          .listScopePersons(
-            scopeId: arg,
-            name: query.name,
-            email: query.email,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      final result = await guardUnexpected(
+        () => ref
+            .read(personRepositoryProvider)
+            .listScopePersons(
+              scopeId: arg,
+              name: query.name,
+              email: query.email,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            ),
+      );
 
       state = result.fold(
         onSuccess: (page) => PersonListLoaded(query, page),

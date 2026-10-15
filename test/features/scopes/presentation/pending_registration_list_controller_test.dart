@@ -63,6 +63,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void failWith(Object error) {
+    when(
+      () => repository.list(
+        's1',
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<PendingRegistration>>>.error(error));
+  }
+
   setUp(() {
     repository = _MockPendingRegistrationRepository();
   });
@@ -368,4 +378,20 @@ void main() {
       expect(state.page.items, isNotEmpty);
     },
   );
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<PendingRegistrationListFailed>());
+    final failure = (state as PendingRegistrationListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
+  });
 }
