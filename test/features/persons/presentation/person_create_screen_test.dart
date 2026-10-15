@@ -471,6 +471,28 @@ void main() {
     expectNoAdminCreated();
   });
 
+  testWidgets(
+    'GivenTheConfirmationOpen_WhenSubmittedAgain_ThenOnlyOneIsShown',
+    (tester) async {
+      // Given
+      await pump(tester);
+      await chooseSystemAdmin(tester);
+      final submit = tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Create person'),
+          )
+          .onPressed!;
+
+      // When
+      submit();
+      submit();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.textContaining('administer every scope'), findsOneWidget);
+    },
+  );
+
   testWidgets('GivenTheConfirmation_WhenAccepted_ThenTheSystemAdminIsCreated', (
     tester,
   ) async {

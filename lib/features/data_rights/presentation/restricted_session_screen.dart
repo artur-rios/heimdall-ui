@@ -470,13 +470,13 @@ class _GoogleErasureDialogState extends ConsumerState<_GoogleErasureDialog> {
   );
 }
 
-/// What went well, said plainly. Not an error banner: nothing went wrong.
 /// What a person is told about the file once it is saved: it is a plain-text
 /// copy of everything held about them.
 const String _exportSensitivity =
     'This file holds your personal data and is not encrypted. Keep it '
     'somewhere private, and delete it when you no longer need it.';
 
+/// What went well, said plainly. Not an error banner: nothing went wrong.
 class _Notice extends StatelessWidget {
   const _Notice(this.message);
 

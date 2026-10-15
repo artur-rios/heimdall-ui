@@ -40,6 +40,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
   final _email = TextEditingController();
   final _password = TextEditingController();
   Role _role = Role.user;
+  bool _confirming = false;
 
   @override
   void dispose() {
@@ -66,8 +67,24 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
 
     // A System Admin administers every scope, whichever scope this form was
     // opened from, so choosing it takes a deliberate second step.
-    if (_role == Role.systemAdmin && !await _confirmSystemAdmin()) {
-      return;
+    if (_role == Role.systemAdmin) {
+      // One question at a time, and no answer to a screen that is gone.
+      if (_confirming) {
+        return;
+      }
+
+      _confirming = true;
+      final bool confirmed;
+
+      try {
+        confirmed = await _confirmSystemAdmin();
+      } finally {
+        _confirming = false;
+      }
+
+      if (!confirmed || !mounted) {
+        return;
+      }
     }
 
     await ref
