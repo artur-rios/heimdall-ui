@@ -94,7 +94,7 @@ Result<Page<T>> unwrapPage<T>(
 
 /// The [Failure] for an answer the client could not read (see
 /// [guardUnexpected]).
-Failure failureFromUnexpected(Object error) => const Failure(
+Failure failureFromUnexpected() => const Failure(
   kind: FailureKind.unknown,
   errors: <String>[kUnexpectedResponseMessage],
 );
@@ -109,10 +109,10 @@ Failure failureFromUnexpected(Object error) => const Failure(
 Future<Result<T>> guardUnexpected<T>(Future<Result<T>> Function() call) async {
   try {
     return await call();
-  } on Exception catch (error) {
-    return FailureResult<T>(failureFromUnexpected(error));
-  } on TypeError catch (error) {
-    return FailureResult<T>(failureFromUnexpected(error));
+  } on Exception {
+    return FailureResult<T>(failureFromUnexpected());
+  } on TypeError {
+    return FailureResult<T>(failureFromUnexpected());
   }
 }
 

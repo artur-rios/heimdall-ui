@@ -181,6 +181,52 @@ void main() {
     },
   );
 
+  test(
+    'GivenAnEmptyPageFarPastTheEnd_WhenLoaded_ThenTheLastRealPageIsAsked',
+    () async {
+      // Given
+      answerWith(
+        () async => Success<Page<PersonSummary>>(
+          _page(items: const <PersonSummary>[], pageNumber: 5, totalPages: 2),
+        ),
+      );
+      when(
+        () => repository.listSystemAdmins(
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          pageNumber: 2,
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        (_) async =>
+            Success<Page<PersonSummary>>(_page(pageNumber: 2, totalPages: 2)),
+      );
+      final controller = controllerUnderTest();
+
+      // When
+      await controller.goToPage(5);
+
+      // Then
+      verify(
+        () => repository.listSystemAdmins(
+          name: '',
+          email: '',
+          pageNumber: 2,
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(1);
+      verifyNever(
+        () => repository.listSystemAdmins(
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          pageNumber: 4,
+          pageSize: any(named: 'pageSize'),
+        ),
+      );
+      expect((currentState() as SystemAdminListLoaded).query.pageNumber, 2);
+    },
+  );
+
   test('GivenA403_WhenLoaded_ThenTheStateIsForbidden', () async {
     // Given
     answerWith(

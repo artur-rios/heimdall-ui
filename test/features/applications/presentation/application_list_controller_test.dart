@@ -463,4 +463,35 @@ void main() {
     expect(failure.kind, FailureKind.unknown);
     expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
+
+  test(
+    'GivenAnOwnerReadThatThrows_WhenLoaded_ThenTheStateIsFailedAsUnexpected',
+    () async {
+      // Given
+      answerWith(Success<Page<Application>>(_page()));
+      when(
+        () => persons.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer(
+        (_) =>
+            Future<Result<Person>>.error(const FormatException('not a person')),
+      );
+      final controller = controllerUnderTest();
+
+      // When
+      await controller.load();
+
+      // Then
+      final state = currentState();
+      expect(state, isA<ApplicationListFailed>());
+      final failure = (state as ApplicationListFailed).failure;
+      expect(failure.kind, FailureKind.unknown);
+      expect(
+        failure.displayMessage,
+        'The API returned an unexpected response.',
+      );
+    },
+  );
 }
