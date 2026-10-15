@@ -152,7 +152,7 @@ describes the flows that satisfy these requirements; the
 | FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
 | FR-UX-05 | The client shall render the API's `errors` array as returned, against the offending field where the error names one and in a banner otherwise. | All |
 | FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
-| FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. | All |
+| FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. Wherever a transport failure is shown, it reads "Could not reach the API. Check your connection and try again.", never the HTTP library's own text. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
 | FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
 

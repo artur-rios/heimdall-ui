@@ -226,7 +226,8 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  // AF-36f — a transport failure carries the HTTP library's own words.
+  // AF-36f — a transport failure is told in words a person can act on, as
+  // the envelope maps it.
   testWidgets('GivenATransportFailure_WhenSent_ThenAFixedSentenceIsShown', (
     tester,
   ) async {
@@ -236,7 +237,7 @@ void main() {
         Failure(
           kind: FailureKind.network,
           errors: <String>[],
-          message: 'The connection errored: Connection refused',
+          message: kUnreachableMessage,
         ),
       ),
     );
@@ -247,13 +248,7 @@ void main() {
     await confirmSend(tester);
 
     // Then
-    expect(
-      find.text(
-        'Could not reach the API. Check your connection and try again.',
-      ),
-      findsOneWidget,
-    );
-    expect(find.textContaining('The connection errored'), findsNothing);
+    expect(find.text(kUnreachableMessage), findsOneWidget);
   });
 
   testWidgets('GivenASendInFlight_WhenShown_ThenBothActionsAreDisabled', (

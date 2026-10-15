@@ -152,6 +152,50 @@ void main() {
     expect(failure.kind, FailureKind.network);
   });
 
+  // A transport failure has no words of the API's own; Dio's are written for
+  // developers ("The connection errored: …"), so a person is told what to do.
+  for (final type in <DioExceptionType>[
+    DioExceptionType.connectionError,
+    DioExceptionType.connectionTimeout,
+    DioExceptionType.sendTimeout,
+    DioExceptionType.receiveTimeout,
+  ]) {
+    test(
+      'GivenA${_capitalized(type.name)}_WhenMapped_ThenThePersonIsToldTheApiIsUnreachable',
+      () {
+        // Given
+        final error = DioException(
+          requestOptions: RequestOptions(path: '/api/scopes'),
+          type: type,
+          message: 'The connection errored: Connection refused',
+        );
+
+        // When
+        final failure = failureFromDioException(error);
+
+        // Then
+        expect(failure.kind, FailureKind.network);
+        expect(failure.message, kUnreachableMessage);
+        expect(failure.displayMessage, kUnreachableMessage);
+      },
+    );
+  }
+
+  test('GivenAnUnknownErrorWithoutAResponse_WhenMapped_ThenThePersonIsToldTheApiIsUnreachable', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/scopes'),
+      message: 'XMLHttpRequest onError callback was called',
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.message, kUnreachableMessage);
+  });
+
   test('GivenResponseWithoutABody_WhenMapped_ThenErrorsAreEmpty', () {
     // Given
     final error = DioException(
@@ -298,3 +342,6 @@ void main() {
     expect(failure.retryAfter, isNull);
   });
 }
+
+String _capitalized(String name) =>
+    '${name[0].toUpperCase()}${name.substring(1)}';

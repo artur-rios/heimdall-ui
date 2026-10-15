@@ -1474,7 +1474,8 @@ Each answer is shown with the API's own message, in an error banner within the c
 - **AF-36d — Refused.** A `403` or `404`.
 - **AF-36e — Cancelled.** **Cancel**, the barrier or the back control closes the confirmation.
   Nothing is sent.
-- **AF-36f — Transport failure.** An error banner.
+- **AF-36f — Transport failure.** An error banner says "Could not reach the API. Check your
+  connection and try again."
 
 ---
 

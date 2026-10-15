@@ -86,7 +86,7 @@ class RestrictedSessionScreen extends ConsumerWidget {
                   ),
                   const SizedBox(height: 24),
                   if (state.failure case final Failure failure) ...<Widget>[
-                    ErrorBanner(failure: _shown(failure)),
+                    ErrorBanner(failure: failure),
                     const SizedBox(height: 16),
                   ],
                   if (state.exported) ...<Widget>[
@@ -178,17 +178,6 @@ class RestrictedSessionScreen extends ConsumerWidget {
       await controller.liftRestriction();
     }
   }
-
-  /// A transport failure carries no words of the API's own, so it is given
-  /// some; everything else is shown as the API said it.
-  static Failure _shown(Failure failure) => failure.kind == FailureKind.network
-      ? const Failure(
-          kind: FailureKind.network,
-          errors: <String>[
-            'Could not reach the API. Check your connection and try again.',
-          ],
-        )
-      : failure;
 
   static String _erasureOutcome(BuildContext context, ErasureRequest erasure) {
     final localizations = MaterialLocalizations.of(context);
