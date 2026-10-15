@@ -262,14 +262,26 @@ class SessionController extends Notifier<SessionState> {
   /// AF-05e: the API reported the address as unverified when it issued this
   /// token, and verifying it in this session does not issue a new one. Without
   /// this the prompt would go on nagging about something already done.
+  ///
+  /// The session can end, or be replaced, while the store is written. The write
+  /// then must neither revive the session nor leave its token stored, so the
+  /// store is put back to whatever session is current by then.
   Future<void> markEmailVerified() async {
     if (state case Authenticated(:final token) when !token.emailVerified) {
       final verified = token.asVerified();
       await _store.write(verified);
-      state = Authenticated(
-        token: verified,
-        principal: principalFromToken(verified),
-      );
+
+      switch (state) {
+        case Authenticated(token: final current) when identical(current, token):
+          state = Authenticated(
+            token: verified,
+            principal: principalFromToken(verified),
+          );
+        case Authenticated(token: final current):
+          await _bestEffort(() => _store.write(current));
+        case _:
+          await _clearStore();
+      }
     }
   }
 

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -930,6 +931,44 @@ void main() {
     expect((await store.read())?.emailVerified, isTrue);
   });
 
+  // A sign-out that finishes while the verified token is being stored is not
+  // undone by the write landing afterwards.
+  test(
+    'GivenASignOutDuringTheWrite_WhenMarkedVerified_ThenItStaysSignedOut',
+    () async {
+      // Given
+      final held = _HeldWriteTokenStore();
+      await held.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          emailVerified: false,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          tokenStoreProvider.overrideWithValue(held),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+      final release = held.holdNextWrite();
+      final marking = controller.markEmailVerified();
+
+      // When
+      await controller.signOut();
+      release();
+      await marking;
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await held.read(), isNull);
+    },
+  );
+
   test('GivenNoSession_WhenMarkedVerified_ThenNothingIsStored', () async {
     // Given
     final container = containerWith();
@@ -1419,4 +1458,37 @@ class _ReadableBrokenTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async => throw StateError('keyring locked');
+}
+
+/// An in-memory store whose next write can be held until released, so a test
+/// can finish something else while it is under way.
+class _HeldWriteTokenStore implements TokenStore {
+  AuthToken? _token;
+  Completer<void>? _hold;
+
+  /// Holds the next write; the returned callback lets it complete.
+  void Function() holdNextWrite() {
+    final hold = Completer<void>();
+    _hold = hold;
+
+    return hold.complete;
+  }
+
+  @override
+  Future<AuthToken?> read() async => _token;
+
+  @override
+  Future<void> write(AuthToken token) async {
+    final hold = _hold;
+    _hold = null;
+
+    if (hold != null) {
+      await hold.future;
+    }
+
+    _token = token;
+  }
+
+  @override
+  Future<void> clear() async => _token = null;
 }
