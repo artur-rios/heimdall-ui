@@ -429,6 +429,8 @@ void main() {
     // Then
     expect(adapter.queries.single['Name'], 'Ada');
     expect(adapter.queries.single.containsKey('Email'), isFalse);
+    expect(adapter.queries.single['PageNumber'], '1');
+    expect(adapter.queries.single['PageSize'], '20');
   });
 
   test('GivenA403_WhenSystemAdminsListed_ThenForbiddenIsReturned', () async {
@@ -449,6 +451,31 @@ void main() {
     // Then
     expect(result.failureOrNull?.kind, FailureKind.forbidden);
   });
+
+  test(
+    'GivenSuccessFalse_WhenSystemAdminsListed_ThenValidationErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['The page size is too large.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.listSystemAdmins();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>[
+        'The page size is too large.',
+      ]);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that
