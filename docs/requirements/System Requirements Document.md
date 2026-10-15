@@ -102,6 +102,7 @@ describes the flows that satisfy these requirements; the
 | FR-PE-09 | The client shall offer the owners a scope may be given from `GET /api/persons/scope-admins`, leaving out the persons who already own the scope being managed. | UI-11, UI-14 |
 | FR-PE-10 | A System Admin, or a Scope Admin viewing a User of a scope they own, can have a fresh verification link sent to a person whose address is unverified, after confirming. | UI-36 |
 | FR-PE-11 | They can have a password reset link sent, after confirming. Neither action shows a link or code; the API's refusals — including its cooldown — are shown as returned. | UI-36 |
+| FR-PE-12 | A System Admin can list the system's System Admins, filtered by name or email and paged, through `GET /api/persons/system-admins`, and open each one's person page. | UI-38 |
 
 ### 2.4 Application management (`FR-AP`)
 
@@ -149,9 +150,9 @@ describes the flows that satisfy these requirements; the
 | FR-UX-01 | The client shall present navigation appropriate to the window's breakpoint: a bottom bar when compact, a rail when medium, and an extended rail when expanded. A rail scrolls when the window, or what a soft keyboard leaves of it, is too short for its destinations, so every destination stays reachable. | UI-07 |
 | FR-UX-02 | The client shall show only the destinations the signed-in role can use. | UI-07 |
 | FR-UX-03 | The client shall support light, dark, and system theme modes, and shall remember the choice between launches. | — |
-| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
+| FR-UX-04 | The client shall render collections as cards when compact and as a paginated table when expanded, from one declaration per collection. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35, UI-38 |
 | FR-UX-05 | The client shall render the API's `errors` array as returned, against the offending field where the error names one and in a banner otherwise. | All |
-| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35 |
+| FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35, UI-38 |
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. Wherever a transport failure is shown, it reads "Could not reach the API. Check your connection and try again.", never the HTTP library's own text. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
 | FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
@@ -203,6 +204,8 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/permissions/:permissionId` | Permission detail | UI-26, UI-27 |
 | `/scopes/:scopeId/google-users` | Google user listing | UI-28 |
 | `/scopes/:scopeId/google-users/:googleUserId` | Google user detail | UI-29 |
+| `/system-admins` | System Admins — list, search and page; rows open the person page | UI-38 |
+| `/persons/:personId` | Person detail without a scope, opened from the System Admins list; back returns to it | UI-38, UI-18, UI-19 |
 | `/erasure-requests` | Outstanding erasure requests; re-apply erasures after a restore | UI-32 |
 | `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
@@ -236,6 +239,8 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Logical delete person | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete person | Full | Hidden | Hidden | Hidden |
 | Account emails: resend verification, send password reset | Full | Users of owned scopes only | Hidden | Hidden |
+| System Admins: list | Full | Hidden | Hidden | Hidden |
+| Person detail without a scope (`/persons/:personId`) | Full | Hidden | Hidden | Hidden |
 | Application listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete application | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete application | Full | Hidden | Hidden | Hidden |

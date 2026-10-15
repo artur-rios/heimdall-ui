@@ -373,6 +373,109 @@ void main() {
       startsWith('An email of this kind'),
     );
   });
+
+  test('GivenSystemAdmins_WhenListed_ThenTheyAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'admin-1',
+              'name': 'Ada',
+              'email': 'ada@example.com',
+            },
+          ],
+          'pageNumber': 2,
+          'pageSize': 20,
+          'totalItems': 21,
+          'totalPages': 2,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.listSystemAdmins(pageNumber: 2);
+
+    // Then
+    final page = result.valueOrNull!;
+    expect(page.items.single.id, 'admin-1');
+    expect(page.items.single.name, 'Ada');
+    expect(page.totalItems, 21);
+    expect(adapter.paths.single, '/api/persons/system-admins');
+    expect(adapter.queries.single['PageNumber'], '2');
+    expect(adapter.queries.single['PageSize'], '20');
+  });
+
+  test('GivenFilters_WhenSystemAdminsListed_ThenTheyAreSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[],
+        },
+      ),
+    );
+
+    // When
+    await repository.listSystemAdmins(name: 'Ada', email: '  ');
+
+    // Then
+    expect(adapter.queries.single['Name'], 'Ada');
+    expect(adapter.queries.single.containsKey('Email'), isFalse);
+    expect(adapter.queries.single['PageNumber'], '1');
+    expect(adapter.queries.single['PageSize'], '20');
+  });
+
+  test('GivenA403_WhenSystemAdminsListed_ThenForbiddenIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 403,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['Only a System Admin may list System Admins.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.listSystemAdmins();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.forbidden);
+  });
+
+  test(
+    'GivenSuccessFalse_WhenSystemAdminsListed_ThenValidationErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': false,
+            'errors': <String>['The page size is too large.'],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.listSystemAdmins();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>[
+        'The page size is too large.',
+      ]);
+    },
+  );
 }
 
 /// What the stub answers with. A [status] of zero stands for a connection that

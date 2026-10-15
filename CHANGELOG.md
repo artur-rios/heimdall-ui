@@ -9,6 +9,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
+- **System Admins list** — a System Admin can see and search the system's System Admins from Home, and open their
+  person pages.
 - **Application credentials** — administrators can issue an application a secret (shown once), see its credentials, and
   revoke them.
 - **Account emails** — administrators can have a verification link or a password reset link sent to a person's own

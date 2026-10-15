@@ -86,6 +86,16 @@ abstract interface class PersonRepository {
     int pageSize = 20,
   });
 
+  /// UC-07 read (e) — the system's System Admins, projected to identifier,
+  /// name, and email. The API answers it to a System Admin only, leaves out
+  /// deleted and restricted accounts, and orders by name.
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  });
+
   /// Adds an existing Scope Admin as a co-owner of a scope.
   ///
   /// Whether that person is a usable Scope Admin, and whether they already own

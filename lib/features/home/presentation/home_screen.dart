@@ -307,6 +307,17 @@ class _LoadedDashboard extends StatelessWidget {
                   'Sign-In on in ${stats.googleSignInScopes} of '
                   '$scopeCount ${scopeCount == 1 ? 'scope' : 'scopes'}',
             ),
+            if (isSystemAdmin)
+              _StatTile(
+                label: 'System Admins',
+                icon: Icons.admin_panel_settings_outlined,
+                value: _figure(stats.systemAdmins),
+                tooltip: stats.systemAdmins == null
+                    ? 'Could not be read'
+                    : null,
+                caption: 'Full access to every scope',
+                onTap: () => context.go('/system-admins'),
+              ),
             _ApiStatusTile(reachable: stats.apiReachable),
           ],
         ),

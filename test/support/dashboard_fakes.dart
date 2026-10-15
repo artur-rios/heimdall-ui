@@ -40,6 +40,8 @@ class FakeDashboardRepositories {
     this.applications = 0,
     this.permissions = 0,
     this.googleUsers = 0,
+    this.systemAdmins = 1,
+    this.systemAdminsAnswer,
     this.scopesFailure,
     this.apiReachable = true,
     this.googleMe,
@@ -60,9 +62,17 @@ class FakeDashboardRepositories {
   final int? applications;
   final int? permissions;
   final int? googleUsers;
+  final int? systemAdmins;
+
+  /// When set, answers the n-th System Admins read (from 1) instead of
+  /// [systemAdmins], so a test can hold one read back.
+  final Future<int?> Function(int read)? systemAdminsAnswer;
   final Failure? scopesFailure;
   final bool apiReachable;
   final Person me;
+
+  /// How many times the System Admins listing was asked for.
+  int systemAdminsReads = 0;
 
   /// The signed-in Google User's own record, for a Google session. When set,
   /// the persons endpoint answers `404` for the caller, as the API does: a
@@ -132,6 +142,21 @@ class _Persons extends Fake implements PersonRepository {
   }) async => fakes.googleMe == null
       ? Success<Person>(fakes.me)
       : const FailureResult<Person>(_notFound);
+
+  @override
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    final read = ++fakes.systemAdminsReads;
+    final answer = fakes.systemAdminsAnswer;
+
+    return _count<PersonSummary>(
+      answer == null ? fakes.systemAdmins : await answer(read),
+    );
+  }
 
   @override
   Future<Result<Page<Person>>> listScopePersons({

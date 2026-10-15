@@ -267,37 +267,31 @@ class ApiPersonRepository implements PersonRepository {
         pageSize: pageSize,
       );
 
-      if (response.success != true) {
-        return FailureResult<Page<PersonSummary>>(
-          Failure(
-            kind: FailureKind.validation,
-            errors: response.errors ?? const <String>[],
-          ),
-        );
-      }
-
-      final items = (response.data ?? const <PersonSummaryOutput>[])
-          .map(
-            (output) => PersonSummary(
-              id: output.id ?? '',
-              name: output.name ?? '',
-              email: output.email ?? '',
-            ),
-          )
-          .toList(growable: false);
-
-      return Success<Page<PersonSummary>>(
-        Page<PersonSummary>(
-          items: items,
-          pageNumber: response.pageNumber ?? pageNumber,
-          pageSize: response.pageSize ?? pageSize,
-          totalItems: response.totalItems ?? items.length,
-          totalPages: response.totalPages ?? 1,
-        ),
-      );
+      return _summaryPage(response, pageNumber: pageNumber, pageSize: pageSize);
     } on DioException catch (error) {
       // A Scope Admin who may not manage the named scope is refused here, and
       // the picker falls back to an identifier rather than to nothing.
+      return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
+    }
+  }
+
+  @override
+  Future<Result<Page<PersonSummary>>> listSystemAdmins({
+    String? name,
+    String? email,
+    int pageNumber = 1,
+    int pageSize = 20,
+  }) async {
+    try {
+      final response = await _client.personListSystemAdmins(
+        name: _filter(name),
+        email: _filter(email),
+        pageNumber: pageNumber,
+        pageSize: pageSize,
+      );
+
+      return _summaryPage(response, pageNumber: pageNumber, pageSize: pageSize);
+    } on DioException catch (error) {
       return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
     }
   }
@@ -432,6 +426,43 @@ class ApiPersonRepository implements PersonRepository {
   /// empty string rather than to stop filtering.
   static String? _filter(String? value) =>
       (value?.trim().isEmpty ?? true) ? null : value!.trim();
+
+  /// Maps a paginated person-summary envelope, failing with validation errors
+  /// when the API reports `success` as false.
+  static Result<Page<PersonSummary>> _summaryPage(
+    PersonSummaryOutputPaginatedOutput response, {
+    required int pageNumber,
+    required int pageSize,
+  }) {
+    if (response.success != true) {
+      return FailureResult<Page<PersonSummary>>(
+        Failure(
+          kind: FailureKind.validation,
+          errors: response.errors ?? const <String>[],
+        ),
+      );
+    }
+
+    final items = (response.data ?? const <PersonSummaryOutput>[])
+        .map(
+          (output) => PersonSummary(
+            id: output.id ?? '',
+            name: output.name ?? '',
+            email: output.email ?? '',
+          ),
+        )
+        .toList(growable: false);
+
+    return Success<Page<PersonSummary>>(
+      Page<PersonSummary>(
+        items: items,
+        pageNumber: response.pageNumber ?? pageNumber,
+        pageSize: response.pageSize ?? pageSize,
+        totalItems: response.totalItems ?? items.length,
+        totalPages: response.totalPages ?? 1,
+      ),
+    );
+  }
 
   /// Runs a paginated person listing and maps its envelope.
   Future<Result<Page<Person>>> _listing(

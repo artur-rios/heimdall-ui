@@ -30,6 +30,7 @@ class DashboardStats {
     required this.scopes,
     this.deletedScopes,
     this.apiReachable,
+    this.systemAdmins,
   });
 
   /// How many scopes the caller can see that are not deleted — every scope
@@ -46,6 +47,10 @@ class DashboardStats {
 
   /// Whether the API answered its liveness check, or `null` when nobody asked.
   final bool? apiReachable;
+
+  /// How many System Admins the system has (UI-38), or `null` when that could
+  /// not be read or the caller is not a System Admin and was never told.
+  final int? systemAdmins;
 
   /// How many scopes the dashboard breaks down. The counts cost a request per
   /// scope and kind, so a system with many scopes is summarised over the
