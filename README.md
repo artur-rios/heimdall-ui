@@ -116,7 +116,8 @@ on every use, so opening the UI again with another `scope` changes it.
 > included, so a flaw in a co-hosted caller would become a flaw in Heimdall UI.
 
 A caller that already shares the UI's origin may still write the value itself, as earlier versions
-required; it keeps working, but move to the URL and to an origin of the caller's own:
+required; it keeps working, and is held to the same rule (a value that is not a GUID is ignored), but
+move to the URL and to an origin of the caller's own:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');

@@ -53,7 +53,8 @@ could never have written the UI's; the URL is what lets the caller live elsewher
 **The calling application must not be hosted on the UI's origin.** Script on that origin can read
 everything the UI keeps in the browser, the session token included, so a flaw in a co-hosted caller
 would hand over Heimdall sessions. A caller that does share the origin may still write the value
-itself, as earlier versions required, and that keeps working:
+itself, as earlier versions required, and that keeps working; a stored value that is not a GUID is
+ignored there too:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');

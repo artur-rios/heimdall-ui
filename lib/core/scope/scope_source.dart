@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../ids/public_id.dart';
+
 /// The session storage key the target scope is kept under on the web.
 ///
 /// Heimdall UI is opened from the applications that use Heimdall's services,
@@ -33,6 +35,35 @@ class FixedScopeSource implements ScopeSource {
     final scopeId = _scopeId;
 
     return (scopeId == null || scopeId.isEmpty) ? null : scopeId;
+  }
+}
+
+/// A scope read from storage on every use, with a build-time fallback.
+///
+/// Backs the web, where it reads session storage: what start-up copied from
+/// a `?scope=` on the entry URL, or what a caller on the UI's own origin wrote
+/// there itself. Both are held to the same rule — a value that is not a
+/// `PublicId` is ignored, as the URL's is — and then [fallback] applies.
+class StoredScopeSource implements ScopeSource {
+  const StoredScopeSource(this._stored, {this.fallback});
+
+  /// Reads the stored value; called on every use, so a caller may change it
+  /// between one attempt and the next.
+  final String? Function() _stored;
+
+  /// Used when nothing usable is stored: a build opened directly rather than
+  /// handed off to.
+  final String? fallback;
+
+  @override
+  String? read() {
+    final stored = _stored();
+
+    if (stored != null && isPublicId(stored)) {
+      return stored;
+    }
+
+    return FixedScopeSource(fallback).read();
   }
 }
 
