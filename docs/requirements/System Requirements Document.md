@@ -45,7 +45,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-05 | The client shall store the bearer token and its expiry in the platform's secure storage, and shall restore the session from it at start-up. | UI-01, UI-07 |
 | FR-AU-06 | The client shall discard a stored token whose expiry has passed without contacting the API. | UI-07 |
 | FR-AU-07 | The client shall attach the bearer token to every authenticated request as an `Authorization: Bearer` header. | UI-07 |
-| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401`. | UI-07 |
+| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401` to a request made under the session, except a `401` refusing a password or code typed into that request, which the screen shows instead. | UI-07 |
 | FR-AU-09 | The client shall offer Google sign-in when a Google client id is configured, exchange the resulting ID token at `POST /api/auth/google`, and sign out through `POST /api/auth/google/sign-out`. | UI-06 |
 | FR-AU-10 | The client shall request a password reset through `POST /api/auth/password-recovery` and shall show the same confirmation whether or not the address is registered. | UI-03 |
 | FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. | UI-04 |
@@ -53,8 +53,8 @@ describes the flows that satisfy these requirements; the
 | FR-AU-13 | The client shall offer to resend a verification email through `POST /api/auth/resend-verification`. | UI-05 |
 | FR-AU-14 | The client shall show an authenticated user with an unverified address a dismissible prompt offering to resend the verification email. | UI-05 |
 | FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}` — or, for a Google User, through `GET /api/scopes/{scopeId}/google-users/{id}`, read-only. | UI-08 |
-| FR-AU-16 | The client shall let the signed-in person update their own name and email through `PUT /api/persons/{id}`. | UI-08 |
-| FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable` and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
+| FR-AU-16 | The client shall let the signed-in person update their own name and email through `PUT /api/persons/{id}`. A change of email address (the trimmed values compared exactly, so case counts) shall be confirmed with `currentPassword`, and with `twoFactorCode` — an authenticator code or a recovery code — when the person's two-factor authentication is on; a name-only change sends neither. | UI-08 |
+| FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable`, sending the person's `currentPassword`, and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
 | FR-AU-18 | The client shall render an `otpAuthUri` as a scannable code and shall also present the secret as selectable text. | UI-09 |
 | FR-AU-19 | The client shall display recovery codes exactly once, offer to copy or download them, and require acknowledgement before navigating away. | UI-09 |
 | FR-AU-20 | The client shall disable two-factor authentication through `POST /api/auth/2fa/disable` and regenerate recovery codes through `POST /api/auth/2fa/recovery-codes/regenerate`. | UI-09 |
@@ -65,6 +65,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-25 | The client shall request erasure of the caller's own identity through `POST /api/auth/erasure-request`, confirmed with the password for a person and with a freshly issued Google ID token for a Google User. | UI-30 |
 | FR-AU-26 | The client shall request a new second-factor email code through `POST /api/auth/2fa/challenge/resend` while a challenge answered by email is outstanding, waiting 30 seconds between sends and offering at most three per challenge, after which it offers to start the sign-in again. | UI-02 |
 | FR-AU-27 | The client shall let a signed-in person restrict processing of their own identity through `POST /api/auth/processing-restriction`, sending one of the four GDPR Art. 18(1) grounds the person chose (none preselected) after a confirmation that says the account is suspended until the restriction is lifted, and shall then end the session and say on the sign-in screen that signing in again opens the restricted session. | UI-33 |
+| FR-AU-28 | After the signed-in person changes their own email address, confirms or disables two-factor authentication, or regenerates their recovery codes, the client shall send nothing more under the session's token and shall end the session — after the recovery codes have been shown, when there are any — saying on the sign-in screen "Your sign-in details changed. Sign in again." | UI-08, UI-09 |
 
 ### 2.2 Scope management (`FR-SC`)
 
@@ -96,7 +97,7 @@ describes the flows that satisfy these requirements; the
 | FR-PE-03 | The client shall create a person within a scope through `POST /api/scopes/{scopeId}/persons`. | UI-17 |
 | FR-PE-04 | The client shall let a System Admin create a person belonging to no scope through `POST /api/persons`. | UI-17 |
 | FR-PE-05 | The client shall show a person through `GET /api/persons/{id}`, including role, scope membership, owned scopes, verification state, and whether a second factor is configured. | UI-18 |
-| FR-PE-06 | The client shall update a person's name and email through `PUT /api/persons/{id}`. | UI-18 |
+| FR-PE-06 | The client shall update a person's name and email through `PUT /api/persons/{id}`, asking for no password. On the signed-in person's own record the email address is read-only, since it is changed from the profile (FR-AU-16). | UI-18 |
 | FR-PE-07 | The client shall logically delete a person through `DELETE /api/persons/{id}` after confirmation. | UI-19 |
 | FR-PE-08 | The client shall permanently delete a person through `DELETE /api/persons/{id}/hard` after a confirmation requiring the person's email to be typed. | UI-19 |
 | FR-PE-09 | The client shall offer the owners a scope may be given from `GET /api/persons/scope-admins`, leaving out the persons who already own the scope being managed. | UI-11, UI-14 |
