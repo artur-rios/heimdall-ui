@@ -26,6 +26,9 @@ bool roleMayReach({required Role role, required String path}) => switch (path) {
   '/audit-log' => role == Role.systemAdmin,
   // Full for a System Admin, read-only for a Scope Admin, hidden for a User.
   '/health' => role != Role.user,
+  // UC-07 read (e) is answered to a System Admin only: who else holds full
+  // access is not a Scope Admin's to know.
+  '/system-admins' => role == Role.systemAdmin,
   // A route nobody has built yet is the error screen's business, not the
   // guard's: answering "not for your role" would be a guess about a screen
   // that does not exist.
