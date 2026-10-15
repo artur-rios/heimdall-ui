@@ -11,7 +11,7 @@ const int maxLiveCredentials = 2;
 
 const Failure _unexpected = Failure(
   kind: FailureKind.unknown,
-  errors: <String>['The API returned an unexpected response.'],
+  errors: <String>[kUnexpectedResponseMessage],
 );
 
 typedef CredentialsKey = ({String scopeId, String applicationId});

@@ -17,6 +17,13 @@ enum FailureKind {
 const String kUnreachableMessage =
     'Could not reach the API. Check your connection and try again.';
 
+/// What a person is told when the API answered, but not with anything the
+/// client could read: a 2xx body of the wrong shape, say. It is not the
+/// person's connection and not anything they can correct, so the screen offers
+/// Retry (FR-UX-07).
+const String kUnexpectedResponseMessage =
+    'The API returned an unexpected response.';
+
 /// A failed outcome, carrying the API's own error messages when it produced any.
 ///
 /// The strings in [errors] come straight from the response envelope and are

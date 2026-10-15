@@ -52,6 +52,17 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void failWith(Object error) {
+    when(
+      () => repository.list(
+        name: any(named: 'name'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<Scope>>>.error(error));
+  }
+
   setUp(() {
     repository = _MockScopeRepository();
   });
@@ -328,5 +339,21 @@ void main() {
     final state = container.read(scopeListControllerProvider);
     expect(state.query.pageNumber, 1);
     expect((state as ScopeListLoaded).page.items.single.name, 'Acme');
+  });
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = container.read(scopeListControllerProvider);
+    expect(state, isA<ScopeListFailed>());
+    final failure = (state as ScopeListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
 }

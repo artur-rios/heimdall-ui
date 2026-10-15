@@ -64,6 +64,19 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void failWith(Object error) {
+    when(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<Person>>>.error(error));
+  }
+
   setUp(() {
     repository = _MockPersonRepository();
   });
@@ -320,6 +333,101 @@ void main() {
           pageSize: any(named: 'pageSize'),
         ),
       ).called(1);
+    },
+  );
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<PersonListFailed>());
+    final failure = (state as PersonListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
+  });
+
+  test('GivenARepositoryThatThrowsATypeError_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    when(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) async => (null as dynamic) as Result<Page<Person>>);
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<PersonListFailed>());
+    final failure = (state as PersonListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
+  });
+
+  test('GivenASearchQueuedDuringAThrowingRequest_WhenItFails_ThenTheSearchStillRuns', () async {
+    // Given
+    final first = Completer<Result<Page<Person>>>();
+    var calls = 0;
+    when(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) {
+      calls++;
+
+      return calls == 1
+          ? first.future
+          : Future.value(Success<Page<Person>>(_page()));
+    });
+    final controller = controllerUnderTest();
+    final loading = controller.load();
+
+    // When
+    unawaited(controller.search(name: 'Ada'));
+    first.completeError(const FormatException('not the shape of a page'));
+    await loading;
+    await pumpEventQueue();
+
+    // Then
+    verify(
+      () => repository.listScopePersons(
+        scopeId: 'scope-1',
+        name: 'Ada',
+        email: '',
+        includeDeleted: false,
+        pageNumber: 1,
+      ),
+    ).called(1);
+    expect(currentState(), isA<PersonListLoaded>());
+  });
+
+  test(
+    'GivenARepositoryThatThrowsAnotherError_WhenLoaded_ThenItPropagates',
+    () async {
+      // Given
+      failWith(StateError('a bug, not a bad answer'));
+      final controller = controllerUnderTest();
+
+      // When / Then
+      await expectLater(controller.load(), throwsA(isA<StateError>()));
     },
   );
 }

@@ -114,13 +114,15 @@ class SystemAdminListController extends Notifier<SystemAdminListState> {
     final Result<Page<PersonSummary>> result;
 
     try {
-      result = await ref
-          .read(personRepositoryProvider)
-          .listSystemAdmins(
-            name: query.name,
-            email: query.email,
-            pageNumber: query.pageNumber,
-          );
+      result = await guardUnexpected(
+        () => ref
+            .read(personRepositoryProvider)
+            .listSystemAdmins(
+              name: query.name,
+              email: query.email,
+              pageNumber: query.pageNumber,
+            ),
+      );
     } finally {
       _inFlight = false;
     }

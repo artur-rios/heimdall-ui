@@ -66,6 +66,17 @@ void main() {
     ).thenAnswer((_) => answer());
   }
 
+  void failWith(Object error) {
+    when(
+      () => repository.listSystemAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => Future<Result<Page<PersonSummary>>>.error(error));
+  }
+
   setUp(() {
     repository = _MockPersonRepository();
   });
@@ -198,5 +209,21 @@ void main() {
 
     // Then
     expect(currentState().query.name, '');
+  });
+
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    failWith(const FormatException('not the shape of a page'));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<SystemAdminListFailed>());
+    final failure = (state as SystemAdminListFailed).failure;
+    expect(failure.kind, FailureKind.unknown);
+    expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
 }

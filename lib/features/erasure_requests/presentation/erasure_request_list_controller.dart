@@ -92,9 +92,11 @@ class ErasureRequestListController extends Notifier<ErasureRequestListState> {
         : ErasureRequestListLoading(query);
 
     try {
-      final result = await ref
-          .read(erasureRequestRepositoryProvider)
-          .list(overdueOnly: query.overdueOnly, pageNumber: query.pageNumber);
+      final result = await guardUnexpected(
+        () => ref
+            .read(erasureRequestRepositoryProvider)
+            .list(overdueOnly: query.overdueOnly, pageNumber: query.pageNumber),
+      );
 
       state = result.fold(
         onSuccess: (page) => ErasureRequestListLoaded(query, page),

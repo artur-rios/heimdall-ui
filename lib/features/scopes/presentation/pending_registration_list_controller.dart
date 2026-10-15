@@ -151,7 +151,9 @@ class PendingRegistrationListController
         : PendingRegistrationListLoading(pageNumber);
 
     try {
-      final result = await _repository.list(arg, pageNumber: pageNumber);
+      final result = await guardUnexpected(
+        () => _repository.list(arg, pageNumber: pageNumber),
+      );
 
       state = result.fold(
         onSuccess: (page) => PendingRegistrationListLoaded(pageNumber, page),

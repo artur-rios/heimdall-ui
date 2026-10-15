@@ -150,14 +150,16 @@ class ApplicationListController extends Notifier<ApplicationListState> {
         : ApplicationListLoading(query);
 
     try {
-      final result = await ref
-          .read(applicationRepositoryProvider)
-          .list(
-            scopeId: arg,
-            name: query.name,
-            includeDeleted: query.includeDeleted,
-            pageNumber: query.pageNumber,
-          );
+      final result = await guardUnexpected(
+        () => ref
+            .read(applicationRepositoryProvider)
+            .list(
+              scopeId: arg,
+              name: query.name,
+              includeDeleted: query.includeDeleted,
+              pageNumber: query.pageNumber,
+            ),
+      );
 
       switch (result) {
         case Success<Page<Application>>(:final value):
