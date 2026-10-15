@@ -229,9 +229,24 @@ host should send the same (NFR-10).
 | Header | Value | Why |
 | --- | --- | --- |
 | `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
-| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL, and the page's scripts and assets are requested before start-up removes it. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL, and the page's scripts and assets are requested before start-up removes it. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. A proxy in front may replace this header; see below |
 | `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
 | `X-Content-Type-Options` | `nosniff` | |
+
+**Referrer-Policy behind a proxy.** The per-route `no-referrer` only reaches the browser when nothing in
+front replaces the header, as with the image served directly. Behind yggdrasil's Traefik it does not:
+the `secure-headers` middleware attached to the UI's routers sets `Referrer-Policy:
+strict-origin-when-cross-origin` on every response, replacing nginx's, so the reset and verification
+pages get that policy too. There the protection is the application's own: it removes the token from
+the address as it starts, so no request it makes afterwards carries the token in its Referer. The
+page's own scripts and assets, requested before that, still send the full address to the UI's nginx,
+which has already logged the same address on the request for the page itself.
+
+> [!NOTE]
+> For no Referer on those two routes behind a proxy, the edge middleware must not set
+> `referrerPolicy` for the UI's routers (nginx's per-route value then reaches the browser), or must
+> set a route-specific one: `no-referrer` for `/password-reset` and `/verify-email`. Confirm with
+> `curl -sI https://<host>/password-reset` after deploying.
 
 The Content-Security-Policy:
 

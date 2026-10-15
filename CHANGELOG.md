@@ -26,10 +26,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- The token of a password reset or email verification link stayed in the address bar, the browser history, and the
-  Referer of every request the page made. On the web it is now removed from the address as the page opens, and the
-  web image tells the browser to send no Referer from those two pages; reloading the page afterwards needs the link
-  again.
+- The token of a password reset or email verification link stayed in the address bar, in the page's history entry,
+  and in the Referer of every request the page made. On the web it is now removed from the address as the page opens,
+  so later requests no longer carry it; reloading the page afterwards needs the link again. The web image also asks
+  for no Referer from those two pages, which applies where no proxy in front replaces that header.
 - A session token kept in the browser's local storage by an earlier version, and the key it was encrypted with, are
   now removed when the UI opens, instead of lingering until the token expired.
 - A link whose id was not a real identifier, for example one that decoded to another path, could open a screen that

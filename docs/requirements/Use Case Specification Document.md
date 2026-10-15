@@ -308,8 +308,8 @@ delivered the same way.
 **Main flow**
 
 1. The client opens the reset screen with the token from the link. On the web it takes the token out
-   of the address bar at start-up, before anything else loads, so it is left in neither the browser
-   history nor the Referer of a later request.
+   of the address bar as the application starts, so the history entry no longer holds it and no request
+   the application makes afterwards carries it in its Referer.
 2. The user enters a new password and confirms it.
 3. The client calls `POST /api/auth/password-reset` with the token and the new password.
 4. The API confirms. The client shows a success message and offers to sign in.
