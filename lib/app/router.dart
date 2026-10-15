@@ -169,6 +169,9 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile/security',
         builder: (context, state) => const SecurityScreen(),
+        // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
+        // leaving, and leaving them signs the person out.
+        onExit: (context, state) => confirmLeaveWithRecoveryCodes(context, ref),
       ),
       GoRoute(
         path: '/scopes',

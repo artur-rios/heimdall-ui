@@ -33,6 +33,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Signing in again opens the restricted session, from which the restriction is lifted or the person's data
   downloaded or erased. The API's answer is shown as it comes, including when processing is already restricted.
 
+### Changed
+
+- Changing your email or turning on 2FA now asks for your password; you sign in again afterwards. Changing your email
+  also asks for a code from your authenticator app, or a recovery code, when two-factor authentication is on. Turning
+  two-factor authentication off, and generating new recovery codes, sign you out too, once any new codes have been
+  shown, and you sign in again. The sign-in screen says "Your sign-in details changed. Sign in again." A wrong
+  password or code is shown on the form and keeps you signed in.
+- On a person's page, your own email address is read-only; it is changed from your profile. Administrators changing
+  somebody else's address are not asked for a password.
+
 ### Fixed
 
 - A list screen stayed on its loading placeholder for good, with no error and no Retry, when the API answered with a

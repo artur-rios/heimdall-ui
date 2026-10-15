@@ -8,7 +8,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import '../../auth/presentation/email_verification_controller.dart';
+import '../../auth/domain/two_factor.dart';
 import '../../data_rights/presentation/restrict_processing_dialog.dart';
 import '../../google_users/domain/google_user.dart';
 import '../../google_users/presentation/google_avatar.dart';
@@ -34,6 +34,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   final _name = TextEditingController();
   final _email = TextEditingController();
 
+  /// FR-AU-16 — what a change of address is confirmed with. Asked for only
+  /// while the address differs, and cleared whenever the edit ends.
+  final _currentPassword = TextEditingController();
+  final _twoFactorCode = TextEditingController();
+
   /// The record the fields were last seeded from, which is what AF-08d
   /// compares against to decide whether anything actually differs.
   Person? _seeded;
@@ -56,6 +61,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void dispose() {
     _name.dispose();
     _email.dispose();
+    _currentPassword.dispose();
+    _twoFactorCode.dispose();
     super.dispose();
   }
 
@@ -75,11 +82,23 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   void _restore(Person person) {
     _name.text = person.name;
     _email.text = person.email;
+    _forgetReauthentication();
+  }
+
+  /// A password or code typed for one edit never waits in the form for the
+  /// next.
+  void _forgetReauthentication() {
+    _currentPassword.clear();
+    _twoFactorCode.clear();
   }
 
   void _startEditing() {
-    ref.read(profileControllerProvider.notifier).acknowledgeSave();
+    final controller = ref.read(profileControllerProvider.notifier)
+      ..acknowledgeSave();
     setState(() => _editing = true);
+    // FR-AU-16: which second factor is on decides what a new address's code
+    // field suggests, so it is read before one can be typed.
+    controller.readSecondFactor();
   }
 
   /// Leaving with unsaved changes — by the navigation, the back control or
@@ -111,15 +130,26 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _differsFrom(Person person) =>
       _name.text.trim() != person.name || _email.text.trim() != person.email;
 
+  /// FR-AU-16 — whether the edit changes the address, which is what asks for
+  /// the password (and the second factor, when it is on).
+  bool _changesEmail(Person person) =>
+      _editing && changesEmail(person, _email.text.trim());
+
   Future<void> _save() async {
-    // AF-08a: an empty name or a malformed address never reaches the API.
+    // AF-08a: an empty name or a malformed address never reaches the API, and
+    // nor does a new address without the password it needs.
     if (!validateAndReveal(_formKey)) {
       return;
     }
 
     await ref
         .read(profileControllerProvider.notifier)
-        .save(name: _name.text.trim(), email: _email.text.trim());
+        .save(
+          name: _name.text.trim(),
+          email: _email.text.trim(),
+          currentPassword: _currentPassword.text,
+          twoFactorCode: _twoFactorCode.text.trim(),
+        );
   }
 
   @override
@@ -187,7 +217,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                 ],
                 if (state.saved) ...<Widget>[
-                  _SaveConfirmation(emailChanged: state.emailChanged),
+                  const _SaveConfirmation(),
                   const SizedBox(height: 16),
                 ],
                 EditableSection(
@@ -239,6 +269,15 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                               : 'Enter a valid email address.';
                         },
                       ),
+                      if (_changesEmail(person))
+                        _Reauthentication(
+                          password: _currentPassword,
+                          code: _twoFactorCode,
+                          secondFactorOn: person.twoFactorEnabled,
+                          secondFactor: state.secondFactor,
+                          secondFactorKnown: state.secondFactorSettled,
+                          onSubmitted: _save,
+                        ),
                     ],
                   ),
                 ),
@@ -457,17 +496,17 @@ class _Fact extends StatelessWidget {
   );
 }
 
-/// What a successful save says — and, when the address changed, the resend
-/// AF-08c owes the user.
-class _SaveConfirmation extends ConsumerWidget {
-  const _SaveConfirmation({required this.emailChanged});
-
-  final bool emailChanged;
+/// What a successful save says.
+///
+/// A change of address never stays here to be told: it signs the person out
+/// (FR-AU-28), and the sign-in that follows reports the address unverified
+/// and offers the resend (AF-05e).
+class _SaveConfirmation extends StatelessWidget {
+  const _SaveConfirmation();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final resend = ref.watch(emailVerificationControllerProvider).resend;
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -475,42 +514,95 @@ class _SaveConfirmation extends ConsumerWidget {
         color: scheme.secondaryContainer,
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          Text(
-            emailChanged
-                // AF-08c: the API marks a changed address unverified again, so
-                // saying only "saved" would leave the user to discover it.
-                ? 'Saved. Your new address is not verified yet, so we need to '
-                      'confirm it before it can be used.'
-                : 'Saved.',
-            style: TextStyle(color: scheme.onSecondaryContainer),
-          ),
-          if (emailChanged) ...<Widget>[
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: switch (resend) {
-                ResendSent() => Text(
-                  'A verification email is on its way.',
-                  style: TextStyle(color: scheme.onSecondaryContainer),
-                ),
-                _ => TextButton(
-                  onPressed: resend is Resending
-                      ? null
-                      : () => ref
-                            .read(emailVerificationControllerProvider.notifier)
-                            .resend(),
-                  child: const Text('Send verification email'),
-                ),
-              },
-            ),
-          ],
-        ],
+      child: Text(
+        'Saved.',
+        style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );
   }
+}
+
+/// FR-AU-16 — what a change of the person's own address is confirmed with:
+/// the current password, and a second-factor code when that is on.
+///
+/// The API sends no emailed code while the person is signed in, so the code
+/// is one from an authenticator app or a recovery code; a person whose only
+/// method is email is pointed at their recovery codes. Changing the address
+/// signs them out to sign in again with it, which is said up front.
+class _Reauthentication extends StatelessWidget {
+  const _Reauthentication({
+    required this.password,
+    required this.code,
+    required this.secondFactorOn,
+    required this.secondFactor,
+    required this.secondFactorKnown,
+    required this.onSubmitted,
+  });
+
+  final TextEditingController password;
+  final TextEditingController code;
+  final bool secondFactorOn;
+  final TwoFactorStatus? secondFactor;
+
+  /// Whether the read of [secondFactor] has finished. Until it has, the code
+  /// field suggests nothing rather than the wrong thing.
+  final bool secondFactorKnown;
+  final VoidCallback onSubmitted;
+
+  bool get _emailOnly =>
+      secondFactor != null &&
+      secondFactor!.emailEnabled &&
+      !secondFactor!.appEnabled;
+
+  /// What the code field suggests: nothing until the method is known, then a
+  /// recovery code for an email-only person, and both ways in otherwise — the
+  /// method unreadable included.
+  String? get _codeHint {
+    if (!secondFactorKnown) {
+      return null;
+    }
+
+    return _emailOnly
+        ? 'Use one of your recovery codes.'
+        : 'A code from your authenticator app, or a recovery code.';
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: <Widget>[
+      const SizedBox(height: 16),
+      Text(
+        'Changing your email address signs you out. Confirm it is you, then '
+        'sign in again with the new address.',
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+      const SizedBox(height: 16),
+      TextFormField(
+        controller: password,
+        obscureText: true,
+        decoration: const InputDecoration(labelText: 'Current password'),
+        onFieldSubmitted: secondFactorOn ? null : (_) => onSubmitted(),
+        validator: (value) =>
+            (value ?? '').isEmpty ? 'Enter your current password.' : null,
+      ),
+      if (secondFactorOn) ...<Widget>[
+        const SizedBox(height: 16),
+        TextFormField(
+          controller: code,
+          decoration: InputDecoration(
+            labelText: 'Two-factor code',
+            helperText: _codeHint,
+            helperMaxLines: 2,
+          ),
+          onFieldSubmitted: (_) => onSubmitted(),
+          validator: (value) => (value?.trim().isEmpty ?? true)
+              ? 'Enter a code or a recovery code.'
+              : null,
+        ),
+      ],
+    ],
+  );
 }
 
 /// The record could not be read.

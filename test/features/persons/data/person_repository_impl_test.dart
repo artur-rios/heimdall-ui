@@ -150,6 +150,58 @@ void main() {
     expect(adapter.requests.single['roleId'], isNull);
   });
 
+  // FR-AU-16 — changing your own address re-authenticates in the request.
+  test(
+    'GivenAReauthentication_WhenUpdated_ThenThePasswordAndCodeAreSent',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'id': 'person-1'},
+          },
+        ),
+      );
+
+      // When
+      await repository.update(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'new@example.com',
+        currentPassword: 'secret',
+        twoFactorCode: '123456',
+      );
+
+      // Then
+      expect(adapter.requests.single['currentPassword'], 'secret');
+      expect(adapter.requests.single['twoFactorCode'], '123456');
+    },
+  );
+
+  test('GivenAnOrdinaryEdit_WhenUpdated_ThenNoPasswordIsSent', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'id': 'person-1'},
+        },
+      ),
+    );
+
+    // When
+    await repository.update(id: 'person-1', name: 'Ada', email: 'a@b.c');
+
+    // Then
+    expect(adapter.requests.single['currentPassword'], isNull);
+    expect(adapter.requests.single['twoFactorCode'], isNull);
+  });
+
   // AF-08b — the API's own strings are what the screen shows.
   test('GivenARejectedUpdate_WhenUpdated_ThenApiErrorsAreReturned', () async {
     // Given

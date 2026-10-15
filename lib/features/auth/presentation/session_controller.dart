@@ -385,10 +385,16 @@ class SessionController extends Notifier<SessionState> {
   /// processing of the person's own account. From then on the API refuses the
   /// token everywhere but the rights endpoints, its Google sign-out included,
   /// so that is not called either.
+  ///
+  /// UI-08, UI-09: [credentialsChanged] marks a sign-out that follows a change
+  /// to the person's own sign-in details — their email address, or their
+  /// second factor. The API has revoked every token they hold, this one
+  /// included, so nothing is sent under it.
   Future<void> signOut({
     bool expired = false,
     bool restrictionLifted = false,
     bool processingRestricted = false,
+    bool credentialsChanged = false,
   }) async {
     if (_signingOut) {
       return;
@@ -401,6 +407,7 @@ class SessionController extends Notifier<SessionState> {
           when token.viaGoogle) {
         if (!expired &&
             !processingRestricted &&
+            !credentialsChanged &&
             !token.isExpired &&
             !principal.subjectRightsOnly) {
           await _repository.signOutFromGoogle();
@@ -414,6 +421,7 @@ class SessionController extends Notifier<SessionState> {
         sessionExpired: expired,
         restrictionLifted: restrictionLifted,
         processingRestricted: processingRestricted,
+        credentialsChanged: credentialsChanged,
       );
     } finally {
       _signingOut = false;

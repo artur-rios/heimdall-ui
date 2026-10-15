@@ -56,11 +56,19 @@ class ApiPersonRepository implements PersonRepository {
     required String name,
     required String email,
     int? roleId,
+    String? currentPassword,
+    String? twoFactorCode,
   }) async {
     try {
       final response = await _client.personUpdate(
         id: id,
-        body: UpdatePersonCommand(name: name, email: email, roleId: roleId),
+        body: UpdatePersonCommand(
+          name: name,
+          email: email,
+          roleId: roleId,
+          currentPassword: currentPassword,
+          twoFactorCode: twoFactorCode,
+        ),
       );
 
       if (response.success != true) {

@@ -1,14 +1,50 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/core/unload/unload_guard.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+/// Records what the controller asked of the browser's leave confirmation.
+class _FakeUnloadGuard implements UnloadGuard {
+  final List<String> calls = <String>[];
+
+  @override
+  void register() => calls.add('register');
+
+  @override
+  void unregister() => calls.add('unregister');
+}
+
+String _jwt() {
+  final payload = base64Url.encode(
+    utf8.encode(
+      jsonEncode(<String, dynamic>{
+        'sub': 'person-1',
+        'email': 'ada@example.com',
+        'role': 3,
+      }),
+    ),
+  );
+
+  return 'header.$payload.signature';
+}
+
+/// The API's answer to a wrong password (TwoFactorMessages.PasswordMismatch).
+const _wrongPassword = Failure(
+  kind: FailureKind.validation,
+  errors: <String>['The current password is incorrect.'],
+);
 
 const _off = TwoFactorStatus();
 const _on = TwoFactorStatus(
@@ -19,12 +55,16 @@ const _on = TwoFactorStatus(
 
 void main() {
   late _MockAuthRepository repository;
+  late InMemoryTokenStore store;
+  late _FakeUnloadGuard guard;
   late ProviderContainer container;
 
   TwoFactorController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        tokenStoreProvider.overrideWithValue(store),
+        unloadGuardProvider.overrideWithValue(guard),
       ],
     );
     addTearDown(container.dispose);
@@ -34,13 +74,28 @@ void main() {
 
   TwoFactorState currentState() => container.read(twoFactorControllerProvider);
 
+  SessionState session() => container.read(sessionControllerProvider);
+
+  /// A person signed in, so a test can see whether the session survives.
+  Future<TwoFactorController> signedInControllerUnderTest() async {
+    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+    final controller = controllerUnderTest();
+    await container.read(sessionControllerProvider.notifier).restore();
+
+    return controller;
+  }
+
   void answerStatusWith(Result<TwoFactorStatus> result) {
     when(() => repository.twoFactorStatus()).thenAnswer((_) async => result);
   }
 
   void answerEnableWith(Result<TwoFactorSetup> result) {
-    when(() => repository.enableTwoFactor(any()))
-        .thenAnswer((_) async => result);
+    when(
+      () => repository.enableTwoFactor(
+        any(),
+        currentPassword: any(named: 'currentPassword'),
+      ),
+    ).thenAnswer((_) async => result);
   }
 
   void answerConfirmWith(Result<List<String>> result) {
@@ -75,6 +130,8 @@ void main() {
 
   setUp(() {
     repository = _MockAuthRepository();
+    store = InMemoryTokenStore();
+    guard = _FakeUnloadGuard();
   });
 
   test('GivenAConfiguration_WhenLoaded_ThenItIsShown', () async {
@@ -137,7 +194,7 @@ void main() {
     await controller.load();
 
     // When
-    await controller.beginSetup(TwoFactorMethod.app);
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'secret');
 
     // Then
     final state = currentState() as TwoFactorConfirming;
@@ -159,7 +216,7 @@ void main() {
     );
     final controller = controllerUnderTest();
     await controller.load();
-    await controller.beginSetup(TwoFactorMethod.app);
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'secret');
 
     // When
     controller.abandonSetup();
@@ -180,7 +237,10 @@ void main() {
     answerConfirmWith(const Success<List<String>>(<String>['aaa', 'bbb']));
     final controller = controllerUnderTest();
     await controller.load();
-    await controller.beginSetup(TwoFactorMethod.email);
+    await controller.beginSetup(
+      TwoFactorMethod.email,
+      currentPassword: 'secret',
+    );
 
     // When
     await controller.confirm('123456');
@@ -211,7 +271,7 @@ void main() {
     );
     final controller = controllerUnderTest();
     await controller.load();
-    await controller.beginSetup(TwoFactorMethod.app);
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'secret');
 
     // When
     await controller.confirm('000000');
@@ -222,7 +282,61 @@ void main() {
     expect(state.busy, isFalse);
   });
 
-  test('GivenAConfirmedSetup_WhenConfirmed_ThenTheStatusIsReread', () async {
+  // FR-AU-28 — confirming revokes the token that confirmed, so asking the API
+  // anything more under it would only end the session before the codes are
+  // seen. The status follows from the command instead.
+  test('GivenAConfirmedSetup_WhenConfirmed_ThenTheStatusIsNotReread', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(
+      const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.app, otpAuthUri: 'otpauth://x'),
+      ),
+    );
+    answerConfirmWith(const Success<List<String>>(<String>['aaa', 'bbb']));
+    final controller = controllerUnderTest();
+    await controller.load();
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'secret');
+
+    // When
+    await controller.confirm('123456');
+
+    // Then
+    verify(() => repository.twoFactorStatus()).called(1);
+    final status = (currentState() as TwoFactorCodesIssued).status;
+    expect(status.isActive, isTrue);
+    expect(status.methods, <TwoFactorMethod>[TwoFactorMethod.app]);
+    expect(status.remainingRecoveryCodes, 2);
+  });
+
+  // The codes come first: the session holds until they are acknowledged.
+  test('GivenAConfirmedSetup_WhenConfirmed_ThenTheSessionStays', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(
+      const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.email, emailCodeSent: true),
+      ),
+    );
+    answerConfirmWith(const Success<List<String>>(<String>['aaa']));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+    await controller.beginSetup(
+      TwoFactorMethod.email,
+      currentPassword: 'secret',
+    );
+
+    // When
+    await controller.confirm('123456');
+
+    // Then
+    expect(currentState(), isA<TwoFactorCodesIssued>());
+    expect(session(), isA<Authenticated>());
+  });
+
+  // FR-AU-28 — once the codes are acknowledged, the revoked token is let go
+  // and the person signs in again, now with their second factor.
+  test('GivenConfirmedCodes_WhenAcknowledged_ThenTheSessionEnds', () async {
     // Given
     answerStatusWith(const Success<TwoFactorStatus>(_off));
     answerEnableWith(
@@ -231,15 +345,188 @@ void main() {
       ),
     );
     answerConfirmWith(const Success<List<String>>(<String>['aaa']));
-    final controller = controllerUnderTest();
+    final controller = await signedInControllerUnderTest();
     await controller.load();
-    await controller.beginSetup(TwoFactorMethod.app);
-
-    // When
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'secret');
     await controller.confirm('123456');
 
+    // When
+    await controller.acknowledgeCodes();
+
     // Then
-    verify(() => repository.twoFactorStatus()).called(2);
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    expect(await store.read(), isNull);
+  });
+
+  test('GivenRegeneratedCodes_WhenAcknowledged_ThenTheSessionEnds', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+    await controller.regenerateRecoveryCodes(code: '123456');
+
+    // When
+    await controller.acknowledgeCodes();
+
+    // Then
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+  });
+
+  test('GivenRegeneratedCodes_WhenIssued_ThenTheStatusIsNotReread', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(
+      const Success<List<String>>(<String>['xxx', 'yyy', 'zzz']),
+    );
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.regenerateRecoveryCodes(code: '123456');
+
+    // Then
+    verify(() => repository.twoFactorStatus()).called(1);
+    final status = (currentState() as TwoFactorCodesIssued).status;
+    expect(status.remainingRecoveryCodes, 3);
+    expect(session(), isA<Authenticated>());
+  });
+
+  // FR-AU-17 — starting a setup asks for the current password.
+  test('GivenAPassword_WhenStarted_ThenItIsSent', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(
+      const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.app, otpAuthUri: 'otpauth://x'),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.beginSetup(TwoFactorMethod.app, currentPassword: 'pw');
+
+    // Then
+    verify(
+      () => repository.enableTwoFactor(
+        TwoFactorMethod.app,
+        currentPassword: 'pw',
+      ),
+    ).called(1);
+  });
+
+  // AF-09f — a wrong password is shown, the feature stays off, and the
+  // person stays signed in to correct it.
+  // The refusal goes back to the password dialog, which stays open to show
+  // it; the section stays as it was, with nothing of its own to show.
+  test('GivenAWrongPassword_WhenStarted_ThenTheRefusalIsReturned', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(const FailureResult<TwoFactorSetup>(_wrongPassword));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+
+    // When
+    final failure = await controller.beginSetup(
+      TwoFactorMethod.app,
+      currentPassword: 'x',
+    );
+
+    // Then
+    expect(failure?.errors, <String>['The current password is incorrect.']);
+    final state = currentState() as TwoFactorSettled;
+    expect(state.failure, isNull);
+    expect(state.busy, isFalse);
+    expect(state.status.isActive, isFalse);
+    expect(session(), isA<Authenticated>());
+  });
+
+  test('GivenAPassword_WhenTheSetupStarts_ThenNoRefusalIsReturned', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+    answerEnableWith(
+      const Success<TwoFactorSetup>(
+        TwoFactorSetup(method: TwoFactorMethod.app, otpAuthUri: 'otpauth://x'),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final failure = await controller.beginSetup(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(failure, isNull);
+    expect(currentState(), isA<TwoFactorConfirming>());
+  });
+
+  // AF-09c — closing or reloading the tab asks first while codes wait.
+  test('GivenIssuedCodes_WhenShown_ThenTheUnloadGuardIsRegistered', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.regenerateRecoveryCodes(code: '123456');
+
+    // Then
+    expect(guard.calls, <String>['register']);
+  });
+
+  test(
+    'GivenIssuedCodes_WhenAcknowledged_ThenTheUnloadGuardIsUnregistered',
+    () async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+      final controller = await signedInControllerUnderTest();
+      await controller.load();
+      await controller.regenerateRecoveryCodes(code: '123456');
+
+      // When
+      await controller.acknowledgeCodes();
+
+      // Then
+      expect(guard.calls, <String>['register', 'unregister']);
+    },
+  );
+
+  // The session ending drops the codes with it, and their guard too.
+  test(
+    'GivenIssuedCodes_WhenTheControllerIsDropped_ThenTheGuardIsUnregistered',
+    () async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      answerRegenerateWith(const Success<List<String>>(<String>['xxx']));
+      final controller = await signedInControllerUnderTest();
+      await controller.load();
+      await controller.regenerateRecoveryCodes(code: '123456');
+
+      // When
+      container.invalidate(twoFactorControllerProvider);
+      container.read(twoFactorControllerProvider);
+
+      // Then
+      expect(guard.calls, <String>['register', 'unregister']);
+    },
+  );
+
+  test('GivenNoCodes_WhenTheSectionLoads_ThenNoGuardIsRegistered', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    expect(guard.calls, isEmpty);
   });
 
   // AF-09c — the codes are shown once, and acknowledging them is what moves
@@ -253,7 +540,7 @@ void main() {
     await controller.regenerateRecoveryCodes(code: '123456');
 
     // When
-    controller.acknowledgeCodes();
+    await controller.acknowledgeCodes();
 
     // Then
     expect(currentState(), isA<TwoFactorSettled>());
@@ -320,25 +607,35 @@ void main() {
     expect(state.failure?.errors, <String>['That password is not correct.']);
   });
 
-  // A command that worked should not drop the screen into an error because the
-  // re-read afterwards failed.
-  test('GivenAFailedReread_WhenDisabled_ThenTheCommandStillCounts', () async {
+  // FR-AU-28 — turning it off revokes the token, so the person signs in
+  // again straight away, and nothing more is asked under the old token.
+  test('GivenACredential_WhenDisabled_ThenTheSessionEnds', () async {
     // Given
     answerStatusWith(const Success<TwoFactorStatus>(_on));
     answerDisableWith(const Success<void>(null));
-    final controller = controllerUnderTest();
+    final controller = await signedInControllerUnderTest();
     await controller.load();
-    answerStatusWith(
-      const FailureResult<TwoFactorStatus>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
 
     // When
-    await controller.disable(password: 'secret');
+    await controller.disable(password: 'secret', code: '123456');
 
     // Then
-    expect(currentState(), isA<TwoFactorSettled>());
+    expect((session() as Unauthenticated).credentialsChanged, isTrue);
+    verify(() => repository.twoFactorStatus()).called(1);
+  });
+
+  test('GivenARejectedCredential_WhenDisabled_ThenTheSessionStays', () async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerDisableWith(const FailureResult<void>(_wrongPassword));
+    final controller = await signedInControllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.disable(password: 'wrong', code: '123456');
+
+    // Then
+    expect(session(), isA<Authenticated>());
   });
 
   test('GivenACommandInFlight_WhenAskedAgain_ThenOnlyOneIsSent', () async {

@@ -8,12 +8,13 @@ part 'enable_two_factor_auth_command.g.dart';
 
 @JsonSerializable()
 class EnableTwoFactorAuthCommand {
-  const EnableTwoFactorAuthCommand({this.methods});
+  const EnableTwoFactorAuthCommand({this.methods, this.currentPassword});
 
   factory EnableTwoFactorAuthCommand.fromJson(Map<String, Object?> json) =>
       _$EnableTwoFactorAuthCommandFromJson(json);
 
   final List<String>? methods;
+  final String? currentPassword;
 
   Map<String, Object?> toJson() => _$EnableTwoFactorAuthCommandToJson(this);
 }

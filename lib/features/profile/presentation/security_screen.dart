@@ -10,8 +10,53 @@ import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../../shared/widgets/qr_code.dart';
+import '../../auth/domain/session.dart';
 import '../../auth/domain/two_factor.dart';
+import '../../auth/presentation/session_controller.dart';
 import 'two_factor_controller.dart';
+
+/// AF-09c — asks whether to leave recovery codes that are shown only once.
+Future<bool> _confirmLeavingCodes(BuildContext context) => showConfirm(
+  context: context,
+  title: 'Leave without your recovery codes?',
+  message:
+      'These codes are shown once and cannot be retrieved. If you '
+      'leave now you will not see them again, and you would have to '
+      'generate a new set.',
+  confirmLabel: 'Leave anyway',
+  cancelLabel: 'Stay',
+);
+
+/// `onExit` for the security route (AF-09c), as UI-37's is for a one-time
+/// secret.
+///
+/// On the web a browser Back, Forward or typed address is a route change that
+/// neither `PopScope` nor the shell sees, so the route asks itself while codes
+/// wait to be acknowledged. Leaving anyway acknowledges them, which signs the
+/// person out (FR-AU-28): the command that issued them revoked the token, and
+/// the screen being opened would only have its first request refused.
+Future<bool> confirmLeaveWithRecoveryCodes(
+  BuildContext context,
+  Ref ref,
+) async {
+  // A session redirect always wins: the codes go with the session, and asking
+  // would strand the redirect behind a dialog.
+  if (ref.read(sessionControllerProvider) is! Authenticated) {
+    return true;
+  }
+
+  if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
+    return true;
+  }
+
+  if (!await _confirmLeavingCodes(context)) {
+    return false;
+  }
+
+  await ref.read(twoFactorControllerProvider.notifier).acknowledgeCodes();
+
+  return true;
+}
 
 /// UI-09 — two-factor authentication and recovery codes.
 class SecurityScreen extends ConsumerStatefulWidget {
@@ -44,42 +89,59 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       return true;
     }
 
-    return showConfirm(
-      context: context,
-      title: 'Leave without your recovery codes?',
-      message:
-          'These codes are shown once and cannot be retrieved. If you '
-          'leave now you will not see them again, and you would have to '
-          'generate a new set.',
-      confirmLabel: 'Leave anyway',
-      cancelLabel: 'Stay',
-    );
+    return _confirmLeavingCodes(context);
   }
 
   /// AF-09c for the navigation and sign-out: asks, and acknowledges the codes
   /// when the person chooses to leave them behind.
+  ///
+  /// FR-AU-28: acknowledging them signs the person out, because the command
+  /// that issued them revoked the token. The sign-in screen is then where they
+  /// are going, whatever they tapped, so the shell is not let go on.
   Future<bool> _confirmLeave() async {
-    if (!await _mayLeave()) {
-      return false;
+    if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
+      return true;
     }
 
-    _controller.acknowledgeCodes();
+    if (await _mayLeave()) {
+      await _controller.acknowledgeCodes();
+    }
 
-    return true;
+    return false;
   }
 
-  /// Leaves for the profile, once AF-09c is satisfied.
+  /// Leaves for the profile, once AF-09c is satisfied. With codes waiting,
+  /// leaving signs the person out instead (FR-AU-28).
   Future<void> _leave() async {
+    final hadCodes =
+        ref.read(twoFactorControllerProvider) is TwoFactorCodesIssued;
+
     if (!await _mayLeave()) {
       return;
     }
 
-    _controller.acknowledgeCodes();
+    if (hadCodes) {
+      await _controller.acknowledgeCodes();
+
+      return;
+    }
 
     if (mounted) {
       context.go('/profile');
     }
   }
+
+  /// FR-AU-17 — starting a setup asks for the current password first. The
+  /// dialog sends it, and stays open with the refusal when there is one
+  /// (AF-09f).
+  Future<void> _enable(TwoFactorMethod method) => showDialog<void>(
+    context: context,
+    builder: (context) => _PasswordDialog(
+      method: method,
+      onSubmit: (password) =>
+          _controller.beginSetup(method, currentPassword: password),
+    ),
+  );
 
   Future<void> _disable() async {
     final credential = await showDialog<_Credential>(
@@ -131,10 +193,11 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
     return PopScope(
       // AF-09c: a system back gesture is a way off the screen too.
       canPop: state is! TwoFactorCodesIssued,
+      // FR-AU-28: leaving the codes signs the person out, which takes them to
+      // the sign-in screen rather than to the profile.
       onPopInvokedWithResult: (didPop, _) async {
-        if (!didPop && await _mayLeave() && mounted) {
-          _controller.acknowledgeCodes();
-          this.context.go('/profile');
+        if (!didPop && await _mayLeave()) {
+          await _controller.acknowledgeCodes();
         }
       },
       child: AppShell(
@@ -175,7 +238,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
           ),
           final TwoFactorSettled settled => _Settled(
             state: settled,
-            onEnable: _controller.beginSetup,
+            onEnable: _enable,
             onDisable: _disable,
             onRegenerate: _regenerate,
           ),
@@ -493,6 +556,10 @@ class _SelectableSecret extends StatelessWidget {
   }
 }
 
+/// FR-AU-28 — issuing the codes revoked this session's token, so moving on
+/// from them signs the person out. They are told before they get there.
+const String _signInAgain = 'Once you have saved them, you will sign in again.';
+
 /// The recovery codes, shown exactly once.
 class _RecoveryCodes extends StatelessWidget {
   const _RecoveryCodes({
@@ -509,22 +576,19 @@ class _RecoveryCodes extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final asText = codes.join('\n');
+    final intro = regenerated
+        ? 'These replace your previous codes, which no longer work. They are '
+              'shown once — save them somewhere safe now.'
+        : 'Two-factor authentication is on. These codes are shown once — '
+              'save them somewhere safe now. Each one works once, and they are '
+              'the way back in if your second factor is unavailable.';
 
     return ListView(
       padding: const EdgeInsets.all(24),
       children: <Widget>[
         Text('Your recovery codes', style: theme.textTheme.headlineSmall),
         const SizedBox(height: 8),
-        Text(
-          regenerated
-              ? 'These replace your previous codes, which no longer work. '
-                    'They are shown once — save them somewhere safe now.'
-              : 'Two-factor authentication is on. These codes are shown once '
-                    '— save them somewhere safe now. Each one works once, and '
-                    'they are the way back in if your second factor is '
-                    'unavailable.',
-          style: theme.textTheme.bodyMedium,
-        ),
+        Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
         const SizedBox(height: 16),
         Card(
           child: Padding(
@@ -558,6 +622,104 @@ class _RecoveryCodes extends StatelessWidget {
       ],
     );
   }
+}
+
+/// Asks for the current password before a setup starts (FR-AU-17), sends it
+/// through [onSubmit], and closes once the setup has started.
+///
+/// AF-09f: a refusal — a wrong password above all — is shown here and the
+/// dialog stays open, so the person retypes the password rather than choosing
+/// the method again.
+class _PasswordDialog extends StatefulWidget {
+  const _PasswordDialog({required this.method, required this.onSubmit});
+
+  final TwoFactorMethod method;
+
+  /// Starts the setup; answers the refusal, or `null` when it started.
+  final Future<Failure?> Function(String password) onSubmit;
+
+  @override
+  State<_PasswordDialog> createState() => _PasswordDialogState();
+}
+
+class _PasswordDialogState extends State<_PasswordDialog> {
+  final _password = TextEditingController();
+  bool _busy = false;
+  Failure? _failure;
+
+  @override
+  void dispose() {
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (_busy || _password.text.isEmpty) {
+      return;
+    }
+
+    setState(() {
+      _busy = true;
+      _failure = null;
+    });
+
+    final failure = await widget.onSubmit(_password.text);
+
+    if (!mounted) {
+      return;
+    }
+
+    if (failure == null) {
+      Navigator.of(context).pop();
+
+      return;
+    }
+
+    setState(() {
+      _busy = false;
+      _failure = failure;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text('Turn on ${widget.method.label.toLowerCase()}?'),
+    content: SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          if (_failure case final failure?) ...<Widget>[
+            // AF-09f: the API's words, where the password is typed again.
+            ErrorBanner(failure: failure),
+            const SizedBox(height: 16),
+          ],
+          const Text('Confirm it is you with your current password.'),
+          const SizedBox(height: 16),
+          TextField(
+            controller: _password,
+            autofocus: true,
+            obscureText: true,
+            enabled: !_busy,
+            decoration: const InputDecoration(labelText: 'Current password'),
+            onChanged: (_) => setState(() {}),
+            onSubmitted: (_) => _submit(),
+          ),
+        ],
+      ),
+    ),
+    actions: <Widget>[
+      TextButton(
+        onPressed: _busy ? null : () => Navigator.of(context).pop(),
+        child: const Text('Cancel'),
+      ),
+      FilledButton(
+        // Nothing typed is nothing to send.
+        onPressed: _busy || _password.text.isEmpty ? null : _submit,
+        child: const Text('Continue'),
+      ),
+    ],
+  );
 }
 
 /// What the disable and regenerate commands need: a second factor — a code

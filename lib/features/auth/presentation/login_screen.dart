@@ -144,6 +144,18 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                      // UI-08, UI-09: the person changed their own sign-in
+                      // details, which ended every session they had, this one
+                      // included.
+                      if (ref.watch(sessionControllerProvider)
+                          case Unauthenticated(
+                            credentialsChanged: true,
+                          )) ...<Widget>[
+                        const _NoticeBanner(
+                          'Your sign-in details changed. Sign in again.',
+                        ),
+                        const SizedBox(height: 16),
+                      ],
                       if (_failure case final Failure failure) ...<Widget>[
                         if (failure.kind == FailureKind.network)
                           // AF-01d: nothing was rejected, so the only useful

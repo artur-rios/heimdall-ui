@@ -409,8 +409,10 @@ delivered the same way.
 - **AF-07d — Role not permitted.** An authenticated caller requesting a route their role cannot use
   is shown a "not available for your role" screen, not a redirect loop.
 - **AF-07e — Token rejected mid-session.** A `401` to a request made under the session clears it
-  and redirects to login, explaining that the session ended. A `401` that refuses a password or code
-  typed into the request (AF-02a, AF-09d) is not a rejected token, and leaves the session alone.
+  and redirects to login, explaining that the session ended — a token the API has revoked ("This
+  token has been revoked. Sign in again.") included. A `401` that refuses a password or code typed
+  into the request (AF-02a, AF-08h, AF-09d, AF-09f) is not a rejected token, and leaves the session
+  alone.
 - **AF-07f — Already signed in.** An authenticated caller requesting login or the challenge screen
   is redirected to the home screen.
 - **AF-07g — Expired stored token.** A token whose expiry has passed is discarded at start-up
@@ -433,17 +435,22 @@ User's own record
 1. The user opens their profile.
 2. The client calls `GET /api/persons/{id}` for the signed-in person and shows name, email, role,
    verification status, and scope membership.
-3. The user edits their name or email and saves.
-4. The client calls `PUT /api/persons/{id}` and shows the updated record.
+3. The user edits their name or email and saves. A new email address is confirmed first (AF-08g).
+4. The client calls `PUT /api/persons/{id}` and shows the updated record. A new email address
+   signs the user out instead (AF-08c).
 
 **Alternative flows**
 
-- **AF-08a — Client-side validation fails.** An empty name or a malformed email blocks submission.
+- **AF-08a — Client-side validation fails.** An empty name or a malformed email blocks submission,
+  and so does a new email address without the confirmation AF-08g asks for.
 - **AF-08b — Update rejected.** The API answers unsuccessfully, for instance because the email is
   already taken. The client shows the returned errors against the offending field and keeps the
   user's input.
-- **AF-08c — Email changed.** The API marks the address unverified again. The client says so and
-  offers the resend action from UI-05.
+- **AF-08c — Email changed.** Changing the address ends every session the person holds, the one
+  that changed it included, and the API marks the address unverified again. On success the client
+  signs the user out and the sign-in screen says "Your sign-in details changed. Sign in again." The
+  user signs in with the new address, and UI-05's prompt then offers the resend. The API compares
+  the trimmed addresses exactly, so a change of case alone is a change of address too.
 - **AF-08d — Nothing changed.** Saving with no modification is a no-op; the save control stays
   disabled until a field actually differs.
 - **AF-08e — Record unavailable.** The API answers `404`, meaning the person was deleted from under
@@ -458,6 +465,19 @@ User's own record
   **Security** (UI-09, which tells a Google User that two-factor authentication does not apply to
   them) and **Restrict processing of my account** (UI-33) are offered as for a person. A `404` is
   AF-08e: the Google User was deleted from under the session.
+- **AF-08g — Confirming a new email address.** While the email field differs from the current
+  address (compared exactly, once trimmed), the form asks for the **Current password**, and — when
+  the person's two-factor authentication is on — a **Two-factor code**. No emailed code is sent
+  while signed in, so the code field says "A code from your authenticator app, or a recovery code.";
+  when email is the person's only method it says "Use one of your recovery codes." The method is
+  read through `GET /api/auth/2fa` once an edit starts, and the field suggests nothing until that
+  read finishes; when it cannot be read, the first wording is used. The client sends
+  `currentPassword` and, when the factor is on, `twoFactorCode` with the update. A name-only edit
+  asks for neither and sends neither. Cancelling the edit clears both fields.
+- **AF-08h — Confirmation refused.** The API answers `401` with "The current password is
+  incorrect." or "The code or recovery code is missing, incorrect, or already used.". The client
+  shows the message above the form, keeps the input, and leaves the session alone: the token is
+  still good, and the person is meant to correct what they typed.
 
 ---
 
@@ -471,8 +491,8 @@ User's own record
 
 1. The user opens the security section of their profile, which states whether two-factor
    authentication is on.
-2. The user chooses a method and starts enabling it.
-3. The client calls `POST /api/auth/2fa/enable`.
+2. The user chooses a method, and the client asks for their current password.
+3. The client calls `POST /api/auth/2fa/enable` with the method and `currentPassword`.
 4. For an authenticator method the API returns an `otpAuthUri`; the client renders it as a QR code
    and also shows the secret as text for manual entry. For the email method the API reports that a
    code was sent.
@@ -480,19 +500,23 @@ User's own record
 6. The client calls `POST /api/auth/2fa/confirm`.
 7. The API confirms and returns the recovery codes. The client shows them once, offers to copy or
    download them, and requires the user to acknowledge before leaving.
+8. Confirming ended every session the person holds, so once they acknowledge the codes the client
+   signs them out (AF-09g). They sign in again with their second factor (UI-02).
 
 **Main flow — disabling**
 
 1. The user chooses to turn two-factor authentication off and confirms.
 2. The client calls `POST /api/auth/2fa/disable` with the current password and a second factor — a
    generated code or a recovery code. The API requires both, and refuses either alone.
-3. The section returns to the disabled state.
+3. Turning it off ended every session the person holds, so the client signs them out (AF-09g).
 
 **Main flow — regenerating recovery codes**
 
 1. The user asks for new recovery codes and confirms that the current ones stop working.
 2. The client calls `POST /api/auth/2fa/recovery-codes/regenerate` and shows the new codes once,
    under the same acknowledgement rule.
+3. Regenerating ended every session the person holds, so once they acknowledge the codes the client
+   signs them out (AF-09g).
 
 **Alternative flows**
 
@@ -500,12 +524,24 @@ User's own record
   keeps the setup alive so the user can try again without restarting.
 - **AF-09b — Setup abandoned.** The user leaves before confirming. Two-factor authentication stays
   off, and the pending secret is discarded from client memory.
-- **AF-09c — Recovery codes not acknowledged.** Navigation away is blocked by a confirmation, since
-  the codes are shown exactly once.
+- **AF-09c — Recovery codes not acknowledged.** Leaving is stopped by a confirmation, since the
+  codes are shown exactly once: by the screen's back control, the navigation, signing out, a system
+  back, and — on the web — a browser Back or Forward or a typed address, which the route itself asks
+  about. While the codes wait, closing or reloading the tab asks the browser to confirm too. Leaving
+  anyway signs the user out, as acknowledging does (AF-09g). A session that ends meanwhile is not
+  held behind the confirmation.
 - **AF-09d — Disable rejected.** The API rejects the credential. The client shows the returned
   errors and leaves the feature on.
 - **AF-09e — QR code cannot be rendered.** The client always shows the secret as selectable text
   next to the QR code, so a rendering failure never blocks setup.
+- **AF-09f — Password refused when enabling.** The API answers `401` with "The current password is
+  incorrect.". The password dialog stays open with the message in it, so the user types the password
+  again there; the feature stays off and the session is left alone.
+- **AF-09g — Signed out after a change.** After a confirmation (once the codes are acknowledged or
+  left), a disable, or a regeneration (once the codes are acknowledged or left), the client asks
+  nothing more under the session's token, signs the user out, and the sign-in screen says "Your
+  sign-in details changed. Sign in again." The recovery codes screen says so before they get
+  there.
 
 ---
 
@@ -760,7 +796,9 @@ User's own record
 2. The client calls `GET /api/persons/{id}` and shows the record with its role, scope membership,
    owned scopes, and verification state.
 3. The user edits the name or email and saves.
-4. The client calls `PUT /api/persons/{id}` and shows the updated record.
+4. The client calls `PUT /api/persons/{id}` and shows the updated record. Changing somebody else's
+   address asks for no password: the request carries none, and the signed-in user's own session is
+   unaffected.
 
 **Alternative flows**
 
@@ -768,8 +806,10 @@ User's own record
 - **AF-18b — Forbidden.** The API answers `403`; the not-available-for-your-role panel is shown.
 - **AF-18c — Update rejected.** The returned errors are shown against the offending field.
 - **AF-18d — Deleted person.** A logically deleted person is shown read-only, marked as deleted.
-- **AF-18e — Editing yourself.** Opening your own record from the administrative listing offers the
-  same editing as UI-08, and never lets you change your own role.
+- **AF-18e — Editing yourself.** Opening your own record from the administrative listing lets you
+  change your name, never your role, and shows your email address read-only, with "Change your own
+  email from your profile." beneath it while editing: changing it is done from your profile (UI-08),
+  which asks for your password (AF-08g) and signs you in again.
 - **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
   `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
   **Back to System Admins**) returns to the System Admins list, and so does a delete.
@@ -1620,7 +1660,7 @@ The listing is forgotten when the screen is left, so a return loads it fresh.
 | --- | --- |
 | UI-01, UI-02, UI-06, UI-07 | FR-AU-01 … FR-AU-09 |
 | UI-03, UI-04, UI-05 | FR-AU-10 … FR-AU-14 |
-| UI-08, UI-09 | FR-AU-15 … FR-AU-20 |
+| UI-08, UI-09 | FR-AU-15 … FR-AU-20, FR-AU-28 |
 | UI-10 … UI-15 | FR-SC-01 … FR-SC-12 |
 | UI-16 … UI-19 | FR-PE-01 … FR-PE-08 |
 | UI-20 … UI-23 | FR-AP-01 … FR-AP-08 |
@@ -1655,7 +1695,7 @@ stateDiagram-v2
     Unauthenticated --> Authenticated: login succeeds
     Challenged --> Authenticated: second factor verified
     Challenged --> Unauthenticated: challenge abandoned or expired
-    Authenticated --> Unauthenticated: sign out, processing restricted, or a rejected token
+    Authenticated --> Unauthenticated: sign out, processing restricted, sign-in details changed, or a rejected token
     Unauthenticated --> Restricted: login answers processingRestricted
     Challenged --> Restricted: second factor verified, processing restricted
     Restoring --> Restricted: stored token claims subjectRightsOnly

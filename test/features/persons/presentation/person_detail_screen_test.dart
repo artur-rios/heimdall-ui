@@ -200,6 +200,8 @@ void main() {
         name: any(named: 'name'),
         email: any(named: 'email'),
         roleId: any(named: 'roleId'),
+        currentPassword: any(named: 'currentPassword'),
+        twoFactorCode: any(named: 'twoFactorCode'),
       ),
     ).thenAnswer((_) async => result);
   }
@@ -289,6 +291,83 @@ void main() {
         email: 'ada@example.com',
       ),
     ).called(1);
+  });
+
+  // FR-AU-16 is about your own address: an administrator changing somebody
+  // else's is not asked for a password, and sends none.
+  testWidgets(
+    'GivenSomebodyElsesRecord_WhenTheEmailIsChanged_ThenNoPasswordIsAsked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      answerUpdateWith(
+        const Success<Person>(
+          Person(
+            id: 'person-1',
+            name: 'Ada',
+            email: 'new@example.com',
+            role: Role.user,
+          ),
+        ),
+      );
+      await pump(tester, signedInAs: 'person-9');
+      await tester.tap(find.text('Edit'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'ada@example.com'),
+        'new@example.com',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Current password'), findsNothing);
+      verify(
+        () => repository.update(
+          id: 'person-1',
+          name: 'Ada',
+          email: 'new@example.com',
+          roleId: any(named: 'roleId'),
+          currentPassword: null,
+          twoFactorCode: null,
+        ),
+      ).called(1);
+    },
+  );
+
+  // FR-AU-16 — your own address is changed from your profile, which asks for
+  // the password and signs you in again; here it is not editable.
+  testWidgets('GivenYourOwnRecord_WhenEditing_ThenTheEmailIsNotEditable', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester, signedInAs: 'person-1');
+
+    // When
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final email = tester.widget<TextField>(
+      find.descendant(
+        of: find.widgetWithText(TextFormField, 'ada@example.com'),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(email.readOnly, isTrue);
+    expect(
+      find.textContaining('Change your email address from your profile'),
+      findsOneWidget,
+    );
+    // The field says so itself, where the person is looking.
+    expect(
+      find.text('Change your own email from your profile.'),
+      findsOneWidget,
+    );
   });
 
   // AF-18a — no such person.

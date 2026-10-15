@@ -110,14 +110,23 @@ abstract interface class AuthRepository {
 
   /// Starts enabling [method].
   ///
+  /// The API asks for the caller's [currentPassword] first (FR-AU-17), and
+  /// refuses a wrong one with `401` under a token that is still good.
+  ///
   /// An authenticator method comes back with an `otpAuthUri`; the email method
   /// comes back saying a code was sent.
-  Future<Result<TwoFactorSetup>> enableTwoFactor(TwoFactorMethod method);
+  Future<Result<TwoFactorSetup>> enableTwoFactor(
+    TwoFactorMethod method, {
+    required String currentPassword,
+  });
 
   /// Confirms a setup with the code the person received or generated.
   ///
   /// Returns the recovery codes, which the API issues exactly once — which is
   /// why AF-09c makes the screen refuse to leave until they are acknowledged.
+  ///
+  /// A success revokes the token that asked (FR-AU-28), as turning the feature
+  /// off and regenerating the codes do: nothing more is asked under it.
   Future<Result<List<String>>> confirmTwoFactor({
     required TwoFactorMethod method,
     required String code,
