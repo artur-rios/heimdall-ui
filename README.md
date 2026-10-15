@@ -219,7 +219,11 @@ secrets) with the keys in the last column:
 
 With none of them set, the release build signs with the **debug key** and prints a warning: that APK is for testing
 only and must not be distributed. Setting some of the first three but not all, or naming a keystore that does not
-exist, fails the build.
+exist, fails the release build (a debug build is not affected).
+
+The `Build` workflow reads the same values from the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (the keystore,
+base64-encoded), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`. Without the
+keystore secret it still builds, raises a warning annotation, and names the artifact `heimdall-ui-android-debug-signed`.
 
 ## Container image (web)
 

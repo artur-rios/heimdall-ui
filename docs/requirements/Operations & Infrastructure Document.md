@@ -292,7 +292,10 @@ source that silences them.
   `keyPassword`. When none is set, `flutter build apk --release` signs with the debug key and prints a
   warning; that APK is suitable for testing and not for distribution, and `build.yml` produces exactly
   that until the secrets are added. A partial configuration, or a keystore that does not exist, fails the
-  build.
+  release build. `build.yml` maps the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the
+  runner's temp directory), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`
+  to those variables; when the keystore secret is empty it emits a warning annotation and names the artifact
+  `heimdall-ui-android-debug-signed`.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 
 ---

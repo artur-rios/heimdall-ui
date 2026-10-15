@@ -18,7 +18,8 @@ plugins {
 // With none of them set the release build falls back to the debug key and warns
 // loudly, so a build without secrets (a pull request, a fork) still works. Such an
 // APK must never be distributed. A partial or unusable configuration fails the
-// build rather than silently shipping a debug-signed APK.
+// build rather than silently shipping a debug-signed APK. Only release builds are
+// refused: a debug build or `flutter run` is not affected by a stray variable.
 val keyProperties = Properties().apply {
     val file = rootProject.file("key.properties")
     if (file.exists()) {
@@ -38,13 +39,7 @@ val releaseKeyPassword = signingValue("HEIMDALL_UI_KEY_PASSWORD", "keyPassword")
 val releaseSigningValues = listOf(releaseStorePath, releaseStorePassword, releaseKeyAlias)
 val hasReleaseSigning = releaseSigningValues.all { it != null }
 
-if (!hasReleaseSigning && releaseSigningValues.any { it != null }) {
-    throw GradleException(
-        "Release signing is only partly configured. Set HEIMDALL_UI_KEYSTORE_PATH, " +
-            "HEIMDALL_UI_KEYSTORE_PASSWORD and HEIMDALL_UI_KEY_ALIAS (and optionally " +
-            "HEIMDALL_UI_KEY_PASSWORD), or none of them to sign with the debug key."
-    )
-}
+val partialReleaseSigning = !hasReleaseSigning && releaseSigningValues.any { it != null }
 
 android {
     namespace = "com.arturrios.heimdall_ui"
@@ -74,11 +69,7 @@ android {
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {
-                val store = rootProject.file(releaseStorePath!!)
-                if (!store.exists()) {
-                    throw GradleException("The release keystore does not exist: ${store.path}")
-                }
-                storeFile = store
+                storeFile = rootProject.file(releaseStorePath!!)
                 storePassword = releaseStorePassword
                 keyAlias = releaseKeyAlias
                 keyPassword = releaseKeyPassword ?: releaseStorePassword
@@ -93,22 +84,37 @@ android {
     }
 }
 
-if (!hasReleaseSigning) {
-    gradle.taskGraph.whenReady {
-        if (allTasks.any { it.project == project && it.name.contains("Release") }) {
-            logger.warn(
-                """
-                |
-                |==============================================================================
-                |  WARNING: this release APK is signed with the DEBUG key.
-                |  No release keystore is configured (HEIMDALL_UI_KEYSTORE_PATH, ...PASSWORD,
-                |  HEIMDALL_UI_KEY_ALIAS, HEIMDALL_UI_KEY_PASSWORD, or android/key.properties).
-                |  Do NOT distribute this APK; anyone can re-sign an app with the debug key.
-                |==============================================================================
-                |
-                """.trimMargin()
-            )
+gradle.taskGraph.whenReady {
+    if (allTasks.none { it.project == project && it.name.contains("Release") }) {
+        return@whenReady
+    }
+
+    if (partialReleaseSigning) {
+        throw GradleException(
+            "Release signing is only partly configured. Set HEIMDALL_UI_KEYSTORE_PATH, " +
+                "HEIMDALL_UI_KEYSTORE_PASSWORD and HEIMDALL_UI_KEY_ALIAS (and optionally " +
+                "HEIMDALL_UI_KEY_PASSWORD), or none of them to sign with the debug key."
+        )
+    }
+
+    if (hasReleaseSigning) {
+        val store = rootProject.file(releaseStorePath!!)
+        if (!store.exists()) {
+            throw GradleException("The release keystore does not exist: ${store.path}")
         }
+    } else {
+        logger.warn(
+            """
+            |
+            |==============================================================================
+            |  WARNING: this release APK is signed with the DEBUG key.
+            |  No release keystore is configured (HEIMDALL_UI_KEYSTORE_PATH, ...PASSWORD,
+            |  HEIMDALL_UI_KEY_ALIAS, HEIMDALL_UI_KEY_PASSWORD, or android/key.properties).
+            |  Do NOT distribute this APK; anyone can re-sign an app with the debug key.
+            |==============================================================================
+            |
+            """.trimMargin()
+        )
     }
 }
 
