@@ -6,6 +6,7 @@ import '../features/applications/presentation/application_list_controller.dart';
 import '../features/audit_log/presentation/audit_log_controller.dart';
 import '../features/auth/presentation/email_verification_controller.dart';
 import '../features/auth/presentation/verification_banner.dart';
+import '../features/data_rights/presentation/restricted_session_controller.dart';
 import '../features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import '../features/google_users/presentation/google_user_detail_controller.dart';
 import '../features/google_users/presentation/google_user_list_controller.dart';
@@ -39,9 +40,9 @@ import '../features/scopes/presentation/scope_sign_in_settings_controller.dart';
 ///
 /// A provider that holds per-session state belongs here, and
 /// `session_scoped_state_test.dart` fails until every stateful provider is
-/// either listed or exempted there with its reason. `RestrictedSessionController`
-/// resets itself and is not listed; an `autoDispose` provider goes with the
-/// screen that watches it.
+/// either listed or exempted there with its reason. An `autoDispose` provider
+/// goes with the screen that watches it. `RestrictedSessionController` also
+/// resets itself when the session ends, and is listed all the same.
 ///
 /// A reset does not stop a request already in flight. A controller listed here
 /// that writes an answer into its state after an `await` drops the answer when
@@ -75,4 +76,5 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   googleUserDetailControllerProvider,
   erasureRequestListControllerProvider,
   auditLogControllerProvider,
+  restrictedSessionControllerProvider,
 ];

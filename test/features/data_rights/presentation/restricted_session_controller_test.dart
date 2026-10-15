@@ -375,6 +375,57 @@ void main() {
     // Then
     expect(stateOf(container).exported, isFalse);
   });
+
+  // An erasure answered after the session ended belongs to that session, not
+  // to whoever signs in next on the device.
+  test(
+    'GivenAnErasureInFlight_WhenTheSessionEnds_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      const credential = PasswordCredential('secret');
+      final answer = Completer<Result<ErasureRequest>>();
+      when(() => repository.requestErasure(credential))
+          .thenAnswer((_) => answer.future);
+      final container = await containerWith();
+      final pending = controllerOf(container).requestErasure(credential);
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+      answer.complete(
+        Success<ErasureRequest>(
+          ErasureRequest(dueAt: DateTime.utc(2026, 11, 10)),
+        ),
+      );
+      await pending;
+
+      // Then
+      expect(stateOf(container).erasure, isNull);
+      expect(stateOf(container).busy, isNull);
+    },
+  );
+
+  // The same for an export: where the previous person's data was saved is
+  // nobody else's business.
+  test(
+    'GivenAnExportInFlight_WhenTheSessionEnds_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<DataExport>>();
+      when(() => repository.exportMyData()).thenAnswer((_) => answer.future);
+      final container = await containerWith();
+      final pending = controllerOf(container).exportData();
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+      answer.complete(const Success<DataExport>(DataExport(document: '{}')));
+      await pending;
+
+      // Then
+      expect(stateOf(container).exported, isFalse);
+      expect(stateOf(container).exportedTo, isNull);
+      expect(saver.saved, isEmpty);
+    },
+  );
 }
 
 /// What a file system refusing the write looks like from here.

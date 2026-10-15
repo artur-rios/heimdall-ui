@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/files/file_saver.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../auth/domain/google_sign_in_gateway.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
@@ -61,13 +62,17 @@ restrictedSessionControllerProvider =
     );
 
 /// UI-30 — the four things a subject-rights-only session can do.
-class RestrictedSessionController extends Notifier<RestrictedSessionState> {
+class RestrictedSessionController extends Notifier<RestrictedSessionState>
+    with BuildEpoch<RestrictedSessionState> {
   @override
   RestrictedSessionState build() {
+    startEpoch();
     // What one session saved or requested is no business of the next one's,
-    // which may be somebody else's on the same device.
+    // which may be somebody else's on the same device. A request still in
+    // flight belongs to the session that made it, so its answer is dropped.
     ref.listen(sessionControllerProvider, (previous, next) {
       if (next is! Authenticated) {
+        advanceEpoch();
         state = const RestrictedSessionState();
       }
     });
@@ -92,7 +97,13 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await _repository.liftOwnRestriction();
+
+    // The session ended since it was asked: the answer is that session's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     if (result.failureOrNull case final Failure failure
         when failure.kind != FailureKind.notFound) {
@@ -112,7 +123,13 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await _repository.exportMyData();
+
+    // The session ended since it was asked: the answer is that session's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case FailureResult<DataExport>(:final failure):
@@ -123,12 +140,21 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState> {
               .read(fileSaverProvider)
               .saveText(fileName: value.fileName, contents: value.document);
 
+          // The session ended since it was asked: the answer is that session's.
+          if (!isCurrent(epoch)) {
+            return;
+          }
+
           state = RestrictedSessionState(
             exported: true,
             exportedTo: savedTo,
             erasure: state.erasure,
           );
         } on Object catch (error) {
+          if (!isCurrent(epoch)) {
+            return;
+          }
+
           // AF-30d: the API answered, but the device would not keep the file.
           state = state.copyWith(
             clearBusy: true,
@@ -147,7 +173,13 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState> {
       return;
     }
 
+    final epoch = this.epoch;
     final result = await _repository.requestErasure(credential);
+
+    // The session ended since it was asked: the answer is that session's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = switch (result) {
       Success<ErasureRequest>(:final value) => RestrictedSessionState(
@@ -167,7 +199,13 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState> {
   ///
   /// A cancelled flow changes nothing: nothing was sent.
   Future<void> requestErasureWithGoogle() async {
+    final epoch = this.epoch;
     final attempt = await ref.read(googleSignInGatewayProvider).obtainIdToken();
+
+    // The session ended since it was asked: the answer is that session's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (attempt) {
       case GoogleIdTokenObtained(:final idToken):

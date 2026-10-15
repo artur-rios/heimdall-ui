@@ -17,7 +17,11 @@ mixin BuildEpoch<StateT> on Notifier<StateT> {
   int _epoch = 0;
 
   /// Ties the epoch to this build. Called first in `build()`.
-  void startEpoch() => ref.onDispose(() => _epoch++);
+  void startEpoch() => ref.onDispose(advanceEpoch);
+
+  /// Moves the epoch on without a rebuild, for a notifier that resets its own
+  /// state rather than being invalidated.
+  void advanceEpoch() => _epoch++;
 
   /// The build now running, to be read before an `await`.
   int get epoch => _epoch;
