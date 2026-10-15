@@ -345,7 +345,8 @@ request into `main` to production once every check passes (§2.2) — see
 - **Reset and verification links lose their token at start-up.** On the web the UI keeps the
   `token` of a `/password-reset` or `/verify-email` link in memory and removes it from the address,
   so neither the history entry nor the Referer of a later request carries it. Reloading the page
-  afterwards drops it, and the link has to be opened again.
+  afterwards drops it, and the link has to be opened again. Once used (a password set, or any answer
+  to the verification) it is forgotten, so going back to the screen does not send it again.
 - **Theme mode** is the only other persisted preference, in `shared_preferences`.
 - **A `401` to any request made under the session** clears it and returns the user to sign-in; a
   session cannot outlive the API's opinion of its token. The exception is a `401` refusing a password

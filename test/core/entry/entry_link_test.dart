@@ -1,3 +1,5 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/entry/entry_link.dart';
 import 'package:heimdall_ui/core/entry/platform_entry_link.dart';
@@ -195,6 +197,48 @@ void main() {
       );
     },
   );
+
+  test('GivenBothTokens_WhenTheResetTokenIsForgotten_ThenOnlyItGoes', () {
+    // Given
+    final container = ProviderContainer(
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(resetToken: 'r', verificationToken: 'v'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // When
+    container.read(entryLinkProvider.notifier).forgetResetToken();
+
+    // Then
+    expect(container.read(entryLinkProvider).resetToken, isNull);
+    expect(container.read(entryLinkProvider).verificationToken, 'v');
+  });
+
+  test('GivenBothTokens_WhenTheVerifyTokenIsForgotten_ThenOnlyItGoes', () {
+    // Given
+    final container = ProviderContainer(
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(resetToken: 'r', verificationToken: 'v'),
+          ),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    // When
+    container.read(entryLinkProvider.notifier).forgetVerificationToken();
+
+    // Then
+    expect(container.read(entryLinkProvider).verificationToken, isNull);
+    expect(container.read(entryLinkProvider).resetToken, 'r');
+  });
 
   // Off the web there is no address bar and no local storage to tidy.
   test('GivenTheHostPlatform_WhenTheAppStarts_ThenNothingIsTaken', () {

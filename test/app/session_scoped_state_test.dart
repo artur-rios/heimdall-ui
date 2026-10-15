@@ -75,6 +75,8 @@ const Map<String, String> _exempt = <String, String>{
   'themeModeControllerProvider': "the device's preference, not the person's",
   'passwordRecoveryControllerProvider': 'used signed out, about no session',
   'passwordResetControllerProvider': 'used signed out, about no session',
+  'entryLinkProvider':
+      "the tab's entry link, not the person's; a reset would restore it",
   'accountEmailsControllerProvider': 'autoDispose: goes with its screen',
   'applicationCredentialsControllerProvider':
       'autoDispose: goes with its screen',

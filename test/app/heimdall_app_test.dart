@@ -919,8 +919,8 @@ void main() {
     final container = await pumpApp(
       tester,
       overrides: <Override>[
-        entryLinkProvider.overrideWithValue(
-          const EntryLink(resetToken: 'reset-token'),
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(const EntryLink(resetToken: 'reset-token')),
         ),
       ],
     );
@@ -945,8 +945,10 @@ void main() {
     final container = await pumpApp(
       tester,
       overrides: <Override>[
-        entryLinkProvider.overrideWithValue(
-          const EntryLink(verificationToken: 'verify-token'),
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(verificationToken: 'verify-token'),
+          ),
         ),
       ],
     );
@@ -954,6 +956,130 @@ void main() {
     // When
     container.read(routerProvider).go('/verify-email');
     await tester.pump();
+
+    // Then
+    final screen = tester.widget<VerifyEmailScreen>(
+      find.byType(VerifyEmailScreen),
+    );
+    expect(screen.token, 'verify-token');
+  });
+
+  // A link token is single-use: once the API has taken it, opening the screen
+  // again in the same tab must not offer, or send, it a second time.
+  testWidgets('GivenAUsedResetToken_WhenTheResetOpensAgain_ThenItHasNone', (
+    tester,
+  ) async {
+    // Given
+    when(
+      () => repository.resetPassword(
+        token: any(named: 'token'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    ).thenAnswer((_) async => const Success<void>(null));
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(const EntryLink(resetToken: 'reset-token')),
+        ),
+      ],
+    );
+    final router = container.read(routerProvider)..go('/password-reset');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'New password'),
+      'Correct-Horse-Battery-9',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Confirm password'),
+      'Correct-Horse-Battery-9',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Set password'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your password is set'), findsOneWidget);
+
+    // When
+    router.go('/login');
+    await tester.pumpAndSettle();
+    router.go('/password-reset');
+    await tester.pumpAndSettle();
+
+    // Then
+    final screen = tester.widget<PasswordResetScreen>(
+      find.byType(PasswordResetScreen),
+    );
+    expect(screen.token, isNull);
+    verify(
+      () => repository.resetPassword(
+        token: 'reset-token',
+        newPassword: 'Correct-Horse-Battery-9',
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+    'GivenAnAnsweredVerifyToken_WhenTheCheckOpensAgain_ThenItHasNone',
+    (tester) async {
+      // Given
+      when(() => repository.verifyEmail(token: any(named: 'token')))
+          .thenAnswer((_) async => const Success<List<String>>(<String>[]));
+      final container = await pumpApp(
+        tester,
+        overrides: <Override>[
+          entryLinkProvider.overrideWith(
+            () => EntryLinkController(
+              const EntryLink(verificationToken: 'verify-token'),
+            ),
+          ),
+        ],
+      );
+      final router = container.read(routerProvider)..go('/verify-email');
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/privacy');
+      await tester.pumpAndSettle();
+      router.go('/verify-email');
+      await tester.pumpAndSettle();
+
+      // Then
+      final screen = tester.widget<VerifyEmailScreen>(
+        find.byType(VerifyEmailScreen),
+      );
+      expect(screen.token, isNull);
+      verify(() => repository.verifyEmail(token: 'verify-token')).called(1);
+    },
+  );
+
+  // A network failure means the API never saw the token, so it stays for the
+  // retry.
+  testWidgets('GivenAnUnsentVerifyToken_WhenTheCheckOpensAgain_ThenItIsKept', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.verifyEmail(token: any(named: 'token'))).thenAnswer(
+      (_) async => const FailureResult<List<String>>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(verificationToken: 'verify-token'),
+          ),
+        ),
+      ],
+    );
+    final router = container.read(routerProvider)..go('/verify-email');
+    await tester.pumpAndSettle();
+
+    // When
+    router.go('/privacy');
+    await tester.pumpAndSettle();
+    router.go('/verify-email');
+    await tester.pumpAndSettle();
 
     // Then
     final screen = tester.widget<VerifyEmailScreen>(

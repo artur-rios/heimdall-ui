@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/entry/entry_link.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
@@ -25,6 +26,11 @@ class PasswordResetScreen extends ConsumerStatefulWidget {
 }
 
 class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
+  // The token this screen was opened with. Kept here rather than read from
+  // the widget on every build: once it has set a password the token start-up
+  // took is forgotten, and a rebuild of the route must not take it from the
+  // screen that is still showing its confirmation.
+  late final String? _token = widget.token;
   final _formKey = GlobalKey<FormState>();
   final _password = TextEditingController();
   final _confirmation = TextEditingController();
@@ -37,7 +43,7 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
   }
 
   Future<void> _submit() async {
-    final token = widget.token;
+    final token = _token;
 
     if (token == null || token.isEmpty) {
       return;
@@ -60,8 +66,16 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final token = widget.token;
+    final token = _token;
     final state = ref.watch(passwordResetControllerProvider);
+
+    // A link token sets one password; the next visit to this screen in the
+    // tab finds none.
+    ref.listen<PasswordResetState>(passwordResetControllerProvider, (_, next) {
+      if (next is ResetSucceeded) {
+        ref.read(entryLinkProvider.notifier).forgetResetToken();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(title: const Text('Set a new password')),

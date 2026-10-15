@@ -106,8 +106,36 @@ EntryLink takeEntryLink(EntryBrowser browser) {
   );
 }
 
+/// Holds what start-up took from the entry address until it has been used.
+///
+/// A link token is single-use. Once the API has taken it, a later visit to
+/// the same screen in this tab (back and forward, say) must not offer or send
+/// it again, so each screen forgets its token when it is done with it.
+class EntryLinkController extends Notifier<EntryLink> {
+  EntryLinkController([this._taken = const EntryLink()]);
+
+  final EntryLink _taken;
+
+  @override
+  EntryLink build() => _taken;
+
+  /// The reset token has set a password.
+  void forgetResetToken() {
+    if (state.resetToken != null) {
+      state = EntryLink(verificationToken: state.verificationToken);
+    }
+  }
+
+  /// The API has answered the verification token, either way.
+  void forgetVerificationToken() {
+    if (state.verificationToken != null) {
+      state = EntryLink(resetToken: state.resetToken);
+    }
+  }
+}
+
 /// What start-up took from the entry address. Overridden at start-up with
 /// the platform's answer; nothing was taken off the web.
-final Provider<EntryLink> entryLinkProvider = Provider<EntryLink>(
-  (ref) => const EntryLink(),
-);
+
+final NotifierProvider<EntryLinkController, EntryLink> entryLinkProvider =
+    NotifierProvider<EntryLinkController, EntryLink>(EntryLinkController.new);

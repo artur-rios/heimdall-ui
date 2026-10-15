@@ -67,7 +67,7 @@ void main() {
       retry: (retryCount, error) => null,
       overrides: <Override>[
         appConfigProvider.overrideWithValue(config),
-        entryLinkProvider.overrideWithValue(entry),
+        entryLinkProvider.overrideWith(() => EntryLinkController(entry)),
         tokenStoreProvider.overrideWithValue(const SecureTokenStore.platform()),
         // The scope belongs to whichever application sent the user here; on the
         // web it is read from session storage on every use (where start-up
