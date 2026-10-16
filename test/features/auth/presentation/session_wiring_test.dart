@@ -240,6 +240,53 @@ void main() {
     });
   }
 
+  // AF-05f, AF-08j, AF-09h — the account-email budget's 429 travels through
+  // every layer as a wait to sit out, never as the end of the session.
+  for (final message in <String>[
+    'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.',
+    "You have reached today's limit for account emails. Try again tomorrow.",
+    'You have reached the limit for account emails. Try again later.',
+  ]) {
+    test('GivenAMailBudgetRefusal_WhenResending_ThenTheSessionWaits: '
+        '$message', () async {
+      // Given
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '3'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+      adapter.answer(
+        '/api/auth/resend-verification',
+        429,
+        <String, dynamic>{
+          'success': false,
+          'errors': <String>[message],
+        },
+        headers: <String, List<String>>{
+          'retry-after': <String>['300'],
+        },
+      );
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await container
+          .read(authRepositoryProvider)
+          .resendVerificationEmail();
+
+      // Then
+      final failure = result.failureOrNull!;
+      expect(failure.kind, FailureKind.rateLimited);
+      expect(failure.errors, <String>[message]);
+      expect(failure.retryAfter, const Duration(minutes: 5));
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+      expect(await store.read(), isNotNull);
+    });
+  }
+
   // AF-06f — the API creates no Google User from an address Google has not
   // verified. The refusal is a sign-in error, not the end of a session.
   test(
@@ -457,13 +504,24 @@ class _RoutingAdapter implements HttpClientAdapter {
   final Map<String, (int, Map<String, dynamic>)> _answers =
       <String, (int, Map<String, dynamic>)>{};
 
+  /// Extra response headers by path, such as `Retry-After`.
+  final Map<String, Map<String, List<String>>> _headers =
+      <String, Map<String, List<String>>>{};
+
   final List<String> calls = <String>[];
 
   /// The `Authorization` header of each request, in order.
   final List<String?> bearers = <String?>[];
 
-  void answer(String path, int status, Map<String, dynamic> body) =>
-      _answers[path] = (status, body);
+  void answer(
+    String path,
+    int status,
+    Map<String, dynamic> body, {
+    Map<String, List<String>> headers = const <String, List<String>>{},
+  }) {
+    _answers[path] = (status, body);
+    _headers[path] = headers;
+  }
 
   @override
   Future<ResponseBody> fetch(
@@ -489,6 +547,7 @@ class _RoutingAdapter implements HttpClientAdapter {
       status,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+        ...?_headers[options.path],
       },
     );
   }
