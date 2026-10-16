@@ -135,6 +135,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
   bool _changesEmail(Person person) =>
       _editing && changesEmail(person, _email.text.trim());
 
+  /// AF-08i — opens the two-factor settings, where the email method is turned
+  /// off, once any unsaved edit has been let go.
+  Future<void> _openSecurity() async {
+    if (await _confirmLeave() && mounted) {
+      context.go('/profile/security');
+    }
+  }
+
   Future<void> _save() async {
     // AF-08a: an empty name or a malformed address never reaches the API, and
     // nor does a new address without the password it needs.
@@ -214,6 +222,9 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   else
                     // AF-08b: the API's strings, as returned.
                     ErrorBanner(failure: state.saveFailure!),
+                  // AF-08i: the way out of the refusal is somewhere else.
+                  if (_blocksEmailChange(state.saveFailure!))
+                    _EmailMethodHint(onOpen: _openSecurity),
                   const SizedBox(height: 16),
                 ],
                 if (state.saved) ...<Widget>[
@@ -496,6 +507,43 @@ class _Fact extends StatelessWidget {
   );
 }
 
+/// The API's refusal of a change to one's own address while the email
+/// sign-in method is on, enabled or pending (AF-08i).
+const String _emailMethodBlocksChange =
+    'Turn off the email sign-in method before changing your email address.';
+
+/// Whether [failure] is AF-08i's refusal, which the form answers with a way
+/// to the two-factor settings.
+bool _blocksEmailChange(Failure failure) =>
+    failure.kind == FailureKind.conflict &&
+    failure.errors.contains(_emailMethodBlocksChange);
+
+/// AF-08i — where to turn the email method off, said under the refusal.
+class _EmailMethodHint extends StatelessWidget {
+  const _EmailMethodHint({required this.onOpen});
+
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 8),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        Text(
+          'Turn the email method off in your security settings, change your '
+          'address, then set the method up again at the new one.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        TextButton(
+          onPressed: onOpen,
+          child: const Text('Open security settings'),
+        ),
+      ],
+    ),
+  );
+}
+
 /// What a successful save says.
 ///
 /// A change of address never stays here to be told: it signs the person out
@@ -588,8 +636,13 @@ class _Reauthentication extends StatelessWidget {
       ),
       if (secondFactorOn) ...<Widget>[
         const SizedBox(height: 16),
+        // A recovery code is sent as typed, whatever its length, case,
+        // hyphens or spaces; nothing on the keyboard may rewrite it.
         TextFormField(
           controller: code,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(
             labelText: 'Two-factor code',
             helperText: _codeHint,

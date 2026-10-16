@@ -88,21 +88,40 @@ Configuration is supplied at build time. Nothing is read from a file at runtime.
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset — the Google control is hidden |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset — see below |
 
+A release build of the Windows, Linux or Android app refuses to start unless `HEIMDALL_API_BASE_URL`
+is an `https://` address; only `http://localhost` and `http://127.0.0.1` are let through in the clear.
+It then shows a screen saying why, and writes the same line to the log.
+
 ### The target scope
 
 Heimdall UI is opened by the applications that use Heimdall's services, and the scope being entered
 is theirs to name — there is no screen here that asks for it, and no endpoint an anonymous caller
-could list scopes from. On the web the calling application writes the scope's `PublicId` into
-**session storage** before sending the user here:
+could list scopes from. On the web the calling application names the scope's `PublicId` in the
+**URL** it sends the user to, as the `scope` query parameter, on any route:
+
+```text
+https://heimdall.example.com/login?scope=<scope-public-id>
+```
+
+At start-up the UI checks that the value is a GUID, copies it into its own **session storage**
+(`heimdall.scopeId`), and removes it from the address bar. A value that is not a GUID is ignored and
+removed. Session storage rather than a cookie: it is scoped to the tab, so two tabs can act in two
+scopes; it is never attached to a request, so the scope cannot become a header the API did not ask
+for; and it dies with the tab, so a scope does not outlive the visit on a shared machine. It is read
+on every use, so opening the UI again with another `scope` changes it.
+
+> [!IMPORTANT]
+> Host the calling application on its own origin, never on the UI's (same scheme, host and port).
+> Script on the UI's origin can read everything the UI keeps in the browser, the session token
+> included, so a flaw in a co-hosted caller would become a flaw in Heimdall UI.
+
+A caller that already shares the UI's origin may still write the value itself, as earlier versions
+required; it keeps working, and is held to the same rule (a value that is not a GUID is ignored), but
+move to the URL and to an origin of the caller's own:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
 ```
-
-Session storage rather than a cookie: it is scoped to the tab, so two tabs can act in two scopes; it
-is never attached to a request, so the scope cannot become a header the API did not ask for; and it
-dies with the tab, so a scope does not outlive the visit on a shared machine. It is read on every
-use, so a caller may change it between one attempt and the next.
 
 `HEIMDALL_SCOPE_ID` is the fallback for a build with no such caller — the desktop and Android
 targets, or a web build opened directly.
@@ -187,17 +206,41 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 | Linux | `build/linux/x64/release/bundle` |
 | Android | `build/app/outputs/flutter-apk` |
 
+**Signing the Android release.** The release APK is signed with a keystore held outside the repository. The Gradle
+build reads these environment variables, or `android/key.properties` (git-ignored, for a local build; CI passes the
+secrets as environment variables) with the keys in the last column:
+
+| Variable | Meaning | `key.properties` key |
+| --- | --- | --- |
+| `HEIMDALL_UI_KEYSTORE_PATH` | The keystore file, absolute or relative to `android/` | `storeFile` |
+| `HEIMDALL_UI_KEYSTORE_PASSWORD` | The keystore password | `storePassword` |
+| `HEIMDALL_UI_KEY_ALIAS` | The key's alias | `keyAlias` |
+| `HEIMDALL_UI_KEY_PASSWORD` | The key's password; defaults to the keystore password | `keyPassword` |
+
+With none of them set, the release build signs with the **debug key** and prints a warning, which a plain
+`flutter build apk --release` shows too: that APK is for testing only and must not be distributed. Setting some of
+the first three but not all, or naming a keystore that does not exist, fails the release build (a debug build is not
+affected).
+
+The `Build` workflow reads the same values from the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (the keystore,
+base64-encoded), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`. Without the
+keystore secret it still builds, raises a warning annotation, and names the artifact `heimdall-ui-android-debug-signed`.
+
 ## Container image (web)
 
 `Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.47.7, the
 version CI uses) compiles `build/web`, and `nginxinc/nginx-unprivileged:alpine` serves it as a
 non-root user on port **8080**, with a deep-link fallback to `index.html` and a `/healthz` probe.
 The server configuration is [`docker/nginx.conf`](docker/nginx.conf). It expects TLS to be
-terminated in front of it.
+terminated in front of it. It sends an enforced Content-Security-Policy whose `connect-src` names the
+API's origin, taken from `HEIMDALL_API_BASE_URL` at build time, and asks for no Referer from the
+password reset and verification pages. A proxy in front can replace that header: behind yggdrasil's
+Traefik it does, and those pages rely on their token being removed from the address as the page
+starts. See the Operations document's *Security headers*.
 
 | Build argument | Required | Meaning |
 | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | Yes — the build fails without it | The Heimdall API root the app calls |
+| `HEIMDALL_API_BASE_URL` | Yes — the build fails without it, or when it is not an absolute `http(s)` URL | The Heimdall API root the app calls; its origin is allowed by the Content-Security-Policy |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | No | Google OAuth client id; empty hides Google Sign-In |
 | `HEIMDALL_SCOPE_ID` | No | Fallback scope when no calling application supplies one — see [The target scope](#the-target-scope) |
 | `FLUTTER_VERSION` / `FLUTTER_SHA256` | No | Override the SDK; pass both together (checksums are in Flutter's `releases_linux.json`) |

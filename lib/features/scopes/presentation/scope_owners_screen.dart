@@ -361,6 +361,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
           TextFormField(
             controller: _password,
             obscureText: true,
+            autofillHints: const <String>[AutofillHints.newPassword],
             decoration: const InputDecoration(labelText: 'Password'),
             validator: (value) =>
                 validateNewPassword(value, emptyMessage: 'Enter a password.'),

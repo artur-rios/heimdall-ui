@@ -7,6 +7,78 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-10-16
+
+### Changed
+
+- Release signing of the Android app uses the keystore from the environment when configured
+  (`HEIMDALL_UI_KEYSTORE_PATH`, `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and
+  `HEIMDALL_UI_KEY_PASSWORD`), or from a git-ignored `android/key.properties`. Without them the release build uses
+  the debug key and prints a warning in the build output; such a build is for testing only. A partial configuration
+  fails the build.
+- The web image now sends an enforced Content-Security-Policy, which allows the page to load script and connect only
+  to its own origin, the API's origin, Google Sign-In, Google profile pictures (`*.googleusercontent.com`), and
+  Google's font service for characters the bundled font has no glyphs for, such as emoji and Chinese, Japanese or
+  Arabic text. The API's origin comes from `HEIMDALL_API_BASE_URL`, which must now be an absolute `http(s)` URL.
+- On the web, a calling application now hands over the target scope in the URL, as `?scope=<scope id>` on any page,
+  instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for
+  the tab and removes it from the address bar; a value that is not a scope id is ignored. Callers must not be hosted
+  on the UI's origin. Writing the session storage value from the same origin keeps working.
+- On the web, a session now belongs to its browser tab: each tab signs in on its own, and the token is no longer kept
+  where other tabs can use it. Reloading the tab keeps you signed in, and signing out clears it. A browser that
+  restores a closed tab may restore its session too, so sign out on a shared computer.
+- A release build of the Windows, Linux or Android app now refuses to start when its API address is not `https://`,
+  instead of sending passwords and tokens in the clear, and shows a screen saying why. The local API at `localhost` or
+  `127.0.0.1` is still allowed.
+
+### Fixed
+
+- Recovery code fields no longer let the keyboard autocorrect or complete what is typed, and type capitals, so the
+  longer `XXXX-XXXX-XXXX-XXXX` codes go to the API exactly as written; codes in the older `XXXX-XXXX` form keep working.
+  The security screen says that a set in the shorter form can be replaced by generating new codes, which are stronger.
+- Changing your own email address while the email sign-in method is on is refused by the API; the profile now shows
+  why, keeps what you typed, and offers **Open security settings** to turn the method off first.
+- When the API holds back an account email (a new verification link, the code that sets up the email sign-in method,
+  or an email change's notice) because one was sent recently or the day's limit is reached, its message is shown with
+  how long to wait, and the button that would ask again stays disabled until then, for at most a day. The same applies
+  to sending a new sign-in code when the API says to wait, whose button counts the wait down. A wait of minutes or
+  hours is now named in minutes or hours instead of seconds, and an unreadable, zero or out-of-range wait no longer
+  shows a nonsensical one. Creating a person or a co-owner while the API is rate limiting keeps the form as typed.
+- A mistyped password or code when turning two-factor authentication on or off, confirming its setup, generating new
+  recovery codes, changing your own email address or asking for erasure is shown on the form and keeps you signed in
+  when the API answers "The password or code is incorrect.", which it now gives for all of these, and for a check it
+  has paused after repeated failures. A wrong setup code, now answered `401`, no longer signs you out either. The
+  earlier messages are still recognised.
+- After saving a copy of your data, the screen now also says that the file holds your personal data and is not
+  encrypted, and that it should be kept somewhere private and deleted when no longer needed.
+- Choosing the System Admin role when creating a person now asks for confirmation before anything is sent, saying the
+  person will be able to administer every scope. The password fields for a new person and a new scope co-owner are
+  now marked as new passwords, so a password manager no longer offers, or offers to overwrite, the creating admin's
+  own saved password.
+- A copied credential secret, authenticator setup key or set of recovery codes is now cleared from the clipboard after
+  60 seconds where the platform allows, unless something else has been copied since. When the app cannot read the
+  clipboard at that moment, as in the background, the check waits and runs each time the app returns to the
+  foreground until it can. It is not attempted in a browser, and it does not happen if the app is closed first. On
+  Android the window is also kept out of screenshots, screen recordings and the recents thumbnail while a secret or
+  recovery codes are on screen.
+- On the web, the token of a password reset or email verification link is now removed from the address as the page
+  opens, so it no longer stays in the address bar or the page's history entry, and later requests do not carry it;
+  reloading the page afterwards needs the link again. The web image's nginx asks for no Referer from those two pages;
+  in deployed environments Referrer-Policy is set by the reverse proxy.
+- A session token kept in the browser's local storage by an earlier version, and the key it was encrypted with, are
+  now removed when the UI opens, instead of lingering until the token expired.
+- A link whose id is not a well-formed identifier now shows "Not found", and every id is sent to the API as one
+  encoded part of the address.
+- Requests now always act as the person the screen shows. A tab used to pick up the session of whoever signed in or
+  out in another tab of the same browser, while still showing its own.
+- Signing out of a Google session could leave you signed in, with the Sign out button doing nothing, when Google's
+  sign-out or the API's failed unexpectedly or never answered. The session now always ends, within a few seconds, and
+  the stored token is always removed. A Google sign-in that failed unexpectedly, or was refused and whose clean-up
+  failed, kept its spinner turning; it now says so and offers the button again.
+- A response that arrived after signing out could fill the screen the next person to sign in on the same device opened
+  first: lists, records, the dashboard, the profile, two-factor and restricted-account screens. Such responses are now
+  dropped. A scope's Sign-in & sign-up settings are also cleared at sign-out, as every other screen's are.
+
 ## [1.7.0] - 2026-10-15
 
 ### Added
@@ -316,7 +388,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.7.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.8.0...HEAD
+[1.8.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.5.1...v1.6.0

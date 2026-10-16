@@ -365,6 +365,36 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Ada'), findsOneWidget);
   });
 
+  // AF-17g — creating people with a password is rate limited. The 429 is
+  // an error like any other refusal: shown, with how long to wait, and the
+  // form kept.
+  testWidgets('GivenARateLimitedCreate_WhenSubmitted_ThenTheFormIsKept', (
+    tester,
+  ) async {
+    // Given
+    answerUserWith(
+      const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(seconds: 30),
+        ),
+      ),
+    );
+    await pump(tester);
+    await fillIn(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Too many requests.'), findsOneWidget);
+    expect(find.text('Try again in 30 seconds.'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Ada'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Create person'), findsOneWidget);
+  });
+
   // AF-17d — a Scope Admin is not offered a role they cannot create.
   testWidgets('GivenAScopeAdmin_WhenRendered_ThenOnlyUserIsOffered', (
     tester,
@@ -411,6 +441,148 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
+    verify(
+      () => repository.createAdmin(
+        name: 'Grace',
+        email: 'grace@example.com',
+        password: 'secret-pass',
+        role: Role.scopeAdmin,
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenTheForm_WhenRendered_ThenThePasswordIsANewPassword', (
+    tester,
+  ) async {
+    // When
+    await pump(tester);
+
+    // Then
+    final field = tester.widget<TextField>(
+      find.descendant(
+        of: find.widgetWithText(TextFormField, 'Password'),
+        matching: find.byType(TextField),
+      ),
+    );
+    expect(field.autofillHints, <String>[AutofillHints.newPassword]);
+  });
+
+  /// Fills the form in and chooses the System Admin role, ready to submit.
+  Future<void> chooseSystemAdmin(WidgetTester tester) async {
+    await fillIn(tester, name: 'Grace', email: 'grace@example.com');
+    await tester.tap(find.byType(DropdownButtonFormField<Role>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('System Admin').last);
+    await tester.pumpAndSettle();
+  }
+
+  void expectNoAdminCreated() => verifyNever(
+    () => repository.createAdmin(
+      name: any(named: 'name'),
+      email: any(named: 'email'),
+      password: any(named: 'password'),
+      role: any(named: 'role'),
+    ),
+  );
+
+  testWidgets('GivenTheSystemAdminRole_WhenSubmitted_ThenItAsksBeforeSending', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await chooseSystemAdmin(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.textContaining('administer every scope'), findsOneWidget);
+    expectNoAdminCreated();
+  });
+
+  testWidgets(
+    'GivenTheConfirmationOpen_WhenSubmittedAgain_ThenOnlyOneIsShown',
+    (tester) async {
+      // Given
+      await pump(tester);
+      await chooseSystemAdmin(tester);
+      final submit = tester
+          .widget<FilledButton>(
+            find.widgetWithText(FilledButton, 'Create person'),
+          )
+          .onPressed!;
+
+      // When
+      submit();
+      submit();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.textContaining('administer every scope'), findsOneWidget);
+    },
+  );
+
+  testWidgets('GivenTheConfirmation_WhenAccepted_ThenTheSystemAdminIsCreated', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await chooseSystemAdmin(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create System Admin'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.createAdmin(
+        name: 'Grace',
+        email: 'grace@example.com',
+        password: 'secret-pass',
+        role: Role.systemAdmin,
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenTheConfirmation_WhenDeclined_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await chooseSystemAdmin(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Go back'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expectNoAdminCreated();
+    expect(find.textContaining('administer every scope'), findsNothing);
+    expect(find.text('Grace'), findsOneWidget);
+  });
+
+  testWidgets('GivenAScopeAdminRole_WhenSubmitted_ThenNoConfirmationIsAsked', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await fillIn(tester, name: 'Grace', email: 'grace@example.com');
+    await tester.tap(find.byType(DropdownButtonFormField<Role>));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Scope Admin').last);
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.textContaining('administer every scope'), findsNothing);
     verify(
       () => repository.createAdmin(
         name: 'Grace',

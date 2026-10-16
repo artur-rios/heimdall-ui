@@ -26,21 +26,34 @@ List<String> _errorsOf(Map<String, dynamic> json) =>
         .map((error) => error.toString())
         .toList(growable: false);
 
-/// The API's canonical messages for a `401` that refuses a credential typed into
-/// the request — a password or a second factor — rather than the bearer token.
+/// The API's canonical messages for a `401` that refuses a credential typed
+/// into the request — a password or a second factor — rather than the bearer
+/// token.
 ///
 /// The API answers both with the same status (its message-to-status maps put
-/// `FactorInvalid`, `PasswordMismatch`, and `CredentialNotAccepted` on `401`,
-/// next to the token refusals), so the message is the only thing that tells
-/// "you mistyped it" from "your session is over". The first must leave the
-/// session and a login challenge alone; only the second ends them.
+/// `PasswordOrCodeIncorrect`, `FactorInvalid`, `PasswordMismatch`, and
+/// `CredentialNotAccepted` on `401`, next to the token refusals), so the
+/// message is the only thing that tells "you mistyped it" from "your session
+/// is over". The first must leave the session and a login challenge alone;
+/// only the second ends them.
+///
+/// The older messages stay: an API from before its re-authentication budget
+/// still sends them.
 const Set<String> credentialRejections = <String>{
-  // TwoFactorMessages.FactorInvalid — a wrong code at sign-in (AF-02a), or
-  // when disabling (AF-09d) or regenerating recovery codes.
+  // AuthMessages.PasswordOrCodeIncorrect — the one refusal for every
+  // re-authentication under a token: a wrong or missing password or code, or
+  // a paused budget, when enabling, confirming (which used to answer 400),
+  // disabling, regenerating recovery codes, changing one's own address, or
+  // asking for erasure.
+  'The password or code is incorrect.',
+  // TwoFactorMessages.FactorInvalid — a wrong code at sign-in (AF-02a), and
+  // on older APIs when disabling (AF-09d) or regenerating recovery codes.
   'The code or recovery code is missing, incorrect, or already used.',
-  // TwoFactorMessages.PasswordMismatch — the password given to disable.
+  // TwoFactorMessages.PasswordMismatch — the password given to disable, on
+  // older APIs.
   'The current password is incorrect.',
-  // ErasureMessages.CredentialNotAccepted — re-authentication for erasure.
+  // ErasureMessages.CredentialNotAccepted — a Google User's re-authentication
+  // for erasure.
   'The credential presented was not accepted.',
 };
 
@@ -160,11 +173,31 @@ Failure failureFromDioException(DioException error) {
   );
 }
 
-/// `Retry-After` as whole seconds (RFC 9110 §10.2.3). The HTTP-date form is not
-/// used by the API and is ignored rather than guessed at.
+/// `Retry-After` as whole seconds (RFC 9110 §10.2.3): digits only, held to
+/// [kMaxRetryAfter]. Zero, a sign, a fraction or anything else pauses nothing.
+/// The HTTP-date form is not used by the API and is ignored rather than
+/// guessed at.
 Duration? _retryAfterOf(Response<dynamic> response) {
-  final raw = response.headers.value('retry-after');
-  final seconds = raw == null ? null : int.tryParse(raw.trim());
+  // `value` throws on a repeated header; a proxy may add one of its own.
+  final raw = response.headers['retry-after']?.firstOrNull?.trim();
 
-  return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
+  if (raw == null || !_delaySeconds.hasMatch(raw)) {
+    return null;
+  }
+
+  // Past nine significant digits the value is over the cap anyway, and might
+  // not fit an int at all.
+  final digits = raw.replaceFirst(RegExp('^0+'), '');
+
+  if (digits.isEmpty) {
+    return null;
+  }
+
+  final seconds = digits.length > 9 ? null : int.parse(digits);
+
+  return seconds == null || seconds > kMaxRetryAfter.inSeconds
+      ? kMaxRetryAfter
+      : Duration(seconds: seconds);
 }
+
+final RegExp _delaySeconds = RegExp(r'^[0-9]+$');

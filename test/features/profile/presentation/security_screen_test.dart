@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/secrets/screen_security.dart';
+import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -16,6 +18,8 @@ import 'package:heimdall_ui/features/profile/presentation/security_screen.dart';
 import 'package:heimdall_ui/shared/widgets/qr_code.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../support/secret_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -54,6 +58,8 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
+  late RecordingSecretClipboard secrets;
+  late RecordingScreenSecurity security;
   late ProviderContainer container;
   late GoRouter router;
 
@@ -72,6 +78,8 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        secretClipboardProvider.overrideWithValue(secrets),
+        screenSecurityProvider.overrideWithValue(security),
       ],
     );
     addTearDown(container.dispose);
@@ -199,6 +207,8 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockAuthRepository();
+    secrets = RecordingSecretClipboard();
+    security = RecordingScreenSecurity();
     store = InMemoryTokenStore();
     answerStatusWith(const Success<TwoFactorStatus>(_off));
     answerEnableWith(const Success<TwoFactorSetup>(_appSetup));
@@ -614,6 +624,76 @@ void main() {
     expect(session(), isA<Authenticated>());
   });
 
+  // AF-09h — the email method spends the account-email budget, whose 429
+  // carries Retry-After. The dialog says so and holds Continue back that long.
+  testWidgets('GivenAMailCooldown_WhenTheEmailSetupStarts_ThenContinueWaits', (
+    tester,
+  ) async {
+    // Given
+    const cooldown =
+        'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.';
+    answerEnableWith(
+      const FailureResult<TwoFactorSetup>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>[cooldown],
+          retryAfter: Duration(seconds: 90),
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Emailed code');
+
+    // Then
+    final dialog = find.byType(AlertDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text(cooldown)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.text('Try again in 2 minutes.'),
+      ),
+      findsOneWidget,
+    );
+    final proceed = find.widgetWithText(FilledButton, 'Continue');
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 90));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNotNull);
+    expect(session(), isA<Authenticated>());
+  });
+
+  testWidgets('GivenAHugeRetryAfter_WhenTheEmailSetupStarts_ThenItWaitsADay', (
+    tester,
+  ) async {
+    // Given
+    answerEnableWith(
+      const FailureResult<TwoFactorSetup>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(days: 365),
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Emailed code');
+
+    // Then
+    final proceed = find.widgetWithText(FilledButton, 'Continue');
+    await tester.pump(const Duration(hours: 23, minutes: 59));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
+    await tester.pump(const Duration(minutes: 1));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNotNull);
+  });
+
   testWidgets('GivenARefusedPassword_WhenRetyped_ThenTheSetupStarts', (
     tester,
   ) async {
@@ -884,6 +964,136 @@ void main() {
     expect(find.widgetWithText(TextField, 'Password'), findsNothing);
   });
 
+  // FR-2F-20 on the API — recovery codes are sixteen characters now, and the
+  // dialogs take one whole, as typed.
+  for (final (button, confirm) in <(String, String)>[
+    ('Generate new codes', 'Generate'),
+    ('Turn off two-factor', 'Turn off'),
+  ]) {
+    testWidgets('GivenANewRecoveryCode_WhenConfirmed_ThenItIsSentWhole: '
+        '$button', (tester) async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      await pump(tester);
+      await tester.tap(find.text(button));
+      await tester.pumpAndSettle();
+
+      // When
+      if (button == 'Turn off two-factor') {
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Password'),
+          'secret',
+        );
+      }
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Recovery code'),
+        'abcd efgh-jkmn-pqrs',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, confirm));
+      await tester.pumpAndSettle();
+
+      // Then
+      if (button == 'Turn off two-factor') {
+        verify(
+          () => repository.disableTwoFactor(
+            password: 'secret',
+            recoveryCode: 'abcd efgh-jkmn-pqrs',
+          ),
+        ).called(1);
+      } else {
+        verify(
+          () => repository.regenerateRecoveryCodes(
+            recoveryCode: 'abcd efgh-jkmn-pqrs',
+          ),
+        ).called(1);
+      }
+    });
+  }
+
+  testWidgets('GivenTheCredentialDialog_WhenShown_ThenNothingRewritesTheCode', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final field = tester.widget<TextField>(
+      find.widgetWithText(TextField, 'Recovery code'),
+    );
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.textCapitalization, TextCapitalization.characters);
+  });
+
+  testWidgets('GivenNewStyleCodes_WhenShown_ThenEachIsShownWhole', (
+    tester,
+  ) async {
+    // Given
+    const codes = <String>[
+      'ABCD-EFGH-JKMN-PQRS',
+      '0123-4567-89AB-CDEF',
+      'WXYZ-TVSR-QPNM-KJHG',
+    ];
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(const Success<List<String>>(codes));
+    await pump(tester, size: _compact);
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Code from your second factor'),
+      '123456',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Generate'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text(codes.join('\n')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // The API keeps no flag for codes issued before they grew, so the hint is
+  // for the person to recognise their own.
+  testWidgets('GivenItIsOn_WhenOpened_ThenShortCodesAreSuggestedForRenewal', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.text(
+        'Codes in the shorter XXXX-XXXX form still work, but new ones are '
+        'stronger: generate a new set to replace them.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenItIsOff_WhenOpened_ThenNoOlderCodesHintIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.textContaining('XXXX-XXXX form'), findsNothing);
+  });
+
   // A Google User may never configure this here.
   testWidgets('GivenAGoogleUser_WhenOpened_ThenTheReasonIsExplained', (
     tester,
@@ -994,6 +1204,68 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Your recovery codes'), findsOneWidget);
   }
+
+  // The setup key and the recovery codes are secrets: the window is kept out of
+  // screenshots while they show, and a copy of them does not linger.
+  testWidgets(
+    'GivenTheAppSetup_WhenShownAndLeft_ThenTheWindowIsSecuredMeanwhile',
+    (tester) async {
+      // Given
+      await pump(tester);
+      expect(security.held, 0);
+
+      // When
+      await startSetup(tester, 'Authenticator app');
+
+      // Then
+      expect(security.held, 1);
+
+      await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+      await tester.pumpAndSettle();
+      expect(security.held, 0);
+    },
+  );
+
+  testWidgets(
+    'GivenTheSetupKey_WhenCopied_ThenItGoesThroughTheSecretClipboard',
+    (tester) async {
+      // Given
+      await pump(tester);
+      await startSetup(tester, 'Authenticator app');
+
+      // When
+      await tester.tap(find.byTooltip('Copy setup key'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(secrets.copied, <String>['JBSWY3DPEHPK3PXP']);
+    },
+  );
+
+  testWidgets('GivenRecoveryCodes_WhenShown_ThenTheWindowIsSecured', (
+    tester,
+  ) async {
+    // When
+    await issueCodes(tester);
+
+    // Then
+    expect(security.held, 1);
+  });
+
+  testWidgets(
+    'GivenRecoveryCodes_WhenCopied_ThenTheyGoThroughTheSecretClipboard',
+    (tester) async {
+      // Given
+      await issueCodes(tester);
+
+      // When
+      await tester.tap(find.text('Copy codes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(secrets.copied, <String>['aaa\nbbb']);
+    },
+  );
 
   // AF-09c — on the web a browser Back, Forward or typed address is a route
   // change that PopScope and the shell never see, so the route itself asks.

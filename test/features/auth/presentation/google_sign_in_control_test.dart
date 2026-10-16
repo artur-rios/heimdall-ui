@@ -193,6 +193,33 @@ void main() {
     );
   });
 
+  // AF-06f — a first Google sign-up with an address Google has not verified.
+  testWidgets('GivenAnUnverifiedGoogleAddress_WhenActivated_ThenItIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerExchangeWith(
+      const FailureResult<AuthToken>(
+        Failure(
+          kind: FailureKind.forbidden,
+          errors: <String>['Google sign-up requires a verified email address.'],
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('Google sign-up requires a verified email address.'),
+      findsOneWidget,
+    );
+    expect(find.text('Continue with Google'), findsOneWidget);
+  });
+
   testWidgets('GivenDisabledScope_WhenActivated_ThenTheControlIsStillOffered', (
     tester,
   ) async {
@@ -364,4 +391,32 @@ void main() {
     // Then
     expect(find.text('Continue with Google'), findsOneWidget);
   });
+
+  // An exchange that throws instead of answering stops the spinner, says so,
+  // and offers the control again.
+  for (final error in <Object>[
+    const FormatException('not an envelope'),
+    StateError('broken'),
+  ]) {
+    testWidgets('GivenAThrowingExchange_WhenActivated_ThenTheControlIsBack: '
+        '${error.runtimeType}', (tester) async {
+      // Given
+      when(
+        () => repository.signInWithGoogle(
+          idToken: any(named: 'idToken'),
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenThrow(error);
+      await pump(tester);
+
+      // When
+      await tester.tap(find.text('Continue with Google'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      expect(find.byType(ErrorBanner), findsOneWidget);
+      expect(find.text('Continue with Google'), findsOneWidget);
+    });
+  }
 }

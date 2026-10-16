@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,7 +42,16 @@ String _apiJwt(Map<String, String> claims) {
 
 /// Google's half, faked. No test reaches Google's SDK.
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {
+  _FakeGoogleSignInGateway({this.signOutError, this.signOutHangs = false});
+
   int signOuts = 0;
+
+  /// What Google's sign-out throws, if anything — as the plugin can, offline
+  /// on the web or when the platform refuses to clear its credential.
+  final Object? signOutError;
+
+  /// Whether Google's sign-out never answers at all.
+  final bool signOutHangs;
 
   @override
   GoogleSignInAvailability get availability =>
@@ -59,7 +69,17 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
       const GoogleSignInCancelled();
 
   @override
-  Future<void> signOut() async => signOuts++;
+  Future<void> signOut() async {
+    signOuts++;
+
+    if (signOutHangs) {
+      return Completer<void>().future;
+    }
+
+    if (signOutError case final error?) {
+      throw error;
+    }
+  }
 }
 
 /// A token whose payload claims the System Admin role, so the principal read
@@ -114,6 +134,32 @@ void main() {
     // Settle the start-up read first, so it cannot land on the challenge.
     await controller.restore();
     await controller.signIn(email: 'a@b.c', password: 'secret');
+
+    return container;
+  }
+
+  /// A container whose session is a restored Google one, told to Google
+  /// through [gateway].
+  Future<ProviderContainer> googleSession(
+    _FakeGoogleSignInGateway gateway,
+  ) async {
+    await store.write(
+      AuthToken(
+        value: _systemAdminJwt,
+        expiresAt: DateTime.utc(2030),
+        viaGoogle: true,
+      ),
+    );
+    final container = ProviderContainer(
+      overrides: <Override>[
+        authRepositoryProvider.overrideWithValue(repository),
+        scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+        tokenStoreProvider.overrideWithValue(store),
+        googleSignInGatewayProvider.overrideWithValue(gateway),
+      ],
+    );
+    addTearDown(container.dispose);
+    await container.read(sessionControllerProvider.notifier).restore();
 
     return container;
   }
@@ -732,6 +778,166 @@ void main() {
     },
   );
 
+  // Google's own sign-out is best-effort: when it throws, the session here
+  // still ends and the stored token still goes.
+  test(
+    'GivenAThrowingGoogleSignOut_WhenSignedOut_ThenTheSessionEnds',
+    () async {
+      // Given
+      when(() => repository.signOutFromGoogle())
+          .thenAnswer((_) async => const Success<void>(null));
+      final gateway = _FakeGoogleSignInGateway(
+        signOutError: StateError('offline'),
+      );
+      final container = await googleSession(gateway);
+
+      // When
+      await container.read(sessionControllerProvider.notifier).signOut();
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await store.read(), isNull);
+    },
+  );
+
+  // An API sign-out that fails with something other than a transport error —
+  // an answer the client cannot read — is best-effort too, and Google is still
+  // told.
+  test('GivenAThrowingApiSignOut_WhenSignedOut_ThenTheSessionEnds', () async {
+    // Given
+    when(() => repository.signOutFromGoogle())
+        .thenThrow(const FormatException('not an envelope'));
+    final gateway = _FakeGoogleSignInGateway();
+    final container = await googleSession(gateway);
+
+    // When
+    await container.read(sessionControllerProvider.notifier).signOut();
+
+    // Then
+    expect(gateway.signOuts, 1);
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+  });
+
+  // A Google sign-out that never answers cannot hold the session open: it is
+  // given a few seconds, and the session ends regardless.
+  testWidgets('GivenAHangingGoogleSignOut_WhenSignedOut_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.signOutFromGoogle())
+        .thenAnswer((_) async => const Success<void>(null));
+    final gateway = _FakeGoogleSignInGateway(signOutHangs: true);
+    final container = await googleSession(gateway);
+
+    // When
+    unawaited(container.read(sessionControllerProvider.notifier).signOut());
+    await tester.pump(const Duration(seconds: 6));
+
+    // Then
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+  });
+
+  // The same for the API's half of a Google sign-out.
+  testWidgets('GivenAHangingApiSignOut_WhenSignedOut_ThenTheSessionEnds', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.signOutFromGoogle())
+        .thenAnswer((_) => Completer<Result<void>>().future);
+    final gateway = _FakeGoogleSignInGateway();
+    final container = await googleSession(gateway);
+
+    // When
+    unawaited(container.read(sessionControllerProvider.notifier).signOut());
+    await tester.pump(const Duration(seconds: 6));
+
+    // Then
+    expect(gateway.signOuts, 1);
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    expect(await store.read(), isNull);
+  });
+
+  // An exchange whose answer the client cannot read is reported as such, not
+  // thrown at the control that asked.
+  test(
+    'GivenAnUnreadableExchange_WhenExchanged_ThenAFailureIsReturned',
+    () async {
+      // Given
+      when(
+        () => repository.signInWithGoogle(
+          idToken: 'id-token',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenThrow(const FormatException('not an envelope'));
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(
+            _FakeGoogleSignInGateway(),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.exchangeGoogleIdToken('id-token');
+
+      // Then
+      expect(
+        result.failureOrNull?.displayMessage,
+        'The API returned an unexpected response.',
+      );
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
+
+  // AF-06b — a refused exchange is reported as the refusal, even when telling
+  // Google about it throws, so the control that asked stops waiting.
+  test(
+    'GivenARefusedExchange_WhenGoogleSignOutThrows_ThenTheRefusalIsReturned',
+    () async {
+      // Given
+      const refusal = Failure(
+        kind: FailureKind.forbidden,
+        errors: <String>['Google Sign-In is not enabled for this scope.'],
+      );
+      when(
+        () => repository.signInWithGoogle(
+          idToken: 'id-token',
+          scopeId: any(named: 'scopeId'),
+        ),
+      ).thenAnswer((_) async => const FailureResult<AuthToken>(refusal));
+      final gateway = _FakeGoogleSignInGateway(
+        signOutError: StateError('offline'),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          tokenStoreProvider.overrideWithValue(store),
+          googleSignInGatewayProvider.overrideWithValue(gateway),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.exchangeGoogleIdToken('id-token');
+
+      // Then
+      expect(result.failureOrNull, refusal);
+      expect(gateway.signOuts, 1);
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+    },
+  );
+
   // AF-05e — the API reports this with the token, so that is where the
   // principal reads it from. The JWT says nothing about it.
   test('GivenAnUnverifiedToken_WhenPrincipalRead_ThenEmailIsUnverified', () {
@@ -809,6 +1015,44 @@ void main() {
     // Then
     expect((await store.read())?.emailVerified, isTrue);
   });
+
+  // A sign-out that finishes while the verified token is being stored is not
+  // undone by the write landing afterwards.
+  test(
+    'GivenASignOutDuringTheWrite_WhenMarkedVerified_ThenItStaysSignedOut',
+    () async {
+      // Given
+      final held = _HeldWriteTokenStore();
+      await held.write(
+        AuthToken(
+          value: _systemAdminJwt,
+          expiresAt: DateTime.utc(2030),
+          emailVerified: false,
+        ),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          authRepositoryProvider.overrideWithValue(repository),
+          scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
+          tokenStoreProvider.overrideWithValue(held),
+        ],
+      );
+      addTearDown(container.dispose);
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+      final release = held.holdNextWrite();
+      final marking = controller.markEmailVerified();
+
+      // When
+      await controller.signOut();
+      release();
+      await marking;
+
+      // Then
+      expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+      expect(await held.read(), isNull);
+    },
+  );
 
   test('GivenNoSession_WhenMarkedVerified_ThenNothingIsStored', () async {
     // Given
@@ -1299,4 +1543,37 @@ class _ReadableBrokenTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async => throw StateError('keyring locked');
+}
+
+/// An in-memory store whose next write can be held until released, so a test
+/// can finish something else while it is under way.
+class _HeldWriteTokenStore implements TokenStore {
+  AuthToken? _token;
+  Completer<void>? _hold;
+
+  /// Holds the next write; the returned callback lets it complete.
+  void Function() holdNextWrite() {
+    final hold = Completer<void>();
+    _hold = hold;
+
+    return hold.complete;
+  }
+
+  @override
+  Future<AuthToken?> read() async => _token;
+
+  @override
+  Future<void> write(AuthToken token) async {
+    final hold = _hold;
+    _hold = null;
+
+    if (hold != null) {
+      await hold.future;
+    }
+
+    _token = token;
+  }
+
+  @override
+  Future<void> clear() async => _token = null;
 }

@@ -122,4 +122,85 @@ void main() {
     // Then
     expect(hint, 'Try again in 1 second.');
   });
+
+  // FR-UX-09 — an account email's cooldown or daily window can be minutes or
+  // hours away, which a count of seconds would make hard to read.
+  for (final (seconds, expected) in <(int, String)>[
+    (59, 'Try again in 59 seconds.'),
+    (60, 'Try again in 1 minute.'),
+    (61, 'Try again in 2 minutes.'),
+    (300, 'Try again in 5 minutes.'),
+    (3599, 'Try again in 60 minutes.'),
+    (3600, 'Try again in 1 hour.'),
+    (3601, 'Try again in 2 hours.'),
+    (86400, 'Try again in 24 hours.'),
+  ]) {
+    test('GivenALongWait_WhenHinted_ThenItIsRoundedUpToAReadableUnit: '
+        '$seconds', () {
+      // Given
+      final failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: const <String>[],
+        retryAfter: Duration(seconds: seconds),
+      );
+
+      // When
+      final hint = failure.retryHint;
+
+      // Then
+      expect(hint, expected);
+    });
+  }
+
+  // A Failure built anywhere else is held to the same bound: what a pause is
+  // timed by is never zero, negative, or longer than a day.
+  for (final (wait, expected, hint) in <(Duration?, Duration?, String?)>[
+    (null, null, null),
+    (Duration.zero, null, null),
+    (const Duration(seconds: -1), null, null),
+    (
+      const Duration(seconds: 90),
+      const Duration(seconds: 90),
+      'Try again in 2 minutes.',
+    ),
+    (
+      const Duration(days: 400),
+      const Duration(days: 1),
+      'Try again in 24 hours.',
+    ),
+  ]) {
+    test('GivenARetryAfter_WhenPaused_ThenItIsBounded: $wait', () {
+      // Given
+      final failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: const <String>[],
+        retryAfter: wait,
+      );
+
+      // When
+      final pause = failure.pause;
+
+      // Then
+      expect(pause, expected);
+      expect(failure.retryHint, hint);
+    });
+  }
+
+  for (final (seconds, expected) in <(int, String)>[
+    (1, '1 second'),
+    (59, '59 seconds'),
+    (60, '1 minute'),
+    (3600, '1 hour'),
+  ]) {
+    test('GivenAWait_WhenDescribed_ThenItIsReadable: $seconds', () {
+      // Given
+      final wait = Duration(seconds: seconds);
+
+      // When
+      final described = describeWait(wait);
+
+      // Then
+      expect(described, expected);
+    });
+  }
 }

@@ -287,6 +287,57 @@ void main() {
     ).called(1);
   });
 
+  // AF-02d — recovery codes are now sixteen characters, shown
+  // XXXX-XXXX-XXXX-XXXX. The field takes one whole, in any case and with
+  // hyphens or spaces, and sends it as typed: the API reads it that way.
+  for (final typed in <String>[
+    'ABCD-EFGH-JKMN-PQRS',
+    'abcd-efgh-jkmn-pqrs',
+    'ABCD EFGH JKMN PQRS',
+    'ABCDEFGHJKMNPQRS',
+    'ABCD-EFGH',
+  ]) {
+    testWidgets('GivenARecoveryCode_WhenSubmitted_ThenItIsSentWhole: $typed', (
+      tester,
+    ) async {
+      // Given
+      answerVerifyWith(Success<AuthToken>(tokenFor(_jwt)), recovery: true);
+      await pump(tester);
+      await tester.tap(find.text('Use a recovery code instead'));
+      await tester.pumpAndSettle();
+
+      // When
+      await enterAndVerify(tester, ' $typed ');
+
+      // Then
+      verify(
+        () => repository.verifySecondFactor(
+          challengeToken: 'challenge',
+          code: typed,
+          isRecoveryCode: true,
+        ),
+      ).called(1);
+    });
+  }
+
+  // A keyboard that corrects or completes words would change a code.
+  testWidgets('GivenTheRecoveryCodeField_WhenShown_ThenNothingRewritesIt', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Use a recovery code instead'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.textCapitalization, TextCapitalization.characters);
+  });
+
   // AF-02d — using one spends it, and the user is told so.
   testWidgets('GivenRecoveryCodeAccepted_WhenSubmitted_ThenTheUserIsReminded', (
     tester,
@@ -590,6 +641,75 @@ void main() {
     );
     expect(button.onPressed, isNotNull);
     expect(find.byType(ErrorBanner), findsOneWidget);
+  });
+
+  // AF-02i — a refused send that says how long to wait is not counted, and
+  // the control counts that wait down instead of inviting another refusal.
+  testWidgets('GivenARateLimitedResend_WhenRefused_ThenItWaitsRetryAfter', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(seconds: 45),
+        ),
+      ),
+    );
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.text('Too many requests.'), findsOneWidget);
+    expect(find.text('Send a new code (45s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 44));
+    expect(find.text('Send a new code (1s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
+    expect(container.read(sessionControllerProvider), isA<Challenged>());
+  });
+
+  // AF-02i — a long wait is named as the banner names it, and is held to a
+  // day however long the API asked for.
+  testWidgets('GivenALongRetryAfter_WhenRefused_ThenTheLabelNamesItReadably', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(days: 30),
+        ),
+      ),
+    );
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.text('Send a new code (24 hours)'), findsOneWidget);
+    expect(find.text('Try again in 24 hours.'), findsOneWidget);
+    await tester.pump(const Duration(hours: 23, minutes: 59));
+    expect(find.text('Send a new code (1 minute)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Send a new code (59s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 59));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
   });
 
   testWidgets('GivenFailedResends_WhenSendsSucceedAfter_ThenOnlyTheyCount', (

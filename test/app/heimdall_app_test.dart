@@ -10,6 +10,7 @@ import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:heimdall_ui/core/entry/entry_link.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
 import 'package:heimdall_ui/core/result/result.dart';
@@ -19,7 +20,9 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
+import 'package:heimdall_ui/features/auth/presentation/password_reset_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/auth/presentation/verify_email_screen.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
@@ -883,6 +886,207 @@ void main() {
       expect(state.query.overdueOnly, isFalse);
     },
   );
+
+  // A link whose id decodes to another path names a record the screen never
+  // loads: the router answers "not found" before any screen sees the id.
+  testWidgets('GivenATraversalLink_WhenOpened_ThenNotFoundIsShown', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000001';
+
+    // When
+    container
+        .read(routerProvider)
+        .go('/scopes/..%2F..%2Fpersons%2F$guid%3Fx%3D/google-users/$guid');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.widgetWithText(AppBar, 'Not found'), findsOneWidget);
+    expect(container.read(routerProvider).state.uri.path, notFoundRoute);
+  });
+
+  // On the web the token is taken out of the address at start-up, so the
+  // screen gets it from what start-up kept rather than from the URL.
+  testWidgets('GivenATakenResetToken_WhenTheResetOpens_ThenItHasTheToken', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(const EntryLink(resetToken: 'reset-token')),
+        ),
+      ],
+    );
+
+    // When
+    container.read(routerProvider).go('/password-reset');
+    await tester.pumpAndSettle();
+
+    // Then
+    final screen = tester.widget<PasswordResetScreen>(
+      find.byType(PasswordResetScreen),
+    );
+    expect(screen.token, 'reset-token');
+  });
+
+  testWidgets('GivenATakenVerifyToken_WhenTheCheckOpens_ThenItHasTheToken', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.verifyEmail(token: any(named: 'token')))
+        .thenAnswer((_) => Completer<Result<List<String>>>().future);
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(verificationToken: 'verify-token'),
+          ),
+        ),
+      ],
+    );
+
+    // When
+    container.read(routerProvider).go('/verify-email');
+    await tester.pump();
+
+    // Then
+    final screen = tester.widget<VerifyEmailScreen>(
+      find.byType(VerifyEmailScreen),
+    );
+    expect(screen.token, 'verify-token');
+  });
+
+  // A link token is single-use: once the API has taken it, opening the screen
+  // again in the same tab must not offer, or send, it a second time.
+  testWidgets('GivenAUsedResetToken_WhenTheResetOpensAgain_ThenItHasNone', (
+    tester,
+  ) async {
+    // Given
+    when(
+      () => repository.resetPassword(
+        token: any(named: 'token'),
+        newPassword: any(named: 'newPassword'),
+      ),
+    ).thenAnswer((_) async => const Success<void>(null));
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(const EntryLink(resetToken: 'reset-token')),
+        ),
+      ],
+    );
+    final router = container.read(routerProvider)..go('/password-reset');
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'New password'),
+      'Correct-Horse-Battery-9',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Confirm password'),
+      'Correct-Horse-Battery-9',
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Set password'));
+    await tester.pumpAndSettle();
+    expect(find.text('Your password is set'), findsOneWidget);
+
+    // When
+    router.go('/login');
+    await tester.pumpAndSettle();
+    router.go('/password-reset');
+    await tester.pumpAndSettle();
+
+    // Then
+    final screen = tester.widget<PasswordResetScreen>(
+      find.byType(PasswordResetScreen),
+    );
+    expect(screen.token, isNull);
+    verify(
+      () => repository.resetPassword(
+        token: 'reset-token',
+        newPassword: 'Correct-Horse-Battery-9',
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+    'GivenAnAnsweredVerifyToken_WhenTheCheckOpensAgain_ThenItHasNone',
+    (tester) async {
+      // Given
+      when(() => repository.verifyEmail(token: any(named: 'token')))
+          .thenAnswer((_) async => const Success<List<String>>(<String>[]));
+      final container = await pumpApp(
+        tester,
+        overrides: <Override>[
+          entryLinkProvider.overrideWith(
+            () => EntryLinkController(
+              const EntryLink(verificationToken: 'verify-token'),
+            ),
+          ),
+        ],
+      );
+      final router = container.read(routerProvider)..go('/verify-email');
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/privacy');
+      await tester.pumpAndSettle();
+      router.go('/verify-email');
+      await tester.pumpAndSettle();
+
+      // Then
+      final screen = tester.widget<VerifyEmailScreen>(
+        find.byType(VerifyEmailScreen),
+      );
+      expect(screen.token, isNull);
+      verify(() => repository.verifyEmail(token: 'verify-token')).called(1);
+    },
+  );
+
+  // A network failure means the API never saw the token, so it stays for the
+  // retry.
+  testWidgets('GivenAnUnsentVerifyToken_WhenTheCheckOpensAgain_ThenItIsKept', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.verifyEmail(token: any(named: 'token'))).thenAnswer(
+      (_) async => const FailureResult<List<String>>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+    final container = await pumpApp(
+      tester,
+      overrides: <Override>[
+        entryLinkProvider.overrideWith(
+          () => EntryLinkController(
+            const EntryLink(verificationToken: 'verify-token'),
+          ),
+        ),
+      ],
+    );
+    final router = container.read(routerProvider)..go('/verify-email');
+    await tester.pumpAndSettle();
+
+    // When
+    router.go('/privacy');
+    await tester.pumpAndSettle();
+    router.go('/verify-email');
+    await tester.pumpAndSettle();
+
+    // Then
+    final screen = tester.widget<VerifyEmailScreen>(
+      find.byType(VerifyEmailScreen),
+    );
+    expect(screen.token, 'verify-token');
+  });
 
   testWidgets('GivenTheApp_WhenStarted_ThenItsVersionIsShown', (tester) async {
     // Given no stored token

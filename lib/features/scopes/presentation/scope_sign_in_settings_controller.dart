@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/email_link.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
@@ -80,19 +81,30 @@ scopeSignInSettingsControllerProvider =
 
 /// UI-31 — one scope's ways in: Google Sign-In, self-registration, and the
 /// links its emails point at.
-class ScopeSignInSettingsController extends Notifier<SignInSettingsState> {
+class ScopeSignInSettingsController extends Notifier<SignInSettingsState>
+    with BuildEpoch<SignInSettingsState> {
   ScopeSignInSettingsController(this.arg);
 
   /// The scope's identifier.
   final String arg;
 
   @override
-  SignInSettingsState build() => const SignInSettingsLoading();
+  SignInSettingsState build() {
+    startEpoch();
+
+    return const SignInSettingsLoading();
+  }
 
   Future<void> load() async {
     state = const SignInSettingsLoading();
 
+    final epoch = this.epoch;
     final result = await ref.read(scopeRepositoryProvider).getById(arg);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: SignInSettingsLoaded.new,
@@ -188,7 +200,13 @@ class ScopeSignInSettingsController extends Notifier<SignInSettingsState> {
           : current.linksFailure,
     );
 
+    final epoch = this.epoch;
     final result = await send(ref.read(scopeRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: (answer) => SignInSettingsLoaded(

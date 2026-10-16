@@ -9,11 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
+import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 
 /// The session wired exactly as `main.dart` wires it — the real repository,
@@ -175,6 +178,142 @@ void main() {
     expect(await store.read(), isNotNull);
   });
 
+  // AF-09a, AF-09d, AF-09f — the API's one refusal for a wrong password or
+  // code, or a paused re-authentication budget, on every command that
+  // re-authenticates. 2fa/confirm used to answer 400 and now answers 401 too.
+  final reauthentications =
+      <(String, Future<Result<Object?>> Function(AuthRepository))>[
+        (
+          '/api/auth/2fa/enable',
+          (repository) => repository.enableTwoFactor(
+            TwoFactorMethod.app,
+            currentPassword: 'wrong',
+          ),
+        ),
+        (
+          '/api/auth/2fa/confirm',
+          (repository) => repository.confirmTwoFactor(
+            method: TwoFactorMethod.app,
+            code: '000000',
+          ),
+        ),
+        (
+          '/api/auth/2fa/disable',
+          (repository) =>
+              repository.disableTwoFactor(password: 'wrong', code: '000000'),
+        ),
+        (
+          '/api/auth/2fa/recovery-codes/regenerate',
+          (repository) => repository.regenerateRecoveryCodes(
+            recoveryCode: 'ABCD-EFGH-JKMN-PQRS',
+          ),
+        ),
+      ];
+  for (final (path, send) in reauthentications) {
+    test('GivenASession_WhenTheUnifiedRefusalArrives_ThenTheSessionSurvives: '
+        '$path', () async {
+      // Given
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '3'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+      adapter.answer(path, 401, <String, dynamic>{
+        'success': false,
+        'errors': <String>['The password or code is incorrect.'],
+      });
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await send(container.read(authRepositoryProvider));
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>[
+        'The password or code is incorrect.',
+      ]);
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+      expect(await store.read(), isNotNull);
+    });
+  }
+
+  // AF-05f, AF-08j, AF-09h — the account-email budget's 429 travels through
+  // every layer as a wait to sit out, never as the end of the session.
+  for (final message in <String>[
+    'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.',
+    "You have reached today's limit for account emails. Try again tomorrow.",
+    'You have reached the limit for account emails. Try again later.',
+  ]) {
+    test('GivenAMailBudgetRefusal_WhenResending_ThenTheSessionWaits: '
+        '$message', () async {
+      // Given
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '3'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+      adapter.answer(
+        '/api/auth/resend-verification',
+        429,
+        <String, dynamic>{
+          'success': false,
+          'errors': <String>[message],
+        },
+        headers: <String, List<String>>{
+          'retry-after': <String>['300'],
+        },
+      );
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await container
+          .read(authRepositoryProvider)
+          .resendVerificationEmail();
+
+      // Then
+      final failure = result.failureOrNull!;
+      expect(failure.kind, FailureKind.rateLimited);
+      expect(failure.errors, <String>[message]);
+      expect(failure.retryAfter, const Duration(minutes: 5));
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+      expect(await store.read(), isNotNull);
+    });
+  }
+
+  // AF-06f — the API creates no Google User from an address Google has not
+  // verified. The refusal is a sign-in error, not the end of a session.
+  test(
+    'GivenAnUnverifiedGoogleAddress_WhenSigningUp_ThenItIsASignInError',
+    () async {
+      // Given
+      const refusal = 'Google sign-up requires a verified email address.';
+      adapter.answer('/api/auth/google', 403, <String, dynamic>{
+        'success': false,
+        'errors': <String>[refusal],
+      });
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.exchangeGoogleIdToken('id-token');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.forbidden);
+      expect(result.failureOrNull?.errors, <String>[refusal]);
+      final state = container.read(sessionControllerProvider);
+      expect(state, isA<Unauthenticated>());
+      expect((state as Unauthenticated).sessionExpired, isFalse);
+    },
+  );
+
   // AF-07e on a Google session — the token was refused, so the API sign-out
   // made with it would be refused too, and its 401 must not start another
   // sign-out that makes the same call again.
@@ -253,6 +392,78 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
     expect(await store.read(), isNull);
   });
+
+  // FR-AU-07 — a request carries the token of the session this tab holds,
+  // never whatever the store holds now: another tab of the same browser may
+  // have signed somebody else in behind it.
+  test(
+    'GivenALiveSession_WhenTheStoredTokenChanges_ThenItsOwnIsSent',
+    () async {
+      // Given
+      final own = _jwt(role: '3');
+      await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
+      final container = wired();
+      await container.read(sessionControllerProvider.notifier).restore();
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '1'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+
+      // When
+      await expectLater(
+        container.read(dioProvider).get<dynamic>('/api/persons'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(adapter.bearers.single, 'Bearer $own');
+    },
+  );
+
+  // The store emptied behind a live session changes nothing either: the
+  // session this tab shows is still the one that acts.
+  test('GivenALiveSession_WhenTheStoreIsCleared_ThenItsOwnIsSent', () async {
+    // Given
+    final own = _jwt(role: '3');
+    await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
+    final container = wired();
+    await container.read(sessionControllerProvider.notifier).restore();
+    await store.clear();
+
+    // When
+    await expectLater(
+      container.read(dioProvider).get<dynamic>('/api/persons'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(adapter.bearers.single, 'Bearer $own');
+  });
+
+  // A tab with no session sends no token, whoever signed in elsewhere.
+  test('GivenNoSession_WhenTheStoreGainsAToken_ThenNoneIsSent', () async {
+    // Given
+    final container = wired();
+    await container.read(sessionControllerProvider.notifier).restore();
+    await store.write(
+      AuthToken(
+        value: _jwt(role: '1'),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
+
+    // When
+    await expectLater(
+      container.read(dioProvider).get<dynamic>('/api/persons'),
+      throwsA(isA<DioException>()),
+    );
+
+    // Then
+    expect(adapter.bearers.single, isNull);
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
 }
 
 /// A token shaped as the API mints it: string claims named `id` and `role`.
@@ -293,10 +504,24 @@ class _RoutingAdapter implements HttpClientAdapter {
   final Map<String, (int, Map<String, dynamic>)> _answers =
       <String, (int, Map<String, dynamic>)>{};
 
+  /// Extra response headers by path, such as `Retry-After`.
+  final Map<String, Map<String, List<String>>> _headers =
+      <String, Map<String, List<String>>>{};
+
   final List<String> calls = <String>[];
 
-  void answer(String path, int status, Map<String, dynamic> body) =>
-      _answers[path] = (status, body);
+  /// The `Authorization` header of each request, in order.
+  final List<String?> bearers = <String?>[];
+
+  void answer(
+    String path,
+    int status,
+    Map<String, dynamic> body, {
+    Map<String, List<String>> headers = const <String, List<String>>{},
+  }) {
+    _answers[path] = (status, body);
+    _headers[path] = headers;
+  }
 
   @override
   Future<ResponseBody> fetch(
@@ -305,6 +530,7 @@ class _RoutingAdapter implements HttpClientAdapter {
     Future<void>? cancelFuture,
   ) async {
     calls.add(options.path);
+    bearers.add(options.headers['Authorization'] as String?);
 
     // A runaway loop of requests is what one of these tests guards against;
     // failing loudly beats spinning until the suite times out.
@@ -321,6 +547,7 @@ class _RoutingAdapter implements HttpClientAdapter {
       status,
       headers: <String, List<String>>{
         Headers.contentTypeHeader: <String>[Headers.jsonContentType],
+        ...?_headers[options.path],
       },
     );
   }

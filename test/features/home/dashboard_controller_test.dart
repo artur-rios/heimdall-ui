@@ -12,6 +12,7 @@ import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 
 import '../../support/dashboard_fakes.dart';
+import '../../support/late_answer.dart';
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
 String _jwt(int role) {
@@ -285,4 +286,46 @@ void main() {
     expect(totals, everyElement(0));
     expect(stats.isPartial, isFalse);
   });
+
+  // A sign-out resets the dashboard while a load is in flight, and the late
+  // figures, the previous session's, must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheFiguresAreDropped',
+    () async {
+      // Given
+      final held = Completer<int?>();
+      final fakes = FakeDashboardRepositories(
+        scopes: const <Scope>[_acme],
+        systemAdminsAnswer: (_) => held.future,
+      );
+      final store = InMemoryTokenStore();
+      await store.write(
+        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+      );
+      final container = ProviderContainer(
+        overrides: <Override>[
+          ...fakes.overrides,
+          tokenStoreProvider.overrideWithValue(store),
+        ],
+      );
+      addTearDown(container.dispose);
+      await container.read(sessionControllerProvider.notifier).restore();
+      final notifier = container.read(dashboardControllerProvider.notifier);
+
+      // When
+      await answerAfterReset(
+        container,
+        dashboardControllerProvider,
+        reset: dashboardControllerProvider,
+        start: notifier.load,
+        answer: () => held.complete(3),
+      );
+
+      // Then
+      expect(
+        container.read(dashboardControllerProvider),
+        isA<DashboardLoading>(),
+      );
+    },
+  );
 }

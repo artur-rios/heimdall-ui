@@ -4,25 +4,25 @@ import 'package:heimdall_ui/core/network/auth_interceptor.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 
 void main() {
-  late InMemoryTokenStore store;
+  AuthToken? token;
   late Dio dio;
   late int unauthorizedCalls;
 
   setUp(() {
-    store = InMemoryTokenStore();
+    token = null;
     unauthorizedCalls = 0;
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..interceptors.add(
         AuthInterceptor(
-          tokenStore: store,
+          sessionToken: () => token,
           onUnauthorized: () async => unauthorizedCalls++,
         ),
       );
   });
 
-  test('GivenStoredToken_WhenRequestSent_ThenBearerHeaderIsAttached', () async {
+  test('GivenAToken_WhenRequestSent_ThenBearerHeaderIsAttached', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     String? seenHeader;
     dio.httpClientAdapter = _CapturingAdapter((options) {
       seenHeader = options.headers['Authorization'] as String?;
@@ -55,7 +55,7 @@ void main() {
 
   test('GivenExpiredToken_WhenRequestSent_ThenItIsNotAttached', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000));
     String? seenHeader;
     dio.httpClientAdapter = _CapturingAdapter((options) {
       seenHeader = options.headers['Authorization'] as String?;
@@ -72,7 +72,7 @@ void main() {
 
   test('GivenUnauthorizedResponse_WhenReceived_ThenSessionIsCleared', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter((_) => 401);
 
     // When
@@ -87,7 +87,7 @@ void main() {
 
   test('GivenForbiddenResponse_WhenReceived_ThenSessionIsLeftAlone', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter((_) => 403);
 
     // When
@@ -132,9 +132,7 @@ void main() {
       'GivenASession_WhenATypedCredentialIsRefused_ThenItSurvives: $message',
       () async {
         // Given
-        await store.write(
-          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
-        );
+        token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
         dio.httpClientAdapter = _CapturingAdapter(
           (_) => 401,
           body: '{"success":false,"errors":["$message"]}',
@@ -166,9 +164,7 @@ void main() {
       test('GivenASession_WhenAReauthenticationIsRefused_ThenItSurvives: '
           '$method $path $message', () async {
         // Given
-        await store.write(
-          AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
-        );
+        token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
         dio.httpClientAdapter = _CapturingAdapter(
           (_) => 401,
           body: '{"success":false,"errors":["$message"]}',
@@ -186,11 +182,45 @@ void main() {
     }
   }
 
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — every re-authentication under
+  // a token now answers a wrong or missing password or code, and a paused
+  // budget, with one 401 message. It is the person's to correct, wherever it
+  // comes from.
+  for (final (method, path) in <(String, String)>[
+    ('POST', '/api/auth/2fa/enable'),
+    ('POST', '/api/auth/2fa/confirm'),
+    ('POST', '/api/auth/2fa/disable'),
+    ('POST', '/api/auth/2fa/recovery-codes/regenerate'),
+    ('PUT', '/api/persons/person-1'),
+    ('POST', '/api/auth/erasure-request'),
+  ]) {
+    test('GivenASession_WhenTheUnifiedRefusalArrives_ThenItSurvives: '
+        '$method $path', () async {
+      // Given
+      token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter(
+        (_) => 401,
+        body:
+            '{"success":false,"errors":'
+            '["The password or code is incorrect."]}',
+      );
+
+      // When
+      await expectLater(
+        dio.request<dynamic>(path, options: Options(method: method)),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    });
+  }
+
   // FR-AU-28 — a token revoked by a change to the sign-in details is a
   // refused session, not a refused credential, and ends it.
   test('GivenARevokedToken_WhenRefused_ThenTheSessionEnds', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
     dio.httpClientAdapter = _CapturingAdapter(
       (_) => 401,
       body:
@@ -208,11 +238,11 @@ void main() {
     expect(unauthorizedCalls, 1);
   });
 
-  // AF-07e — a stored token past its expiry is not sent, and the 401 that
+  // AF-07e — a session token past its expiry is not sent, and the 401 that
   // answers for it still ends the session.
   test('GivenAnExpiredSession_WhenUnauthorizedReceived_ThenItEnds', () async {
     // Given
-    await store.write(AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000)));
+    token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2000));
     dio.httpClientAdapter = _CapturingAdapter((_) => 401, body: '');
 
     // When
@@ -224,6 +254,53 @@ void main() {
     // Then
     expect(unauthorizedCalls, 1);
   });
+
+  // A 401 answering a request of an earlier session is that session's
+  // business: the one now on screen, perhaps somebody else's, is left alone.
+  test(
+    'GivenANewSession_WhenAnEarlierOnesRequestIsRefused_ThenItSurvives',
+    () async {
+      // Given
+      token = AuthToken(value: 'earlier', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter((_) {
+        token = AuthToken(value: 'current', expiresAt: DateTime.utc(2030));
+
+        return 401;
+      });
+
+      // When
+      await expectLater(
+        dio.get<dynamic>('/api/scopes'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    },
+  );
+
+  // Nor is a session that has already ended said to have ended again.
+  test(
+    'GivenAnEndedSession_WhenItsRequestIsRefused_ThenNothingIsCleared',
+    () async {
+      // Given
+      token = AuthToken(value: 'earlier', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter((_) {
+        token = null;
+
+        return 401;
+      });
+
+      // When
+      await expectLater(
+        dio.get<dynamic>('/api/scopes'),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    },
+  );
 }
 
 /// An adapter that answers locally and reports what it was asked for, so no

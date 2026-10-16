@@ -41,15 +41,15 @@ describes the flows that satisfy these requirements; the
 | FR-AU-01 | The client shall authenticate a person by email and password through `POST /api/auth/login`, sending the configured scope as Google sign-in does. | UI-01 |
 | FR-AU-02 | The client shall detect a two-factor challenge in the login response and continue into the challenge flow instead of establishing a session. | UI-01, UI-02 |
 | FR-AU-03 | The client shall send a challenge token to `POST /api/auth/2fa/verify` and to no other endpoint, and shall never persist it. | UI-02 |
-| FR-AU-04 | The client shall accept a generated code or a recovery code as the second factor, and shall let the user choose among the methods the API reports as available. | UI-02 |
-| FR-AU-05 | The client shall store the bearer token and its expiry in the platform's secure storage, and shall restore the session from it at start-up. | UI-01, UI-07 |
+| FR-AU-04 | The client shall accept a generated code or a recovery code as the second factor, and shall let the user choose among the methods the API reports as available. Every field that takes a recovery code (sign-in, disabling, regenerating, an own email change) accepts the sixteen-character `XXXX-XXXX-XXXX-XXXX` form and the older `XXXX-XXXX` one, in any case and with or without hyphens or spaces, sets no length limit, and sends the code as typed, trimmed; the keyboard neither corrects nor completes it. | UI-02, UI-08, UI-09 |
+| FR-AU-05 | The client shall store the bearer token and its expiry in the platform's secure storage, and shall restore the session from it at start-up. On the web the session is restored only in the tab that signed in: across a reload of that tab, and wherever the browser restores that tab's session storage. | UI-01, UI-07 |
 | FR-AU-06 | The client shall discard a stored token whose expiry has passed without contacting the API. | UI-07 |
-| FR-AU-07 | The client shall attach the bearer token to every authenticated request as an `Authorization: Bearer` header. | UI-07 |
-| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401` to a request made under the session, except a `401` refusing a password or code typed into that request, which the screen shows instead. | UI-07 |
+| FR-AU-07 | The client shall attach the bearer token to every authenticated request as an `Authorization: Bearer` header. The token attached is the one held by the session the client is showing, never one read back from storage, so a request always acts as the identity on screen. | UI-07 |
+| FR-AU-08 | The client shall clear the session and route to sign-in whenever the API answers `401` to a request made under the session, except a `401` refusing a password or code typed into that request, which the screen shows instead. Such a refusal is recognised by its message: "The password or code is incorrect." (every re-authentication under a token, including a paused one and `POST /api/auth/2fa/confirm`), and, from older APIs, "The current password is incorrect.", "The code or recovery code is missing, incorrect, or already used." and "The credential presented was not accepted.". A `401` to a request made under an earlier session, one that has since ended or been replaced, leaves the current session alone. | UI-07 |
 | FR-AU-09 | The client shall offer Google sign-in when a Google client id is configured, exchange the resulting ID token at `POST /api/auth/google`, and sign out through `POST /api/auth/google/sign-out`. | UI-06 |
 | FR-AU-10 | The client shall request a password reset through `POST /api/auth/password-recovery` and shall show the same confirmation whether or not the address is registered. | UI-03 |
-| FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. | UI-04 |
-| FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. | UI-05 |
+| FR-AU-11 | The client shall accept a reset token from a link and complete the reset through `POST /api/auth/password-reset`. On the web it shall remove the token from the address once read. | UI-04 |
+| FR-AU-12 | The client shall accept a verification token from a link and complete verification through `POST /api/auth/verify-email`. On the web it shall remove the token from the address once read. | UI-05 |
 | FR-AU-13 | The client shall offer to resend a verification email through `POST /api/auth/resend-verification`. | UI-05 |
 | FR-AU-14 | The client shall show an authenticated user with an unverified address a dismissible prompt offering to resend the verification email. | UI-05 |
 | FR-AU-15 | The client shall show the signed-in person their own profile, read through `GET /api/persons/{id}` — or, for a Google User, through `GET /api/scopes/{scopeId}/google-users/{id}`, read-only. | UI-08 |
@@ -57,6 +57,7 @@ describes the flows that satisfy these requirements; the
 | FR-AU-17 | The client shall enable two-factor authentication through `POST /api/auth/2fa/enable`, sending the person's `currentPassword`, and confirm it through `POST /api/auth/2fa/confirm`. | UI-09 |
 | FR-AU-18 | The client shall render an `otpAuthUri` as a scannable code and shall also present the secret as selectable text. | UI-09 |
 | FR-AU-19 | The client shall display recovery codes exactly once, offer to copy or download them, and require acknowledgement before navigating away — a browser Back, Forward or typed address included — and ask the browser to confirm closing or reloading the tab while they wait. | UI-09 |
+| FR-AU-19a | A copied credential secret, setup key or set of recovery codes shall, where the platform allows, be removed from the clipboard after 60 seconds, unless the clipboard has since changed. Where the platform does not let the application read the clipboard at that moment (an application in the background), the check stays pending and runs again each time the application returns to the foreground past the 60 seconds, until the clipboard can be read; it is never attempted on the web, and not done if the application is closed first. On Android the window shall be excluded from screenshots and the recents thumbnail while one is on screen. | UI-09, UI-37 |
 | FR-AU-20 | The client shall disable two-factor authentication through `POST /api/auth/2fa/disable` and regenerate recovery codes through `POST /api/auth/2fa/recovery-codes/regenerate`. | UI-09 |
 | FR-AU-21 | The client shall recognise a subject-rights-only session — one whose processing is restricted — from `processingRestricted` in the answers of `POST /api/auth/login`, `POST /api/auth/2fa/verify` and `POST /api/auth/google`, and from the token's `subjectRightsOnly` claim when a session is restored. | UI-30 |
 | FR-AU-22 | The client shall confine a subject-rights-only session, whatever its role, to the restricted session screen and the privacy notice. | UI-07, UI-30 |
@@ -156,7 +157,7 @@ describes the flows that satisfy these requirements; the
 | FR-UX-06 | The client shall distinguish an empty collection from a filtered collection with no matches, and shall offer the appropriate next action for each. | UI-10, UI-16, UI-20, UI-24, UI-28, UI-32, UI-34, UI-35, UI-38 |
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. Wherever a transport failure is shown, it reads "Could not reach the API. Check your connection and try again.", never the HTTP library's own text. An answer the client cannot read, such as a success response whose body is not the expected shape, shows "The API returned an unexpected response." with Retry, never an endless placeholder. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
-| FR-UX-09 | A `429` shows the API's message. When the response carries `Retry-After`, it adds "Try again in N seconds." | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
+| FR-UX-09 | A `429` shows the API's message, and never ends the session. When the response carries `Retry-After`, it adds "Try again in N seconds.", in minutes from a minute and in hours from an hour, rounded up; a control that would send the same email again (the verification resend, the second-factor code resend, starting the email method) stays disabled for that long. `Retry-After` is read as whole non-negative seconds and held to a day (86400); zero, a sign, a fraction, an HTTP-date or anything else unreadable pauses nothing and adds no hint. | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
 
 ### 2.8 Data subject administration (`FR-DA`)
 
@@ -211,6 +212,7 @@ describes the flows that satisfy these requirements; the
 | `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
 | `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
+| `/not-found` | Not found — where a route whose id is not a `PublicId` lands | UI-07 |
 
 ---
 
@@ -223,6 +225,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | --- | --- | --- | --- | --- |
 | Sign in, recovery, reset, verification | — | — | — | Full |
 | Privacy notice | Full | Full | Full | Full |
+| Not found | Full | Full | Full | Full |
 | Second-factor challenge | Full | Full | Full | Held challenge only |
 | Restricted session | Restricted session only | Restricted session only | Restricted session only | Hidden |
 | Home | Full | Full | Full | Hidden |
@@ -271,12 +274,13 @@ session screen.
 | NFR-01 | Every screen shall be usable at the compact (`< 600`), medium (`600 – 1024`), and expanded (`> 1024`) breakpoints, with no horizontal scrolling of the page itself. |
 | NFR-02 | Every screen shall be legible in both the light and the dark theme, with no hard-coded color that ignores the active scheme. |
 | NFR-03 | The same source shall build and run on web, Windows, Linux, and Android, with no behavioral difference beyond what a platform itself imposes. |
-| NFR-04 | The bearer token shall be held in the platform's secure storage, and the challenge token shall never be written to storage at all. |
+| NFR-04 | The bearer token shall be held in the platform's secure storage, and the challenge token shall never be written to storage at all. On the web the bearer token shall be held in the tab's session storage, so that it is kept per tab and not shared with other tabs, and signing out shall clear it. A browser that restores a closed tab, or a whole browsing session, may restore its session storage and the session with it, so on a shared machine signing out is what ends the session. Browser storage is readable by any script on the page, so this limits how widely the token is kept rather than protecting it at rest. |
 | NFR-05 | No secret shall be committed to the repository or embedded in a built artifact. |
 | NFR-06 | Every collection shall be paginated through the API; the client shall never fetch a whole collection to page it in memory. |
 | NFR-07 | Every screen shall be operable by keyboard, shall preserve a sensible focus order, and shall give every icon-only control a semantic label. |
 | NFR-08 | The client shall enforce no authorization the API does not; hiding a control is a usability decision, never a security control. |
 | NFR-09 | The web target shall reach interactive in under three seconds over a warm cache on a broadband connection. |
+| NFR-10 | The web build shall be served with an enforced Content-Security-Policy that allows script only from its own origin and Google Sign-In's library, and connections only to its own origin, the configured API's origin, Google Sign-In's endpoints, Google profile pictures (`*.googleusercontent.com`) and the fallback fonts the renderer fetches. The token of a password reset or verification link shall be removed from the address as the application starts, so that no request the application makes carries it in its Referer; where the server's own headers reach the browser, the pages such a link opens shall also send no Referer at all. |
 
 ---
 

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 
@@ -110,21 +111,32 @@ applicationDetailControllerProvider =
     >(ApplicationDetailController.new);
 
 /// Owns one application's detail: reading it, and saving edits to it.
-class ApplicationDetailController extends Notifier<ApplicationDetailState> {
+class ApplicationDetailController extends Notifier<ApplicationDetailState>
+    with BuildEpoch<ApplicationDetailState> {
   ApplicationDetailController(this.arg);
 
   /// The family argument this controller was created for.
   final ApplicationRef arg;
 
   @override
-  ApplicationDetailState build() => const ApplicationDetailLoading();
+  ApplicationDetailState build() {
+    startEpoch();
+
+    return const ApplicationDetailLoading();
+  }
 
   Future<void> load() async {
     state = const ApplicationDetailLoading();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(applicationRepositoryProvider)
         .getById(scopeId: arg.scopeId, id: arg.applicationId);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: ApplicationDetailLoaded.new,
@@ -158,6 +170,7 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
       saved: false,
     );
 
+    final epoch = this.epoch;
     final result = await ref
         .read(applicationRepositoryProvider)
         .update(
@@ -166,6 +179,11 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
           name: name,
           ownerId: ownerId,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: (application) =>
@@ -212,7 +230,13 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState> {
 
     state = current.copyWith(deleting: true, clearDeleteFailure: true);
 
+    final epoch = this.epoch;
     final result = await send(ref.read(applicationRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():

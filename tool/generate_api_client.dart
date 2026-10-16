@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'src/encode_path_parameters.dart';
+
 /// Regenerates `packages/heimdall_api_client` from `api/heimdall.json`.
 ///
 /// Run from the repository root:
@@ -9,10 +11,11 @@ import 'dart:io';
 /// ```
 ///
 /// The pipeline is: `swagger_parser` emits the clients and models,
-/// `build_runner` emits the `.g.dart` bodies, and `dart format` settles the
-/// line breaking. Every step is deterministic, so a clean run reproduces the
-/// committed tree byte for byte — which is what makes the drift check in CI
-/// mean something.
+/// `build_runner` emits the `.g.dart` bodies, every path parameter in them is
+/// wrapped so it is sent percent-encoded as one segment, and `dart format`
+/// settles the line breaking. Every step is deterministic, so a clean run
+/// reproduces the committed tree byte for byte — which is what makes the drift
+/// check in CI mean something.
 Future<void> main() async {
   await _run('dart', <String>['run', 'swagger_parser']);
 
@@ -27,6 +30,16 @@ Future<void> main() async {
     'build',
     '--delete-conflicting-outputs',
   ], workingDirectory: 'packages/heimdall_api_client');
+
+  // retrofit interpolates path parameters as they are; an id holding `/` or
+  // `?` would otherwise reach a different endpoint.
+  final clients = Directory('packages/heimdall_api_client/lib/clients')
+      .listSync()
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.g.dart'));
+  for (final file in clients) {
+    file.writeAsStringSync(encodePathParameters(file.readAsStringSync()));
+  }
 
   // The generators emit their own line breaking, which `dart format` at the
   // repository root would then rewrite — leaving the committed tree different

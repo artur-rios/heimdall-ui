@@ -9,6 +9,8 @@ import 'package:heimdall_ui/features/applications/domain/application_repository.
 import 'package:heimdall_ui/features/applications/presentation/application_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
 
@@ -396,4 +398,34 @@ void main() {
     // Then
     verify(() => repository.delete(scopeId: 'scope-1', id: 'app-1')).called(1);
   });
+
+  // A sign-out resets the page while its read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Application>>();
+      when(
+        () => repository.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        applicationDetailControllerProvider(_ref),
+        reset: applicationDetailControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<Application>(_billing)),
+      );
+
+      // Then
+      expect(currentState(), isA<ApplicationDetailLoading>());
+    },
+  );
 }

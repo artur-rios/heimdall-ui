@@ -46,7 +46,8 @@ class VerificationBanner extends ConsumerWidget {
 
     final theme = Theme.of(context);
     final scheme = theme.colorScheme;
-    final resend = ref.watch(emailVerificationControllerProvider).resend;
+    final verification = ref.watch(emailVerificationControllerProvider);
+    final resend = verification.resend;
 
     return Material(
       color: scheme.secondaryContainer,
@@ -77,7 +78,8 @@ class VerificationBanner extends ConsumerWidget {
             ),
             if (resend is! ResendSent)
               TextButton(
-                onPressed: resend is Resending
+                // AF-05f: held back while the API's wait runs.
+                onPressed: resend is Resending || verification.resendPaused
                     ? null
                     : () => ref
                           .read(emailVerificationControllerProvider.notifier)

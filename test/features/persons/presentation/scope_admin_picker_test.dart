@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -11,6 +13,8 @@ import 'package:heimdall_ui/features/persons/presentation/scope_admin_picker.dar
 import 'package:heimdall_ui/features/persons/presentation/scope_admin_picker_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -381,4 +385,52 @@ void main() {
     // Then
     expect(find.widgetWithText(ListTile, 'Ada'), findsOneWidget);
   });
+
+  // A sign-out resets the picker while its search is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenASearchInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<envelope.Page<PersonSummary>>>();
+      when(
+        () => repository.listScopeAdmins(
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          excludeOwnersOfScopeId: any(named: 'excludeOwnersOfScopeId'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final container = containerUnderTest();
+      final controller = container.read(
+        scopeAdminPickerControllerProvider('scope-1').notifier,
+      );
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeAdminPickerControllerProvider('scope-1'),
+        reset: scopeAdminPickerControllerProvider,
+        start: controller.search,
+        answer: () => answer.complete(
+          const Success<envelope.Page<PersonSummary>>(
+            envelope.Page<PersonSummary>(
+              items: <PersonSummary>[_ada],
+              pageNumber: 1,
+              pageSize: 50,
+              totalItems: 1,
+              totalPages: 1,
+            ),
+          ),
+        ),
+      );
+
+      // Then
+      expect(
+        container.read(scopeAdminPickerControllerProvider('scope-1')),
+        isA<ScopeAdminsLoading>(),
+      );
+    },
+  );
 }

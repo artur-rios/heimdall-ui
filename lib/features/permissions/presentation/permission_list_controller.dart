@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope_permission.dart';
 import '../domain/scope_permission_repository.dart';
 
@@ -77,7 +78,8 @@ permissionListControllerProvider =
     >(PermissionListController.new);
 
 /// Owns one scope's permission listing.
-class PermissionListController extends Notifier<PermissionListState> {
+class PermissionListController extends Notifier<PermissionListState>
+    with BuildEpoch<PermissionListState> {
   PermissionListController(this.arg);
 
   /// The family argument this controller was created for.
@@ -90,7 +92,15 @@ class PermissionListController extends Notifier<PermissionListState> {
   PermissionQuery? _queued;
 
   @override
-  PermissionListState build() => const PermissionListLoading(PermissionQuery());
+  PermissionListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const PermissionListLoading(PermissionQuery());
+  }
 
   Future<void> load() => _fetch(state.query);
 
@@ -115,6 +125,7 @@ class PermissionListController extends Notifier<PermissionListState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -134,12 +145,19 @@ class PermissionListController extends Notifier<PermissionListState> {
             ),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => PermissionListLoaded(query, page),
         onFailure: (failure) => PermissionListFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

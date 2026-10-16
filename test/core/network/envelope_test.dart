@@ -243,6 +243,44 @@ void main() {
     expect(failure.errors, <String>[message]);
   });
 
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — the one refusal the API now
+  // gives every re-authentication, beside the older messages an earlier API
+  // version may still send.
+  for (final message in <String>[
+    'The password or code is incorrect.',
+    'The current password is incorrect.',
+    'The code or recovery code is missing, incorrect, or already used.',
+    'The credential presented was not accepted.',
+  ]) {
+    test(
+      'GivenARefusedReauthentication_WhenMapped_ThenFailureKindIsValidation: '
+      '$message',
+      () {
+        // Given
+        final error = DioException(
+          requestOptions: RequestOptions(path: '/api/auth/2fa/confirm'),
+          response: Response<dynamic>(
+            requestOptions: RequestOptions(path: '/api/auth/2fa/confirm'),
+            statusCode: 401,
+            data: <String, dynamic>{
+              'success': false,
+              'errors': <String>[message],
+            },
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        // When
+        final failure = failureFromDioException(error);
+
+        // Then
+        expect(failure.kind, FailureKind.validation);
+        expect(failure.errors, <String>[message]);
+        expect(rejectsSubmittedCredential(error.response?.data), isTrue);
+      },
+    );
+  }
+
   // AF-02b — an expired challenge is still the end of it.
   test('GivenARefusedChallenge_WhenMapped_ThenFailureKindIsUnauthorized', () {
     // Given
@@ -341,6 +379,75 @@ void main() {
     expect(failure.kind, FailureKind.rateLimited);
     expect(failure.retryAfter, isNull);
   });
+
+  test('GivenARepeatedRetryAfter_WhenMapped_ThenTheFirstValueIsUsed', () {
+    // Given — a proxy that adds its own header next to the API's
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['37', '120'],
+        }),
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, const Duration(seconds: 37));
+  });
+
+  // FR-UX-09 — Retry-After is whole, non-negative seconds, and a wait beyond
+  // a day is held to a day: the client pauses no longer than that, and never
+  // with a duration that overflows. Anything else, zero included, pauses
+  // nothing.
+  for (final (raw, expected) in <(String?, Duration?)>[
+    (null, null),
+    ('', null),
+    ('soon', null),
+    ('3.5', null),
+    ('+37', null),
+    ('-5', null),
+    ('0', null),
+    ('000', null),
+    ('0037', const Duration(seconds: 37)),
+    ('999999999', const Duration(days: 1)),
+    ('1000000000', const Duration(days: 1)),
+    ('Wed, 21 Oct 2026 07:28:00 GMT', null),
+    ('37', const Duration(seconds: 37)),
+    (' 37 ', const Duration(seconds: 37)),
+    ('86400', const Duration(days: 1)),
+    ('86401', const Duration(days: 1)),
+    ('9223372036854775807', const Duration(days: 1)),
+    ('99999999999999999999999', const Duration(days: 1)),
+  ]) {
+    test('GivenARetryAfterHeader_WhenMapped_ThenTheWaitIsBounded: $raw', () {
+      // Given
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+          statusCode: 429,
+          headers: Headers.fromMap(<String, List<String>>{
+            if (raw != null) 'retry-after': <String>[raw],
+          }),
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      // When
+      final failure = failureFromDioException(error);
+
+      // Then
+      expect(failure.retryAfter, expected);
+      expect(failure.pause, expected);
+    });
+  }
 }
 
 String _capitalized(String name) =>

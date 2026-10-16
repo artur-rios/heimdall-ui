@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 import '../domain/person_repository.dart';
@@ -87,14 +88,19 @@ personDetailControllerProvider =
     );
 
 /// Owns one person's detail: reading it, and saving edits to it.
-class PersonDetailController extends Notifier<PersonDetailState> {
+class PersonDetailController extends Notifier<PersonDetailState>
+    with BuildEpoch<PersonDetailState> {
   PersonDetailController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  PersonDetailState build() => const PersonDetailLoading();
+  PersonDetailState build() {
+    startEpoch();
+
+    return const PersonDetailLoading();
+  }
 
   /// Reads the person.
   ///
@@ -103,9 +109,15 @@ class PersonDetailController extends Notifier<PersonDetailState> {
   Future<void> load() async {
     state = const PersonDetailLoading();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(personRepositoryProvider)
         .getById(arg, includeDeleted: true);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: PersonDetailLoaded.new,
@@ -118,9 +130,15 @@ class PersonDetailController extends Notifier<PersonDetailState> {
   /// replaces it. A read that fails changes nothing, since the page is still
   /// showing the last record the API confirmed.
   Future<void> refresh() async {
+    final epoch = this.epoch;
     final result = await ref
         .read(personRepositoryProvider)
         .getById(arg, includeDeleted: true);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     if (result case Success<Person>(:final value)) {
       final current = state;
@@ -158,9 +176,15 @@ class PersonDetailController extends Notifier<PersonDetailState> {
       saved: false,
     );
 
+    final epoch = this.epoch;
     final result = await ref
         .read(personRepositoryProvider)
         .update(id: arg, name: name, email: email);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       // The update endpoint does not report a second factor, and this edit
@@ -205,7 +229,13 @@ class PersonDetailController extends Notifier<PersonDetailState> {
 
     state = current.copyWith(deleting: true, clearDeleteFailure: true);
 
+    final epoch = this.epoch;
     final result = await send(ref.read(personRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():

@@ -62,9 +62,9 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
       _failure = null;
     });
 
-    final result = await ref
-        .read(sessionControllerProvider.notifier)
-        .signInWithGoogle();
+    final result = await _settled(
+      () => ref.read(sessionControllerProvider.notifier).signInWithGoogle(),
+    );
 
     if (!mounted) {
       return;
@@ -85,9 +85,11 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
       _failure = null;
     });
 
-    final result = await ref
-        .read(sessionControllerProvider.notifier)
-        .exchangeGoogleIdToken(idToken);
+    final result = await _settled(
+      () => ref
+          .read(sessionControllerProvider.notifier)
+          .exchangeGoogleIdToken(idToken),
+    );
 
     if (!mounted) {
       return;
@@ -97,6 +99,18 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
       _exchanging = false;
       _failure = result.failureOrNull;
     });
+  }
+
+  /// Runs [attempt], turning anything it throws into a failure, so the control
+  /// always stops waiting and offers itself again.
+  static Future<Result<void>> _settled(
+    Future<Result<void>> Function() attempt,
+  ) async {
+    try {
+      return await attempt();
+    } on Object {
+      return const FailureResult<void>(_unexpected);
+    }
   }
 
   @override
@@ -139,3 +153,10 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
     );
   }
 }
+
+/// What the control says when signing in with Google failed in a way that
+/// carries no message of its own.
+const Failure _unexpected = Failure(
+  kind: FailureKind.unknown,
+  errors: <String>['Signing in with Google failed. Try again.'],
+);

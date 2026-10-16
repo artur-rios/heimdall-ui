@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
 
@@ -178,4 +180,29 @@ void main() {
     expect(failure.kind, FailureKind.unknown);
     expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<OutstandingErasure>>>();
+      when(anyList).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        erasureRequestListControllerProvider,
+        reset: erasureRequestListControllerProvider,
+        start: controller.load,
+        answer: () =>
+            answer.complete(Success<Page<OutstandingErasure>>(_page())),
+      );
+
+      // Then
+      expect(currentState(), isA<ErasureRequestListLoading>());
+    },
+  );
 }

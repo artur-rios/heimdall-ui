@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart' show kIsWeb, kReleaseMode;
+
 /// Values supplied at build time with `--dart-define`.
 ///
 /// Nothing is read from a file at runtime and nothing is compiled in as a
@@ -54,4 +56,53 @@ class AppConfig {
 
     return (raw == null || raw.isEmpty) ? null : raw;
   }
+
+  /// Refuses to start a release build of an installed app whose API is not
+  /// reached over TLS.
+  ///
+  /// The default is the local API in the clear, which is what a desktop or
+  /// Android build gets when it is built without the define — so a forgotten
+  /// flag would otherwise ship an app that sends passwords and tokens over
+  /// plain HTTP. Only this machine's own API, at `localhost` or `127.0.0.1`,
+  /// may be reached without TLS. Debug and profile builds are a developer's
+  /// and are left alone, as is the web build, whose container build already
+  /// insists on an address and whose page decides its own transport.
+  ///
+  /// Throws [InsecureApiBaseUrlError] when the address is refused.
+  void requireSecureApi({bool release = kReleaseMode, bool web = kIsWeb}) {
+    if (!release || web) {
+      return;
+    }
+
+    final uri = Uri.tryParse(apiBaseUrl);
+    final scheme = uri?.scheme.toLowerCase();
+    final host = uri?.host.toLowerCase();
+
+    if (scheme == 'https' && host != null && host.isNotEmpty) {
+      return;
+    }
+
+    if (scheme == 'http' && _localHosts.contains(host)) {
+      return;
+    }
+
+    throw InsecureApiBaseUrlError(apiBaseUrl);
+  }
+
+  static const Set<String> _localHosts = <String>{'localhost', '127.0.0.1'};
+}
+
+/// A release build was given an API address it must not send credentials to.
+class InsecureApiBaseUrlError extends Error {
+  InsecureApiBaseUrlError(this.apiBaseUrl);
+
+  /// The address that was refused.
+  final String apiBaseUrl;
+
+  @override
+  String toString() =>
+      'InsecureApiBaseUrlError: HEIMDALL_API_BASE_URL is "$apiBaseUrl", but a '
+      'release build only talks to an https:// API (or to http://localhost '
+      'and http://127.0.0.1 on this machine). Rebuild with '
+      '--dart-define=HEIMDALL_API_BASE_URL=https://<your API>.';
 }

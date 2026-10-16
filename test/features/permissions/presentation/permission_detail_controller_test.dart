@@ -9,6 +9,8 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/permissions/presentation/permission_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopePermissionRepository extends Mock
     implements ScopePermissionRepository {}
 
@@ -453,4 +455,35 @@ void main() {
     verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
         .called(1);
   });
+
+  // A sign-out resets the page while its read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<ScopePermission>>();
+      when(
+        () => repository.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        permissionDetailControllerProvider(_ref),
+        reset: permissionDetailControllerProvider,
+        start: controller.load,
+        answer: () =>
+            answer.complete(const Success<ScopePermission>(_readInvoices)),
+      );
+
+      // Then
+      expect(currentState(), isA<PermissionDetailLoading>());
+    },
+  );
 }
