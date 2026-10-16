@@ -853,6 +853,48 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Authenticated>());
   });
 
+  testWidgets('GivenTheEmailMethodRefusal_WhenKeptEditing_ThenTheEditStays', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, emailEnabled: true));
+    answerUpdateWith(const FailureResult<Person>(_emailMethodOn));
+    await pump(tester, routed: true);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.enterText(codeField(), 'ABCD-EFGH-JKMN-PQRS');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Open security settings'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('security'), findsNothing);
+    expect(find.text(_emailMethodOn.errors.single), findsOneWidget);
+    expect(
+      find.widgetWithText(TextButton, 'Open security settings'),
+      findsOneWidget,
+    );
+    expect(
+      find.widgetWithText(TextFormField, 'new@example.com'),
+      findsOneWidget,
+    );
+    expect(
+      tester.widget<TextFormField>(passwordField()).controller?.text,
+      'secret',
+    );
+    expect(
+      tester.widget<TextFormField>(codeField()).controller?.text,
+      'ABCD-EFGH-JKMN-PQRS',
+    );
+  });
+
   testWidgets('GivenAnotherConflict_WhenTheEmailIsSaved_ThenNoHintIsShown', (
     tester,
   ) async {

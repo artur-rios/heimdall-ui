@@ -620,6 +620,66 @@ void main() {
     );
   });
 
+  // AF-17g — creating a co-owner with a password is rate limited. The 429 is
+  // shown in the dialog with how long to wait, and the draft is kept.
+  testWidgets('GivenARateLimitedDraft_WhenCreated_ThenTheDialogKeepsIt', (
+    tester,
+  ) async {
+    // Given
+    when(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(seconds: 30),
+        ),
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create owner'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Grace');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'grace@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'secret-pass',
+    );
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final dialog = find.byType(AlertDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text('Too many requests.')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.text('Try again in 30 seconds.'),
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Create a co-owner'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Grace'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'grace@example.com'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenAnAcceptedDraft_WhenCreated_ThenTheDialogCloses', (
     tester,
   ) async {
