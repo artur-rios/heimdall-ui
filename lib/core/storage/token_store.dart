@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// A bearer token together with the moment it stops being valid.
@@ -97,13 +98,42 @@ class InMemoryTokenStore implements TokenStore {
 }
 
 /// The production store: Keystore on Android, DPAPI on Windows, libsecret on
-/// Linux, and WebCrypto-encrypted local storage on the web.
+/// Linux, and WebCrypto-encrypted session storage on the web.
 class SecureTokenStore implements TokenStore {
   const SecureTokenStore(this._storage);
 
+  /// The store the application runs with.
+  ///
+  /// NFR-04: on the web the token is kept in the tab's session storage, not in
+  /// local storage, so no other tab of the same browser reads it and a new tab
+  /// does not inherit it. (A browser that restores a closed tab may restore its
+  /// session storage too; signing out is what clears it.) The browser's
+  /// storage is readable by any script on the page, key and ciphertext alike,
+  /// so the encryption is no defence on its own; what this buys is a narrower
+  /// reach. Every other platform keeps the token in its own secure store.
+  const SecureTokenStore.platform()
+    : _storage = const FlutterSecureStorage(
+        webOptions: WebOptions(useSessionStorage: true),
+      );
+
   static const String _key = 'heimdall.session.token';
 
+  /// What builds before per-tab sessions left in the web origin's local
+  /// storage, named as the plugin names them: the encrypted token under
+  /// `<publicKey>.<key>`, and the raw key that decrypts it under `<publicKey>`
+  /// itself. Start-up removes both (see `takeEntryLink`); left there, the old
+  /// token would outlive the change until it expired.
+  static List<String> get legacyWebEntries {
+    final publicKey = WebOptions.defaultOptions.publicKey;
+
+    return <String>['$publicKey.$_key', publicKey];
+  }
+
   final FlutterSecureStorage _storage;
+
+  /// The platform storage behind this store, for tests to inspect.
+  @visibleForTesting
+  FlutterSecureStorage get storage => _storage;
 
   @override
   Future<AuthToken?> read() async {

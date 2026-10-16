@@ -11,6 +11,8 @@ import 'package:heimdall_ui/features/auth/presentation/email_verification_contro
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A token naming a User, for the flows that need a session to correct.
@@ -306,4 +308,29 @@ void main() {
     expect(currentState().verification, isA<VerifyRejected>());
     expect(currentState().resend, isA<ResendSent>());
   });
+
+  // A sign-out resets the verification while it is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenAVerificationInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<List<String>>>();
+      when(() => repository.verifyEmail(token: any(named: 'token')))
+          .thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        emailVerificationControllerProvider,
+        reset: emailVerificationControllerProvider,
+        start: () => controller.verify('verification-token'),
+        answer: () => answer.complete(const Success<List<String>>(<String>[])),
+      );
+
+      // Then
+      expect(currentState().verification, isA<VerifyIdle>());
+    },
+  );
 }

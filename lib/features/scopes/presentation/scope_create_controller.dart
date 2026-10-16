@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope.dart';
 import 'scope_list_controller.dart';
 
@@ -42,9 +43,14 @@ scopeCreateControllerProvider =
     );
 
 /// Owns one create attempt from filled in to created.
-class ScopeCreateController extends Notifier<ScopeCreateState> {
+class ScopeCreateController extends Notifier<ScopeCreateState>
+    with BuildEpoch<ScopeCreateState> {
   @override
-  ScopeCreateState build() => const ScopeCreateEditing();
+  ScopeCreateState build() {
+    startEpoch();
+
+    return const ScopeCreateEditing();
+  }
 
   /// Creates the scope.
   ///
@@ -61,9 +67,15 @@ class ScopeCreateController extends Notifier<ScopeCreateState> {
 
     state = const ScopeCreateSending();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(scopeRepositoryProvider)
         .create(name: name, description: description, ownerIds: ownerIds);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: ScopeCreated.new,

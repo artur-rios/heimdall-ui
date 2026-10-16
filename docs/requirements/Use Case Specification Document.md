@@ -269,6 +269,10 @@ delivered the same way.
   discards the challenge and returns to UI-01.
 - **AF-02h — Transport or server failure.** The client shows an error banner. The send is not
   counted and the countdown does not start.
+- **AF-02i — Send rate limited.** The API answers `429` with `Retry-After`. The client shows the
+  message; the send is not counted, and **Send a new code** counts the `Retry-After` wait down in
+  its label instead of the usual 30 seconds: in seconds under a minute ("Send a new code (45s)"),
+  then in the minutes or hours the banner names ("Send a new code (24 hours)"), held to a day.
 
 ---
 
@@ -307,7 +311,9 @@ delivered the same way.
 
 **Main flow**
 
-1. The client opens the reset screen with the token from the link.
+1. The client opens the reset screen with the token from the link. On the web it takes the token out
+   of the address bar as the application starts, so the history entry no longer holds it and no request
+   the application makes afterwards carries it in its Referer.
 2. The user enters a new password and confirms it.
 3. The client calls `POST /api/auth/password-reset` with the token and the new password.
 4. The API confirms. The client shows a success message and offers to sign in.
@@ -315,7 +321,8 @@ delivered the same way.
 **Alternative flows**
 
 - **AF-04a — Missing token.** The screen opens without a token. The client explains that the link is
-  incomplete and offers UI-03.
+  incomplete and offers UI-03. On the web this includes a reload of the page after the link was
+  opened: the token was kept only in memory, so the link is opened again.
 - **AF-04b — Invalid or expired token.** The API rejects it. The client shows the returned errors
   and offers UI-03.
 - **AF-04c — Passwords do not match.** Client-side validation blocks submission and marks the
@@ -333,7 +340,8 @@ delivered the same way.
 
 **Main flow**
 
-1. The client opens the verification screen with the token from the link.
+1. The client opens the verification screen with the token from the link, taken out of the address
+   bar on the web as in UI-04.
 2. The client calls `POST /api/auth/verify-email` immediately, showing progress.
 3. The API confirms. The client shows a success message and routes onward — to the home screen when
    a session exists, and to login otherwise.
@@ -349,6 +357,11 @@ delivered the same way.
   this as success and says so plainly.
 - **AF-05e — Unverified session banner.** An authenticated user whose address is unverified sees a
   dismissible banner on the home screen offering the resend action.
+- **AF-05f — Resend held back.** The API answers `429`: "An email of this kind was sent to you
+  recently. Try again in a few minutes." inside the account-email cooldown, a daily-limit message
+  once the day's account emails are spent, or "Too many requests." from the rate limit. The client
+  shows the message, keeps the session, and disables the resend action for the `Retry-After`
+  seconds the answer carries.
 
 ---
 
@@ -371,7 +384,9 @@ delivered the same way.
 
 1. A Google-authenticated user signs out.
 2. The client calls `POST /api/auth/google/sign-out`, clears the local Google session, discards the
-   token, and returns to the login screen.
+   token, and returns to the login screen. The API call and Google's sign-out are best-effort: when
+   either fails, throws, or does not answer within a few seconds, the token is still discarded and
+   the session still ends.
 
 **Alternative flows**
 
@@ -381,9 +396,17 @@ delivered the same way.
   the returned errors and leaves the credentials form available.
 - **AF-06c — User cancels Google's flow.** No request is made and the login screen is unchanged.
 - **AF-06d — Exchange rejected.** The API rejects the ID token. The client shows the returned errors
-  and clears the pending Google session.
+  and clears the pending Google session; if clearing it fails, the errors are shown all the same.
 - **AF-06e — Platform without support.** On a target where the Google flow is unavailable the
   control is hidden, and the credentials form remains the only route in.
+- **AF-06f — Unverified Google address.** On a first sign-up the API creates no Google User from
+  an address Google has not verified, and answers `403` "Google sign-up requires a verified email
+  address.". The client shows it as a sign-in error, as in AF-06d; no session existed, so nothing
+  is said to have expired.
+- **AF-06g — No nonce yet.** `POST /api/auth/google` accepts an optional `nonce`, which the client
+  does not send yet: the Google Sign-In library takes a nonce only once, when it is initialised for
+  the life of the application, so each sign-in cannot be given a fresh one. Sending a nonce is a
+  planned improvement.
 
 ---
 
@@ -420,6 +443,8 @@ delivered the same way.
 - **AF-07h — Restricted session.** A subject-rights-only session (UI-30), whatever its role, is
   redirected to the restricted session screen from every route but that screen and the privacy
   notice. A full session asking for the restricted session screen is redirected to the home screen.
+- **AF-07i — Malformed id.** A route whose id is not a `PublicId` GUID is redirected to a "not
+  found" screen, whatever the session, before any screen is built with it or any request is made.
 
 ---
 
@@ -474,10 +499,21 @@ User's own record
   read finishes; when it cannot be read, the first wording is used. The client sends
   `currentPassword` and, when the factor is on, `twoFactorCode` with the update. A name-only edit
   asks for neither and sends neither. Cancelling the edit clears both fields.
-- **AF-08h — Confirmation refused.** The API answers `401` with "The current password is
-  incorrect." or "The code or recovery code is missing, incorrect, or already used.". The client
-  shows the message above the form, keeps the input, and leaves the session alone: the token is
-  still good, and the person is meant to correct what they typed.
+- **AF-08h — Confirmation refused.** The API answers `401` with "The password or code is
+  incorrect." (an older API: "The current password is incorrect." or "The code or recovery code is
+  missing, incorrect, or already used."). The same answer covers a re-authentication the API has
+  paused after repeated failures. The client shows the message above the form, keeps the input,
+  and leaves the session alone: the token is still good, and the person is meant to correct what
+  they typed.
+- **AF-08i — Email method on.** While the person's email sign-in method is on, enabled or pending,
+  the API refuses a change of address with `409` "Turn off the email sign-in method before changing
+  your email address.". The client shows it above the form, keeps the input, and adds "Turn the
+  email method off in your security settings, change your address, then set the method up again at
+  the new one." with **Open security settings**, which opens UI-09 once the unsaved edit is let go.
+- **AF-08j — Email held back.** The change's notice to the previous address counts against the
+  account-email budget. The API answers `429` with a cooldown or daily-limit message and
+  `Retry-After`; the client shows the message with how long to wait, keeps the input, and leaves
+  the session alone.
 
 ---
 
@@ -512,7 +548,10 @@ User's own record
 
 **Main flow — regenerating recovery codes**
 
-1. The user asks for new recovery codes and confirms that the current ones stop working.
+1. The user asks for new recovery codes and confirms that the current ones stop working. While the
+   feature is on, the section says that codes in the shorter `XXXX-XXXX` form still work but that
+   new ones, `XXXX-XXXX-XXXX-XXXX`, are stronger; the API reports no flag for an older set, so the
+   person recognises their own.
 2. The client calls `POST /api/auth/2fa/recovery-codes/regenerate` and shows the new codes once,
    under the same acknowledgement rule.
 3. Regenerating ended every session the person holds, so once they acknowledge the codes the client
@@ -520,8 +559,9 @@ User's own record
 
 **Alternative flows**
 
-- **AF-09a — Wrong confirmation code.** The API rejects it. The client shows the returned errors and
-  keeps the setup alive so the user can try again without restarting.
+- **AF-09a — Wrong confirmation code.** The API rejects it, with `401` "The password or code is
+  incorrect." (an older API answers `400`). The client shows the returned errors, keeps the setup
+  alive so the user can try again without restarting, and leaves the session alone.
 - **AF-09b — Setup abandoned.** The user leaves before confirming. Two-factor authentication stays
   off, and the pending secret is discarded from client memory.
 - **AF-09c — Recovery codes not acknowledged.** Leaving is stopped by a confirmation, since the
@@ -530,18 +570,24 @@ User's own record
   about. While the codes wait, closing or reloading the tab asks the browser to confirm too. Leaving
   anyway signs the user out, as acknowledging does (AF-09g). A session that ends meanwhile is not
   held behind the confirmation.
-- **AF-09d — Disable rejected.** The API rejects the credential. The client shows the returned
-  errors and leaves the feature on.
+- **AF-09d — Disable or regeneration rejected.** The API rejects the credential with `401` "The
+  password or code is incorrect." (an older API: "The current password is incorrect." or "The code
+  or recovery code is missing, incorrect, or already used."). The client shows the returned errors,
+  leaves the feature on, and leaves the session alone.
 - **AF-09e — QR code cannot be rendered.** The client always shows the secret as selectable text
   next to the QR code, so a rendering failure never blocks setup.
-- **AF-09f — Password refused when enabling.** The API answers `401` with "The current password is
-  incorrect.". The password dialog stays open with the message in it, so the user types the password
+- **AF-09f — Password refused when enabling.** The API answers `401` with "The password or code is
+  incorrect." (an older API: "The current password is incorrect."). The password dialog stays open with the message in it, so the user types the password
   again there; the feature stays off and the session is left alone.
 - **AF-09g — Signed out after a change.** After a confirmation (once the codes are acknowledged or
   left), a disable, or a regeneration (once the codes are acknowledged or left), the client asks
   nothing more under the session's token, signs the user out, and the sign-in screen says "Your
   sign-in details changed. Sign in again." The recovery codes screen says so before they get
   there.
+- **AF-09h — Email method held back.** Starting the email method sends an email, which the API's
+  account-email budget limits. It answers `429` with a cooldown or daily-limit message and
+  `Retry-After`. The password dialog stays open with the message and how long to wait, and its
+  **Continue** is disabled for that long; the feature stays off and the session is left alone.
 
 ---
 
@@ -781,6 +827,12 @@ User's own record
 - **AF-17d — Role not permitted.** A Scope Admin may not create a System Admin; that option is not
   offered, and a rejection from the API is shown as returned.
 - **AF-17e — Cancelled with changes.** Leaving a modified form asks for confirmation first.
+- **AF-17f — System Admin chosen.** Submitting with the System Admin role asks for confirmation first, saying the
+  person will be able to administer every scope. Nothing is sent until it is accepted. The password field is marked
+  as a new password, so a password manager does not offer the creator's own.
+- **AF-17g — Too many requests.** Creating people with a password is rate limited. The API answers
+  `429` "Too many requests." with `Retry-After`; the client shows it as an error with how long to
+  wait, and keeps the form as typed. Creating a co-owner (UI-14) behaves the same way.
 
 ---
 
@@ -1132,7 +1184,8 @@ restricted person would land on the home screen and watch every request fail.
 2. The client calls `POST /api/auth/data-export`.
 3. The client saves the document as an indented JSON file named
    `heimdall-data-export-<date>-<time>.json` — offered to the browser as a download on the web, and
-   written to the downloads folder on every other target — and says where it went.
+   written to the downloads folder on every other target — and says where it went. It also says that the file
+   holds personal data and is not encrypted, so it should be kept somewhere private and deleted when no longer needed.
 
 **Request erasure**
 
@@ -1157,8 +1210,9 @@ restricted person would land on the home screen and watch every request fail.
   they were, and the person may try again.
 - **AF-30d — File cannot be saved.** The export arrived but the device would not keep the file. The
   client says so; nothing else changes.
-- **AF-30e — Erasure credential rejected.** The API answers `401` with its credential-not-accepted
-  message (the API's AF-42a). The client shows it and keeps the session: a mistyped password is not
+- **AF-30e — Erasure credential rejected.** The API answers `401` with "The password or code is
+  incorrect." for a person's password, or its credential-not-accepted message for a Google User's
+  token (the API's AF-42a). The client shows it and keeps the session: a mistyped password is not
   a rejected token.
 - **AF-30f — Erasure recorded but blocked.** The API answers successfully with `blocked` set (the
   API's AF-42d), usually because the person is the last owner of a scope. The client says the

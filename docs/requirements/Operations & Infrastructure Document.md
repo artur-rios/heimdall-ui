@@ -27,7 +27,7 @@ runtime, and no value is baked into source.
 
 | Key | Required | Default | Purpose |
 | --- | --- | --- | --- |
-| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:8080` | The API root. A trailing slash is trimmed. The default is the local heimdall-api (§2.2). |
+| `HEIMDALL_API_BASE_URL` | Yes, in any real deployment | `http://localhost:8080` | The API root. A trailing slash is trimmed. The default is the local heimdall-api (§2.2). A release build of the Windows, Linux or Android app refuses to start unless it is `https://`, or `http://` to `localhost` or `127.0.0.1`; it shows the reason on screen and in the log, naming the define to set. |
 | `HEIMDALL_GOOGLE_CLIENT_ID` | Only for Google Sign-In | unset | The Google client id for the target. When unset, the Google control is hidden rather than shown broken. |
 | `HEIMDALL_SCOPE_ID` | Only when no calling application supplies one | unset | The `PublicId` of the scope this build acts in. See §2.1 — on the web the calling application's value wins. |
 
@@ -37,8 +37,24 @@ Heimdall UI is opened by the applications that use Heimdall's services, and **th
 is theirs to name**. There is no screen here that asks for it, and no endpoint an anonymous caller
 could list scopes from, so it arrives from outside.
 
-On the **web**, the calling application writes the scope's `PublicId` into session storage before
-sending the user here:
+On the **web**, the calling application names the scope's `PublicId` as the `scope` query parameter
+of the URL it sends the user to, on any route:
+
+```text
+https://heimdall.example.com/login?scope=<scope-public-id>
+```
+
+At start-up, before the router reads the address, the UI checks that the value is a GUID, copies it
+into its own session storage under `heimdall.scopeId`, and replaces the address with one without it
+(`history.replaceState`), so the history entry does not keep it either. A value that is not a GUID is
+ignored, and removed all the same. Session storage is per origin, so a caller on another origin
+could never have written the UI's; the URL is what lets the caller live elsewhere.
+
+**The calling application must not be hosted on the UI's origin.** Script on that origin can read
+everything the UI keeps in the browser, the session token included, so a flaw in a co-hosted caller
+would hand over Heimdall sessions. A caller that does share the origin may still write the value
+itself, as earlier versions required, and that keeps working; a stored value that is not a GUID is
+ignored there too:
 
 ```js
 sessionStorage.setItem('heimdall.scopeId', '<scope-public-id>');
@@ -51,8 +67,8 @@ Session storage rather than a cookie, deliberately:
   and cannot be replayed by a third party's form.
 - It dies with the tab, so a scope does not outlive the visit on a shared machine.
 
-The value is read on every use rather than captured at start-up, so a caller may change it between
-one attempt and the next.
+The value is read on every use rather than captured at start-up, so opening the UI again with another
+`scope` changes it.
 
 On **Windows, Linux, and Android** there is no calling web application, so `HEIMDALL_SCOPE_ID` is the
 whole answer. On the web it is the fallback used when the caller left nothing — a build opened
@@ -205,14 +221,80 @@ Serve the bundle under a sub-path by building with a base href:
 flutter build web --release --base-href=/heimdall/
 ```
 
+### 5.1 Security headers
+
+The container image's [`docker/nginx.conf`](../../docker/nginx.conf) sends these headers; another
+host should send the same (NFR-10).
+
+| Header | Value | Why |
+| --- | --- | --- |
+| `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. In deployed environments the reverse proxy sets this header; see below |
+| `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
+| `X-Content-Type-Options` | `nosniff` | |
+
+**Referrer-Policy behind a proxy.** In deployed environments Referrer-Policy is set by the reverse
+proxy. nginx's per-route `no-referrer` reaches the browser when the image is served directly. Behind
+yggdrasil's Traefik, the `secure-headers` middleware attached to the UI's routers sets
+`Referrer-Policy: strict-origin-when-cross-origin` on every response in place of nginx's value. The
+application removes a link token from the address as it starts, so the requests it makes afterwards
+do not carry it.
+
+> [!NOTE]
+> For no Referer on those two routes behind a proxy, the edge middleware must not set
+> `referrerPolicy` for the UI's routers (nginx's per-route value then reaches the browser), or must
+> set a route-specific one: `no-referrer` for `/password-reset` and `/verify-email`. Confirm with
+> `curl -sI https://<host>/password-reset` after deploying.
+
+The Content-Security-Policy:
+
+| Directive | Sources | For |
+| --- | --- | --- |
+| `default-src` | `'self'` | Everything not listed below |
+| `script-src` | `'self' 'wasm-unsafe-eval' https://accounts.google.com/gsi/client` | The bundle; compiling CanvasKit's or skwasm's WebAssembly; Google Sign-In's library |
+| `style-src` | `'self' 'unsafe-inline' https://accounts.google.com/gsi/style` | The engine and Google Sign-In inject `<style>` elements and style attributes; Google Sign-In's stylesheet |
+| `connect-src` | `'self'`, the API's origin, `https://accounts.google.com/gsi/`, `https://*.googleusercontent.com`, `https://fonts.gstatic.com` | API calls; Google Sign-In's endpoints; Google profile pictures, which the engine fetches; the Noto fallback fonts the engine fetches for text the bundled Roboto has no glyphs for (emoji, CJK, Arabic and other scripts). The engine registers those bytes itself, so `font-src` needs no entry for them |
+| `img-src` | `'self' data: https://*.googleusercontent.com` | Inline images; Google profile pictures shown as images |
+| `font-src`, `manifest-src` | `'self'` | The bundled fonts (`--no-web-resources-cdn` bundles CanvasKit and Roboto) and the manifest |
+| `frame-src` | `https://accounts.google.com/gsi/` | The Google Sign-In button and its prompts |
+| `object-src`, `base-uri`, `form-action`, `frame-ancestors` | `'none'`, `'self'`, `'self'`, `'none'` | Nothing else may embed, re-base, post from or frame the page |
+
+The API's origin is taken from `HEIMDALL_API_BASE_URL` when the image is built: the Dockerfile
+replaces the `@HEIMDALL_API_ORIGIN@` placeholder in `nginx.conf`, and refuses to build when the URL is
+not an absolute `http(s)` URL with a plain host name. On the VPS it is the page's own origin, and the
+entry repeats `'self'`.
+
+The policy was verified against release builds, CanvasKit and `--wasm` alike, served by the image's
+nginx with headless Chromium: the sign-in screen, Google Sign-In's button, a sign-in request to an API
+on another origin, an API answer in emoji, CJK and Arabic (its fallback fonts load from
+`fonts.gstatic.com` and render), the reset and verification links, and the not-found screen, with no
+violation. Without `https://fonts.gstatic.com` in `connect-src` such text renders as empty boxes.
+`'unsafe-inline'` in `style-src` is required; without it the engine's own styles are refused. No
+worker source is listed: neither renderer starts a worker on a page that is not cross-origin isolated,
+which this one is not, so skwasm runs single-threaded. Google profile pictures were not exercised. Before
+widening the policy, check the browser console for `Refused to …` messages, and add the narrowest
+source that silences them.
+
+`flutter run` serves without these headers, so a development session runs without the policy.
+
 ---
 
 ## 6. Desktop and Android distribution
 
 - **Windows and Linux** builds are unsigned by default. Signing and packaging (MSIX, AppImage, deb)
   are deployment decisions and are not part of this repository.
-- **Android** release builds require a signing configuration. Until one is provided, `flutter build
-  apk --release` signs with the debug key, which is suitable for testing and not for distribution.
+- **Android** release builds are signed with a keystore held outside the repository, read from the
+  environment variables `HEIMDALL_UI_KEYSTORE_PATH`, `HEIMDALL_UI_KEYSTORE_PASSWORD`,
+  `HEIMDALL_UI_KEY_ALIAS` and (optionally, defaulting to the keystore password)
+  `HEIMDALL_UI_KEY_PASSWORD`, or from a git-ignored `android/key.properties` with the keys `storeFile`,
+  `storePassword`, `keyAlias` and `keyPassword`. When none is set, `flutter build apk --release` signs
+  with the debug key and prints a warning in its output (at Gradle's error level, so Flutter's quiet
+  Gradle run shows it); that APK is suitable for testing and not for distribution. A partial
+  configuration, or a keystore that does not exist, fails the release build. `build.yml` maps the
+  repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the runner's temp directory),
+  `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD` to those
+  variables. Without the secrets it emits a warning annotation and produces a debug-signed artifact named
+  `heimdall-ui-android-debug-signed`.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 
 ---
@@ -229,6 +311,11 @@ dart run tool/refresh_openapi.dart ../heimdall-api/docs/openapi/heimdall.json
 ```bash
 dart run tool/generate_api_client.dart
 ```
+
+The generator also rewrites every path parameter of the generated clients to go through a small
+`_pathSegment` helper, which percent-encodes it as one segment and refuses `.`, `..` and the empty
+string: retrofit would otherwise interpolate an id as it is, and an id holding `/` or `?` would reach
+a different endpoint.
 
 Commit the refreshed specification together with the regenerated client. CI regenerates and fails if
 the committed output differs, so the two cannot drift apart.
@@ -271,6 +358,21 @@ request into `main` to production once every check passes (§2.2) — see
 
 - **The token is the only stored state**, held in the platform's secure storage. Signing out deletes
   it. A challenge token is never stored.
+- **On the web the token lives in the tab's session storage.** It is kept per tab and not shared:
+  other tabs sign in on their own, and signing out clears it. A reload keeps the session, and so may
+  a tab the browser brings back: a duplicated tab starts with a copy of the original's session
+  storage, and reopening a closed tab or restoring the browser's last session can restore it too.
+  On a shared machine, signing out is what ends the session; closing the tab may not. The token is
+  encrypted there, but its key is kept in the same storage, so it is not protected from scripts
+  running on the UI's own origin: what limits it on the web is the token's own lifetime.
+- **An older build's token is removed.** Builds before per-tab sessions kept the token in local
+  storage, beside the raw key it was encrypted with. Start-up on the web removes both, so it does not
+  linger there until it expires.
+- **Reset and verification links lose their token at start-up.** On the web the UI keeps the
+  `token` of a `/password-reset` or `/verify-email` link in memory and removes it from the address,
+  so neither the history entry nor the Referer of a later request carries it. Reloading the page
+  afterwards drops it, and the link has to be opened again. Once used (a password set, or any answer
+  to the verification) it is forgotten, so going back to the screen does not send it again.
 - **Theme mode** is the only other persisted preference, in `shared_preferences`.
 - **A `401` to any request made under the session** clears it and returns the user to sign-in; a
   session cannot outlive the API's opinion of its token. The exception is a `401` refusing a password
@@ -281,6 +383,9 @@ request into `main` to production once every check passes (§2.2) — see
   session could not be stored. On Android the app opts out of auto backup, so a restored device never
   holds a token it cannot decrypt.
 - **Nothing is cached across launches.** Every listing is fetched from the API, paginated by it.
+- **A session that ends takes what it showed with it.** Every screen's state is reset when the
+  session ends, and an answer to a request made before that is dropped when it arrives, so the next
+  person to sign in on the device starts from nothing.
 
 ---
 

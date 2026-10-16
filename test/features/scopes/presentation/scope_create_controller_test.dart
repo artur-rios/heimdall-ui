@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_create_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 const _created = Scope(
@@ -225,4 +227,41 @@ void main() {
       ),
     ).called(1);
   });
+
+  // A sign-out resets the form while its submission is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenACreateInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Scope>>();
+      when(
+        () => repository.create(
+          name: any(named: 'name'),
+          description: any(named: 'description'),
+          ownerIds: any(named: 'ownerIds'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeCreateControllerProvider,
+        reset: scopeCreateControllerProvider,
+        start: () => controller.create(
+          name: 'Acme',
+          description: 'First tenant',
+          ownerIds: const <String>[],
+        ),
+        answer: () => answer.complete(const Success<Scope>(_created)),
+      );
+
+      // Then
+      expect(
+        container.read(scopeCreateControllerProvider),
+        isA<ScopeCreateEditing>(),
+      );
+    },
+  );
 }

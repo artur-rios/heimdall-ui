@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
 import '../../../core/scope/scope_source.dart';
 import '../../../core/storage/token_store.dart';
@@ -235,10 +236,15 @@ class SessionController extends Notifier<SessionState> {
   ///
   /// The scope comes from the calling application, which is the only party that
   /// knows which one is being entered.
+  ///
+  /// An answer the client cannot read is a failure like any other, returned
+  /// rather than thrown, so the control that asked can say so and stop.
   Future<Result<void>> exchangeGoogleIdToken(String idToken) async {
-    final result = await _repository.signInWithGoogle(
-      idToken: idToken,
-      scopeId: ref.read(scopeSourceProvider).read(),
+    final result = await guardUnexpected(
+      () => _repository.signInWithGoogle(
+        idToken: idToken,
+        scopeId: ref.read(scopeSourceProvider).read(),
+      ),
     );
 
     switch (result) {
@@ -248,7 +254,9 @@ class SessionController extends Notifier<SessionState> {
         // AF-06b and AF-06d: Heimdall refused, but Google still considers the
         // user signed in. Dropping that leaves the next attempt to start from
         // the account chooser rather than silently reusing the refused one.
-        await _google.signOut();
+        // Best-effort: the refusal is what the caller is waiting to hear, and
+        // a Google sign-out that throws must not replace it.
+        await _bestEffort(_google.signOut);
         state = const Unauthenticated();
 
         return FailureResult<void>(failure);
@@ -260,14 +268,26 @@ class SessionController extends Notifier<SessionState> {
   /// AF-05e: the API reported the address as unverified when it issued this
   /// token, and verifying it in this session does not issue a new one. Without
   /// this the prompt would go on nagging about something already done.
+  ///
+  /// The session can end, or be replaced, while the store is written. The write
+  /// then must neither revive the session nor leave its token stored, so the
+  /// store is put back to whatever session is current by then.
   Future<void> markEmailVerified() async {
     if (state case Authenticated(:final token) when !token.emailVerified) {
       final verified = token.asVerified();
       await _store.write(verified);
-      state = Authenticated(
-        token: verified,
-        principal: principalFromToken(verified),
-      );
+
+      switch (state) {
+        case Authenticated(token: final current) when identical(current, token):
+          state = Authenticated(
+            token: verified,
+            principal: principalFromToken(verified),
+          );
+        case Authenticated(token: final current):
+          await _bestEffort(() => _store.write(current));
+        case _:
+          await _clearStore();
+      }
     }
   }
 
@@ -363,8 +383,9 @@ class SessionController extends Notifier<SessionState> {
   /// token with a 401.
   ///
   /// A Google session is ended at the API and at Google as well as here. Both
-  /// are best-effort: a refusal from either must not leave the user signed in
-  /// locally, which is the part this side actually controls.
+  /// are best-effort: a refusal from either, or a throw, must not leave the
+  /// user signed in locally, which is the part this side actually controls.
+  /// The stored token and the session here go whatever those calls do.
   ///
   /// AF-07e: [expired] marks a session that ended under the caller rather than
   /// one they chose to leave, so the sign-in screen can say which happened.
@@ -410,12 +431,13 @@ class SessionController extends Notifier<SessionState> {
             !credentialsChanged &&
             !token.isExpired &&
             !principal.subjectRightsOnly) {
-          await _repository.signOutFromGoogle();
+          await _bestEffort(_repository.signOutFromGoogle);
         }
 
-        await _google.signOut();
+        await _bestEffort(_google.signOut);
       }
-
+    } finally {
+      // Neither of these throws: the store is cleared best-effort too.
       await _clearStore();
       state = Unauthenticated(
         sessionExpired: expired,
@@ -423,19 +445,33 @@ class SessionController extends Notifier<SessionState> {
         processingRestricted: processingRestricted,
         credentialsChanged: credentialsChanged,
       );
-    } finally {
       _signingOut = false;
     }
   }
 
   bool _signingOut = false;
 
+  /// How long ending a session waits on the API, on Google, or on the
+  /// platform's store before going on without it.
+  static const Duration _externalCallTimeout = Duration(seconds: 5);
+
+  /// Makes a call to the API or to Google whose failure, of whatever kind,
+  /// must not stop what follows it — nor its silence: one that has not
+  /// answered within [_externalCallTimeout] is given up on.
+  static Future<void> _bestEffort(Future<Object?> Function() call) async {
+    try {
+      await call().timeout(_externalCallTimeout);
+    } on Object {
+      // Best-effort by design; the caller goes on regardless.
+    }
+  }
+
   /// Drops the stored token. Best-effort: a store the platform will not touch
   /// must not keep the person signed in here, which is the part this side
   /// controls — the token it holds is one the next start-up cannot read anyway.
   Future<void> _clearStore() async {
     try {
-      await _store.clear();
+      await _store.clear().timeout(_externalCallTimeout);
     } on Object {
       // Nothing more to do; the session below ends regardless.
     }
@@ -443,10 +479,10 @@ class SessionController extends Notifier<SessionState> {
 
   /// Stores [token] and makes it the session.
   ///
-  /// Every request reads its bearer token back from the store, so a token the
-  /// platform refused to keep is no session at all: it is reported rather than
-  /// left to fail every request after this one — or, thrown, to leave the
-  /// screen that asked spinning for good.
+  /// A token the platform refused to keep is no session at all — it would be
+  /// gone at the next start-up, and the store could not be relied on to clear
+  /// it at sign-out either — so it is reported rather than used, and never
+  /// thrown, which would leave the screen that asked spinning for good.
   Future<Result<void>> _establish(AuthToken token) async {
     try {
       await _store.write(token);

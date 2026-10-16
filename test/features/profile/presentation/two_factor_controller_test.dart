@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,6 +14,8 @@ import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/late_answer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -660,4 +664,74 @@ void main() {
       ),
     ).called(1);
   });
+
+  // A sign-out resets the screen while its read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<TwoFactorStatus>>();
+      when(() => repository.twoFactorStatus()).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        twoFactorControllerProvider,
+        reset: twoFactorControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<TwoFactorStatus>(_on)),
+      );
+
+      // Then
+      expect(currentState(), isA<TwoFactorLoading>());
+    },
+  );
+
+  // Recovery codes issued to a session that has since ended are never shown
+  // in the state the next session starts from.
+  test(
+    'GivenAConfirmInFlight_WhenTheSessionResets_ThenNoCodesAreKept',
+    () async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_off));
+      answerEnableWith(
+        const Success<TwoFactorSetup>(
+          TwoFactorSetup(
+            method: TwoFactorMethod.app,
+            otpAuthUri: 'otpauth://totp/x?secret=A',
+          ),
+        ),
+      );
+      final answer = Completer<Result<List<String>>>();
+      when(
+        () => repository.confirmTwoFactor(
+          method: any(named: 'method'),
+          code: any(named: 'code'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      await controller.beginSetup(
+        TwoFactorMethod.app,
+        currentPassword: 'secret',
+      );
+
+      // When
+      await answerAfterReset(
+        container,
+        twoFactorControllerProvider,
+        reset: twoFactorControllerProvider,
+        start: () => controller.confirm('123456'),
+        answer: () => answer.complete(
+          const Success<List<String>>(<String>['code-1', 'code-2']),
+        ),
+      );
+
+      // Then
+      expect(currentState(), isA<TwoFactorLoading>());
+      expect(guard.calls, isNot(contains('register')));
+    },
+  );
 }

@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
 import 'scope_list_controller.dart';
@@ -94,14 +95,19 @@ scopeDetailControllerProvider =
     );
 
 /// Owns one scope's detail: reading it, and saving edits to it.
-class ScopeDetailController extends Notifier<ScopeDetailState> {
+class ScopeDetailController extends Notifier<ScopeDetailState>
+    with BuildEpoch<ScopeDetailState> {
   ScopeDetailController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  ScopeDetailState build() => const ScopeDetailLoading();
+  ScopeDetailState build() {
+    startEpoch();
+
+    return const ScopeDetailLoading();
+  }
 
   /// Reads the scope.
   ///
@@ -110,7 +116,13 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
   Future<void> load() async {
     state = const ScopeDetailLoading();
 
+    final epoch = this.epoch;
     final result = await ref.read(scopeRepositoryProvider).getById(arg);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: ScopeDetailLoaded.new,
@@ -148,6 +160,7 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
 
     // The API replaces the privacy settings on every update, so the ones the
     // scope already holds travel with the edit to keep them.
+    final epoch = this.epoch;
     final result = await ref
         .read(scopeRepositoryProvider)
         .update(
@@ -157,6 +170,11 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
           defaultLegalBasis: current.scope.defaultLegalBasis,
           privacyNoticeUri: current.scope.privacyNoticeUri,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: (scope) => ScopeDetailLoaded(scope, saved: true),
@@ -194,7 +212,13 @@ class ScopeDetailController extends Notifier<ScopeDetailState> {
 
     state = current.copyWith(deleting: true, clearDeleteFailure: true);
 
+    final epoch = this.epoch;
     final result = await send(ref.read(scopeRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():

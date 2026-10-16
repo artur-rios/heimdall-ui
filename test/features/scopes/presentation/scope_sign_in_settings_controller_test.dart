@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.d
 import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 const _acme = Scope(
@@ -401,4 +403,64 @@ void main() {
     expect(loaded().linksSaved, isFalse);
     expect(loaded().linksFailure, isNull);
   });
+
+  // A sign-out resets the settings while their read is in flight, and the
+  // late answer, the previous session's settings, must not land in the reset
+  // state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Scope>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeSignInSettingsControllerProvider('scope-1'),
+        reset: scopeSignInSettingsControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<Scope>(_acme)),
+      );
+
+      // Then
+      expect(currentState(), isA<SignInSettingsLoading>());
+    },
+  );
+
+  // The same for a change of setting answered after the reset.
+  test(
+    'GivenAWriteInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final answer = Completer<Result<Scope>>();
+      when(
+        () => repository.setGoogleSignIn(
+          id: any(named: 'id'),
+          enabled: any(named: 'enabled'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeSignInSettingsControllerProvider('scope-1'),
+        reset: scopeSignInSettingsControllerProvider,
+        start: () => controller.setGoogleSignIn(true),
+        answer: () => answer.complete(const Success<Scope>(_toggledOn)),
+      );
+
+      // Then
+      expect(currentState(), isA<SignInSettingsLoading>());
+    },
+  );
 }

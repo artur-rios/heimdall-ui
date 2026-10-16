@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
@@ -88,7 +89,8 @@ applicationListControllerProvider =
     >(ApplicationListController.new);
 
 /// Owns one scope's application listing.
-class ApplicationListController extends Notifier<ApplicationListState> {
+class ApplicationListController extends Notifier<ApplicationListState>
+    with BuildEpoch<ApplicationListState> {
   ApplicationListController(this.arg);
 
   /// The family argument this controller was created for.
@@ -99,13 +101,25 @@ class ApplicationListController extends Notifier<ApplicationListState> {
   /// The newest query asked for while another was in flight. It is asked as
   /// soon as that one is answered, so a search typed during a load is not lost.
   ApplicationQuery? _queued;
-  late final OwnerNames _owners = OwnerNames(
-    ref.read(personRepositoryProvider),
-  );
+
+  /// The owners' names learned under this build. A reset starts afresh, and a
+  /// request of an earlier build keeps teaching only the names it began with.
+  OwnerNames? _ownersOfBuild;
+
+  OwnerNames get _owners =>
+      _ownersOfBuild ??= OwnerNames(ref.read(personRepositoryProvider));
 
   @override
-  ApplicationListState build() =>
-      const ApplicationListLoading(ApplicationQuery());
+  ApplicationListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+    _ownersOfBuild = null;
+
+    return const ApplicationListLoading(ApplicationQuery());
+  }
 
   /// Reads the page the current query names, with the owners' names read
   /// afresh: a reload is where a renamed owner should show their new name.
@@ -137,6 +151,8 @@ class ApplicationListController extends Notifier<ApplicationListState> {
       return;
     }
 
+    final epoch = this.epoch;
+    final owners = _owners;
     final current = state;
     _inFlight = true;
 
@@ -165,7 +181,7 @@ class ApplicationListController extends Notifier<ApplicationListState> {
         if (listed case Success<Page<Application>>(:final value)) {
           // The owners are resolved before the page is shown, so a row never
           // flickers from an identifier to a name under the reader's eye.
-          await _owners.resolve(
+          await owners.resolve(
             value.items.map((application) => application.ownerId),
           );
         }
@@ -173,18 +189,25 @@ class ApplicationListController extends Notifier<ApplicationListState> {
         return listed;
       });
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       switch (result) {
         case Success<Page<Application>>(:final value):
           state = ApplicationListLoaded(
             query,
             value,
-            ownerLabel: _owners.labelFor,
+            ownerLabel: owners.labelFor,
           );
         case FailureResult<Page<Application>>(:final failure):
           state = ApplicationListFailed(query, failure);
       }
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

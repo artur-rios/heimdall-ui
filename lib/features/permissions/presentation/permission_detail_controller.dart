@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope_permission.dart';
 import '../domain/scope_permission_repository.dart';
 
@@ -117,21 +118,32 @@ permissionDetailControllerProvider =
     >(PermissionDetailController.new);
 
 /// Owns one permission's detail: reading it, and saving edits to it.
-class PermissionDetailController extends Notifier<PermissionDetailState> {
+class PermissionDetailController extends Notifier<PermissionDetailState>
+    with BuildEpoch<PermissionDetailState> {
   PermissionDetailController(this.arg);
 
   /// The family argument this controller was created for.
   final PermissionRef arg;
 
   @override
-  PermissionDetailState build() => const PermissionDetailLoading();
+  PermissionDetailState build() {
+    startEpoch();
+
+    return const PermissionDetailLoading();
+  }
 
   Future<void> load() async {
     state = const PermissionDetailLoading();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(scopePermissionRepositoryProvider)
         .getById(scopeId: arg.scopeId, id: arg.permissionId);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: PermissionDetailLoaded.new,
@@ -167,6 +179,7 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
       saved: false,
     );
 
+    final epoch = this.epoch;
     final result = await ref
         .read(scopePermissionRepositoryProvider)
         .update(
@@ -176,6 +189,11 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
           description: description,
           includeAsJwtClaim: includeAsJwtClaim,
         );
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: (permission) => PermissionDetailLoaded(
@@ -233,7 +251,13 @@ class PermissionDetailController extends Notifier<PermissionDetailState> {
 
     state = current.copyWith(deleting: true, clearDeleteFailure: true);
 
+    final epoch = this.epoch;
     final result = await send(ref.read(scopePermissionRepositoryProvider));
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     switch (result) {
       case Success<void>():

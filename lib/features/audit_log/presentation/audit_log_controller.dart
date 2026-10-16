@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../../../shared/formatting/identifier.dart';
 import '../domain/audit_entry.dart';
 import '../domain/audit_log_repository.dart';
@@ -55,7 +56,8 @@ auditLogControllerProvider =
     NotifierProvider<AuditLogController, AuditLogState>(AuditLogController.new);
 
 /// Owns the audit-trail listing (UI-34).
-class AuditLogController extends Notifier<AuditLogState> {
+class AuditLogController extends Notifier<AuditLogState>
+    with BuildEpoch<AuditLogState> {
   bool _inFlight = false;
 
   /// The newest query asked for while another was in flight. It is asked as
@@ -67,7 +69,15 @@ class AuditLogController extends Notifier<AuditLogState> {
   AuditLogQuery get _latest => _queued ?? state.query;
 
   @override
-  AuditLogState build() => const AuditLogLoading(AuditLogQuery());
+  AuditLogState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const AuditLogLoading(AuditLogQuery());
+  }
 
   Future<void> load() => _fetch(_latest);
 
@@ -138,6 +148,7 @@ class AuditLogController extends Notifier<AuditLogState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -150,12 +161,19 @@ class AuditLogController extends Notifier<AuditLogState> {
           .read(auditLogRepositoryProvider)
           .list(filter: query.filter, pageNumber: query.pageNumber);
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => AuditLogLoaded(query, page),
         onFailure: (failure) => AuditLogFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

@@ -2,6 +2,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/auth/domain/session.dart';
 import '../../features/auth/presentation/session_controller.dart';
 import '../config/app_config.dart';
 import '../storage/token_store.dart';
@@ -21,7 +22,7 @@ final Provider<AppConfig> appConfigProvider = Provider<AppConfig>(
 /// `errors` array out of the error response's body.
 Dio createDio({
   required AppConfig config,
-  required TokenStore tokenStore,
+  required AuthToken? Function() sessionToken,
   required Future<void> Function() onUnauthorized,
 }) {
   final dio =
@@ -35,7 +36,7 @@ Dio createDio({
         )
         ..interceptors.add(
           AuthInterceptor(
-            tokenStore: tokenStore,
+            sessionToken: sessionToken,
             onUnauthorized: onUnauthorized,
           ),
         );
@@ -54,7 +55,12 @@ Dio createDio({
 final Provider<Dio> dioProvider = Provider<Dio>(
   (ref) => createDio(
     config: ref.watch(appConfigProvider),
-    tokenStore: ref.watch(tokenStoreProvider),
+    // FR-AU-07: the session's own token, not the store's — see
+    // [AuthInterceptor.sessionToken].
+    sessionToken: () => switch (ref.read(sessionControllerProvider)) {
+      Authenticated(:final token) => token,
+      _ => null,
+    },
     // AF-07e: the token was rejected mid-session, which is not the same as
     // signing out — the user is told the session ended.
     onUnauthorized: () =>

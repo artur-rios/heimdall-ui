@@ -10,6 +10,8 @@ import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/late_answer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 const _acme = Scope(id: 'scope-1', name: 'Acme', description: 'First tenant');
@@ -356,4 +358,38 @@ void main() {
     expect(failure.kind, FailureKind.unknown);
     expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
+
+  // A sign-out resets the listing while its request is in flight, and the late
+  // answer, the previous session's scopes, must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<Scope>>>();
+      when(
+        () => repository.list(
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeListControllerProvider,
+        reset: scopeListControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(Success<Page<Scope>>(_page())),
+      );
+
+      // Then
+      expect(
+        container.read(scopeListControllerProvider),
+        isA<ScopeListLoading>(),
+      );
+    },
+  );
 }

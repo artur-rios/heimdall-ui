@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -16,6 +18,8 @@ import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -824,6 +828,35 @@ void main() {
         ),
       );
       expect(container.read(profileControllerProvider), isA<ProfileLoaded>());
+    },
+  );
+
+  // A sign-out resets the profile while its read is in flight, and the late
+  // answer, the previous person's record, must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Person>>();
+      when(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      final controller = await controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        profileControllerProvider,
+        reset: profileControllerProvider,
+        start: controller.load,
+        answer: () => answer.complete(const Success<Person>(_ada)),
+      );
+
+      // Then
+      expect(container.read(profileControllerProvider), isA<ProfileLoading>());
     },
   );
 }

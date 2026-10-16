@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/secrets/screen_security.dart';
+import '../../../core/secrets/secret_clipboard.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
@@ -364,6 +367,14 @@ class _Settled extends StatelessWidget {
                       'factor is unavailable.',
             style: theme.textTheme.bodyMedium,
           ),
+          const SizedBox(height: 4),
+          // The API keeps no flag for a set issued before codes grew to
+          // sixteen characters, so the person is told how to recognise one.
+          Text(
+            'Codes in the shorter XXXX-XXXX form still work, but new ones are '
+            'stronger: generate a new set to replace them.',
+            style: theme.textTheme.bodySmall,
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -440,7 +451,7 @@ class _ConfirmState extends State<_Confirm> {
     final uri = setup.otpAuthUri;
     final secret = setup.secret;
 
-    return ListView(
+    final content = ListView(
       padding: const EdgeInsets.all(24),
       children: <Widget>[
         Text(setup.method.label, style: theme.textTheme.headlineSmall),
@@ -512,17 +523,23 @@ class _ConfirmState extends State<_Confirm> {
         ),
       ],
     );
+
+    // The setup key, and the code that encodes it, must not end up in a
+    // screenshot or the recents thumbnail.
+    return uri == null && secret == null
+        ? content
+        : ScreenSecurityGuard(child: content);
   }
 }
 
 /// The setup key, shown so it can be selected and typed in by hand.
-class _SelectableSecret extends StatelessWidget {
+class _SelectableSecret extends ConsumerWidget {
   const _SelectableSecret({required this.secret});
 
   final String secret;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
 
     return Card(
@@ -545,7 +562,7 @@ class _SelectableSecret extends StatelessWidget {
                   tooltip: 'Copy setup key',
                   icon: const Icon(Icons.copy_outlined),
                   onPressed: () =>
-                      Clipboard.setData(ClipboardData(text: secret)),
+                      ref.read(secretClipboardProvider).copy(secret),
                 ),
               ],
             ),
@@ -561,7 +578,7 @@ class _SelectableSecret extends StatelessWidget {
 const String _signInAgain = 'Once you have saved them, you will sign in again.';
 
 /// The recovery codes, shown exactly once.
-class _RecoveryCodes extends StatelessWidget {
+class _RecoveryCodes extends ConsumerWidget {
   const _RecoveryCodes({
     required this.codes,
     required this.regenerated,
@@ -573,7 +590,7 @@ class _RecoveryCodes extends StatelessWidget {
   final VoidCallback onAcknowledge;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
     final asText = codes.join('\n');
     final intro = regenerated
@@ -583,43 +600,47 @@ class _RecoveryCodes extends StatelessWidget {
               'save them somewhere safe now. Each one works once, and they are '
               'the way back in if your second factor is unavailable.';
 
-    return ListView(
-      padding: const EdgeInsets.all(24),
-      children: <Widget>[
-        Text('Your recovery codes', style: theme.textTheme.headlineSmall),
-        const SizedBox(height: 8),
-        Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
-        const SizedBox(height: 16),
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: SelectableText(
-              asText,
-              style: theme.textTheme.bodyLarge?.copyWith(
-                fontFeatures: const <FontFeature>[FontFeature.tabularFigures()],
+    return ScreenSecurityGuard(
+      child: ListView(
+        padding: const EdgeInsets.all(24),
+        children: <Widget>[
+          Text('Your recovery codes', style: theme.textTheme.headlineSmall),
+          const SizedBox(height: 8),
+          Text('$intro $_signInAgain', style: theme.textTheme.bodyMedium),
+          const SizedBox(height: 16),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: SelectableText(
+                asText,
+                style: theme.textTheme.bodyLarge?.copyWith(
+                  fontFeatures: const <FontFeature>[
+                    FontFeature.tabularFigures(),
+                  ],
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(height: 16),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: <Widget>[
-            FilledButton.tonalIcon(
-              onPressed: () => Clipboard.setData(ClipboardData(text: asText)),
-              icon: const Icon(Icons.copy_outlined),
-              label: const Text('Copy codes'),
-            ),
-          ],
-        ),
-        const SizedBox(height: 24),
-        // AF-09c — the only way onward.
-        FilledButton(
-          onPressed: onAcknowledge,
-          child: const Text('I have saved my codes'),
-        ),
-      ],
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: <Widget>[
+              FilledButton.tonalIcon(
+                onPressed: () => ref.read(secretClipboardProvider).copy(asText),
+                icon: const Icon(Icons.copy_outlined),
+                label: const Text('Copy codes'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // AF-09c — the only way onward.
+          FilledButton(
+            onPressed: onAcknowledge,
+            child: const Text('I have saved my codes'),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -630,6 +651,9 @@ class _RecoveryCodes extends StatelessWidget {
 /// AF-09f: a refusal — a wrong password above all — is shown here and the
 /// dialog stays open, so the person retypes the password rather than choosing
 /// the method again.
+///
+/// AF-09h: a refusal that says how long to wait — the email method's
+/// account-email budget — holds **Continue** back for that long.
 class _PasswordDialog extends StatefulWidget {
   const _PasswordDialog({required this.method, required this.onSubmit});
 
@@ -647,14 +671,20 @@ class _PasswordDialogState extends State<_PasswordDialog> {
   bool _busy = false;
   Failure? _failure;
 
+  /// Running while the API's wait does; **Continue** is disabled meanwhile.
+  Timer? _wait;
+
   @override
   void dispose() {
+    _wait?.cancel();
     _password.dispose();
     super.dispose();
   }
 
+  bool get _waiting => _wait?.isActive ?? false;
+
   Future<void> _submit() async {
-    if (_busy || _password.text.isEmpty) {
+    if (_busy || _waiting || _password.text.isEmpty) {
       return;
     }
 
@@ -679,6 +709,16 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       _busy = false;
       _failure = failure;
     });
+
+    // Held to a day, never zero or less (Failure.pause).
+    if (failure.pause case final Duration wait) {
+      _wait?.cancel();
+      _wait = Timer(wait, () {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
   }
 
   @override
@@ -715,7 +755,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       ),
       FilledButton(
         // Nothing typed is nothing to send.
-        onPressed: _busy || _password.text.isEmpty ? null : _submit,
+        onPressed: _busy || _waiting || _password.text.isEmpty ? null : _submit,
         child: const Text('Continue'),
       ),
     ],
@@ -825,8 +865,13 @@ class _CredentialDialogState extends State<_CredentialDialog> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
+            // Sixteen characters, or eight for an older code, sent as typed:
+            // the API reads it in any case, with or without hyphens or spaces.
             TextField(
               controller: _recoveryCode,
+              autocorrect: false,
+              enableSuggestions: false,
+              textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(labelText: 'Recovery code'),
               onChanged: (_) => setState(() {}),
             ),

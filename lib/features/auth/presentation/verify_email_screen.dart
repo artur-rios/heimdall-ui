@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/entry/entry_link.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../domain/session.dart';
@@ -23,14 +24,17 @@ class VerifyEmailScreen extends ConsumerStatefulWidget {
 }
 
 class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
+  // The token this screen was opened with, kept for the retry: the token
+  // start-up took is forgotten once the API has answered it, and a rebuild of
+  // the route must not take it from this screen.
+  late final String? _token = widget.token;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref
-            .read(emailVerificationControllerProvider.notifier)
-            .verify(widget.token);
+        ref.read(emailVerificationControllerProvider.notifier).verify(_token);
       }
     });
   }
@@ -40,6 +44,23 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     final theme = Theme.of(context);
     final state = ref.watch(emailVerificationControllerProvider);
     final authenticated = ref.watch(sessionControllerProvider) is Authenticated;
+
+    // A verification token is single-use: once the API has answered it, the
+    // next visit to this screen in the tab finds none. A network failure is
+    // no answer, so the token stays for the retry.
+    ref.listen<VerifyStatus>(
+      emailVerificationControllerProvider.select((state) => state.verification),
+      (_, next) {
+        final answered = switch (next) {
+          Verified() => true,
+          VerifyRejected(:final failure) => failure.kind != FailureKind.network,
+          _ => false,
+        };
+        if (answered) {
+          ref.read(entryLinkProvider.notifier).forgetVerificationToken();
+        }
+      },
+    );
 
     return Scaffold(
       appBar: AppBar(title: const Text('Verify your email')),
@@ -83,7 +104,7 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
                               .read(
                                 emailVerificationControllerProvider.notifier,
                               )
-                              .verify(widget.token),
+                              .verify(_token),
                         )
                       else
                         ErrorBanner(failure: failure),
@@ -167,7 +188,8 @@ class _ResendSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final resend = ref.watch(emailVerificationControllerProvider).resend;
+    final verification = ref.watch(emailVerificationControllerProvider);
+    final resend = verification.resend;
 
     if (!authenticated) {
       return Column(
@@ -207,7 +229,8 @@ class _ResendSection extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
           FilledButton(
-            onPressed: resend is Resending
+            // AF-05f: held back while the API's wait runs.
+            onPressed: resend is Resending || verification.resendPaused
                 ? null
                 : () => ref
                       .read(emailVerificationControllerProvider.notifier)

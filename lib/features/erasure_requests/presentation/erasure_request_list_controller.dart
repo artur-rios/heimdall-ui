@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/erasure_request_repository.dart';
 import '../domain/outstanding_erasure.dart';
 
@@ -57,7 +58,8 @@ erasureRequestListControllerProvider =
     );
 
 /// Owns the outstanding-erasure listing.
-class ErasureRequestListController extends Notifier<ErasureRequestListState> {
+class ErasureRequestListController extends Notifier<ErasureRequestListState>
+    with BuildEpoch<ErasureRequestListState> {
   bool _inFlight = false;
 
   /// The newest query asked for while another was in flight. It is asked as
@@ -65,8 +67,15 @@ class ErasureRequestListController extends Notifier<ErasureRequestListState> {
   ErasureRequestQuery? _queued;
 
   @override
-  ErasureRequestListState build() =>
-      const ErasureRequestListLoading(ErasureRequestQuery());
+  ErasureRequestListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const ErasureRequestListLoading(ErasureRequestQuery());
+  }
 
   Future<void> load() => _fetch(state.query);
 
@@ -84,6 +93,7 @@ class ErasureRequestListController extends Notifier<ErasureRequestListState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -98,12 +108,19 @@ class ErasureRequestListController extends Notifier<ErasureRequestListState> {
             .list(overdueOnly: query.overdueOnly, pageNumber: query.pageNumber),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => ErasureRequestListLoaded(query, page),
         onFailure: (failure) => ErasureRequestListFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

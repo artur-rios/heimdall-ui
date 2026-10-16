@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import 'session_controller.dart';
 
 /// How far the verification of a token has got.
@@ -69,17 +72,24 @@ class EmailVerificationState {
   const EmailVerificationState({
     this.verification = const VerifyIdle(),
     this.resend = const ResendIdle(),
+    this.resendPaused = false,
   });
 
   final VerifyStatus verification;
   final ResendStatus resend;
 
+  /// AF-05f — the API refused a resend and said how long to wait. Until then
+  /// another one would only be refused again, so none is offered.
+  final bool resendPaused;
+
   EmailVerificationState copyWith({
     VerifyStatus? verification,
     ResendStatus? resend,
+    bool? resendPaused,
   }) => EmailVerificationState(
     verification: verification ?? this.verification,
     resend: resend ?? this.resend,
+    resendPaused: resendPaused ?? this.resendPaused,
   );
 }
 
@@ -90,9 +100,21 @@ emailVerificationControllerProvider =
     );
 
 /// Owns email verification and the resend that backs it up.
-class EmailVerificationController extends Notifier<EmailVerificationState> {
+class EmailVerificationController extends Notifier<EmailVerificationState>
+    with BuildEpoch<EmailVerificationState> {
+  /// Ends AF-05f's pause once the wait the API asked for is over.
+  Timer? _pause;
+
   @override
-  EmailVerificationState build() => const EmailVerificationState();
+  EmailVerificationState build() {
+    startEpoch();
+    ref.onDispose(() {
+      _pause?.cancel();
+      _pause = null;
+    });
+
+    return const EmailVerificationState();
+  }
 
   /// Verifies [token], which the screen calls as soon as it opens.
   ///
@@ -111,9 +133,15 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
 
     state = state.copyWith(verification: const Verifying());
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .verifyEmail(token: token);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = state.copyWith(
       verification: result.fold(
@@ -131,16 +159,26 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
   }
 
   /// AF-05c — asks the API to send a fresh verification email.
+  ///
+  /// AF-05f: a refusal that says how long to wait — the account-email budget's
+  /// cooldown or daily window, or the rate limit — pauses the resend for that
+  /// long. The refusal stays on screen meanwhile.
   Future<void> resend() async {
-    if (state.resend is Resending) {
+    if (state.resend is Resending || state.resendPaused) {
       return;
     }
 
     state = state.copyWith(resend: const Resending());
 
+    final epoch = this.epoch;
     final result = await ref
         .read(authRepositoryProvider)
         .resendVerificationEmail();
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = state.copyWith(
       resend: result.fold(
@@ -148,5 +186,19 @@ class EmailVerificationController extends Notifier<EmailVerificationState> {
         onFailure: ResendRejected.new,
       ),
     );
+
+    // Held to a day, never zero or less (Failure.pause).
+    if (result.failureOrNull?.pause case final Duration wait) {
+      _pauseResend(wait);
+    }
+  }
+
+  void _pauseResend(Duration wait) {
+    _pause?.cancel();
+    state = state.copyWith(resendPaused: true);
+    _pause = Timer(wait, () {
+      _pause = null;
+      state = state.copyWith(resendPaused: false);
+    });
   }
 }

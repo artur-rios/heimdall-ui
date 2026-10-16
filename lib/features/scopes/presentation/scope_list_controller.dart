@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
 
@@ -77,7 +78,8 @@ scopeListControllerProvider =
     );
 
 /// Owns the scope listing: the filters, the page, and the request in flight.
-class ScopeListController extends Notifier<ScopeListState> {
+class ScopeListController extends Notifier<ScopeListState>
+    with BuildEpoch<ScopeListState> {
   /// Whether a request is already on its way.
   ///
   /// A field rather than a read of [state], because the first load and a later
@@ -90,7 +92,15 @@ class ScopeListController extends Notifier<ScopeListState> {
   ScopeQuery? _queued;
 
   @override
-  ScopeListState build() => const ScopeListLoading(ScopeQuery());
+  ScopeListState build() {
+    startEpoch();
+    // A request of an earlier build may still be in flight; it is not this
+    // build's, which has asked for nothing yet.
+    _inFlight = false;
+    _queued = null;
+
+    return const ScopeListLoading(ScopeQuery());
+  }
 
   /// Reads the page the current query names.
   Future<void> load() => _fetch(state.query);
@@ -119,6 +129,7 @@ class ScopeListController extends Notifier<ScopeListState> {
       return;
     }
 
+    final epoch = this.epoch;
     final current = state;
     _inFlight = true;
 
@@ -139,12 +150,19 @@ class ScopeListController extends Notifier<ScopeListState> {
             ),
       );
 
+      // Reset since it was asked: the answer is an earlier build's.
+      if (!isCurrent(epoch)) {
+        return;
+      }
+
       state = result.fold(
         onSuccess: (page) => ScopeListLoaded(query, page),
         onFailure: (failure) => ScopeListFailed(query, failure),
       );
     } finally {
-      _inFlight = false;
+      if (isCurrent(epoch)) {
+        _inFlight = false;
+      }
     }
 
     if (_queued case final queued?) {

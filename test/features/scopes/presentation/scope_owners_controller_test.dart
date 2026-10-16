@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +11,8 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -406,6 +410,41 @@ void main() {
           pageSize: any(named: 'pageSize'),
         ),
       ).called(2);
+    },
+  );
+
+  // A sign-out resets the owners while their read is in flight, and the late
+  // answer must not land in the reset state.
+  test(
+    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      final answer = Completer<Result<Page<Person>>>();
+      when(
+        () => repository.listScopeOwners(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) => answer.future);
+      answerUsersWith(Success<Page<Person>>(_page(const <Person>[_user])));
+      final controller = controllerUnderTest();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeOwnersControllerProvider('scope-1'),
+        reset: scopeOwnersControllerProvider,
+        start: controller.load,
+        answer: () =>
+            answer.complete(Success<Page<Person>>(_page(const <Person>[_ada]))),
+      );
+
+      // Then
+      expect(currentState(), isA<ScopeOwnersLoading>());
     },
   );
 }

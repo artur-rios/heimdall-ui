@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
+import '../../../core/state/build_epoch.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 
@@ -47,14 +48,19 @@ applicationCreateControllerProvider =
     >(ApplicationCreateController.new);
 
 /// Owns one create attempt from filled in to created.
-class ApplicationCreateController extends Notifier<ApplicationCreateState> {
+class ApplicationCreateController extends Notifier<ApplicationCreateState>
+    with BuildEpoch<ApplicationCreateState> {
   ApplicationCreateController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
   @override
-  ApplicationCreateState build() => const ApplicationCreateEditing();
+  ApplicationCreateState build() {
+    startEpoch();
+
+    return const ApplicationCreateEditing();
+  }
 
   Future<void> create({required String name, required String ownerId}) async {
     if (state is ApplicationCreateSending) {
@@ -63,9 +69,15 @@ class ApplicationCreateController extends Notifier<ApplicationCreateState> {
 
     state = const ApplicationCreateSending();
 
+    final epoch = this.epoch;
     final result = await ref
         .read(applicationRepositoryProvider)
         .create(scopeId: arg, name: name, ownerId: ownerId);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
 
     state = result.fold(
       onSuccess: ApplicationCreated.new,

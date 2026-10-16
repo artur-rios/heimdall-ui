@@ -54,4 +54,61 @@ void main() {
     // Given / When / Then
     expect(scopeStorageKey, 'heimdall.scopeId');
   });
+
+  // The scope kept in session storage, whether start-up copied it from the URL
+  // or a caller on the UI's origin wrote it, is held to the same rule as the
+  // URL's: a PublicId, or nothing.
+  const guid = '6f1d3a00-0000-0000-0000-0000000000aa';
+
+  test('GivenAStoredGuid_WhenRead_ThenItIsReturned', () {
+    // Given
+    final source = StoredScopeSource(() => guid, fallback: 'fallback-id');
+
+    // When
+    final scopeId = source.read();
+
+    // Then
+    expect(scopeId, guid);
+  });
+
+  for (final stored in <String>['..%2Fpersons', 'scope-1', '$guid\n']) {
+    test('GivenAStoredNonGuid_WhenRead_ThenTheFallbackIsUsed "$stored"', () {
+      // Given
+      final source = StoredScopeSource(() => stored, fallback: 'fallback-id');
+
+      // When
+      final scopeId = source.read();
+
+      // Then
+      expect(scopeId, 'fallback-id');
+    });
+  }
+
+  for (final stored in <String?>[null, '']) {
+    test('GivenNothingStored_WhenRead_ThenTheFallbackIsUsed "$stored"', () {
+      // Given
+      final source = StoredScopeSource(() => stored, fallback: 'fallback-id');
+
+      // When
+      final scopeId = source.read();
+
+      // Then
+      expect(scopeId, 'fallback-id');
+    });
+  }
+
+  // Read on every use: a caller may change it between one attempt and the
+  // next.
+  test('GivenAChangedStoredScope_WhenReadAgain_ThenTheNewOneIsReturned', () {
+    // Given
+    var stored = guid;
+    final source = StoredScopeSource(() => stored);
+    source.read();
+
+    // When
+    stored = '6f1d3a00-0000-0000-0000-0000000000bb';
+
+    // Then
+    expect(source.read(), stored);
+  });
 }
