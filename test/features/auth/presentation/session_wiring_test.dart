@@ -178,9 +178,9 @@ void main() {
     expect(await store.read(), isNotNull);
   });
 
-  // AF-09a, AF-09d, AF-09f — the API's one refusal for a wrong password or code, or a
-  // paused re-authentication budget, on every command that re-authenticates.
-  // 2fa/confirm used to answer 400 and now answers 401 too.
+  // AF-09a, AF-09d, AF-09f — the API's one refusal for a wrong password or
+  // code, or a paused re-authentication budget, on every command that
+  // re-authenticates. 2fa/confirm used to answer 400 and now answers 401 too.
   final reauthentications =
       <(String, Future<Result<Object?>> Function(AuthRepository))>[
         (

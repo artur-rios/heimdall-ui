@@ -182,9 +182,10 @@ void main() {
     }
   }
 
-  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — every re-authentication under a token now answers a wrong or
-  // missing password or code, and a paused budget, with one 401 message. It
-  // is the person's to correct, wherever it comes from.
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — every re-authentication under
+  // a token now answers a wrong or missing password or code, and a paused
+  // budget, with one 401 message. It is the person's to correct, wherever it
+  // comes from.
   for (final (method, path) in <(String, String)>[
     ('POST', '/api/auth/2fa/enable'),
     ('POST', '/api/auth/2fa/confirm'),

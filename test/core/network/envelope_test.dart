@@ -243,8 +243,9 @@ void main() {
     expect(failure.errors, <String>[message]);
   });
 
-  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — the one refusal the API now gives every re-authentication,
-  // beside the older messages an earlier API version may still send.
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — the one refusal the API now
+  // gives every re-authentication, beside the older messages an earlier API
+  // version may still send.
   for (final message in <String>[
     'The password or code is incorrect.',
     'The current password is incorrect.',
