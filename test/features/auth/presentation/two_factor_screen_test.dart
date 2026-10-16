@@ -287,6 +287,57 @@ void main() {
     ).called(1);
   });
 
+  // AF-02d — recovery codes are now sixteen characters, shown
+  // XXXX-XXXX-XXXX-XXXX. The field takes one whole, in any case and with
+  // hyphens or spaces, and sends it as typed: the API reads it that way.
+  for (final typed in <String>[
+    'ABCD-EFGH-JKMN-PQRS',
+    'abcd-efgh-jkmn-pqrs',
+    'ABCD EFGH JKMN PQRS',
+    'ABCDEFGHJKMNPQRS',
+    'ABCD-EFGH',
+  ]) {
+    testWidgets('GivenARecoveryCode_WhenSubmitted_ThenItIsSentWhole: $typed', (
+      tester,
+    ) async {
+      // Given
+      answerVerifyWith(Success<AuthToken>(tokenFor(_jwt)), recovery: true);
+      await pump(tester);
+      await tester.tap(find.text('Use a recovery code instead'));
+      await tester.pumpAndSettle();
+
+      // When
+      await enterAndVerify(tester, ' $typed ');
+
+      // Then
+      verify(
+        () => repository.verifySecondFactor(
+          challengeToken: 'challenge',
+          code: typed,
+          isRecoveryCode: true,
+        ),
+      ).called(1);
+    });
+  }
+
+  // A keyboard that corrects or completes words would change a code.
+  testWidgets('GivenTheRecoveryCodeField_WhenShown_ThenNothingRewritesIt', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Use a recovery code instead'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final field = tester.widget<EditableText>(find.byType(EditableText));
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.textCapitalization, TextCapitalization.characters);
+  });
+
   // AF-02d — using one spends it, and the user is told so.
   testWidgets('GivenRecoveryCodeAccepted_WhenSubmitted_ThenTheUserIsReminded', (
     tester,

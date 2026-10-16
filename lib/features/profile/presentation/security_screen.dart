@@ -367,6 +367,14 @@ class _Settled extends StatelessWidget {
                       'factor is unavailable.',
             style: theme.textTheme.bodyMedium,
           ),
+          const SizedBox(height: 4),
+          // The API keeps no flag for a set issued before codes grew to
+          // sixteen characters, so the person is told how to recognise one.
+          Text(
+            'Codes in the shorter XXXX-XXXX form still work, but new ones are '
+            'stronger: generate a new set to replace them.',
+            style: theme.textTheme.bodySmall,
+          ),
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -856,8 +864,13 @@ class _CredentialDialogState extends State<_CredentialDialog> {
               onChanged: (_) => setState(() {}),
             ),
             const SizedBox(height: 12),
+            // Sixteen characters, or eight for an older code, sent as typed:
+            // the API reads it in any case, with or without hyphens or spaces.
             TextField(
               controller: _recoveryCode,
+              autocorrect: false,
+              enableSuggestions: false,
+              textCapitalization: TextCapitalization.characters,
               decoration: const InputDecoration(labelText: 'Recovery code'),
               onChanged: (_) => setState(() {}),
             ),

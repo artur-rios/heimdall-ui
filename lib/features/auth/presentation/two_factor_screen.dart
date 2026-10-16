@@ -278,11 +278,21 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                         ),
                         const SizedBox(height: 16),
                       ],
+                      // A recovery code is sixteen characters, written
+                      // XXXX-XXXX-XXXX-XXXX (older ones XXXX-XXXX). It is sent
+                      // as typed, with no limit on its length: the API reads
+                      // it in any case and with or without hyphens or spaces.
+                      // Nothing on the keyboard may correct or complete it.
                       TextFormField(
                         controller: _code,
                         keyboardType: _useRecoveryCode
                             ? TextInputType.text
                             : TextInputType.number,
+                        autocorrect: false,
+                        enableSuggestions: false,
+                        textCapitalization: _useRecoveryCode
+                            ? TextCapitalization.characters
+                            : TextCapitalization.none,
                         autofillHints: const <String>[
                           AutofillHints.oneTimeCode,
                         ],

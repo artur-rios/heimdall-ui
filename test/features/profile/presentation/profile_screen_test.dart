@@ -489,6 +489,28 @@ void main() {
     );
   });
 
+  // A keyboard that corrects or completes words would change a code, and a
+  // recovery code is sixteen characters now, sent as typed.
+  testWidgets('GivenTheCodeField_WhenShown_ThenNothingRewritesIt', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, appEnabled: true));
+    await pump(tester);
+
+    // When
+    await changeEmailTo(tester, 'new@example.com');
+
+    // Then
+    final field = tester.widget<EditableText>(
+      find.descendant(of: codeField(), matching: find.byType(EditableText)),
+    );
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.textCapitalization, TextCapitalization.characters);
+  });
+
   // No emailed code is sent while signed in, so a person whose only second
   // factor is email is pointed at their recovery codes.
   testWidgets(
@@ -625,6 +647,37 @@ void main() {
         roleId: any(named: 'roleId'),
         currentPassword: 'secret',
         twoFactorCode: '123456',
+      ),
+    ).called(1);
+  });
+
+  testWidgets('GivenANewRecoveryCode_WhenTheEmailIsSaved_ThenItIsSentWhole', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, emailEnabled: true));
+    answerUpdateWith(const Success<Person>(_adaMoved));
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.enterText(codeField(), ' abcd-efgh jkmn-pqrs ');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    verify(
+      () => persons.update(
+        id: 'person-1',
+        name: 'Ada',
+        email: 'new@example.com',
+        roleId: any(named: 'roleId'),
+        currentPassword: 'secret',
+        twoFactorCode: 'abcd-efgh jkmn-pqrs',
       ),
     ).called(1);
   });

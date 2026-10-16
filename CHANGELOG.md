@@ -30,6 +30,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Recovery code fields no longer let the keyboard autocorrect or complete what is typed, and type capitals, so the
+  longer `XXXX-XXXX-XXXX-XXXX` codes go to the API exactly as written; codes in the older `XXXX-XXXX` form keep working.
+  The security screen says that a set in the shorter form can be replaced by generating new codes, which are stronger.
 - Changing your own email address while the email sign-in method is on is refused by the API; the profile now shows
   why, keeps what you typed, and offers **Open security settings** to turn the method off first.
 - When the API holds back an account email (a new verification link, the code that sets up the email sign-in method,

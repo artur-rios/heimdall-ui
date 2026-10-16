@@ -398,7 +398,6 @@ delivered the same way.
   and clears the pending Google session; if clearing it fails, the errors are shown all the same.
 - **AF-06e — Platform without support.** On a target where the Google flow is unavailable the
   control is hidden, and the credentials form remains the only route in.
-
 ---
 
 ### UI-07: Guard routes by session and role
@@ -540,7 +539,10 @@ User's own record
 
 **Main flow — regenerating recovery codes**
 
-1. The user asks for new recovery codes and confirms that the current ones stop working.
+1. The user asks for new recovery codes and confirms that the current ones stop working. While the
+   feature is on, the section says that codes in the shorter `XXXX-XXXX` form still work but that
+   new ones, `XXXX-XXXX-XXXX-XXXX`, are stronger; the API reports no flag for an older set, so the
+   person recognises their own.
 2. The client calls `POST /api/auth/2fa/recovery-codes/regenerate` and shows the new codes once,
    under the same acknowledgement rule.
 3. Regenerating ended every session the person holds, so once they acknowledge the codes the client

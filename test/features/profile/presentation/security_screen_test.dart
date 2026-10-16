@@ -938,6 +938,123 @@ void main() {
     expect(find.widgetWithText(TextField, 'Password'), findsNothing);
   });
 
+  // FR-2F-20 on the API — recovery codes are sixteen characters now, and the
+  // dialogs take one whole, as typed.
+  for (final (button, confirm) in <(String, String)>[
+    ('Generate new codes', 'Generate'),
+    ('Turn off two-factor', 'Turn off'),
+  ]) {
+    testWidgets('GivenANewRecoveryCode_WhenConfirmed_ThenItIsSentWhole: '
+        '$button', (tester) async {
+      // Given
+      answerStatusWith(const Success<TwoFactorStatus>(_on));
+      await pump(tester);
+      await tester.tap(find.text(button));
+      await tester.pumpAndSettle();
+
+      // When
+      if (button == 'Turn off two-factor') {
+        await tester.enterText(
+          find.widgetWithText(TextField, 'Password'),
+          'secret',
+        );
+      }
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Recovery code'),
+        'abcd efgh-jkmn-pqrs',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, confirm));
+      await tester.pumpAndSettle();
+
+      // Then
+      if (button == 'Turn off two-factor') {
+        verify(
+          () => repository.disableTwoFactor(
+            password: 'secret',
+            recoveryCode: 'abcd efgh-jkmn-pqrs',
+          ),
+        ).called(1);
+      } else {
+        verify(
+          () => repository.regenerateRecoveryCodes(
+            recoveryCode: 'abcd efgh-jkmn-pqrs',
+          ),
+        ).called(1);
+      }
+    });
+  }
+
+  testWidgets('GivenTheCredentialDialog_WhenShown_ThenNothingRewritesTheCode', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final field = tester.widget<TextField>(
+      find.widgetWithText(TextField, 'Recovery code'),
+    );
+    expect(field.autocorrect, isFalse);
+    expect(field.enableSuggestions, isFalse);
+    expect(field.textCapitalization, TextCapitalization.characters);
+  });
+
+  testWidgets('GivenNewStyleCodes_WhenShown_ThenEachIsShownWhole', (
+    tester,
+  ) async {
+    // Given
+    const codes = <String>[
+      'ABCD-EFGH-JKMN-PQRS',
+      '0123-4567-89AB-CDEF',
+      'WXYZ-TVSR-QPNM-KJHG',
+    ];
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    answerRegenerateWith(const Success<List<String>>(codes));
+    await pump(tester, size: _compact);
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Code from your second factor'),
+      '123456',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Generate'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text(codes.join('\n')), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  // The API keeps no flag for codes issued before they grew, so the hint is
+  // for the person to recognise their own.
+  testWidgets('GivenItIsOn_WhenOpened_ThenShortCodesAreSuggestedForRenewal', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.text(
+        'Codes in the shorter XXXX-XXXX form still work, but new ones are '
+        'stronger: generate a new set to replace them.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   // A Google User may never configure this here.
   testWidgets('GivenAGoogleUser_WhenOpened_ThenTheReasonIsExplained', (
     tester,

@@ -636,8 +636,13 @@ class _Reauthentication extends StatelessWidget {
       ),
       if (secondFactorOn) ...<Widget>[
         const SizedBox(height: 16),
+        // A recovery code is sent as typed, whatever its length, case,
+        // hyphens or spaces; nothing on the keyboard may rewrite it.
         TextFormField(
           controller: code,
+          autocorrect: false,
+          enableSuggestions: false,
+          textCapitalization: TextCapitalization.characters,
           decoration: InputDecoration(
             labelText: 'Two-factor code',
             helperText: _codeHint,
