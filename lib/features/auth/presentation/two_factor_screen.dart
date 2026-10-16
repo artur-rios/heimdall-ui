@@ -86,10 +86,12 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
       return;
     }
 
+    final failure = result.failureOrNull;
+
     setState(() {
       _resending = false;
 
-      if (result.failureOrNull case final Failure failure) {
+      if (failure != null) {
         _resendFailure = failure;
 
         return;
@@ -97,25 +99,35 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
 
       _sends++;
       _resent = true;
-      _cooldownLeft = resendCooldown.inSeconds;
     });
 
-    if (result.isSuccess) {
-      _cooldown?.cancel();
-      _cooldown = Timer.periodic(const Duration(seconds: 1), (timer) {
-        if (!mounted) {
-          timer.cancel();
+    // AF-02i: a refusal that says how long to wait is not a send, but the
+    // control waits that long rather than invite the same refusal.
+    final wait = failure == null ? resendCooldown : failure.retryAfter;
 
-          return;
-        }
-
-        setState(() => _cooldownLeft--);
-
-        if (_cooldownLeft <= 0) {
-          timer.cancel();
-        }
-      });
+    if (wait != null && wait > Duration.zero) {
+      _startCooldown(wait);
     }
+  }
+
+  /// Counts [wait] down in the resend control's label, which stays disabled
+  /// until it ends.
+  void _startCooldown(Duration wait) {
+    _cooldown?.cancel();
+    setState(() => _cooldownLeft = wait.inSeconds);
+    _cooldown = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) {
+        timer.cancel();
+
+        return;
+      }
+
+      setState(() => _cooldownLeft--);
+
+      if (_cooldownLeft <= 0) {
+        timer.cancel();
+      }
+    });
   }
 
   Future<void> _submit() async {

@@ -188,7 +188,8 @@ class _ResendSection extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
-    final resend = ref.watch(emailVerificationControllerProvider).resend;
+    final verification = ref.watch(emailVerificationControllerProvider);
+    final resend = verification.resend;
 
     if (!authenticated) {
       return Column(
@@ -228,7 +229,8 @@ class _ResendSection extends ConsumerWidget {
             const SizedBox(height: 16),
           ],
           FilledButton(
-            onPressed: resend is Resending
+            // AF-05f: held back while the API's wait runs.
+            onPressed: resend is Resending || verification.resendPaused
                 ? null
                 : () => ref
                       .read(emailVerificationControllerProvider.notifier)

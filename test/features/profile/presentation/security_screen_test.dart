@@ -624,6 +624,50 @@ void main() {
     expect(session(), isA<Authenticated>());
   });
 
+  // AF-09h — the email method spends the account-email budget, whose 429
+  // carries Retry-After. The dialog says so and holds Continue back that long.
+  testWidgets('GivenAMailCooldown_WhenTheEmailSetupStarts_ThenContinueWaits', (
+    tester,
+  ) async {
+    // Given
+    const cooldown =
+        'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.';
+    answerEnableWith(
+      const FailureResult<TwoFactorSetup>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>[cooldown],
+          retryAfter: Duration(seconds: 90),
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Emailed code');
+
+    // Then
+    final dialog = find.byType(AlertDialog);
+    expect(
+      find.descendant(of: dialog, matching: find.text(cooldown)),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: dialog,
+        matching: find.text('Try again in 2 minutes.'),
+      ),
+      findsOneWidget,
+    );
+    final proceed = find.widgetWithText(FilledButton, 'Continue');
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 90));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNotNull);
+    expect(session(), isA<Authenticated>());
+  });
+
   testWidgets('GivenARefusedPassword_WhenRetyped_ThenTheSetupStarts', (
     tester,
   ) async {

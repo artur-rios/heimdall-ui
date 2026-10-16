@@ -42,16 +42,33 @@ class Failure {
   final String? message;
 
   /// How long the API asked the caller to wait, from a `429`'s `Retry-After`.
-  /// `null` when the response carried none: a handler's own `429`, such as an
-  /// account email's cooldown, says how long in its message instead.
+  /// `null` when the response carried none, as an older API's account-email
+  /// cooldown did: its message says how long instead.
   final Duration? retryAfter;
 
   /// "Try again in N seconds." when the API said how long to wait, else `null`.
-  String? get retryHint => switch (retryAfter) {
-    final Duration wait when wait.inSeconds == 1 => 'Try again in 1 second.',
-    final Duration wait => 'Try again in ${wait.inSeconds} seconds.',
-    null => null,
-  };
+  ///
+  /// A wait of a minute or more is named in minutes, and one of an hour or
+  /// more in hours, rounded up: an account email's cooldown is minutes long,
+  /// and its daily window hours.
+  String? get retryHint {
+    final seconds = retryAfter?.inSeconds;
+
+    if (seconds == null) {
+      return null;
+    }
+
+    String count(int amount, String unit) =>
+        amount == 1 ? '1 $unit' : '$amount ${unit}s';
+
+    final wait = switch (seconds) {
+      < 60 => count(seconds, 'second'),
+      < 3600 => count((seconds + 59) ~/ 60, 'minute'),
+      _ => count((seconds + 3599) ~/ 3600, 'hour'),
+    };
+
+    return 'Try again in $wait.';
+  }
 
   /// The single line worth showing when there is no field to attach errors to.
   String get displayMessage =>

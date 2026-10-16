@@ -365,6 +365,36 @@ void main() {
     expect(find.widgetWithText(TextFormField, 'Ada'), findsOneWidget);
   });
 
+  // AF-17g — creating people with a password is rate limited. The 429 is
+  // an error like any other refusal: shown, with how long to wait, and the
+  // form kept.
+  testWidgets('GivenARateLimitedCreate_WhenSubmitted_ThenTheFormIsKept', (
+    tester,
+  ) async {
+    // Given
+    answerUserWith(
+      const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(seconds: 30),
+        ),
+      ),
+    );
+    await pump(tester);
+    await fillIn(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create person'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Too many requests.'), findsOneWidget);
+    expect(find.text('Try again in 30 seconds.'), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Ada'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Create person'), findsOneWidget);
+  });
+
   // AF-17d — a Scope Admin is not offered a role they cannot create.
   testWidgets('GivenAScopeAdmin_WhenRendered_ThenOnlyUserIsOffered', (
     tester,

@@ -30,6 +30,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- When the API holds back an account email (a new verification link, the code that sets up the email sign-in method,
+  or an email change's notice) because one was sent recently or the day's limit is reached, its message is shown with
+  how long to wait, and the button that would ask again stays disabled until then. The same applies to sending a new
+  sign-in code when the API says to wait. A wait of minutes or hours is now named in minutes or hours instead of
+  seconds. Creating a person or a co-owner while the API is rate limiting keeps the form as typed.
 - A mistyped password or code when turning two-factor authentication on or off, confirming its setup, generating new
   recovery codes, changing your own email address or asking for erasure is shown on the form and keeps you signed in
   when the API answers "The password or code is incorrect.", which it now gives for all of these, and for a check it

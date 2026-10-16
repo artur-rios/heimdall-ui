@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -641,6 +643,9 @@ class _RecoveryCodes extends ConsumerWidget {
 /// AF-09f: a refusal — a wrong password above all — is shown here and the
 /// dialog stays open, so the person retypes the password rather than choosing
 /// the method again.
+///
+/// AF-09h: a refusal that says how long to wait — the email method's
+/// account-email budget — holds **Continue** back for that long.
 class _PasswordDialog extends StatefulWidget {
   const _PasswordDialog({required this.method, required this.onSubmit});
 
@@ -658,14 +663,20 @@ class _PasswordDialogState extends State<_PasswordDialog> {
   bool _busy = false;
   Failure? _failure;
 
+  /// Running while the API's wait does; **Continue** is disabled meanwhile.
+  Timer? _wait;
+
   @override
   void dispose() {
+    _wait?.cancel();
     _password.dispose();
     super.dispose();
   }
 
+  bool get _waiting => _wait?.isActive ?? false;
+
   Future<void> _submit() async {
-    if (_busy || _password.text.isEmpty) {
+    if (_busy || _waiting || _password.text.isEmpty) {
       return;
     }
 
@@ -690,6 +701,15 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       _busy = false;
       _failure = failure;
     });
+
+    if (failure.retryAfter case final Duration wait when wait > Duration.zero) {
+      _wait?.cancel();
+      _wait = Timer(wait, () {
+        if (mounted) {
+          setState(() {});
+        }
+      });
+    }
   }
 
   @override
@@ -726,7 +746,7 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       ),
       FilledButton(
         // Nothing typed is nothing to send.
-        onPressed: _busy || _password.text.isEmpty ? null : _submit,
+        onPressed: _busy || _waiting || _password.text.isEmpty ? null : _submit,
         child: const Text('Continue'),
       ),
     ],

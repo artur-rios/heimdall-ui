@@ -592,6 +592,40 @@ void main() {
     expect(find.byType(ErrorBanner), findsOneWidget);
   });
 
+  // AF-02i — a refused send that says how long to wait is not counted, and
+  // the control counts that wait down instead of inviting another refusal.
+  testWidgets('GivenARateLimitedResend_WhenRefused_ThenItWaitsRetryAfter', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(seconds: 45),
+        ),
+      ),
+    );
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.text('Too many requests.'), findsOneWidget);
+    expect(find.text('Send a new code (45s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 44));
+    expect(find.text('Send a new code (1s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
+    expect(container.read(sessionControllerProvider), isA<Challenged>());
+  });
+
   testWidgets('GivenFailedResends_WhenSendsSucceedAfter_ThenOnlyTheyCount', (
     tester,
   ) async {

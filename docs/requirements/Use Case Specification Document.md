@@ -269,6 +269,9 @@ delivered the same way.
   discards the challenge and returns to UI-01.
 - **AF-02h — Transport or server failure.** The client shows an error banner. The send is not
   counted and the countdown does not start.
+- **AF-02i — Send rate limited.** The API answers `429` with `Retry-After`. The client shows the
+  message; the send is not counted, and **Send a new code** counts the `Retry-After` seconds down in
+  its label instead of the usual 30.
 
 ---
 
@@ -353,6 +356,11 @@ delivered the same way.
   this as success and says so plainly.
 - **AF-05e — Unverified session banner.** An authenticated user whose address is unverified sees a
   dismissible banner on the home screen offering the resend action.
+- **AF-05f — Resend held back.** The API answers `429`: "An email of this kind was sent to you
+  recently. Try again in a few minutes." inside the account-email cooldown, a daily-limit message
+  once the day's account emails are spent, or "Too many requests." from the rate limit. The client
+  shows the message, keeps the session, and disables the resend action for the `Retry-After`
+  seconds the answer carries.
 
 ---
 
@@ -556,6 +564,10 @@ User's own record
   nothing more under the session's token, signs the user out, and the sign-in screen says "Your
   sign-in details changed. Sign in again." The recovery codes screen says so before they get
   there.
+- **AF-09h — Email method held back.** Starting the email method sends an email, which the API's
+  account-email budget limits. It answers `429` with a cooldown or daily-limit message and
+  `Retry-After`. The password dialog stays open with the message and how long to wait, and its
+  **Continue** is disabled for that long; the feature stays off and the session is left alone.
 
 ---
 
@@ -798,6 +810,9 @@ User's own record
 - **AF-17f — System Admin chosen.** Submitting with the System Admin role asks for confirmation first, saying the
   person will be able to administer every scope. Nothing is sent until it is accepted. The password field is marked
   as a new password, so a password manager does not offer the creator's own.
+- **AF-17g — Too many requests.** Creating people with a password is rate limited. The API answers
+  `429` "Too many requests." with `Retry-After`; the client shows it as an error with how long to
+  wait, and keeps the form as typed. Creating a co-owner (UI-14) behaves the same way.
 
 ---
 

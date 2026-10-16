@@ -8,6 +8,7 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verification_banner.dart';
 import 'package:mocktail/mocktail.dart';
@@ -180,6 +181,34 @@ void main() {
     expect(find.text('This address is already verified.'), findsOneWidget);
   });
 
+  // AF-05f — the API's account-email budget answers 429 with Retry-After.
+  // The message is shown, and the control waits that long before offering a
+  // send that would only be refused again.
+  testWidgets('GivenACooldown_WhenResendRefused_ThenResendWaitsRetryAfter', (
+    tester,
+  ) async {
+    // Given
+    when(() => repository.resendVerificationEmail())
+        .thenAnswer((_) async => const FailureResult<void>(_cooldown));
+    await pump(tester, emailVerified: false);
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Resend'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text(_cooldown.errors.single), findsOneWidget);
+    final button = find.widgetWithText(TextButton, 'Resend');
+    expect(tester.widget<TextButton>(button).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 119));
+    expect(tester.widget<TextButton>(button).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 1));
+    expect(tester.widget<TextButton>(button).onPressed, isNotNull);
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+  });
+
   // AF-05e — and it is dismissible.
   testWidgets('GivenThePrompt_WhenDismissed_ThenItIsGone', (tester) async {
     // Given
@@ -206,3 +235,12 @@ void main() {
     );
   });
 }
+
+const Failure _cooldown = Failure(
+  kind: FailureKind.rateLimited,
+  errors: <String>[
+    'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.',
+  ],
+  retryAfter: Duration(seconds: 120),
+);

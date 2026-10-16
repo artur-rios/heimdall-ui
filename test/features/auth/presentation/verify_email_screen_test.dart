@@ -346,6 +346,34 @@ void main() {
     expect(find.text('This address is already verified.'), findsOneWidget);
   });
 
+  // AF-05f — the account-email budget's 429 holds the send back for as long
+  // as Retry-After says.
+  testWidgets('GivenACooldown_WhenResendRefused_ThenSendWaitsRetryAfter', (
+    tester,
+  ) async {
+    // Given
+    answerVerifyWith(
+      const FailureResult<List<String>>(
+        Failure(kind: FailureKind.validation, errors: <String>['No good.']),
+      ),
+    );
+    answerResendWith(const FailureResult<void>(_cooldown));
+    await pump(tester, signedIn: true);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Send a new email'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text(_cooldown.errors.single), findsOneWidget);
+    expect(find.text('Try again in 2 minutes.'), findsOneWidget);
+    final button = find.widgetWithText(FilledButton, 'Send a new email');
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+
+    await tester.pump(const Duration(seconds: 120));
+    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+  });
+
   testWidgets('GivenCompactWidth_WhenRendered_ThenTheOutcomeIsShown', (
     tester,
   ) async {
@@ -398,3 +426,12 @@ void main() {
     expect(find.text('Your email is verified'), findsOneWidget);
   });
 }
+
+const Failure _cooldown = Failure(
+  kind: FailureKind.rateLimited,
+  errors: <String>[
+    'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.',
+  ],
+  retryAfter: Duration(seconds: 120),
+);
