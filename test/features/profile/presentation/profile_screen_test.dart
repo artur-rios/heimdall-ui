@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
@@ -111,6 +112,7 @@ void main() {
     ThemeData? theme,
     int role = 3,
     bool viaGoogle = false,
+    bool routed = false,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -136,13 +138,41 @@ void main() {
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
 
+    // [routed] puts the screen under a router, for a test that follows a
+    // link off it.
+    final router = routed
+        ? GoRouter(
+            initialLocation: '/profile',
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) => const ProfileScreen(),
+              ),
+              GoRoute(
+                path: '/profile/security',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('security')),
+              ),
+            ],
+          )
+        : null;
+
+    if (router != null) {
+      addTearDown(router.dispose);
+    }
+
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const ProfileScreen(),
-        ),
+        child: router == null
+            ? MaterialApp(
+                theme: theme ?? buildLightTheme(),
+                home: const ProfileScreen(),
+              )
+            : MaterialApp.router(
+                theme: theme ?? buildLightTheme(),
+                routerConfig: router,
+              ),
       ),
     );
     await tester.pumpAndSettle();
@@ -668,6 +698,138 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Authenticated>());
   });
 
+  // AF-08i — the API will not change the address while the email sign-in
+  // method is on. The refusal is shown on the form with the way out: the
+  // two-factor settings, where the method is turned off.
+  testWidgets(
+    'GivenTheEmailMethodOn_WhenTheEmailIsSaved_ThenSecurityIsOffered',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      answerStatusWith(
+        const TwoFactorStatus(isActive: true, emailEnabled: true),
+      );
+      answerUpdateWith(const FailureResult<Person>(_emailMethodOn));
+      await pump(tester, routed: true);
+      await changeEmailTo(tester, 'new@example.com');
+      await tester.enterText(passwordField(), 'secret');
+      await tester.enterText(codeField(), 'ABCD-EFGH-JKMN-PQRS');
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text(_emailMethodOn.errors.single), findsOneWidget);
+      expect(
+        find.text(
+          'Turn the email method off in your security settings, change your '
+          'address, then set the method up again at the new one.',
+        ),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(TextFormField, 'new@example.com'),
+        findsOneWidget,
+      );
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+    },
+  );
+
+  testWidgets('GivenTheEmailMethodRefusal_WhenSecurityIsChosen_ThenItOpens', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_adaWithTwoFactor));
+    answerStatusWith(const TwoFactorStatus(isActive: true, emailEnabled: true));
+    answerUpdateWith(const FailureResult<Person>(_emailMethodOn));
+    await pump(tester, routed: true);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.enterText(codeField(), 'ABCD-EFGH-JKMN-PQRS');
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Open security settings'));
+    await tester.pumpAndSettle();
+    // The typed address is an unsaved edit, so leaving asks first.
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('security'), findsOneWidget);
+  });
+
+  // AF-08j — the change's notice counts against the account-email budget.
+  testWidgets('GivenAMailCooldown_WhenTheEmailIsSaved_ThenTheWaitIsShown', (
+    tester,
+  ) async {
+    // Given
+    const cooldown =
+        'An email of this kind was sent to you recently. Try again in a few '
+        'minutes.';
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(
+      const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>[cooldown],
+          retryAfter: Duration(seconds: 240),
+        ),
+      ),
+    );
+    await pump(tester);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text(cooldown), findsOneWidget);
+    expect(find.text('Try again in 4 minutes.'), findsOneWidget);
+    expect(
+      find.widgetWithText(TextFormField, 'new@example.com'),
+      findsOneWidget,
+    );
+    expect(container.read(sessionControllerProvider), isA<Authenticated>());
+  });
+
+  testWidgets('GivenAnotherConflict_WhenTheEmailIsSaved_ThenNoHintIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerUpdateWith(
+      const FailureResult<Person>(
+        Failure(
+          kind: FailureKind.conflict,
+          errors: <String>['That email address is already registered.'],
+        ),
+      ),
+    );
+    await pump(tester, routed: true);
+    await changeEmailTo(tester, 'new@example.com');
+    await tester.enterText(passwordField(), 'secret');
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('That email address is already registered.'),
+      findsOneWidget,
+    );
+    expect(find.text('Open security settings'), findsNothing);
+  });
+
   // FR-AU-28 — the change revokes the token that made it, so the person is
   // signed out, with the reason kept for the sign-in screen.
   testWidgets('GivenAnEmailChange_WhenSaved_ThenTheSessionEnds', (
@@ -1026,3 +1188,12 @@ void main() {
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
   });
 }
+
+/// The API's refusal of an own email change while the email sign-in method is
+/// on (enabled or pending).
+const Failure _emailMethodOn = Failure(
+  kind: FailureKind.conflict,
+  errors: <String>[
+    'Turn off the email sign-in method before changing your email address.',
+  ],
+);

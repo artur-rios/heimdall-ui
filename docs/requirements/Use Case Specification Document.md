@@ -497,6 +497,15 @@ User's own record
   paused after repeated failures. The client shows the message above the form, keeps the input,
   and leaves the session alone: the token is still good, and the person is meant to correct what
   they typed.
+- **AF-08i — Email method on.** While the person's email sign-in method is on, enabled or pending,
+  the API refuses a change of address with `409` "Turn off the email sign-in method before changing
+  your email address.". The client shows it above the form, keeps the input, and adds "Turn the
+  email method off in your security settings, change your address, then set the method up again at
+  the new one." with **Open security settings**, which opens UI-09 once the unsaved edit is let go.
+- **AF-08j — Email held back.** The change's notice to the previous address counts against the
+  account-email budget. The API answers `429` with a cooldown or daily-limit message and
+  `Retry-After`; the client shows the message with how long to wait, keeps the input, and leaves
+  the session alone.
 
 ---
 

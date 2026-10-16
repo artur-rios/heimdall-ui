@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- Changing your own email address while the email sign-in method is on is refused by the API; the profile now shows
+  why, keeps what you typed, and offers **Open security settings** to turn the method off first.
 - When the API holds back an account email (a new verification link, the code that sets up the email sign-in method,
   or an email change's notice) because one was sent recently or the day's limit is reached, its message is shown with
   how long to wait, and the button that would ask again stays disabled until then. The same applies to sending a new
