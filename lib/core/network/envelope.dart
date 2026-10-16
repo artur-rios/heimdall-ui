@@ -178,7 +178,8 @@ Failure failureFromDioException(DioException error) {
 /// The HTTP-date form is not used by the API and is ignored rather than
 /// guessed at.
 Duration? _retryAfterOf(Response<dynamic> response) {
-  final raw = response.headers.value('retry-after')?.trim();
+  // `value` throws on a repeated header; a proxy may add one of its own.
+  final raw = response.headers['retry-after']?.firstOrNull?.trim();
 
   if (raw == null || !_delaySeconds.hasMatch(raw)) {
     return null;

@@ -380,6 +380,28 @@ void main() {
     expect(failure.retryAfter, isNull);
   });
 
+  test('GivenARepeatedRetryAfter_WhenMapped_ThenTheFirstValueIsUsed', () {
+    // Given — a proxy that adds its own header next to the API's
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+      response: Response<dynamic>(
+        requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+        statusCode: 429,
+        headers: Headers.fromMap(<String, List<String>>{
+          'retry-after': <String>['37', '120'],
+        }),
+      ),
+      type: DioExceptionType.badResponse,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.rateLimited);
+    expect(failure.retryAfter, const Duration(seconds: 37));
+  });
+
   // FR-UX-09 — Retry-After is whole, non-negative seconds, and a wait beyond
   // a day is held to a day: the client pauses no longer than that, and never
   // with a duration that overflows. Anything else, zero included, pauses
@@ -392,6 +414,10 @@ void main() {
     ('+37', null),
     ('-5', null),
     ('0', null),
+    ('000', null),
+    ('0037', const Duration(seconds: 37)),
+    ('999999999', const Duration(days: 1)),
+    ('1000000000', const Duration(days: 1)),
     ('Wed, 21 Oct 2026 07:28:00 GMT', null),
     ('37', const Duration(seconds: 37)),
     (' 37 ', const Duration(seconds: 37)),
