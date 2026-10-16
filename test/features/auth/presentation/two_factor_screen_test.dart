@@ -677,6 +677,41 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Challenged>());
   });
 
+  // AF-02i — a long wait is named as the banner names it, and is held to a
+  // day however long the API asked for.
+  testWidgets('GivenALongRetryAfter_WhenRefused_ThenTheLabelNamesItReadably', (
+    tester,
+  ) async {
+    // Given
+    answerResendWith(
+      const FailureResult<void>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(days: 30),
+        ),
+      ),
+    );
+    await pump(tester, methods: const <String>['Email']);
+
+    // When
+    await tester.tap(sendButton());
+    await tester.pump();
+
+    // Then
+    expect(find.text('Send a new code (24 hours)'), findsOneWidget);
+    expect(find.text('Try again in 24 hours.'), findsOneWidget);
+    await tester.pump(const Duration(hours: 23, minutes: 59));
+    expect(find.text('Send a new code (1 minute)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 1));
+    expect(find.text('Send a new code (59s)'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 59));
+    final button = tester.widget<TextButton>(
+      find.widgetWithText(TextButton, 'Send a new code'),
+    );
+    expect(button.onPressed, isNotNull);
+  });
+
   testWidgets('GivenFailedResends_WhenSendsSucceedAfter_ThenOnlyTheyCount', (
     tester,
   ) async {

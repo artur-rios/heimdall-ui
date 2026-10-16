@@ -710,7 +710,8 @@ class _PasswordDialogState extends State<_PasswordDialog> {
       _failure = failure;
     });
 
-    if (failure.retryAfter case final Duration wait when wait > Duration.zero) {
+    // Held to a day, never zero or less (Failure.pause).
+    if (failure.pause case final Duration wait) {
       _wait?.cancel();
       _wait = Timer(wait, () {
         if (mounted) {

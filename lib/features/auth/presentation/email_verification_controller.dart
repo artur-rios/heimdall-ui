@@ -187,8 +187,8 @@ class EmailVerificationController extends Notifier<EmailVerificationState>
       ),
     );
 
-    if (result.failureOrNull?.retryAfter case final Duration wait
-        when wait > Duration.zero) {
+    // Held to a day, never zero or less (Failure.pause).
+    if (result.failureOrNull?.pause case final Duration wait) {
       _pauseResend(wait);
     }
   }

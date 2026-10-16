@@ -668,6 +668,32 @@ void main() {
     expect(session(), isA<Authenticated>());
   });
 
+  testWidgets('GivenAHugeRetryAfter_WhenTheEmailSetupStarts_ThenItWaitsADay', (
+    tester,
+  ) async {
+    // Given
+    answerEnableWith(
+      const FailureResult<TwoFactorSetup>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: <String>['Too many requests.'],
+          retryAfter: Duration(days: 365),
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await startSetup(tester, 'Emailed code');
+
+    // Then
+    final proceed = find.widgetWithText(FilledButton, 'Continue');
+    await tester.pump(const Duration(hours: 23, minutes: 59));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNull);
+    await tester.pump(const Duration(minutes: 1));
+    expect(tester.widget<FilledButton>(proceed).onPressed, isNotNull);
+  });
+
   testWidgets('GivenARefusedPassword_WhenRetyped_ThenTheSetupStarts', (
     tester,
   ) async {
@@ -1053,6 +1079,19 @@ void main() {
       ),
       findsOneWidget,
     );
+  });
+
+  testWidgets('GivenItIsOff_WhenOpened_ThenNoOlderCodesHintIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_off));
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.textContaining('XXXX-XXXX form'), findsNothing);
   });
 
   // A Google User may never configure this here.

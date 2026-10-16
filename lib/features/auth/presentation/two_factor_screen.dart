@@ -102,16 +102,20 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
     });
 
     // AF-02i: a refusal that says how long to wait is not a send, but the
-    // control waits that long rather than invite the same refusal.
-    final wait = failure == null ? resendCooldown : failure.retryAfter;
-
-    if (wait != null && wait > Duration.zero) {
+    // control waits that long, held to a day (Failure.pause), rather than
+    // invite the same refusal.
+    if (failure == null ? resendCooldown : failure.pause
+        case final Duration wait) {
       _startCooldown(wait);
     }
   }
 
   /// Counts [wait] down in the resend control's label, which stays disabled
   /// until it ends.
+  ///
+  /// The count moves every second, but the screen is rebuilt only when the
+  /// label changes: once a minute while the wait is named in minutes, once an
+  /// hour while it is named in hours.
   void _startCooldown(Duration wait) {
     _cooldown?.cancel();
     setState(() => _cooldownLeft = wait.inSeconds);
@@ -122,10 +126,15 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
         return;
       }
 
-      setState(() => _cooldownLeft--);
+      final shown = _resendLabel(_cooldownLeft);
+      _cooldownLeft--;
 
       if (_cooldownLeft <= 0) {
         timer.cancel();
+      }
+
+      if (_cooldownLeft <= 0 || _resendLabel(_cooldownLeft) != shown) {
+        setState(() {});
       }
     });
   }
@@ -345,11 +354,7 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
                                 (_submitting || _resending || _cooldownLeft > 0)
                                 ? null
                                 : _resend,
-                            child: Text(
-                              _cooldownLeft > 0
-                                  ? 'Send a new code (${_cooldownLeft}s)'
-                                  : 'Send a new code',
-                            ),
+                            child: Text(_resendLabel(_cooldownLeft)),
                           ),
                         const SizedBox(height: 16),
                       ],
@@ -397,6 +402,15 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
     );
   }
 }
+
+/// The resend control's label while [secondsLeft] of a wait remain: seconds
+/// under a minute, as the 30-second cooldown always was, and beyond that the
+/// minutes or hours the error banner names too.
+String _resendLabel(int secondsLeft) => switch (secondsLeft) {
+  <= 0 => 'Send a new code',
+  < 60 => 'Send a new code (${secondsLeft}s)',
+  _ => 'Send a new code (${describeWait(Duration(seconds: secondsLeft))})',
+};
 
 /// Names a method the way its owner would. An unrecognised one is shown as the
 /// API worded it, which beats guessing.

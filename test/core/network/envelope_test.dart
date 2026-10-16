@@ -379,6 +379,49 @@ void main() {
     expect(failure.kind, FailureKind.rateLimited);
     expect(failure.retryAfter, isNull);
   });
+
+  // FR-UX-09 — Retry-After is whole, non-negative seconds, and a wait beyond
+  // a day is held to a day: the client pauses no longer than that, and never
+  // with a duration that overflows. Anything else, zero included, pauses
+  // nothing.
+  for (final (raw, expected) in <(String?, Duration?)>[
+    (null, null),
+    ('', null),
+    ('soon', null),
+    ('3.5', null),
+    ('+37', null),
+    ('-5', null),
+    ('0', null),
+    ('Wed, 21 Oct 2026 07:28:00 GMT', null),
+    ('37', const Duration(seconds: 37)),
+    (' 37 ', const Duration(seconds: 37)),
+    ('86400', const Duration(days: 1)),
+    ('86401', const Duration(days: 1)),
+    ('9223372036854775807', const Duration(days: 1)),
+    ('99999999999999999999999', const Duration(days: 1)),
+  ]) {
+    test('GivenARetryAfterHeader_WhenMapped_ThenTheWaitIsBounded: $raw', () {
+      // Given
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/api/auth/resend-verification'),
+          statusCode: 429,
+          headers: Headers.fromMap(<String, List<String>>{
+            if (raw != null) 'retry-after': <String>[raw],
+          }),
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      // When
+      final failure = failureFromDioException(error);
+
+      // Then
+      expect(failure.retryAfter, expected);
+      expect(failure.pause, expected);
+    });
+  }
 }
 
 String _capitalized(String name) =>

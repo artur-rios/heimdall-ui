@@ -173,11 +173,30 @@ Failure failureFromDioException(DioException error) {
   );
 }
 
-/// `Retry-After` as whole seconds (RFC 9110 §10.2.3). The HTTP-date form is not
-/// used by the API and is ignored rather than guessed at.
+/// `Retry-After` as whole seconds (RFC 9110 §10.2.3): digits only, held to
+/// [kMaxRetryAfter]. Zero, a sign, a fraction or anything else pauses nothing.
+/// The HTTP-date form is not used by the API and is ignored rather than
+/// guessed at.
 Duration? _retryAfterOf(Response<dynamic> response) {
-  final raw = response.headers.value('retry-after');
-  final seconds = raw == null ? null : int.tryParse(raw.trim());
+  final raw = response.headers.value('retry-after')?.trim();
 
-  return seconds == null || seconds < 0 ? null : Duration(seconds: seconds);
+  if (raw == null || !_delaySeconds.hasMatch(raw)) {
+    return null;
+  }
+
+  // Past nine significant digits the value is over the cap anyway, and might
+  // not fit an int at all.
+  final digits = raw.replaceFirst(RegExp('^0+'), '');
+
+  if (digits.isEmpty) {
+    return null;
+  }
+
+  final seconds = digits.length > 9 ? null : int.parse(digits);
+
+  return seconds == null || seconds > kMaxRetryAfter.inSeconds
+      ? kMaxRetryAfter
+      : Duration(seconds: seconds);
 }
+
+final RegExp _delaySeconds = RegExp(r'^[0-9]+$');

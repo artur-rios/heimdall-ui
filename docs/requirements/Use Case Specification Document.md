@@ -270,8 +270,9 @@ delivered the same way.
 - **AF-02h — Transport or server failure.** The client shows an error banner. The send is not
   counted and the countdown does not start.
 - **AF-02i — Send rate limited.** The API answers `429` with `Retry-After`. The client shows the
-  message; the send is not counted, and **Send a new code** counts the `Retry-After` seconds down in
-  its label instead of the usual 30.
+  message; the send is not counted, and **Send a new code** counts the `Retry-After` wait down in
+  its label instead of the usual 30 seconds: in seconds under a minute ("Send a new code (45s)"),
+  then in the minutes or hours the banner names ("Send a new code (24 hours)"), held to a day.
 
 ---
 

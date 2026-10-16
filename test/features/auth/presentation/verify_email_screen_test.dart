@@ -374,6 +374,39 @@ void main() {
     expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
   });
 
+  // FR-UX-09 — however long the API asks for, the pause is held to a day.
+  testWidgets('GivenAHugeRetryAfter_WhenResendRefused_ThenSendWaitsADay', (
+    tester,
+  ) async {
+    // Given
+    answerVerifyWith(
+      const FailureResult<List<String>>(
+        Failure(kind: FailureKind.validation, errors: <String>['No good.']),
+      ),
+    );
+    answerResendWith(
+      FailureResult<void>(
+        Failure(
+          kind: FailureKind.rateLimited,
+          errors: _cooldown.errors,
+          retryAfter: const Duration(days: 365),
+        ),
+      ),
+    );
+    await pump(tester, signedIn: true);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Send a new email'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final button = find.widgetWithText(FilledButton, 'Send a new email');
+    await tester.pump(const Duration(hours: 23, minutes: 59));
+    expect(tester.widget<FilledButton>(button).onPressed, isNull);
+    await tester.pump(const Duration(minutes: 1));
+    expect(tester.widget<FilledButton>(button).onPressed, isNotNull);
+  });
+
   testWidgets('GivenCompactWidth_WhenRendered_ThenTheOutcomeIsShown', (
     tester,
   ) async {

@@ -24,6 +24,26 @@ const String kUnreachableMessage =
 const String kUnexpectedResponseMessage =
     'The API returned an unexpected response.';
 
+/// The longest a client pauses for a `Retry-After`: the account-email
+/// budget's daily window. A longer wait is held to it, so no timer is ever
+/// set for longer, and none overflows.
+const Duration kMaxRetryAfter = Duration(days: 1);
+
+/// [wait] as a person reads it: seconds under a minute, minutes under an
+/// hour, hours beyond, each rounded up.
+String describeWait(Duration wait) {
+  final seconds = wait.inSeconds;
+
+  String count(int amount, String unit) =>
+      amount == 1 ? '1 $unit' : '$amount ${unit}s';
+
+  return switch (seconds) {
+    < 60 => count(seconds, 'second'),
+    < 3600 => count((seconds + 59) ~/ 60, 'minute'),
+    _ => count((seconds + 3599) ~/ 3600, 'hour'),
+  };
+}
+
 /// A failed outcome, carrying the API's own error messages when it produced any.
 ///
 /// The strings in [errors] come straight from the response envelope and are
@@ -46,29 +66,24 @@ class Failure {
   /// cooldown did: its message says how long instead.
   final Duration? retryAfter;
 
+  /// How long to hold back a control that would only be refused again:
+  /// [retryAfter] held to [kMaxRetryAfter], or `null` when there is no
+  /// positive wait. Every pause is timed by this, never by [retryAfter].
+  Duration? get pause => switch (retryAfter) {
+    final Duration wait when wait <= Duration.zero => null,
+    final Duration wait when wait > kMaxRetryAfter => kMaxRetryAfter,
+    final Duration? wait => wait,
+  };
+
   /// "Try again in N seconds." when the API said how long to wait, else `null`.
   ///
   /// A wait of a minute or more is named in minutes, and one of an hour or
-  /// more in hours, rounded up: an account email's cooldown is minutes long,
-  /// and its daily window hours.
-  String? get retryHint {
-    final seconds = retryAfter?.inSeconds;
-
-    if (seconds == null) {
-      return null;
-    }
-
-    String count(int amount, String unit) =>
-        amount == 1 ? '1 $unit' : '$amount ${unit}s';
-
-    final wait = switch (seconds) {
-      < 60 => count(seconds, 'second'),
-      < 3600 => count((seconds + 59) ~/ 60, 'minute'),
-      _ => count((seconds + 3599) ~/ 3600, 'hour'),
-    };
-
-    return 'Try again in $wait.';
-  }
+  /// more in hours (see [describeWait]): an account email's cooldown is
+  /// minutes long, and its daily window hours.
+  String? get retryHint => switch (pause) {
+    final Duration wait => 'Try again in ${describeWait(wait)}.',
+    null => null,
+  };
 
   /// The single line worth showing when there is no field to attach errors to.
   String get displayMessage =>

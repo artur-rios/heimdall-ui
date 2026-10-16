@@ -151,4 +151,56 @@ void main() {
       expect(hint, expected);
     });
   }
+
+  // A Failure built anywhere else is held to the same bound: what a pause is
+  // timed by is never zero, negative, or longer than a day.
+  for (final (wait, expected, hint) in <(Duration?, Duration?, String?)>[
+    (null, null, null),
+    (Duration.zero, null, null),
+    (const Duration(seconds: -1), null, null),
+    (
+      const Duration(seconds: 90),
+      const Duration(seconds: 90),
+      'Try again in 2 minutes.',
+    ),
+    (
+      const Duration(days: 400),
+      const Duration(days: 1),
+      'Try again in 24 hours.',
+    ),
+  ]) {
+    test('GivenARetryAfter_WhenPaused_ThenItIsBounded: $wait', () {
+      // Given
+      final failure = Failure(
+        kind: FailureKind.rateLimited,
+        errors: const <String>[],
+        retryAfter: wait,
+      );
+
+      // When
+      final pause = failure.pause;
+
+      // Then
+      expect(pause, expected);
+      expect(failure.retryHint, hint);
+    });
+  }
+
+  for (final (seconds, expected) in <(int, String)>[
+    (1, '1 second'),
+    (59, '59 seconds'),
+    (60, '1 minute'),
+    (3600, '1 hour'),
+  ]) {
+    test('GivenAWait_WhenDescribed_ThenItIsReadable: $seconds', () {
+      // Given
+      final wait = Duration(seconds: seconds);
+
+      // When
+      final described = describeWait(wait);
+
+      // Then
+      expect(described, expected);
+    });
+  }
 }
