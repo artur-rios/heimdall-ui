@@ -52,8 +52,9 @@ const String scopeParameter = 'scope';
 ///   and the raw key it was encrypted with beside it, are removed.
 ///
 /// The route is the address's last non-empty segment, so a build served under
-/// a sub-path, or a link with a trailing slash, is read the same way. The rest of the query and the fragment are
-/// kept, and the address is replaced only when something was taken out of it.
+/// a sub-path, or a link with a trailing slash, is read the same way. The rest
+/// of the query and the fragment are kept, and the address is replaced only
+/// when something was taken out of it.
 EntryLink takeEntryLink(EntryBrowser browser) {
   for (final key in SecureTokenStore.legacyWebEntries) {
     browser.forgetLocal(key);
@@ -136,6 +137,5 @@ class EntryLinkController extends Notifier<EntryLink> {
 
 /// What start-up took from the entry address. Overridden at start-up with
 /// the platform's answer; nothing was taken off the web.
-
 final NotifierProvider<EntryLinkController, EntryLink> entryLinkProvider =
     NotifierProvider<EntryLinkController, EntryLink>(EntryLinkController.new);
