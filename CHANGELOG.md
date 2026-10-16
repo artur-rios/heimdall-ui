@@ -53,10 +53,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   now marked as new passwords, so a password manager no longer offers, or offers to overwrite, the creating admin's
   own saved password.
 - A copied credential secret, authenticator setup key or set of recovery codes is now cleared from the clipboard after
-  60 seconds where the platform allows, unless something else has been copied since. The check runs again when the
-  app returns to the foreground; it is not attempted in a browser, and it does not happen if the app is closed first.
-  On Android the window is also kept out of screenshots, screen recordings and
-  the recents thumbnail while a secret or recovery codes are on screen.
+  60 seconds where the platform allows, unless something else has been copied since. When the app cannot read the
+  clipboard at that moment, as in the background, the check waits and runs each time the app returns to the
+  foreground until it can. It is not attempted in a browser, and it does not happen if the app is closed first. On
+  Android the window is also kept out of screenshots, screen recordings and the recents thumbnail while a secret or
+  recovery codes are on screen.
 - The token of a password reset or email verification link stayed in the address bar, in the page's history entry,
   and in the Referer of every request the page made. On the web it is now removed from the address as the page opens,
   so later requests no longer carry it; reloading the page afterwards needs the link again. The web image also asks

@@ -7,6 +7,9 @@ import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
 class _FakeClipboard implements ClipboardAccess {
   String? text;
   bool failReads = false;
+
+  /// A background app on a recent Android is answered null, not refused.
+  bool nullReads = false;
   int reads = 0;
 
   @override
@@ -16,7 +19,7 @@ class _FakeClipboard implements ClipboardAccess {
       throw StateError('clipboard is not readable');
     }
 
-    return text;
+    return nullReads ? null : text;
   }
 
   @override
@@ -136,6 +139,65 @@ void main() {
       expect(clipboard.text, '');
     },
   );
+
+  // The timer fires while the app is in the background, where the read is
+  // refused or answered null. The check must stay armed, so coming back to
+  // the foreground still clears the secret.
+  for (final refusal in <String>['null', 'throw']) {
+    testWidgets(
+      'GivenABackgroundReadRefused_WhenTheAppResumes_ThenItIsCleared: '
+      '$refusal',
+      (tester) async {
+        // Given
+        unawaited(secrets.copy('hds_secret'));
+        await tester.pump();
+        clipboard
+          ..nullReads = refusal == 'null'
+          ..failReads = refusal == 'throw';
+        now = now.add(const Duration(seconds: 61));
+        await tester.pump(const Duration(seconds: 61));
+        expect(clipboard.reads, 1);
+        expect(clipboard.text, 'hds_secret');
+
+        // When
+        clipboard
+          ..nullReads = false
+          ..failReads = false;
+        secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump();
+
+        // Then
+        expect(clipboard.text, '');
+        secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+        await tester.pump();
+        expect(clipboard.reads, 2);
+      },
+    );
+  }
+
+  testWidgets('GivenACopyMadeSince_WhenTheAppResumes_ThenItIsLeftAlone', (
+    tester,
+  ) async {
+    // Given
+    unawaited(secrets.copy('hds_secret'));
+    await tester.pump();
+    clipboard.nullReads = true;
+    now = now.add(const Duration(seconds: 61));
+    await tester.pump(const Duration(seconds: 61));
+    clipboard
+      ..nullReads = false
+      ..text = 'something of their own';
+
+    // When
+    secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pump();
+
+    // Then
+    expect(clipboard.text, 'something of their own');
+    secrets.didChangeAppLifecycleState(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(clipboard.reads, 2);
+  });
 
   testWidgets(
     'GivenTheDeadlineNotReached_WhenTheAppResumes_ThenItIsStillThere',

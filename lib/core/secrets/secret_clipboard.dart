@@ -32,9 +32,11 @@ const Duration secretClipboardLifetime = Duration(seconds: 60);
 ///
 /// This is best effort. The clipboard is cleared only if it still holds the
 /// secret: something the person copied since is theirs to keep. A background
-/// app on a recent Android cannot read the clipboard, so the check runs again
-/// when the app comes back to the foreground past the deadline; if the read is
-/// still refused, nothing is done. A browser tab reads the clipboard only after
+/// app on a recent Android cannot read the clipboard: a read that is refused
+/// or answered with nothing keeps the check armed, and it runs again each time
+/// the app comes back to the foreground past the deadline, until a read
+/// answers. The secret is forgotten once a read has answered, or on the next
+/// copy. A browser tab reads the clipboard only after
 /// a permission prompt, and a blind clear could wipe something else, so on the
 /// web ([readable] false) the clipboard is never touched again after the copy.
 /// Closing the app earlier leaves the secret where it is.
@@ -56,6 +58,11 @@ class SecretClipboard with WidgetsBindingObserver {
   String? _pending;
   DateTime? _deadline;
   bool _observing = false;
+
+  /// Moves on with every copy and every [dispose], so a check that was
+  /// reading meanwhile knows its secret is no longer the pending one.
+  int _generation = 0;
+  bool _checking = false;
 
   /// Puts [secret] on the clipboard and schedules its removal. A later copy
   /// restarts the delay.
@@ -95,6 +102,7 @@ class SecretClipboard with WidgetsBindingObserver {
   }
 
   void _forget() {
+    _generation++;
     _timer?.cancel();
     _timer = null;
     _pending = null;
@@ -109,19 +117,52 @@ class SecretClipboard with WidgetsBindingObserver {
   Future<void> _clearIfStill() async {
     final secret = _pending;
 
-    _forget();
-
-    if (secret == null) {
+    if (secret == null || _checking) {
       return;
     }
 
+    final generation = _generation;
+    _checking = true;
+    _timer?.cancel();
+    _timer = null;
+
     try {
-      if (await _clipboard.read() == secret) {
-        await _clipboard.write('');
+      final held = await _readOrNull();
+
+      // A copy or a dispose since then owns what is pending now.
+      if (generation != _generation) {
+        return;
       }
+
+      // Refused, or answered with nothing (a background app on a recent
+      // Android): nothing is known, so the check stays armed for the next
+      // return to the foreground.
+      if (held == null) {
+        return;
+      }
+
+      if (held == secret) {
+        try {
+          await _clipboard.write('');
+        } on Object {
+          // Not cleared: stay armed and try again on the next resume.
+          return;
+        }
+      }
+
+      if (generation == _generation) {
+        _forget();
+      }
+    } finally {
+      _checking = false;
+    }
+  }
+
+  Future<String?> _readOrNull() async {
+    try {
+      return await _clipboard.read();
     } on Object {
-      // A clipboard that cannot be read (a background app on a recent Android)
-      // cannot be cleared safely either; there is nothing more to do.
+      return null;
     }
   }
 }
