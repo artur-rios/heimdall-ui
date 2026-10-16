@@ -403,10 +403,10 @@ delivered the same way.
   an address Google has not verified, and answers `403` "Google sign-up requires a verified email
   address.". The client shows it as a sign-in error, as in AF-06d; no session existed, so nothing
   is said to have expired.
-- **AF-06g — No nonce.** `POST /api/auth/google` accepts an optional `nonce`, which the client does
-  not send. The Google Sign-In plugin takes a nonce only once, when it is initialised for the life
-  of the application, so the client could not give each sign-in a fresh one; and the API's check
-  binds a token to an attempt without stopping a holder of the token from presenting it.
+- **AF-06g — No nonce yet.** `POST /api/auth/google` accepts an optional `nonce`, which the client
+  does not send yet: the Google Sign-In library takes a nonce only once, when it is initialised for
+  the life of the application, so each sign-in cannot be given a fresh one. Sending a nonce is a
+  planned improvement.
 
 ---
 
