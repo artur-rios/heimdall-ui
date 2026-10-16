@@ -193,6 +193,33 @@ void main() {
     );
   });
 
+  // AF-06f — a first Google sign-up with an address Google has not verified.
+  testWidgets('GivenAnUnverifiedGoogleAddress_WhenActivated_ThenItIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerExchangeWith(
+      const FailureResult<AuthToken>(
+        Failure(
+          kind: FailureKind.forbidden,
+          errors: <String>['Google sign-up requires a verified email address.'],
+        ),
+      ),
+    );
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Continue with Google'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(
+      find.text('Google sign-up requires a verified email address.'),
+      findsOneWidget,
+    );
+    expect(find.text('Continue with Google'), findsOneWidget);
+  });
+
   testWidgets('GivenDisabledScope_WhenActivated_ThenTheControlIsStillOffered', (
     tester,
   ) async {

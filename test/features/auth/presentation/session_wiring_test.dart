@@ -240,6 +240,33 @@ void main() {
     });
   }
 
+  // AF-06f — the API creates no Google User from an address Google has not
+  // verified. The refusal is a sign-in error, not the end of a session.
+  test(
+    'GivenAnUnverifiedGoogleAddress_WhenSigningUp_ThenItIsASignInError',
+    () async {
+      // Given
+      const refusal = 'Google sign-up requires a verified email address.';
+      adapter.answer('/api/auth/google', 403, <String, dynamic>{
+        'success': false,
+        'errors': <String>[refusal],
+      });
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await controller.exchangeGoogleIdToken('id-token');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.forbidden);
+      expect(result.failureOrNull?.errors, <String>[refusal]);
+      final state = container.read(sessionControllerProvider);
+      expect(state, isA<Unauthenticated>());
+      expect((state as Unauthenticated).sessionExpired, isFalse);
+    },
+  );
+
   // AF-07e on a Google session — the token was refused, so the API sign-out
   // made with it would be refused too, and its 401 must not start another
   // sign-out that makes the same call again.
