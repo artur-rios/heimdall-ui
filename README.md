@@ -207,8 +207,8 @@ flutter build apk --release --dart-define=HEIMDALL_API_BASE_URL=https://heimdall
 | Android | `build/app/outputs/flutter-apk` |
 
 **Signing the Android release.** The release APK is signed with a keystore held outside the repository. The Gradle
-build reads these environment variables, or `android/key.properties` (git-ignored; CI can write it from the same
-secrets) with the keys in the last column:
+build reads these environment variables, or `android/key.properties` (git-ignored, for a local build; CI passes the
+secrets as environment variables) with the keys in the last column:
 
 | Variable | Meaning | `key.properties` key |
 | --- | --- | --- |
@@ -217,9 +217,10 @@ secrets) with the keys in the last column:
 | `HEIMDALL_UI_KEY_ALIAS` | The key's alias | `keyAlias` |
 | `HEIMDALL_UI_KEY_PASSWORD` | The key's password; defaults to the keystore password | `keyPassword` |
 
-With none of them set, the release build signs with the **debug key** and prints a warning: that APK is for testing
-only and must not be distributed. Setting some of the first three but not all, or naming a keystore that does not
-exist, fails the release build (a debug build is not affected).
+With none of them set, the release build signs with the **debug key** and prints a warning, which a plain
+`flutter build apk --release` shows too: that APK is for testing only and must not be distributed. Setting some of
+the first three but not all, or naming a keystore that does not exist, fails the release build (a debug build is not
+affected).
 
 The `Build` workflow reads the same values from the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (the keystore,
 base64-encoded), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`. Without the

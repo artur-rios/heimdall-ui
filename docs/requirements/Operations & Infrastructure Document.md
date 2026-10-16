@@ -285,14 +285,15 @@ source that silences them.
   are deployment decisions and are not part of this repository.
 - **Android** release builds are signed with a keystore held outside the repository, read from the
   environment variables `HEIMDALL_UI_KEYSTORE_PATH`, `HEIMDALL_UI_KEYSTORE_PASSWORD`,
-  `HEIMDALL_UI_KEY_ALIAS` and (optionally, defaulting to the keystore password) `HEIMDALL_UI_KEY_PASSWORD`,
-  or from a git-ignored `android/key.properties` with the keys `storeFile`, `storePassword`, `keyAlias` and
-  `keyPassword`. When none is set, `flutter build apk --release` signs with the debug key and prints a
-  warning; that APK is suitable for testing and not for distribution. Without the secrets, `build.yml` produces
-  a debug-signed artifact named `heimdall-ui-android-debug-signed`. A partial configuration, or a keystore that does not exist, fails the
-  release build. `build.yml` maps the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the
-  runner's temp directory), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`
-  to those variables; when the keystore secret is empty it emits a warning annotation and names the artifact
+  `HEIMDALL_UI_KEY_ALIAS` and (optionally, defaulting to the keystore password)
+  `HEIMDALL_UI_KEY_PASSWORD`, or from a git-ignored `android/key.properties` with the keys `storeFile`,
+  `storePassword`, `keyAlias` and `keyPassword`. When none is set, `flutter build apk --release` signs
+  with the debug key and prints a warning in its output (at Gradle's error level, so Flutter's quiet
+  Gradle run shows it); that APK is suitable for testing and not for distribution. A partial
+  configuration, or a keystore that does not exist, fails the release build. `build.yml` maps the
+  repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the runner's temp directory),
+  `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD` to those
+  variables. Without the secrets it emits a warning annotation and produces a debug-signed artifact named
   `heimdall-ui-android-debug-signed`.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 

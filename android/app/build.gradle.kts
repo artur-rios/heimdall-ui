@@ -8,16 +8,17 @@ plugins {
 
 // Release signing. The keystore stays outside the repository: its path, passwords
 // and alias come from environment variables, or from android/key.properties (git-
-// ignored) which CI writes from the same secrets.
+// ignored) for a local build. CI passes the same secrets as environment variables.
 //
 //   HEIMDALL_UI_KEYSTORE_PATH   storeFile      the keystore, absolute or relative to android/
 //   HEIMDALL_UI_KEYSTORE_PASSWORD storePassword
 //   HEIMDALL_UI_KEY_ALIAS       keyAlias
 //   HEIMDALL_UI_KEY_PASSWORD    keyPassword    optional; defaults to the keystore password
 //
-// With none of them set the release build falls back to the debug key and warns
-// loudly, so a build without secrets (a pull request, a fork) still works. Such an
-// APK must never be distributed. A partial or unusable configuration fails the
+// With none of them set the release build falls back to the debug key and prints a
+// warning at error level, which Flutter's quiet Gradle run (-q) still shows, so a
+// build without secrets (a pull request, a fork) still works. Such an APK must
+// never be distributed. A partial or unusable configuration fails the
 // build rather than silently shipping a debug-signed APK. Only release builds are
 // refused: a debug build or `flutter run` is not affected by a stray variable.
 val keyProperties = Properties().apply {
@@ -103,14 +104,17 @@ gradle.taskGraph.whenReady {
             throw GradleException("The release keystore does not exist: ${store.path}")
         }
     } else {
-        logger.warn(
+        // Error level, not warn: `flutter build` runs Gradle with -q, which drops
+        // warnings. The build still succeeds.
+        logger.error(
             """
             |
             |==============================================================================
             |  WARNING: this release APK is signed with the DEBUG key.
             |  No release keystore is configured (HEIMDALL_UI_KEYSTORE_PATH, ...PASSWORD,
             |  HEIMDALL_UI_KEY_ALIAS, HEIMDALL_UI_KEY_PASSWORD, or android/key.properties).
-            |  Do NOT distribute this APK; anyone can re-sign an app with the debug key.
+            |  Do NOT distribute this APK. Configure release signing to build one that
+            |  can be distributed.
             |==============================================================================
             |
             """.trimMargin()
