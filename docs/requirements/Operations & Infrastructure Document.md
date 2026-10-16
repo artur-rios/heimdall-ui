@@ -229,18 +229,16 @@ host should send the same (NFR-10).
 | Header | Value | Why |
 | --- | --- | --- |
 | `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
-| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL, and the page's scripts and assets are requested before start-up removes it. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. A proxy in front may replace this header; see below |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. In deployed environments the reverse proxy sets this header; see below |
 | `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
 | `X-Content-Type-Options` | `nosniff` | |
 
-**Referrer-Policy behind a proxy.** The per-route `no-referrer` only reaches the browser when nothing in
-front replaces the header, as with the image served directly. Behind yggdrasil's Traefik it does not:
-the `secure-headers` middleware attached to the UI's routers sets `Referrer-Policy:
-strict-origin-when-cross-origin` on every response, replacing nginx's, so the reset and verification
-pages get that policy too. There the protection is the application's own: it removes the token from
-the address as it starts, so no request it makes afterwards carries the token in its Referer. The
-page's own scripts and assets, requested before that, still send the full address to the UI's nginx,
-which has already logged the same address on the request for the page itself.
+**Referrer-Policy behind a proxy.** In deployed environments Referrer-Policy is set by the reverse
+proxy. nginx's per-route `no-referrer` reaches the browser when the image is served directly. Behind
+yggdrasil's Traefik, the `secure-headers` middleware attached to the UI's routers sets
+`Referrer-Policy: strict-origin-when-cross-origin` on every response in place of nginx's value. The
+application removes a link token from the address as it starts, so the requests it makes afterwards
+do not carry it.
 
 > [!NOTE]
 > For no Referer on those two routes behind a proxy, the edge middleware must not set
@@ -290,8 +288,8 @@ source that silences them.
   `HEIMDALL_UI_KEY_ALIAS` and (optionally, defaulting to the keystore password) `HEIMDALL_UI_KEY_PASSWORD`,
   or from a git-ignored `android/key.properties` with the keys `storeFile`, `storePassword`, `keyAlias` and
   `keyPassword`. When none is set, `flutter build apk --release` signs with the debug key and prints a
-  warning; that APK is suitable for testing and not for distribution, and `build.yml` produces exactly
-  that until the secrets are added. A partial configuration, or a keystore that does not exist, fails the
+  warning; that APK is suitable for testing and not for distribution. Without the secrets, `build.yml` produces
+  a debug-signed artifact named `heimdall-ui-android-debug-signed`. A partial configuration, or a keystore that does not exist, fails the
   release build. `build.yml` maps the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the
   runner's temp directory), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`
   to those variables; when the keystore secret is empty it emits a warning annotation and names the artifact

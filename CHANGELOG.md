@@ -14,9 +14,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `android/key.properties`. Without them it still falls back to the debug key, now with a loud Gradle warning, so a
   build without the secrets keeps working but must not be distributed. A partial configuration fails the build.
 - The web image now sends an enforced Content-Security-Policy, which allows the page to load script and connect only
-  to its own origin, the API's origin, Google Sign-In, and Google's font service for characters the bundled font has
-  no glyphs for, such as emoji and Chinese, Japanese or Arabic text. The API's origin comes from `HEIMDALL_API_BASE_URL`, which
-  must now be an absolute `http(s)` URL.
+  to its own origin, the API's origin, Google Sign-In, Google profile pictures (`*.googleusercontent.com`), and
+  Google's font service for characters the bundled font has no glyphs for, such as emoji and Chinese, Japanese or
+  Arabic text. The API's origin comes from `HEIMDALL_API_BASE_URL`, which must now be an absolute `http(s)` URL.
 - On the web, a calling application now hands over the target scope in the URL, as `?scope=<scope id>` on any page,
   instead of writing it into the UI's session storage, which only worked from the UI's own origin. The UI keeps it for
   the tab and removes it from the address bar; a value that is not a scope id is ignored. Callers must not be hosted
@@ -58,15 +58,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   foreground until it can. It is not attempted in a browser, and it does not happen if the app is closed first. On
   Android the window is also kept out of screenshots, screen recordings and the recents thumbnail while a secret or
   recovery codes are on screen.
-- The token of a password reset or email verification link stayed in the address bar, in the page's history entry,
-  and in the Referer of every request the page made. On the web it is now removed from the address as the page opens,
-  so later requests no longer carry it; reloading the page afterwards needs the link again. The web image also asks
-  for no Referer from those two pages, which applies where no proxy in front replaces that header.
+- On the web, the token of a password reset or email verification link is now removed from the address as the page
+  opens, so it no longer stays in the address bar or the page's history entry, and later requests do not carry it;
+  reloading the page afterwards needs the link again. The web image's nginx asks for no Referer from those two pages;
+  in deployed environments Referrer-Policy is set by the reverse proxy.
 - A session token kept in the browser's local storage by an earlier version, and the key it was encrypted with, are
   now removed when the UI opens, instead of lingering until the token expired.
-- A link whose id was not a real identifier, for example one that decoded to another path, could open a screen that
-  loaded, and offered to delete, a different record from the one the link named. Such a link now shows "Not found",
-  and every id is sent to the API as a single encoded part of the address.
+- A link whose id is not a well-formed identifier now shows "Not found", and every id is sent to the API as one
+  encoded part of the address.
 - Requests now always act as the person the screen shows. A tab used to pick up the session of whoever signed in or
   out in another tab of the same browser, while still showing its own.
 - Signing out of a Google session could leave you signed in, with the Sign out button doing nothing, when Google's
