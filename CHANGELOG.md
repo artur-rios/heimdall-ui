@@ -30,6 +30,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- A mistyped password or code when turning two-factor authentication on or off, confirming its setup, generating new
+  recovery codes, changing your own email address or asking for erasure is shown on the form and keeps you signed in
+  when the API answers "The password or code is incorrect.", which it now gives for all of these, and for a check it
+  has paused after repeated failures. A wrong setup code, now answered `401`, no longer signs you out either. The
+  earlier messages are still recognised.
 - After saving a copy of your data, the screen now also says that the file holds your personal data and is not
   encrypted, and that it should be kept somewhere private and deleted when no longer needed.
 - Choosing the System Admin role when creating a person now asks for confirmation before anything is sent, saying the

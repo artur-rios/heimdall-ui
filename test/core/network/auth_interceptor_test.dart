@@ -182,6 +182,39 @@ void main() {
     }
   }
 
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — every re-authentication under a token now answers a wrong or
+  // missing password or code, and a paused budget, with one 401 message. It
+  // is the person's to correct, wherever it comes from.
+  for (final (method, path) in <(String, String)>[
+    ('POST', '/api/auth/2fa/enable'),
+    ('POST', '/api/auth/2fa/confirm'),
+    ('POST', '/api/auth/2fa/disable'),
+    ('POST', '/api/auth/2fa/recovery-codes/regenerate'),
+    ('PUT', '/api/persons/person-1'),
+    ('POST', '/api/auth/erasure-request'),
+  ]) {
+    test('GivenASession_WhenTheUnifiedRefusalArrives_ThenItSurvives: '
+        '$method $path', () async {
+      // Given
+      token = AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030));
+      dio.httpClientAdapter = _CapturingAdapter(
+        (_) => 401,
+        body:
+            '{"success":false,"errors":'
+            '["The password or code is incorrect."]}',
+      );
+
+      // When
+      await expectLater(
+        dio.request<dynamic>(path, options: Options(method: method)),
+        throwsA(isA<DioException>()),
+      );
+
+      // Then
+      expect(unauthorizedCalls, 0);
+    });
+  }
+
   // FR-AU-28 — a token revoked by a change to the sign-in details is a
   // refused session, not a refused credential, and ends it.
   test('GivenARevokedToken_WhenRefused_ThenTheSessionEnds', () async {

@@ -9,11 +9,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
+import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 
 /// The session wired exactly as `main.dart` wires it — the real repository,
@@ -174,6 +177,68 @@ void main() {
     expect(container.read(sessionControllerProvider), isA<Authenticated>());
     expect(await store.read(), isNotNull);
   });
+
+  // AF-09a, AF-09d, AF-09f — the API's one refusal for a wrong password or code, or a
+  // paused re-authentication budget, on every command that re-authenticates.
+  // 2fa/confirm used to answer 400 and now answers 401 too.
+  final reauthentications =
+      <(String, Future<Result<Object?>> Function(AuthRepository))>[
+        (
+          '/api/auth/2fa/enable',
+          (repository) => repository.enableTwoFactor(
+            TwoFactorMethod.app,
+            currentPassword: 'wrong',
+          ),
+        ),
+        (
+          '/api/auth/2fa/confirm',
+          (repository) => repository.confirmTwoFactor(
+            method: TwoFactorMethod.app,
+            code: '000000',
+          ),
+        ),
+        (
+          '/api/auth/2fa/disable',
+          (repository) =>
+              repository.disableTwoFactor(password: 'wrong', code: '000000'),
+        ),
+        (
+          '/api/auth/2fa/recovery-codes/regenerate',
+          (repository) => repository.regenerateRecoveryCodes(
+            recoveryCode: 'ABCD-EFGH-JKMN-PQRS',
+          ),
+        ),
+      ];
+  for (final (path, send) in reauthentications) {
+    test('GivenASession_WhenTheUnifiedRefusalArrives_ThenTheSessionSurvives: '
+        '$path', () async {
+      // Given
+      await store.write(
+        AuthToken(
+          value: _jwt(role: '3'),
+          expiresAt: DateTime.utc(2030),
+        ),
+      );
+      adapter.answer(path, 401, <String, dynamic>{
+        'success': false,
+        'errors': <String>['The password or code is incorrect.'],
+      });
+      final container = wired();
+      final controller = container.read(sessionControllerProvider.notifier);
+      await controller.restore();
+
+      // When
+      final result = await send(container.read(authRepositoryProvider));
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>[
+        'The password or code is incorrect.',
+      ]);
+      expect(container.read(sessionControllerProvider), isA<Authenticated>());
+      expect(await store.read(), isNotNull);
+    });
+  }
 
   // AF-07e on a Google session — the token was refused, so the API sign-out
   // made with it would be refused too, and its 401 must not start another

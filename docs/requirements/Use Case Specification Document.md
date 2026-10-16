@@ -483,10 +483,12 @@ User's own record
   read finishes; when it cannot be read, the first wording is used. The client sends
   `currentPassword` and, when the factor is on, `twoFactorCode` with the update. A name-only edit
   asks for neither and sends neither. Cancelling the edit clears both fields.
-- **AF-08h — Confirmation refused.** The API answers `401` with "The current password is
-  incorrect." or "The code or recovery code is missing, incorrect, or already used.". The client
-  shows the message above the form, keeps the input, and leaves the session alone: the token is
-  still good, and the person is meant to correct what they typed.
+- **AF-08h — Confirmation refused.** The API answers `401` with "The password or code is
+  incorrect." (an older API: "The current password is incorrect." or "The code or recovery code is
+  missing, incorrect, or already used."). The same answer covers a re-authentication the API has
+  paused after repeated failures. The client shows the message above the form, keeps the input,
+  and leaves the session alone: the token is still good, and the person is meant to correct what
+  they typed.
 
 ---
 
@@ -529,8 +531,9 @@ User's own record
 
 **Alternative flows**
 
-- **AF-09a — Wrong confirmation code.** The API rejects it. The client shows the returned errors and
-  keeps the setup alive so the user can try again without restarting.
+- **AF-09a — Wrong confirmation code.** The API rejects it, with `401` "The password or code is
+  incorrect." (an older API answers `400`). The client shows the returned errors, keeps the setup
+  alive so the user can try again without restarting, and leaves the session alone.
 - **AF-09b — Setup abandoned.** The user leaves before confirming. Two-factor authentication stays
   off, and the pending secret is discarded from client memory.
 - **AF-09c — Recovery codes not acknowledged.** Leaving is stopped by a confirmation, since the
@@ -539,12 +542,14 @@ User's own record
   about. While the codes wait, closing or reloading the tab asks the browser to confirm too. Leaving
   anyway signs the user out, as acknowledging does (AF-09g). A session that ends meanwhile is not
   held behind the confirmation.
-- **AF-09d — Disable rejected.** The API rejects the credential. The client shows the returned
-  errors and leaves the feature on.
+- **AF-09d — Disable or regeneration rejected.** The API rejects the credential with `401` "The
+  password or code is incorrect." (an older API: "The current password is incorrect." or "The code
+  or recovery code is missing, incorrect, or already used."). The client shows the returned errors,
+  leaves the feature on, and leaves the session alone.
 - **AF-09e — QR code cannot be rendered.** The client always shows the secret as selectable text
   next to the QR code, so a rendering failure never blocks setup.
-- **AF-09f — Password refused when enabling.** The API answers `401` with "The current password is
-  incorrect.". The password dialog stays open with the message in it, so the user types the password
+- **AF-09f — Password refused when enabling.** The API answers `401` with "The password or code is
+  incorrect." (an older API: "The current password is incorrect."). The password dialog stays open with the message in it, so the user types the password
   again there; the feature stays off and the session is left alone.
 - **AF-09g — Signed out after a change.** After a confirmation (once the codes are acknowledged or
   left), a disable, or a regeneration (once the codes are acknowledged or left), the client asks
@@ -1170,8 +1175,9 @@ restricted person would land on the home screen and watch every request fail.
   they were, and the person may try again.
 - **AF-30d — File cannot be saved.** The export arrived but the device would not keep the file. The
   client says so; nothing else changes.
-- **AF-30e — Erasure credential rejected.** The API answers `401` with its credential-not-accepted
-  message (the API's AF-42a). The client shows it and keeps the session: a mistyped password is not
+- **AF-30e — Erasure credential rejected.** The API answers `401` with "The password or code is
+  incorrect." for a person's password, or its credential-not-accepted message for a Google User's
+  token (the API's AF-42a). The client shows it and keeps the session: a mistyped password is not
   a rejected token.
 - **AF-30f — Erasure recorded but blocked.** The API answers successfully with `blocked` set (the
   API's AF-42d), usually because the person is the last owner of a scope. The client says the

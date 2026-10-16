@@ -243,6 +243,43 @@ void main() {
     expect(failure.errors, <String>[message]);
   });
 
+  // AF-08h, AF-09a, AF-09d, AF-09f, AF-30e — the one refusal the API now gives every re-authentication,
+  // beside the older messages an earlier API version may still send.
+  for (final message in <String>[
+    'The password or code is incorrect.',
+    'The current password is incorrect.',
+    'The code or recovery code is missing, incorrect, or already used.',
+    'The credential presented was not accepted.',
+  ]) {
+    test(
+      'GivenARefusedReauthentication_WhenMapped_ThenFailureKindIsValidation: '
+      '$message',
+      () {
+        // Given
+        final error = DioException(
+          requestOptions: RequestOptions(path: '/api/auth/2fa/confirm'),
+          response: Response<dynamic>(
+            requestOptions: RequestOptions(path: '/api/auth/2fa/confirm'),
+            statusCode: 401,
+            data: <String, dynamic>{
+              'success': false,
+              'errors': <String>[message],
+            },
+          ),
+          type: DioExceptionType.badResponse,
+        );
+
+        // When
+        final failure = failureFromDioException(error);
+
+        // Then
+        expect(failure.kind, FailureKind.validation);
+        expect(failure.errors, <String>[message]);
+        expect(rejectsSubmittedCredential(error.response?.data), isTrue);
+      },
+    );
+  }
+
   // AF-02b — an expired challenge is still the end of it.
   test('GivenARefusedChallenge_WhenMapped_ThenFailureKindIsUnauthorized', () {
     // Given
