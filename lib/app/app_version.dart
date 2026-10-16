@@ -7,7 +7,7 @@ import 'package:flutter/material.dart';
 /// round trip. `test/app/app_version_test.dart` fails when it, `pubspec.yaml`,
 /// and the newest release in CHANGELOG.md disagree — which is what keeps the
 /// three in step when a release is finalized.
-const String appVersion = '1.7.0';
+const String appVersion = '1.8.0';
 
 /// How the version is written wherever it is shown.
 const String appVersionLabel = 'Heimdall UI v$appVersion';
