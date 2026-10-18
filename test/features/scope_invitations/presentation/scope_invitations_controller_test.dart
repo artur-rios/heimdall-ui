@@ -8,6 +8,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scope_invitations/presentation/scope_invitations_controller.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/late_answer.dart';
@@ -33,13 +34,27 @@ Page<ScopeInvitation> _page(List<ScopeInvitation> items) =>
       totalPages: 1,
     );
 
+/// A scope list that counts how often it is built.
+class _CountingScopeList extends ScopeListController {
+  static int builds = 0;
+
+  @override
+  ScopeListState build() {
+    builds++;
+
+    return super.build();
+  }
+}
+
 void main() {
   late _MockScopeInvitationRepository repository;
   late ProviderContainer container;
 
   ScopeInvitationsController controllerUnderTest() {
+    _CountingScopeList.builds = 0;
     container = ProviderContainer(
       overrides: <Override>[
+        scopeListControllerProvider.overrideWith(_CountingScopeList.new),
         scopeInvitationRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -236,6 +251,127 @@ void main() {
 
       // Then
       expect(currentState(), isA<ScopeInvitationsLoading>());
+    },
+  );
+
+  Future<int> scopeListBuildsAfter(
+    Future<bool> Function(ScopeInvitationsController) answer,
+  ) async {
+    final controller = controllerUnderTest();
+    // A listener keeps the list alive, so an invalidation rebuilds it at once.
+    container.listen(scopeListControllerProvider, (_, _) {});
+    await controller.load();
+    final before = _CountingScopeList.builds;
+
+    await answer(controller);
+    // The rebuild of a listened provider is scheduled, not immediate.
+    await Future<void>.delayed(Duration.zero);
+
+    return _CountingScopeList.builds - before;
+  }
+
+  test('GivenAnInvitation_WhenAccepted_ThenTheScopeListIsRebuilt', () async {
+    // Given
+    when(() => repository.accept(any()))
+        .thenAnswer((_) async => const Success<void>(null));
+
+    // When
+    final rebuilds = await scopeListBuildsAfter((c) => c.accept(_initech));
+
+    // Then
+    expect(rebuilds, 1);
+  });
+
+  test('GivenAnInvitation_WhenDeclined_ThenTheScopeListIsLeftAlone', () async {
+    // Given
+    when(() => repository.decline(any()))
+        .thenAnswer((_) async => const Success<void>(null));
+
+    // When
+    final rebuilds = await scopeListBuildsAfter((c) => c.decline(_initech));
+
+    // Then
+    expect(rebuilds, 0);
+  });
+
+  test(
+    'GivenAnEndedInvitation_WhenAccepted_ThenTheScopeListIsLeftAlone',
+    () async {
+      // Given
+      when(() => repository.accept(any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(kind: FailureKind.notFound, errors: <String>[_notOpen]),
+        ),
+      );
+
+      // When
+      final rebuilds = await scopeListBuildsAfter((c) => c.accept(_initech));
+
+      // Then
+      expect(rebuilds, 0);
+    },
+  );
+
+  test(
+    'GivenAServerFailure_WhenAccepted_ThenTheScopeListIsLeftAlone',
+    () async {
+      // Given
+      when(() => repository.accept(any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.server,
+            errors: <String>['Try again later.'],
+          ),
+        ),
+      );
+
+      // When
+      final rebuilds = await scopeListBuildsAfter((c) => c.accept(_initech));
+
+      // Then
+      expect(rebuilds, 0);
+    },
+  );
+
+  test(
+    'GivenARepositoryThatThrows_WhenAccepted_ThenTheCardIsNotLeftBusy',
+    () async {
+      // Given
+      when(() => repository.accept(any()))
+          .thenThrow(const FormatException('x'));
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      final taken = await controller.accept(_initech);
+
+      // Then
+      expect(taken, isFalse);
+      final state = currentState() as ScopeInvitationsLoaded;
+      expect(state.busy, isFalse);
+      expect(state.failure, isNotNull);
+      expect(state.invitations.single.id, 'invitation-1');
+    },
+  );
+
+  test(
+    'GivenAnAnswerPending_WhenAcceptedAgain_ThenNoSecondRequestIsSent',
+    () async {
+      // Given
+      final answer = Completer<Result<void>>();
+      when(() => repository.accept(any())).thenAnswer((_) => answer.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final first = controller.accept(_initech);
+
+      // When
+      final second = await controller.accept(_initech);
+      answer.complete(const Success<void>(null));
+      await first;
+
+      // Then
+      expect(second, isFalse);
+      verify(() => repository.accept('invitation-1')).called(1);
     },
   );
 }

@@ -124,7 +124,7 @@ class ScopeInvitationsController extends Notifier<ScopeInvitationsState>
       busy: true,
     );
 
-    final result = await send();
+    final result = await guardUnexpected(send);
 
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
