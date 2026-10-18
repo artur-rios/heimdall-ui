@@ -85,6 +85,15 @@ envelope.Page<PersonSummary> _candidates(List<PersonSummary> items) =>
       totalPages: 1,
     );
 
+final _hedyInvited = OwnerInvitation(
+  id: 'invitation-1',
+  inviteeId: 'person-7',
+  inviteeName: 'Hedy',
+  inviteeEmail: 'hedy@example.com',
+  invitedByName: 'Ada',
+  expiresAt: DateTime.utc(2026, 10, 23, 9),
+);
+
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
@@ -187,6 +196,26 @@ void main() {
         pageSize: any(named: 'pageSize'),
       ),
     ).thenAnswer((_) async => result);
+  }
+
+  void answerInvitationsWith(List<OwnerInvitation> items) {
+    when(
+      () => invitations.listForScope(
+        any(),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => Success<envelope.Page<OwnerInvitation>>(
+        envelope.Page<OwnerInvitation>(
+          items: items,
+          pageNumber: 1,
+          pageSize: 50,
+          totalItems: items.length,
+          totalPages: 1,
+        ),
+      ),
+    );
   }
 
   /// Opens the picker and chooses [name] from it.
@@ -794,6 +823,169 @@ void main() {
 
     // Then
     expect(find.text('Ada'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenAScopeAdminsAdd_WhenTheApiInvites_ThenInvitationSentAndThePendingInvitationAreShown',
+    (tester) async {
+      // Given — AF-14h
+      when(
+        () => repository.addScopeOwner(
+          scopeId: any(named: 'scopeId'),
+          personId: any(named: 'personId'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.invited),
+      );
+      await pump(tester);
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+
+      // When
+      await choose(tester, 'Hedy');
+
+      // Then
+      expect(find.text('Invitation sent'), findsOneWidget);
+      expect(find.text('Pending invitations'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Hedy'), findsOneWidget);
+    },
+  );
+
+  // A guard: it passes before the notice exists, so it was written after GREEN.
+  testWidgets(
+    'GivenASystemAdminsAdd_WhenTheApiAdds_ThenNoInvitationNoticeIsShown',
+    (tester) async {
+      // Given — the default stub answers "added"
+      await pump(tester);
+
+      // When
+      await choose(tester, 'Hedy');
+
+      // Then
+      expect(find.text('Invitation sent'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenAPendingInvitation_WhenOpened_ThenItIsListedWithItsExpiry',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Pending invitations'), findsOneWidget);
+      expect(find.textContaining('hedy@example.com · Expires'), findsOneWidget);
+    },
+  );
+
+  // A guard: it passes before the section exists, so it was written after GREEN.
+  testWidgets('GivenNoPendingInvitations_WhenOpened_ThenTheSectionIsHidden', (
+    tester,
+  ) async {
+    // Given — the default stub answers an empty page
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Pending invitations'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenAnInvitationWithoutAnExpiry_WhenOpened_ThenOnlyTheAddressIsShown',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[
+        const OwnerInvitation(
+          id: 'invitation-2',
+          inviteeId: 'person-7',
+          inviteeName: 'Hedy',
+          inviteeEmail: 'hedy@example.com',
+        ),
+      ]);
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('hedy@example.com'), findsWidgets);
+      expect(find.textContaining('Expires'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenAPendingInvitation_WhenWithdrawConfirmed_ThenTheApiIsAsked',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+      when(() => invitations.withdraw(any(), any()))
+          .thenAnswer((_) async => const Success<void>(null));
+      await pump(tester);
+      await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+      expect(find.text('Withdraw the invitation to Hedy?'), findsOneWidget);
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // Then
+      verify(() => invitations.withdraw('scope-1', 'invitation-1')).called(1);
+    },
+  );
+
+  testWidgets(
+    'GivenAnInvitationNoLongerOpen_WhenWithdrawn_ThenTheApiMessageIsShown',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+      when(() => invitations.withdraw(any(), any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.notFound,
+            errors: <String>[
+              'The invitation was not found or is no longer open.',
+            ],
+          ),
+        ),
+      );
+      await pump(tester);
+      await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(
+        find.text('The invitation was not found or is no longer open.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  // A guard: nothing is sent before the button exists, so it was written after
+  // GREEN.
+  testWidgets('GivenTheWithdrawDialog_WhenCancelled_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+    await pump(tester);
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+    await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(() => invitations.withdraw(any(), any()));
   });
 
   // A Scope Admin who removed their own ownership is refused the scope from
