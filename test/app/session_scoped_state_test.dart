@@ -26,6 +26,7 @@ import 'package:heimdall_ui/features/persons/presentation/scope_admin_picker_con
 import 'package:heimdall_ui/features/persons/presentation/scope_members.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.dart';
+import 'package:heimdall_ui/features/scope_invitations/presentation/scope_invitations_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/pending_registration_list_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_create_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller.dart';
@@ -50,6 +51,7 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
       scopeSignInSettingsControllerProvider,
   'pendingRegistrationListControllerProvider':
       pendingRegistrationListControllerProvider,
+  'scopeInvitationsControllerProvider': scopeInvitationsControllerProvider,
   'scopeAdminPickerControllerProvider': scopeAdminPickerControllerProvider,
   'scopeMembersProvider': scopeMembersProvider,
   'personListControllerProvider': personListControllerProvider,
