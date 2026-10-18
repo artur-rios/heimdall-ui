@@ -48,6 +48,7 @@ class FakeDashboardRepositories {
     this.apiReachable = true,
     this.googleMe,
     this.invitations = const <ScopeInvitation>[],
+    this.acceptHeldUntil,
     Person? me,
   }) : me =
            me ??
@@ -76,6 +77,10 @@ class FakeDashboardRepositories {
 
   /// The signed-in administrator's open invitations (UI-39).
   final List<ScopeInvitation> invitations;
+
+  /// When set, an acceptance answers only once this completes, so a test can
+  /// hold one back.
+  final Future<void>? acceptHeldUntil;
 
   /// The invitation ids accepted and declined through the fakes, in order.
   final List<String> accepted = <String>[];
@@ -289,6 +294,10 @@ class _Invitations extends Fake implements ScopeInvitationRepository {
 
   @override
   Future<Result<void>> accept(String invitationId) async {
+    if (fakes.acceptHeldUntil case final hold?) {
+      await hold;
+    }
+
     fakes.accepted.add(invitationId);
 
     return const Success<void>(null);

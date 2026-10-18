@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -547,6 +548,40 @@ void main() {
         ),
         findsOneWidget,
       );
+    },
+  );
+
+  testWidgets(
+    'GivenAnAcceptInFlight_WhenHomeIsLeft_ThenItsAnswerTouchesNoDisposedHome',
+    (tester) async {
+      // Given an acceptance held back by the API
+      final hold = Completer<void>();
+      final fakes = FakeDashboardRepositories(
+        scopes: const <Scope>[_acme],
+        invitations: <ScopeInvitation>[_initechInvitation],
+        acceptHeldUntil: hold.future,
+      );
+      await pump(tester, fakes: fakes, role: 2);
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Accept'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // When Home is left before the answer arrives
+      GoRouter.of(tester.element(find.byType(HomeScreen))).go('/profile');
+      await tester.pumpAndSettle();
+      expect(find.text('opened /profile'), findsOneWidget);
+      hold.complete();
+      await tester.pumpAndSettle();
+
+      // Then the answer lands without reaching the disposed Home
+      expect(fakes.accepted, <String>['invitation-1']);
+      expect(tester.takeException(), isNull);
     },
   );
 

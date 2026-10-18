@@ -97,8 +97,14 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   // UI-39: shown only while there is something to answer.
                   if (principal.administersAnything)
                     ScopeInvitationsCard(
-                      onAccepted: () =>
-                          ref.read(dashboardControllerProvider.notifier).load(),
+                      onAccepted: () {
+                        // The answer can arrive after Home was left.
+                        if (!mounted) {
+                          return;
+                        }
+
+                        ref.read(dashboardControllerProvider.notifier).load();
+                      },
                     ),
                   if (dashboard != null) ...<Widget>[
                     _AdminDashboard(
