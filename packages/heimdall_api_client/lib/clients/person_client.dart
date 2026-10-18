@@ -31,6 +31,10 @@ abstract class PersonClient {
   /// Creates a `ScopeAdmin` or `SystemAdmin` person with no scope (UC-06 path b).
   /// Restricted to System Admins (AF-06c).
   ///
+  /// Derives an Argon2id hash, so it is limited to thirty requests a minute per acting person and.
+  /// thirty per address; a rejection answers 429 "Too many requests." with a `Retry-After`.
+  /// header.
+  ///
   /// **Requires role:** System Admin.
   @POST('/api/persons')
   Future<CreatePersonCommandOutputDataOutput> personCreateAdmin({
@@ -39,6 +43,10 @@ abstract class PersonClient {
 
   /// Creates a `User` within a scope (UC-06 path a). A System Admin or an owner of the scope.
   /// may call it; the ownership check (AF-06e) is enforced by the handler from the acting user.
+  ///
+  /// Derives an Argon2id hash, so it is limited to thirty requests a minute per acting person and.
+  /// thirty per address; a rejection answers 429 "Too many requests." with a `Retry-After`.
+  /// header.
   ///
   /// **Requires role:** System Admin or Scope Admin.
   @POST('/api/scopes/{scopeId}/persons')
@@ -49,7 +57,8 @@ abstract class PersonClient {
 
   /// Lists the `User` persons of a scope (UC-07, FR-PE-04). A System Admin or an owner of.
   /// the scope may call it; the ownership check (AF-07b) is enforced by the handler from the.
-  /// acting user.
+  /// acting user. `ownedScopeIds` is trimmed for a Scope Admin as on.
+  /// `GET /api/persons/{id}` (FR-PE-19).
   ///
   /// **Requires role:** System Admin or Scope Admin.
   @GET('/api/scopes/{scopeId}/persons')
@@ -66,6 +75,10 @@ abstract class PersonClient {
   /// c, FR-SC-12). A System Admin or an owner of the scope may call it; the ownership check.
   /// (AF-06e) is enforced by the handler from the acting user.
   ///
+  /// Derives an Argon2id hash, so it is limited to thirty requests a minute per acting person and.
+  /// thirty per address; a rejection answers 429 "Too many requests." with a `Retry-After`.
+  /// header.
+  ///
   /// **Requires role:** System Admin or Scope Admin.
   @POST('/api/scopes/{scopeId}/owners')
   Future<CreatePersonCommandOutputDataOutput> personCreateScopeOwner({
@@ -75,7 +88,8 @@ abstract class PersonClient {
 
   /// Lists the owners of a scope (UC-07, FR-PE-04). A System Admin or an.
   /// owner of the scope may call it; the ownership check (AF-07b) is enforced by the handler.
-  /// from the acting user.
+  /// from the acting user. For a Scope Admin each owner's `ownedScopeIds` lists only the.
+  /// scopes the caller owns too, this one among them; a System Admin sees them all (FR-PE-19).
   ///
   /// **Requires role:** System Admin or Scope Admin.
   @GET('/api/scopes/{scopeId}/owners')
@@ -88,12 +102,16 @@ abstract class PersonClient {
     @Query('PageSize') int? pageSize,
   });
 
-  /// Adds an existing `ScopeAdmin` or `SystemAdmin` person as an additional owner.
-  /// of a scope (UC-21, FR-SC-08/FR-SC-09). The attribute keeps a `User` out — they can.
-  /// never be a System Admin nor an existing owner — while the rules that depend on data it.
-  /// cannot see are the handler's: whether the acting Scope Admin owns this scope (AF-21c),.
-  /// whether the scope is active (AF-21a), whether the named person is a usable administrator.
-  /// (AF-21b), and whether they already own it (AF-21d).
+  /// Adds an existing `ScopeAdmin` or `SystemAdmin` person as an additional owner of a scope.
+  /// (UC-21, FR-SC-08/FR-SC-09). A System Admin adds them at once (201, or 200 when they already own.
+  /// it). A Scope Admin owning the scope invites them instead (202 "The invitation was sent.", FR-SC-14):.
+  /// they own nothing until they accept (UC-60), and a repeat while it is open answers the same and.
+  /// mails nothing. The attribute keeps a `User` out; the handler checks the scope (AF-21a), the.
+  /// ownership (AF-21c), the person (AF-21b) and an existing ownership (AF-21d).
+  ///
+  /// It can mail a third party, so it shares the account-creation limit: thirty requests a minute per.
+  /// acting person and thirty per address; a rejection answers 429 "Too many requests." with a.
+  /// `Retry-After` header.
   ///
   /// **Requires role:** System Admin or Scope Admin.
   @POST('/api/scopes/{scopeId}/owners/{personId}')
@@ -122,6 +140,13 @@ abstract class PersonClient {
   /// (AF-23c), whether the scope is active (AF-23a), whether the named person is a `User`.
   /// of it (AF-23b), and whether they already hold the role (AF-23d).
   ///
+  /// The role is written only while the person is still the `User` the request read.
+  /// (#237): when another request changed, promoted or deleted them in the meantime, nothing is.
+  /// written and the answer is 409 "Concurrency conflict: the record was modified or removed by.
+  /// another process." (AF-23f), or 409 "Conflict: a record with the same unique value already.
+  /// exists." when an administrator took the address meanwhile. Read the person again before.
+  /// retrying.
+  ///
   /// **Requires role:** System Admin or Scope Admin.
   @POST('/api/scopes/{scopeId}/users/{personId}/promote')
   Future<PromoteScopeUserCommandOutputDataOutput> personPromoteScopeUser({
@@ -131,12 +156,32 @@ abstract class PersonClient {
 
   /// Updates a person's name and email, and — for a System Admin — their role (UC-08). Open to.
   /// any authenticated actor because a User may update their own record; the per-actor rule and.
-  /// the role-change restriction (AF-08c) are enforced by the handler.
+  /// the role-change restriction (AF-08c) are enforced by the handler. The response's.
+  /// `ownedScopeIds` follows FR-PE-19, as `GET /api/persons/{id}` does.
   ///
   /// A caller changing their own email presents `currentPassword`, and `twoFactorCode`.
-  /// when their second factor is active (FR-PE-14), so this action verifies a password like the.
+  /// when their second factor is active (FR-PE-14) — six digits for an authenticator-app code,.
+  /// or a recovery code, matched as `2fa/verify` matches one (`XXXX-XXXX-XXXX-XXXX`,.
+  /// hyphens, spaces and case ignored, the shorter `XXXX-XXXX` codes still accepted,.
+  /// FR-2F-20) — so this action verifies a password like the.
   /// credential endpoints do, and sits under their rate limit (NFR-18), as every.
-  /// password-verifying endpoint does.
+  /// password-verifying endpoint does. An own email change mails the previous address, so it is.
+  /// charged to the person's account-email budget once the credentials are accepted: 429 "An.
+  /// email of this kind was sent to you recently. Try again in a few minutes." inside the.
+  /// cooldown, 429 "You have reached the limit for account emails. Try again later." once.
+  /// the window's five are spent (AF-08j), both with `Retry-After`; nothing changes then, and.
+  /// no recovery or email code is spent (an accepted authenticator code's time step is recorded,.
+  /// as for any accepted code). While the caller's email sign-in method is enabled, an own.
+  /// email change answers 409 "Turn off the email sign-in method before changing your email.
+  /// address." (AF-08k), once the credentials are accepted. An address or role change is.
+  /// written only while the person still holds the address and role the request read (#237):.
+  /// when another request changed or deleted them in the meantime, neither the change nor the.
+  /// name is written and the answer is 409 "Concurrency conflict: the record was modified or removed by.
+  /// another process." (AF-08l), or 409 "Conflict: a record with the same unique value already.
+  /// exists." when the new address was taken meanwhile. As for a failed save, an email change's.
+  /// earlier steps stand: the person's tokens are already revoked and their reset and.
+  /// verification links retired, and for an own change the account-email budget is charged and.
+  /// any recovery or email code presented is spent. Read the person again before retrying.
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @PUT('/api/persons/{id}')
@@ -158,7 +203,9 @@ abstract class PersonClient {
 
   /// Retrieves a single person by their public identifier (UC-07, FR-PE-03). Open to any.
   /// authenticated actor; the per-actor visibility rule (AF-07b) is data-dependent and is.
-  /// therefore enforced by the handler.
+  /// therefore enforced by the handler. `ownedScopeIds` lists every scope the person owns.
+  /// for a System Admin and for the person themselves; a Scope Admin reading somebody else sees.
+  /// only the scopes they own too (FR-PE-19).
   ///
   /// **Any authenticated caller** — the handler decides who may act, so no role is required at the door.
   @GET('/api/persons/{id}')
