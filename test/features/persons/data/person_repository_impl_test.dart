@@ -86,6 +86,67 @@ void main() {
     expect(result.valueOrNull, AddOwnerOutcome.added);
   });
 
+  test(
+    'GivenAnOlderApisCreated_WhenTheBodyHasNoInvited_ThenTheOutcomeIsAdded',
+    () async {
+      // Given - an API from before FR-SC-14, whose answer has no `invited`
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 201,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'scopeId': 's1',
+              'personId': 'p7',
+              'alreadyOwner': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.addScopeOwner(
+        scopeId: 's1',
+        personId: 'p7',
+      );
+
+      // Then
+      expect(result.valueOrNull, AddOwnerOutcome.added);
+    },
+  );
+
+  test(
+    'GivenAnAcceptedStatus_WhenTheBodySaysNotInvited_ThenTheOutcomeIsAdded',
+    () async {
+      // Given - the outcome is read from the body, never the status code
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 202,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'scopeId': 's1',
+              'personId': 'p7',
+              'alreadyOwner': false,
+              'invited': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.addScopeOwner(
+        scopeId: 's1',
+        personId: 'p7',
+      );
+
+      // Then
+      expect(result.valueOrNull, AddOwnerOutcome.added);
+    },
+  );
+
   test('GivenAnExistingOwner_WhenAdded_ThenTheOutcomeIsAlreadyOwner', () async {
     // Given - AF-21d
     final repository = repositoryAnswering(
