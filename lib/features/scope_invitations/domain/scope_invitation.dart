@@ -17,7 +17,8 @@ class OwnerInvitation {
   final String inviteeName;
   final String inviteeEmail;
 
-  /// Who invited them; `null` once that administrator's record was erased.
+  /// Who invited them; `null` when the API withholds it: the inviter was
+  /// removed, restricted or anonymised.
   final String? invitedByName;
   final DateTime? createdAt;
   final DateTime? expiresAt;
@@ -39,7 +40,8 @@ class ScopeInvitation {
   final String scopeId;
   final String scopeName;
 
-  /// Who invited them; `null` once that administrator's record was erased.
+  /// Who invited them; `null` when the API withholds it: the inviter was
+  /// removed, restricted or anonymised.
   final String? invitedByName;
   final DateTime? createdAt;
   final DateTime? expiresAt;

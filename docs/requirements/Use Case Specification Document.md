@@ -1731,7 +1731,8 @@ The listing is forgotten when the screen is left, so a return loads it fresh.
 
 **Placement.** A **Scope invitations** card on Home, above the overview, shown only once the invitations
 are read and there is something to show: open invitations, the result of the last answer, or the API's
-refusal of it. Each row shows the scope's name, who invited them ("Invited by <name>") and when it
+refusal of it. Each row shows the scope's name, who invited them ("Invited by <name>", left out when
+the API withholds the name because the inviter was removed, restricted or anonymised) and when it
 expires, with **Decline** and **Accept**. The invitations belong to the session, so signing out forgets
 them.
 
