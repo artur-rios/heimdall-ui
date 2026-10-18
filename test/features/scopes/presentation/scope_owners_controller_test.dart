@@ -9,12 +9,34 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
+
+class _MockScopeInvitationRepository extends Mock
+    implements ScopeInvitationRepository {}
+
+const _hedyInvited = OwnerInvitation(
+  id: 'invitation-1',
+  inviteeId: 'person-7',
+  inviteeName: 'Hedy',
+  inviteeEmail: 'hedy@example.com',
+  invitedByName: 'Ada',
+);
+
+Page<OwnerInvitation> _invitations(List<OwnerInvitation> items) =>
+    Page<OwnerInvitation>(
+      items: items,
+      pageNumber: 1,
+      pageSize: 50,
+      totalItems: items.length,
+      totalPages: 1,
+    );
 
 const _ada = Person(
   id: 'person-1',
@@ -47,12 +69,14 @@ Page<Person> _page(List<Person> items) => Page<Person>(
 
 void main() {
   late _MockPersonRepository repository;
+  late _MockScopeInvitationRepository invitations;
   late ProviderContainer container;
 
   ScopeOwnersController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
+        scopeInvitationRepositoryProvider.overrideWithValue(invitations),
       ],
     );
     addTearDown(container.dispose);
@@ -76,6 +100,16 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerInvitationsWith(Result<Page<OwnerInvitation>> result) {
+    when(
+      () => invitations.listForScope(
+        any(),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) async => result);
+  }
+
   void answerUsersWith(Result<Page<Person>> result) {
     when(
       () => repository.listScopePersons(
@@ -91,6 +125,10 @@ void main() {
 
   setUp(() {
     repository = _MockPersonRepository();
+    invitations = _MockScopeInvitationRepository();
+    answerInvitationsWith(
+      Success<Page<OwnerInvitation>>(_invitations(const <OwnerInvitation>[])),
+    );
     answerOwnersWith(Success<Page<Person>>(_page(<Person>[_ada, _grace])));
     answerUsersWith(Success<Page<Person>>(_page(<Person>[_user])));
   });
@@ -162,7 +200,9 @@ void main() {
         scopeId: any(named: 'scopeId'),
         personId: any(named: 'personId'),
       ),
-    ).thenAnswer((_) async => const Success<void>(null));
+    ).thenAnswer(
+      (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.added),
+    );
     final controller = controllerUnderTest();
     await controller.load();
 
@@ -184,7 +224,7 @@ void main() {
         personId: any(named: 'personId'),
       ),
     ).thenAnswer(
-      (_) async => const FailureResult<void>(
+      (_) async => const FailureResult<AddOwnerOutcome>(
         Failure(
           kind: FailureKind.validation,
           errors: <String>['person-9 is not a Scope Admin.'],
@@ -392,7 +432,9 @@ void main() {
           scopeId: any(named: 'scopeId'),
           personId: any(named: 'personId'),
         ),
-      ).thenAnswer((_) async => const Success<void>(null));
+      ).thenAnswer(
+        (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.added),
+      );
       final controller = controllerUnderTest();
       await controller.load();
 
@@ -447,4 +489,145 @@ void main() {
       expect(currentState(), isA<ScopeOwnersLoading>());
     },
   );
+
+  void stubAdd(AddOwnerOutcome outcome) {
+    when(
+      () => repository.addScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) async => Success<AddOwnerOutcome>(outcome));
+  }
+
+  test(
+    'GivenAScopeAdminsAdd_WhenTheApiInvites_ThenInvitationSentIsNoticed',
+    () async {
+      // Given - FR-SC-14: the person is invited, not added
+      stubAdd(AddOwnerOutcome.invited);
+      final controller = controllerUnderTest();
+      await controller.load();
+      answerInvitationsWith(
+        Success<Page<OwnerInvitation>>(
+          _invitations(const <OwnerInvitation>[_hedyInvited]),
+        ),
+      );
+
+      // When
+      await controller.addOwner('person-7');
+
+      // Then
+      final state = currentState() as ScopeOwnersLoaded;
+      expect(state.notice, 'Invitation sent');
+      expect(state.invitations.single.inviteeName, 'Hedy');
+      expect(state.owners.map((owner) => owner.name), <String>['Ada', 'Grace']);
+    },
+  );
+
+  test('GivenASystemAdminsAdd_WhenTheApiAdds_ThenNothingIsNoticed', () async {
+    // Given
+    stubAdd(AddOwnerOutcome.added);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.addOwner('person-7');
+
+    // Then
+    expect((currentState() as ScopeOwnersLoaded).notice, isNull);
+  });
+
+  test('GivenPendingInvitations_WhenLoaded_ThenTheyAreListed', () async {
+    // Given
+    answerInvitationsWith(
+      Success<Page<OwnerInvitation>>(
+        _invitations(const <OwnerInvitation>[_hedyInvited]),
+      ),
+    );
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState() as ScopeOwnersLoaded;
+    expect(state.invitations.single.id, 'invitation-1');
+  });
+
+  test(
+    'GivenAFailedInvitationListing_WhenLoaded_ThenTheOwnersStillShow',
+    () async {
+      // Given
+      answerInvitationsWith(
+        const FailureResult<Page<OwnerInvitation>>(
+          Failure(kind: FailureKind.server, errors: <String>['Unreadable']),
+        ),
+      );
+      final controller = controllerUnderTest();
+
+      // When
+      await controller.load();
+
+      // Then
+      final state = currentState() as ScopeOwnersLoaded;
+      expect(state.owners, hasLength(2));
+      expect(state.invitations, isEmpty);
+    },
+  );
+
+  test(
+    'GivenAnInvitation_WhenWithdrawn_ThenTheApiIsAskedAndTheListIsReread',
+    () async {
+      // Given
+      answerInvitationsWith(
+        Success<Page<OwnerInvitation>>(
+          _invitations(const <OwnerInvitation>[_hedyInvited]),
+        ),
+      );
+      when(() => invitations.withdraw(any(), any()))
+          .thenAnswer((_) async => const Success<void>(null));
+      final controller = controllerUnderTest();
+      await controller.load();
+
+      // When
+      await controller.withdraw(_hedyInvited);
+
+      // Then
+      verify(() => invitations.withdraw('scope-1', 'invitation-1')).called(1);
+      verify(
+        () => invitations.listForScope(
+          'scope-1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(2);
+    },
+  );
+
+  test('GivenAnEndedInvitation_WhenWithdrawn_ThenTheListIsRereadAndTheApiMessageShown', () async {
+    // Given - another owner withdrew it, or the person answered, earlier
+    const notOpen = 'The invitation was not found or is no longer open.';
+    answerInvitationsWith(
+      Success<Page<OwnerInvitation>>(
+        _invitations(const <OwnerInvitation>[_hedyInvited]),
+      ),
+    );
+    when(() => invitations.withdraw(any(), any())).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(kind: FailureKind.notFound, errors: <String>[notOpen]),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerInvitationsWith(
+      Success<Page<OwnerInvitation>>(_invitations(const <OwnerInvitation>[])),
+    );
+
+    // When
+    await controller.withdraw(_hedyInvited);
+
+    // Then
+    final state = currentState() as ScopeOwnersLoaded;
+    expect(state.invitations, isEmpty);
+    expect(state.failure?.errors, <String>[notOpen]);
+  });
 }

@@ -14,11 +14,16 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
+
+class _MockScopeInvitationRepository extends Mock
+    implements ScopeInvitationRepository {}
 
 /// A token naming the signed-in person, which AF-14f compares against.
 String _jwt({String sub = 'person-9'}) {
@@ -86,6 +91,7 @@ const Size _expanded = Size(1400, 900);
 
 void main() {
   late _MockPersonRepository repository;
+  late _MockScopeInvitationRepository invitations;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -110,6 +116,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
+        scopeInvitationRepositoryProvider.overrideWithValue(invitations),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -193,6 +200,24 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockPersonRepository();
+    invitations = _MockScopeInvitationRepository();
+    when(
+      () => invitations.listForScope(
+        any(),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const Success<envelope.Page<OwnerInvitation>>(
+        envelope.Page<OwnerInvitation>(
+          items: <OwnerInvitation>[],
+          pageNumber: 1,
+          pageSize: 50,
+          totalItems: 0,
+          totalPages: 1,
+        ),
+      ),
+    );
     store = InMemoryTokenStore();
     answerOwnersWith(
       Success<envelope.Page<Person>>(_page(<Person>[_ada, _grace])),
@@ -208,7 +233,9 @@ void main() {
         scopeId: any(named: 'scopeId'),
         personId: any(named: 'personId'),
       ),
-    ).thenAnswer((_) async => const Success<void>(null));
+    ).thenAnswer(
+      (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.added),
+    );
     when(
       () => repository.removeScopeOwner(
         scopeId: any(named: 'scopeId'),
@@ -322,7 +349,7 @@ void main() {
         personId: any(named: 'personId'),
       ),
     ).thenAnswer(
-      (_) async => const FailureResult<void>(
+      (_) async => const FailureResult<AddOwnerOutcome>(
         Failure(
           kind: FailureKind.validation,
           errors: <String>['person-7 is not a Scope Admin.'],

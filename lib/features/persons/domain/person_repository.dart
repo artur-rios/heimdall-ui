@@ -3,6 +3,19 @@ import '../../../core/result/result.dart';
 import '../../auth/domain/session.dart';
 import 'person.dart';
 
+/// What `POST /api/scopes/{scopeId}/owners/{personId}` did (UC-21).
+enum AddOwnerOutcome {
+  /// The person owns the scope now: a System Admin's add.
+  added,
+
+  /// The person already owned it, and nothing changed (AF-21d).
+  alreadyOwner,
+
+  /// A Scope Admin's add: the person was invited and owns nothing until they
+  /// accept it, signed in as themselves (FR-SC-14).
+  invited,
+}
+
 /// The person operations the interface depends on.
 ///
 /// Implemented in `features/persons/data` over the generated client, and faked
@@ -101,12 +114,13 @@ abstract interface class PersonRepository {
     int pageSize = 20,
   });
 
-  /// Adds an existing Scope Admin as a co-owner of a scope.
+  /// Adds an existing Scope Admin as a co-owner of a scope — or, when a Scope
+  /// Admin asks, invites them (FR-SC-14). The outcome says which.
   ///
   /// Whether that person is a usable Scope Admin, and whether they already own
   /// the scope, are the API's questions — AF-14b and AF-14c are what its
   /// answers look like.
-  Future<Result<void>> addScopeOwner({
+  Future<Result<AddOwnerOutcome>> addScopeOwner({
     required String scopeId,
     required String personId,
   });

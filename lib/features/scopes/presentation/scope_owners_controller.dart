@@ -8,6 +8,8 @@ import '../../persons/domain/person.dart';
 import '../../persons/domain/person_repository.dart';
 import '../../persons/presentation/scope_members.dart';
 import '../../profile/presentation/profile_controller.dart';
+import '../../scope_invitations/domain/scope_invitation.dart';
+import '../../scope_invitations/domain/scope_invitation_repository.dart';
 
 /// How far the owners section has got.
 sealed class ScopeOwnersState {
@@ -29,24 +31,35 @@ final class ScopeOwnersUnavailable extends ScopeOwnersState {
 /// The owners are on screen.
 ///
 /// [users] are the scope's User persons, which is what the promotion offers;
-/// they are read alongside the owners because the promotion is one of the four
-/// things this screen does.
+/// [invitations] are the people asked to co-own it who have not answered yet.
+/// Both are read alongside the owners because the screen acts on them.
 final class ScopeOwnersLoaded extends ScopeOwnersState {
   const ScopeOwnersLoaded({
     required this.owners,
     required this.users,
+    this.invitations = const <OwnerInvitation>[],
     this.busy = false,
     this.failure,
+    this.notice,
   });
 
   final List<Person> owners;
   final List<Person> users;
 
+  /// The scope's open owner invitations (UC-58). The people in it own nothing
+  /// until they accept.
+  final List<OwnerInvitation> invitations;
+
   /// A command is on its way. Every control is disabled while it is.
   final bool busy;
 
-  /// The API's refusal of the last command — AF-14a, AF-14b, AF-14c, AF-14d.
+  /// The API's refusal of the last command — AF-14a, AF-14b, AF-14c, AF-14d,
+  /// AF-14g.
   final Failure? failure;
+
+  /// What the last command did when the lists alone would not say it:
+  /// "Invitation sent" after a Scope Admin's add (AF-14h).
+  final String? notice;
 
   /// AF-14a — a scope with one owner cannot lose it, so the control does not
   /// offer to. The API refuses regardless; this is what stops the interface
@@ -65,14 +78,19 @@ final class ScopeOwnersLoaded extends ScopeOwnersState {
   ScopeOwnersLoaded copyWith({
     List<Person>? owners,
     List<Person>? users,
+    List<OwnerInvitation>? invitations,
     bool? busy,
     Failure? failure,
     bool clearFailure = false,
+    String? notice,
+    bool clearNotice = false,
   }) => ScopeOwnersLoaded(
     owners: owners ?? this.owners,
     users: users ?? this.users,
+    invitations: invitations ?? this.invitations,
     busy: busy ?? this.busy,
     failure: clearFailure ? null : (failure ?? this.failure),
+    notice: clearNotice ? null : (notice ?? this.notice),
   );
 }
 
@@ -82,7 +100,8 @@ scopeOwnersControllerProvider =
       ScopeOwnersController.new,
     );
 
-/// Owns one scope's owner list and the four things that can be done to it.
+/// Owns one scope's owner list, its pending invitations, and the five things
+/// that can be done to them.
 class ScopeOwnersController extends Notifier<ScopeOwnersState>
     with BuildEpoch<ScopeOwnersState> {
   ScopeOwnersController(this.arg);
@@ -98,6 +117,9 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   }
 
   PersonRepository get _repository => ref.read(personRepositoryProvider);
+
+  ScopeInvitationRepository get _invitations =>
+      ref.read(scopeInvitationRepositoryProvider);
 
   /// Reads the owners, and the scope's users the promotion draws on.
   ///
@@ -123,17 +145,78 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
           return;
         }
 
+        // Like the users, the pending invitations do not decide whether the
+        // owners can be shown: a listing that fails shows none.
+        final invitations = await _invitations.listForScope(arg);
+
+        // Reset since it was asked: the answer is an earlier build's.
+        if (!isCurrent(epoch)) {
+          return;
+        }
+
         state = ScopeOwnersLoaded(
           owners: value.items,
           users: users.valueOrNull?.items ?? const <Person>[],
+          invitations:
+              invitations.valueOrNull?.items ?? const <OwnerInvitation>[],
         );
     }
   }
 
-  /// Adds a person who is already a Scope Admin as a co-owner.
-  Future<void> addOwner(String personId) => _command(
-    () => _repository.addScopeOwner(scopeId: arg, personId: personId),
-  );
+  /// Adds a person who is already a Scope Admin as a co-owner — or, when the
+  /// caller is a Scope Admin, invites them (FR-SC-14) and says so: they are then
+  /// listed under the pending invitations, not among the owners (AF-14h).
+  Future<void> addOwner(String personId) async {
+    final epoch = this.epoch;
+    AddOwnerOutcome? outcome;
+
+    await _command(() async {
+      final result = await _repository.addScopeOwner(
+        scopeId: arg,
+        personId: personId,
+      );
+      outcome = result.valueOrNull;
+
+      return result.fold(
+        onSuccess: (_) => const Success<void>(null),
+        onFailure: FailureResult<void>.new,
+      );
+    });
+
+    if (!isCurrent(epoch) || outcome != AddOwnerOutcome.invited) {
+      return;
+    }
+
+    if (state case final ScopeOwnersLoaded loaded) {
+      state = loaded.copyWith(notice: 'Invitation sent');
+    }
+  }
+
+  /// Withdraws an open invitation (UC-58).
+  ///
+  /// AF-14g: one that already ended — another owner withdrew it, the person
+  /// answered, or it ran out — comes back as not found. The list is read again,
+  /// so it disappears, and the API's words say why.
+  Future<void> withdraw(OwnerInvitation invitation) async {
+    final epoch = this.epoch;
+    final failure = await _command(
+      () => _invitations.withdraw(arg, invitation.id),
+    );
+
+    if (failure?.kind != FailureKind.notFound || !isCurrent(epoch)) {
+      return;
+    }
+
+    await load();
+
+    if (!isCurrent(epoch)) {
+      return;
+    }
+
+    if (state case final ScopeOwnersLoaded loaded) {
+      state = loaded.copyWith(failure: failure);
+    }
+  }
 
   /// Removes an owner.
   ///
@@ -187,7 +270,7 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
       return null;
     }
 
-    state = current.copyWith(busy: true, clearFailure: true);
+    state = current.copyWith(busy: true, clearFailure: true, clearNotice: true);
 
     final epoch = this.epoch;
     final result = await send();
@@ -207,8 +290,8 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
         return null;
       case FailureResult<void>(:final failure):
         state = reportFailure
-            ? current.copyWith(busy: false, failure: failure)
-            : current.copyWith(busy: false);
+            ? current.copyWith(busy: false, failure: failure, clearNotice: true)
+            : current.copyWith(busy: false, clearNotice: true);
 
         return failure;
     }
