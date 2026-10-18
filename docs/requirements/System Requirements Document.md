@@ -80,7 +80,7 @@ describes the flows that satisfy these requirements; the
 | FR-SC-06 | The client shall logically delete a scope through `DELETE /api/scopes/{id}` after confirmation. | UI-13 |
 | FR-SC-07 | The client shall permanently delete a scope through `DELETE /api/scopes/{id}/hard` after a confirmation requiring the scope's name to be typed. | UI-13 |
 | FR-SC-08 | The client shall list a scope's owners through `GET /api/scopes/{scopeId}/owners`. | UI-14 |
-| FR-SC-09 | The client shall add an existing Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners/{personId}`. | UI-14 |
+| FR-SC-09 | The client shall add an existing Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners/{personId}`, and shall say "Invitation sent" and list the person as pending when the answer says the API invited them. | UI-14 |
 | FR-SC-10 | The client shall create a new Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners`. | UI-14 |
 | FR-SC-11 | The client shall promote a user of the scope to owner through `POST /api/scopes/{scopeId}/users/{personId}/promote`, and shall remove an owner through `DELETE /api/scopes/{scopeId}/owners/{personId}`, each after confirmation. | UI-14 |
 | FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
@@ -88,6 +88,9 @@ describes the flows that satisfy these requirements; the
 | FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
 | FR-SC-15 | A System Admin or an owning Scope Admin can list a scope's pending self-registrations, newest first and paginated, with name, address, sign-up and expiry instants, attempts left and whether each has expired. No secret is shown. | UI-35 |
 | FR-SC-16 | They can discard one after confirming. A registration already gone is reported as such and the list refreshed. | UI-35 |
+| FR-SC-17 | The client shall list a scope's pending owner invitations through `GET /api/scopes/{scopeId}/owner-invitations`, with each invitee's name, address and expiry, and shall withdraw one through `DELETE /api/scopes/{scopeId}/owner-invitations/{invitationId}` after confirmation, reading the lists again when the API answers `404`. | UI-14 |
+| FR-SC-18 | The client shall tell an invitation from an added owner by the `invited` field of the answer to `POST /api/scopes/{scopeId}/owners/{personId}`, not by its status code. | UI-14 |
+| FR-SC-19 | The client shall show the signed-in administrator's open invitations on Home through `GET /api/persons/me/scope-invitations`, and accept or decline one through `POST /api/scope-invitations/{invitationId}/accept` or `…/decline` after confirmation; after accepting it shall refresh the scopes it shows, and on a `404` it shall read the invitations again and show the API's message. | UI-39 |
 
 ### 2.3 Person management (`FR-PE`)
 

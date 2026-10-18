@@ -71,6 +71,7 @@ graph LR
         UI15[UI-15: Toggle Google Sign-In]
         UI31[UI-31: Sign-in & sign-up settings]
         UI35[UI-35: Pending registrations]
+        UI39[UI-39: Answer scope invitations]
     end
 
     subgraph "Person Management"
@@ -114,6 +115,7 @@ graph LR
     SA & SCA & U --> UI07 & UI08 & UI09 & UI33
     RS --> UI30
     SA --> UI10 & UI11 & UI12 & UI13 & UI14 & UI15 & UI31 & UI35
+    SA & SCA --> UI39
     SCA --> UI10 & UI12 & UI14 & UI15 & UI31 & UI35
     SA & SCA --> UI16 & UI17 & UI18 & UI19 & UI36
     SA --> UI38
@@ -140,7 +142,7 @@ graph LR
 | UI-11 | Create a scope | UC-01 |
 | UI-12 | View and update a scope | UC-02, UC-03 |
 | UI-13 | Delete a scope, logically and permanently | UC-04, UC-05 |
-| UI-14 | Manage scope owners | UC-21, UC-22, UC-23 |
+| UI-14 | Manage scope owners | UC-21, UC-22, UC-23, UC-58 |
 | UI-15 | Toggle Google Sign-In for a scope | UC-24 |
 | UI-16 | Browse and search persons in a scope | UC-07 |
 | UI-17 | Create a person | UC-06 |
@@ -165,6 +167,7 @@ graph LR
 | UI-36 | Send account emails to a person | UC-51, UC-52 |
 | UI-37 | Manage an application's credentials | UC-53, UC-54, UC-55 |
 | UI-38 | List System Admins | UC-07 (read e) |
+| UI-39 | Answer scope owner invitations | UC-59, UC-60, UC-61 |
 
 ### 1.5 Platform items
 
@@ -714,16 +717,19 @@ User's own record
 ### UI-14: Manage scope owners
 
 **Actor:** System Admin, Scope Admin
-**Traces to:** UC-21 (Add Scope Owner), UC-22 (Remove Scope Owner), UC-23 (Promote User to Scope Owner)
+**Traces to:** UC-21 (Add Scope Owner), UC-22 (Remove Scope Owner), UC-23 (Promote User to Scope Owner), UC-58 (Withdraw a Scope Owner Invitation)
 **Precondition:** A session exists, and a Scope Admin may only manage the scopes they own.
 
 **Main flow**
 
-1. The user opens the owners section of a scope, which lists the current owners.
-2. The client calls `GET /api/scopes/{scopeId}/owners`.
+1. The user opens the owners section of a scope, which lists the current owners and, under **Pending
+   invitations**, the people invited to co-own it who have not answered yet, each with their address and
+   the invitation's expiry. The section is hidden while there are none.
+2. The client calls `GET /api/scopes/{scopeId}/owners` and `GET /api/scopes/{scopeId}/owner-invitations`.
 3. The user adds an existing Scope Admin (or, as a System Admin, a System Admin) as a co-owner, and
-   the client calls
-   `POST /api/scopes/{scopeId}/owners/{personId}`.
+   the client calls `POST /api/scopes/{scopeId}/owners/{personId}`. The client tells an owner added from
+   a person invited by the `invited` field of the answer, not by its status code. For a System Admin the
+   person is an owner at once. For a Scope Admin the API invites them instead (AF-14h).
 4. The user creates a brand-new Scope Admin as a co-owner, and the client calls
    `POST /api/scopes/{scopeId}/owners`.
 5. The user promotes an existing user of the scope, and the client calls
@@ -731,6 +737,9 @@ User's own record
    person stops being a user of the scope.
 6. The user removes an owner, and the client calls
    `DELETE /api/scopes/{scopeId}/owners/{personId}` after a confirmation.
+7. The user withdraws a pending invitation, and the client calls
+   `DELETE /api/scopes/{scopeId}/owner-invitations/{invitationId}` after a confirmation ("Withdraw the
+   invitation to <name>?").
 
 **Alternative flows**
 
@@ -745,6 +754,12 @@ User's own record
 - **AF-14e — Promotion cancelled.** The dialog closes and nothing is sent.
 - **AF-14f — Removing yourself.** A Scope Admin removing their own ownership is warned that they
   lose access to the scope, and the listing refreshes accordingly afterwards.
+- **AF-14g — Invitation already ended.** The API answers `404` for an invitation another owner
+  withdrew, the person answered, or that ran out. The client reads the lists again and shows the API's
+  message.
+- **AF-14h — Invited rather than added.** When the answer says the API invited the person (`invited`),
+  the client says "Invitation sent" and lists them under **Pending invitations**, not among the owners;
+  they become an owner only by accepting (UI-39).
 
 ---
 
@@ -1708,6 +1723,42 @@ The listing is forgotten when the screen is left, so a return loads it fresh.
 
 ---
 
+### UI-39: Answer scope owner invitations
+
+**Actor:** Scope Admin, System Admin
+**Traces to:** UC-59 (List My Scope Invitations), UC-60 (Accept a Scope Owner Invitation), UC-61 (Decline a Scope Owner Invitation)
+**Precondition:** The user is signed in as an administrator.
+
+**Placement.** A **Scope invitations** card on Home, above the overview, shown only once the invitations
+are read and there is something to show: open invitations, the result of the last answer, or the API's
+refusal of it. Each row shows the scope's name, who invited them ("Invited by <name>") and when it
+expires, with **Decline** and **Accept**. The invitations belong to the session, so signing out forgets
+them.
+
+**Main flow**
+
+1. Home calls `GET /api/persons/me/scope-invitations` beside the dashboard.
+2. The user chooses **Accept**; a confirmation ("Accept the invitation to <scope>?") explains that they
+   become a co-owner. The client calls `POST /api/scope-invitations/{invitationId}/accept`, reads the
+   invitations again, says "Invitation accepted. You now co-own <scope>.", refreshes the scope list, and
+   reads the dashboard again.
+3. Or the user chooses **Decline**; after a confirmation the client calls
+   `POST /api/scope-invitations/{invitationId}/decline`, reads the invitations again and says "Invitation
+   declined."
+
+**Alternative flows**
+
+- **AF-39a — No invitations.** The card is not shown.
+- **AF-39b — Cancelled.** Dismissing either confirmation sends nothing.
+- **AF-39c — No longer open.** The API answers `404` "The invitation was not found or is no longer
+  open." — withdrawn, expired, answered elsewhere, or no longer acceptable. The client reads the list
+  again and shows the API's message.
+- **AF-39d — Other failure.** The card keeps the list and shows the API's errors.
+- **AF-39e — Listing fails or is pending.** While the invitations load, and when they cannot be read,
+  the card is not shown; the rest of Home is unaffected.
+
+---
+
 ## 3. Use case — requirements traceability
 
 | Use case | Functional requirements |
@@ -1730,6 +1781,8 @@ The listing is forgotten when the screen is left, so a return loads it fresh.
 | UI-36 | FR-PE-10, FR-PE-11 |
 | UI-37 | FR-AP-09 … FR-AP-11 |
 | UI-38 | FR-PE-12 |
+| UI-14 | FR-SC-17, FR-SC-18 |
+| UI-39 | FR-SC-19 |
 | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 | FR-UX-09 |
 | All | FR-UX-01 … FR-UX-08, NFR-01 … NFR-09 |
 

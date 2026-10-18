@@ -7,6 +7,24 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Added
+
+- A **Scope invitations** card on Home lists the invitations to co-own a scope that the signed-in administrator has
+  not answered yet (the scope, who invited them and the expiry), with **Accept** and **Decline**, each confirmed.
+  After accepting, the scope appears in the scope list and on the dashboard. An invitation that was withdrawn,
+  expired or already answered is reported in the API's words and the list is read again (UI-39).
+- The scope owners screen lists **Pending invitations**, with each person's address and the expiry, and withdraws one
+  after a confirmation (UI-14).
+
+### Changed
+
+- Adding an existing administrator as a co-owner while signed in as a Scope Admin now shows "Invitation sent" and
+  lists the person under **Pending invitations**: the heimdall-api release that carries scope invitations invites
+  them instead of adding them, and they become an owner only by accepting. The client tells the two apart by the
+  answer's `invited` field. A System Admin's add is unchanged. **Deploy order:** deploy this heimdall-ui release
+  **before** the heimdall-api release that carries scope invitations. Against an older API it behaves as before: the
+  add is immediate, and the invitation listings, which that API does not have, show nothing.
+
 ## [1.8.0] - 2026-10-16
 
 ### Changed
