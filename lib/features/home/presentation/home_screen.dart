@@ -9,6 +9,8 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../profile/presentation/profile_controller.dart';
+import '../../scope_invitations/presentation/scope_invitations_card.dart';
+import '../../scope_invitations/presentation/scope_invitations_controller.dart';
 import '../domain/dashboard.dart';
 import 'dashboard_controller.dart';
 
@@ -44,6 +46,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
       ref.read(profileControllerProvider.notifier).load(),
       if (session.principal.administersAnything)
         ref.read(dashboardControllerProvider.notifier).load(),
+      if (session.principal.administersAnything)
+        ref.read(scopeInvitationsControllerProvider.notifier).load(),
     ]);
   }
 
@@ -90,6 +94,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 children: <Widget>[
                   _Greeting(principal: principal),
                   const SizedBox(height: 24),
+                  // UI-39: shown only while there is something to answer.
+                  if (principal.administersAnything)
+                    ScopeInvitationsCard(
+                      onAccepted: () =>
+                          ref.read(dashboardControllerProvider.notifier).load(),
+                    ),
                   if (dashboard != null) ...<Widget>[
                     _AdminDashboard(
                       state: dashboard,

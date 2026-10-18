@@ -13,7 +13,9 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
+import 'package:heimdall_ui/shared/widgets/notice_banner.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';
@@ -50,6 +52,14 @@ const _grace = GoogleUser(
   name: 'Grace Hopper',
   email: 'grace@example.com',
   scopeId: 'scope-1',
+);
+
+final _initechInvitation = ScopeInvitation(
+  id: 'invitation-1',
+  scopeId: 'scope-9',
+  scopeName: 'Initech',
+  invitedByName: 'Ada',
+  expiresAt: DateTime.utc(2026, 10, 23, 9),
 );
 
 const Size _compact = Size(400, 1400);
@@ -473,4 +483,110 @@ void main() {
       expect(tester.takeException(), isNull);
     });
   }
+
+  testWidgets('GivenOpenInvitations_WhenHomeIsShown_ThenTheCardListsThem', (
+    tester,
+  ) async {
+    // Given a Scope Admin with one open invitation
+    final fakes = FakeDashboardRepositories(
+      scopes: const <Scope>[_acme],
+      invitations: <ScopeInvitation>[_initechInvitation],
+    );
+
+    // When Home is shown
+    await pump(tester, fakes: fakes, role: 2);
+
+    // Then the card lists it
+    expect(find.text('Scope invitations'), findsOneWidget);
+    expect(find.text('Initech'), findsOneWidget);
+    expect(find.textContaining('Invited by Ada'), findsOneWidget);
+    expect(find.textContaining('null'), findsNothing);
+  });
+
+  testWidgets('GivenNoInvitations_WhenHomeIsShown_ThenNoCardIsShown', (
+    tester,
+  ) async {
+    // Given no open invitation (AF-39a)
+    final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+
+    // When Home is shown
+    await pump(tester, fakes: fakes, role: 2);
+
+    // Then no card is shown
+    expect(find.text('Scope invitations'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenAnInvitation_WhenAcceptConfirmed_ThenItIsSentAndTheCardSaysSo',
+    (tester) async {
+      // Given an open invitation and the accept dialog
+      final fakes = FakeDashboardRepositories(
+        scopes: const <Scope>[_acme],
+        invitations: <ScopeInvitation>[_initechInvitation],
+      );
+      await pump(tester, fakes: fakes, role: 2);
+      await tester.tap(find.widgetWithText(FilledButton, 'Accept'));
+      await tester.pumpAndSettle();
+      expect(find.text('Accept the invitation to Initech?'), findsOneWidget);
+
+      // When the answer is confirmed
+      await tester.tap(
+        find.descendant(
+          of: find.byType(AlertDialog),
+          matching: find.widgetWithText(FilledButton, 'Accept'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then it is sent and the card says so, through the shared banner
+      expect(fakes.accepted, <String>['invitation-1']);
+      expect(
+        find.descendant(
+          of: find.byType(NoticeBanner),
+          matching: find.text('Invitation accepted. You now co-own Initech.'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('GivenTheDeclineDialog_WhenCancelled_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given the decline dialog is open (AF-39b)
+    final fakes = FakeDashboardRepositories(
+      scopes: const <Scope>[_acme],
+      invitations: <ScopeInvitation>[_initechInvitation],
+    );
+    await pump(tester, fakes: fakes, role: 2);
+    await tester.tap(find.widgetWithText(TextButton, 'Decline'));
+    await tester.pumpAndSettle();
+
+    // When it is cancelled
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then nothing is sent
+    expect(fakes.declined, isEmpty);
+    expect(find.text('Initech'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenOpenInvitations_WhenShownOnACompactWindow_ThenBothAnswersFit',
+    (tester) async {
+      // Given an open invitation
+      final fakes = FakeDashboardRepositories(
+        scopes: const <Scope>[_acme],
+        invitations: <ScopeInvitation>[_initechInvitation],
+      );
+
+      // When Home is shown on a compact window
+      await pump(tester, fakes: fakes, role: 2, size: _compact);
+
+      // Then no overflow error, and both controls are on screen
+      expect(tester.takeException(), isNull);
+      expect(find.widgetWithText(FilledButton, 'Accept'), findsOneWidget);
+      expect(find.widgetWithText(TextButton, 'Decline'), findsOneWidget);
+    },
+  );
 }
