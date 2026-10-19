@@ -5,17 +5,21 @@ import 'package:go_router/go_router.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
+import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice_banner.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_admin_picker.dart';
+import '../../scope_invitations/domain/scope_invitation.dart';
 import 'scope_owners_controller.dart';
 
-/// UI-14 — the owners of one scope, and the four ways the list changes.
+/// UI-14 — the owners of one scope, its pending invitations, and the five ways
+/// they change.
 class ScopeOwnersScreen extends ConsumerStatefulWidget {
   const ScopeOwnersScreen({required this.scopeId, super.key});
 
@@ -110,6 +114,32 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
     }
   }
 
+  /// UC-58 — a withdrawal asks first, and a dismissed dialog sends nothing.
+  Future<void> _withdraw(OwnerInvitation invitation) async {
+    final confirmed = await showConfirm(
+      context: context,
+      title: 'Withdraw the invitation to ${invitation.inviteeName}?',
+      message:
+          '${invitation.inviteeName} will no longer be able to accept it. '
+          'You can invite them again later.',
+      confirmLabel: 'Withdraw',
+    );
+
+    if (confirmed && mounted) {
+      await _controller.withdraw(invitation);
+    }
+  }
+
+  /// The invitee's address, and when the invitation runs out.
+  String _invitationLine(OwnerInvitation invitation) {
+    final expiresAt = invitation.expiresAt;
+
+    return expiresAt == null
+        ? invitation.inviteeEmail
+        : '${invitation.inviteeEmail} · Expires '
+              '${formatDateTime(context, expiresAt)}';
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = ref.watch(scopeOwnersControllerProvider(widget.scopeId));
@@ -152,6 +182,11 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
         // AF-14a to AF-14d: whatever the API refused, in its own words.
         if (state.failure case final failure?) ...<Widget>[
           ErrorBanner(failure: failure),
+          const SizedBox(height: 16),
+        ],
+        // AF-14h: an add that invited rather than added says so.
+        if (state.notice case final notice?) ...<Widget>[
+          NoticeBanner(message: notice),
           const SizedBox(height: 16),
         ],
         // A Wrap rather than a Row: on a narrow window the heading and the two
@@ -205,6 +240,35 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
               ],
             ),
           ),
+        if (state.invitations.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 24),
+          Text('Pending invitations', style: theme.textTheme.titleLarge),
+          const SizedBox(height: 4),
+          Text(
+            'They become owners only once they accept, signed in as '
+            'themselves.',
+            style: theme.textTheme.bodyMedium,
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: <Widget>[
+                for (final invitation in state.invitations)
+                  ListTile(
+                    leading: const Icon(Icons.schedule_send_outlined),
+                    title: Text(invitation.inviteeName),
+                    subtitle: Text(_invitationLine(invitation)),
+                    trailing: TextButton(
+                      onPressed: state.busy
+                          ? null
+                          : () => _withdraw(invitation),
+                      child: const Text('Withdraw'),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
         const SizedBox(height: 24),
         Text('Promote a user', style: theme.textTheme.titleLarge),
         const SizedBox(height: 4),

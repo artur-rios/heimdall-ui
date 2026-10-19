@@ -14,6 +14,8 @@ ReapplyErasuresCommandOutput _$ReapplyErasuresCommandOutputFromJson(
   notFound: (json['notFound'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  scopeOwnerInvitationsVoided: (json['scopeOwnerInvitationsVoided'] as num?)
+      ?.toInt(),
 );
 
 Map<String, dynamic> _$ReapplyErasuresCommandOutputToJson(
@@ -22,4 +24,5 @@ Map<String, dynamic> _$ReapplyErasuresCommandOutputToJson(
   'anonymised': instance.anonymised,
   'alreadyAnonymised': instance.alreadyAnonymised,
   'notFound': instance.notFound,
+  'scopeOwnerInvitationsVoided': instance.scopeOwnerInvitationsVoided,
 };

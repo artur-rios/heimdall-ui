@@ -16,6 +16,15 @@ class DataExportSecurity {
     this.unusedRecoveryCodes,
     this.failedLoginAttempts,
     this.lockedOutUntil,
+    this.failedSecondFactorAttempts,
+    this.secondFactorLockedOutUntil,
+    this.secondFactorLockouts,
+    this.failedReauthenticationAttempts,
+    this.reauthenticationWindowStartedAt,
+    this.reauthenticationPausedUntil,
+    this.accountEmailsSent,
+    this.accountEmailWindowEndsAt,
+    this.accountEmailLastSentAt,
   });
 
   factory DataExportSecurity.fromJson(Map<String, Object?> json) =>
@@ -28,6 +37,15 @@ class DataExportSecurity {
   final int? unusedRecoveryCodes;
   final int? failedLoginAttempts;
   final DateTime? lockedOutUntil;
+  final int? failedSecondFactorAttempts;
+  final DateTime? secondFactorLockedOutUntil;
+  final int? secondFactorLockouts;
+  final int? failedReauthenticationAttempts;
+  final DateTime? reauthenticationWindowStartedAt;
+  final DateTime? reauthenticationPausedUntil;
+  final int? accountEmailsSent;
+  final DateTime? accountEmailWindowEndsAt;
+  final DateTime? accountEmailLastSentAt;
 
   Map<String, Object?> toJson() => _$DataExportSecurityToJson(this);
 }

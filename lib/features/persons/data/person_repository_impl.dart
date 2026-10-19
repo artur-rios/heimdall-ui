@@ -305,7 +305,7 @@ class ApiPersonRepository implements PersonRepository {
   }
 
   @override
-  Future<Result<void>> addScopeOwner({
+  Future<Result<AddOwnerOutcome>> addScopeOwner({
     required String scopeId,
     required String personId,
   }) async {
@@ -315,11 +315,28 @@ class ApiPersonRepository implements PersonRepository {
         personId: personId,
       );
 
-      // AF-14b and AF-14c: not a Scope Admin, and already an owner, both
-      // arrive here in the API's own words.
-      return _acknowledgement(response.success, response.errors);
+      if (response.success != true) {
+        // AF-14b and AF-14c: not a Scope Admin, and already an owner, both
+        // arrive here in the API's own words.
+        return FailureResult<AddOwnerOutcome>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: response.errors ?? const <String>[],
+          ),
+        );
+      }
+
+      final data = response.data;
+
+      return Success<AddOwnerOutcome>(
+        data?.invited == true
+            ? AddOwnerOutcome.invited
+            : data?.alreadyOwner == true
+            ? AddOwnerOutcome.alreadyOwner
+            : AddOwnerOutcome.added,
+      );
     } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+      return FailureResult<AddOwnerOutcome>(failureFromDioException(error));
     }
   }
 

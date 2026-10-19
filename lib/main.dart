@@ -35,6 +35,8 @@ import 'features/permissions/data/scope_permission_repository_impl.dart';
 import 'features/permissions/domain/scope_permission_repository.dart';
 import 'features/persons/data/person_repository_impl.dart';
 import 'features/profile/presentation/profile_controller.dart';
+import 'features/scope_invitations/data/scope_invitation_repository_impl.dart';
+import 'features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'features/scopes/data/pending_registration_repository_impl.dart';
 import 'features/scopes/data/scope_repository_impl.dart';
 import 'features/scopes/domain/pending_registration_repository.dart';
@@ -127,6 +129,11 @@ void main() {
           pendingRegistrationRepositoryProvider.overrideWith(
             (ref) => ApiPendingRegistrationRepository(
               ScopeClient(ref.watch(dioProvider)),
+            ),
+          ),
+          scopeInvitationRepositoryProvider.overrideWith(
+            (ref) => ApiScopeInvitationRepository(
+              ScopeInvitationClient(ref.watch(dioProvider)),
             ),
           ),
           googleSignInGatewayProvider.overrideWithValue(

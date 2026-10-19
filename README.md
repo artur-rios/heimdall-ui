@@ -35,7 +35,7 @@ The specification lives in [`docs/requirements`](docs/requirements):
 - [System Requirements Document](docs/requirements/System%20Requirements%20Document.md) — functional
   and non-functional requirements, the screen inventory, and the authorization matrix.
 - [Use Case Specification Document](docs/requirements/Use%20Case%20Specification%20Document.md) —
-  UI-01 … UI-38 with their flows, each traced to the API use cases it consumes.
+  UI-01 … UI-39 with their flows, each traced to the API use cases it consumes.
 - [Technology Stack Document](docs/requirements/Technology%20Stack%20Document.md) — every technology
   and version, and how the API client is generated.
 - [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md) — how
@@ -309,6 +309,7 @@ the board is where an item's status changes as it moves.
 | UI-15: Toggle Google Sign-In for a scope | ✅ | [#15](https://github.com/artur-rios/heimdall-ui/issues/15) |
 | UI-31: Configure a scope's sign-in and sign-up | ✅ | [#121](https://github.com/artur-rios/heimdall-ui/issues/121) |
 | UI-35: Manage a scope's pending registrations | ✅ | [#137](https://github.com/artur-rios/heimdall-ui/issues/137) |
+| UI-39: Answer scope owner invitations | ✅ | — |
 
 ### Person Management
 

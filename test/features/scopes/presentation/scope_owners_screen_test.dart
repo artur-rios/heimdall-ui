@@ -14,11 +14,16 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
+
+class _MockScopeInvitationRepository extends Mock
+    implements ScopeInvitationRepository {}
 
 /// A token naming the signed-in person, which AF-14f compares against.
 String _jwt({String sub = 'person-9'}) {
@@ -80,12 +85,22 @@ envelope.Page<PersonSummary> _candidates(List<PersonSummary> items) =>
       totalPages: 1,
     );
 
+final _hedyInvited = OwnerInvitation(
+  id: 'invitation-1',
+  inviteeId: 'person-7',
+  inviteeName: 'Hedy',
+  inviteeEmail: 'hedy@example.com',
+  invitedByName: 'Ada',
+  expiresAt: DateTime.utc(2026, 10, 23, 9),
+);
+
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
 
 void main() {
   late _MockPersonRepository repository;
+  late _MockScopeInvitationRepository invitations;
   late InMemoryTokenStore store;
   late ProviderContainer container;
   late GoRouter router;
@@ -110,6 +125,7 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
+        scopeInvitationRepositoryProvider.overrideWithValue(invitations),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
@@ -182,6 +198,26 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
+  void answerInvitationsWith(List<OwnerInvitation> items) {
+    when(
+      () => invitations.listForScope(
+        any(),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => Success<envelope.Page<OwnerInvitation>>(
+        envelope.Page<OwnerInvitation>(
+          items: items,
+          pageNumber: 1,
+          pageSize: 50,
+          totalItems: items.length,
+          totalPages: 1,
+        ),
+      ),
+    );
+  }
+
   /// Opens the picker and chooses [name] from it.
   Future<void> choose(WidgetTester tester, String name) async {
     await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
@@ -193,6 +229,24 @@ void main() {
   setUp(() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockPersonRepository();
+    invitations = _MockScopeInvitationRepository();
+    when(
+      () => invitations.listForScope(
+        any(),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const Success<envelope.Page<OwnerInvitation>>(
+        envelope.Page<OwnerInvitation>(
+          items: <OwnerInvitation>[],
+          pageNumber: 1,
+          pageSize: 50,
+          totalItems: 0,
+          totalPages: 1,
+        ),
+      ),
+    );
     store = InMemoryTokenStore();
     answerOwnersWith(
       Success<envelope.Page<Person>>(_page(<Person>[_ada, _grace])),
@@ -208,7 +262,9 @@ void main() {
         scopeId: any(named: 'scopeId'),
         personId: any(named: 'personId'),
       ),
-    ).thenAnswer((_) async => const Success<void>(null));
+    ).thenAnswer(
+      (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.added),
+    );
     when(
       () => repository.removeScopeOwner(
         scopeId: any(named: 'scopeId'),
@@ -322,7 +378,7 @@ void main() {
         personId: any(named: 'personId'),
       ),
     ).thenAnswer(
-      (_) async => const FailureResult<void>(
+      (_) async => const FailureResult<AddOwnerOutcome>(
         Failure(
           kind: FailureKind.validation,
           errors: <String>['person-7 is not a Scope Admin.'],
@@ -767,6 +823,169 @@ void main() {
 
     // Then
     expect(find.text('Ada'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenAScopeAdminsAdd_WhenTheApiInvites_ThenInvitationSentAndThePendingInvitationAreShown',
+    (tester) async {
+      // Given — AF-14h
+      when(
+        () => repository.addScopeOwner(
+          scopeId: any(named: 'scopeId'),
+          personId: any(named: 'personId'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<AddOwnerOutcome>(AddOwnerOutcome.invited),
+      );
+      await pump(tester);
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+
+      // When
+      await choose(tester, 'Hedy');
+
+      // Then
+      expect(find.text('Invitation sent'), findsOneWidget);
+      expect(find.text('Pending invitations'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'Hedy'), findsOneWidget);
+    },
+  );
+
+  // A guard: it passes before the notice exists, so it was written after GREEN.
+  testWidgets(
+    'GivenASystemAdminsAdd_WhenTheApiAdds_ThenNoInvitationNoticeIsShown',
+    (tester) async {
+      // Given — the default stub answers "added"
+      await pump(tester);
+
+      // When
+      await choose(tester, 'Hedy');
+
+      // Then
+      expect(find.text('Invitation sent'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenAPendingInvitation_WhenOpened_ThenItIsListedWithItsExpiry',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Pending invitations'), findsOneWidget);
+      expect(find.textContaining('hedy@example.com · Expires'), findsOneWidget);
+    },
+  );
+
+  // A guard: it passes before the section exists, so it was written after GREEN.
+  testWidgets('GivenNoPendingInvitations_WhenOpened_ThenTheSectionIsHidden', (
+    tester,
+  ) async {
+    // Given — the default stub answers an empty page
+    // When
+    await pump(tester);
+
+    // Then
+    expect(find.text('Pending invitations'), findsNothing);
+  });
+
+  testWidgets(
+    'GivenAnInvitationWithoutAnExpiry_WhenOpened_ThenOnlyTheAddressIsShown',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[
+        const OwnerInvitation(
+          id: 'invitation-2',
+          inviteeId: 'person-7',
+          inviteeName: 'Hedy',
+          inviteeEmail: 'hedy@example.com',
+        ),
+      ]);
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('hedy@example.com'), findsWidgets);
+      expect(find.textContaining('Expires'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'GivenAPendingInvitation_WhenWithdrawConfirmed_ThenTheApiIsAsked',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+      when(() => invitations.withdraw(any(), any()))
+          .thenAnswer((_) async => const Success<void>(null));
+      await pump(tester);
+      await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+      expect(find.text('Withdraw the invitation to Hedy?'), findsOneWidget);
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // Then
+      verify(() => invitations.withdraw('scope-1', 'invitation-1')).called(1);
+    },
+  );
+
+  testWidgets(
+    'GivenAnInvitationNoLongerOpen_WhenWithdrawn_ThenTheApiMessageIsShown',
+    (tester) async {
+      // Given
+      answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+      when(() => invitations.withdraw(any(), any())).thenAnswer(
+        (_) async => const FailureResult<void>(
+          Failure(
+            kind: FailureKind.notFound,
+            errors: <String>[
+              'The invitation was not found or is no longer open.',
+            ],
+          ),
+        ),
+      );
+      await pump(tester);
+      await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.tap(find.widgetWithText(FilledButton, 'Withdraw'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(
+        find.text('The invitation was not found or is no longer open.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  // A guard: nothing is sent before the button exists, so it was written after
+  // GREEN.
+  testWidgets('GivenTheWithdrawDialog_WhenCancelled_ThenNothingIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerInvitationsWith(<OwnerInvitation>[_hedyInvited]);
+    await pump(tester);
+    await tester.ensureVisible(find.widgetWithText(TextButton, 'Withdraw'));
+    await tester.tap(find.widgetWithText(TextButton, 'Withdraw'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(() => invitations.withdraw(any(), any()));
   });
 
   // A Scope Admin who removed their own ownership is refused the scope from

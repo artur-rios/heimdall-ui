@@ -12,6 +12,8 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
+import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
@@ -45,6 +47,8 @@ class FakeDashboardRepositories {
     this.scopesFailure,
     this.apiReachable = true,
     this.googleMe,
+    this.invitations = const <ScopeInvitation>[],
+    this.acceptHeldUntil,
     Person? me,
   }) : me =
            me ??
@@ -71,6 +75,17 @@ class FakeDashboardRepositories {
   final bool apiReachable;
   final Person me;
 
+  /// The signed-in administrator's open invitations (UI-39).
+  final List<ScopeInvitation> invitations;
+
+  /// When set, an acceptance answers only once this completes, so a test can
+  /// hold one back.
+  final Future<void>? acceptHeldUntil;
+
+  /// The invitation ids accepted and declined through the fakes, in order.
+  final List<String> accepted = <String>[];
+  final List<String> declined = <String>[];
+
   /// How many times the System Admins listing was asked for.
   int systemAdminsReads = 0;
 
@@ -86,6 +101,7 @@ class FakeDashboardRepositories {
     scopePermissionRepositoryProvider.overrideWithValue(_Permissions(this)),
     googleUserRepositoryProvider.overrideWithValue(_GoogleUsers(this)),
     healthRepositoryProvider.overrideWithValue(_Health(this)),
+    scopeInvitationRepositoryProvider.overrideWithValue(_Invitations(this)),
   ];
 }
 
@@ -251,4 +267,46 @@ class _Health extends Fake implements HealthRepository {
       : const FailureResult<String>(
           Failure(kind: FailureKind.network, errors: <String>[]),
         );
+}
+
+class _Invitations extends Fake implements ScopeInvitationRepository {
+  _Invitations(this.fakes);
+
+  final FakeDashboardRepositories fakes;
+
+  /// The open ones: an answered invitation is no longer listed, as the API
+  /// would have it.
+  @override
+  Future<Result<Page<ScopeInvitation>>> listMine({
+    int pageNumber = 1,
+    int pageSize = 50,
+  }) async => Success<Page<ScopeInvitation>>(
+    pageOf<ScopeInvitation>(
+      fakes.invitations
+          .where(
+            (invitation) =>
+                !fakes.accepted.contains(invitation.id) &&
+                !fakes.declined.contains(invitation.id),
+          )
+          .toList(),
+    ),
+  );
+
+  @override
+  Future<Result<void>> accept(String invitationId) async {
+    if (fakes.acceptHeldUntil case final hold?) {
+      await hold;
+    }
+
+    fakes.accepted.add(invitationId);
+
+    return const Success<void>(null);
+  }
+
+  @override
+  Future<Result<void>> decline(String invitationId) async {
+    fakes.declined.add(invitationId);
+
+    return const Success<void>(null);
+  }
 }
