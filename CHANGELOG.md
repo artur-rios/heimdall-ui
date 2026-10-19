@@ -7,6 +7,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.9.0] - 2026-10-19
+
 ### Added
 
 - A **Scope invitations** card on Home lists the invitations to co-own a scope that the signed-in administrator has
@@ -406,7 +408,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.8.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.7.0...v1.8.0
 [1.7.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.1...v1.7.0
 [1.6.1]: https://github.com/artur-rios/heimdall-ui/compare/v1.6.0...v1.6.1
