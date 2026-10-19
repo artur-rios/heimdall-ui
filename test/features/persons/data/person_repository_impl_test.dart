@@ -7,6 +7,7 @@ import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/data/person_repository_impl.dart';
+import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 
 void main() {
   late Dio dio;
@@ -21,6 +22,157 @@ void main() {
 
   setUp(() {
     dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'));
+  });
+
+  test(
+    'GivenAScopeAdminsAdd_WhenTheApiInvites_ThenTheOutcomeIsInvited',
+    () async {
+      // Given - FR-SC-14: 202 and invited
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 202,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'messages': <String>['The invitation was sent.'],
+            'data': <String, dynamic>{
+              'scopeId': 's1',
+              'personId': 'p7',
+              'alreadyOwner': false,
+              'invited': true,
+              'invitationId': 'i1',
+              'invitationExpiresAt': '2026-10-23T09:00:00Z',
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.addScopeOwner(
+        scopeId: 's1',
+        personId: 'p7',
+      );
+
+      // Then
+      expect(result.valueOrNull, AddOwnerOutcome.invited);
+    },
+  );
+
+  test('GivenASystemAdminsAdd_WhenTheApiAdds_ThenTheOutcomeIsAdded', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 201,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'scopeId': 's1',
+            'personId': 'p7',
+            'alreadyOwner': false,
+            'invited': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.addScopeOwner(
+      scopeId: 's1',
+      personId: 'p7',
+    );
+
+    // Then
+    expect(result.valueOrNull, AddOwnerOutcome.added);
+  });
+
+  test(
+    'GivenAnOlderApisCreated_WhenTheBodyHasNoInvited_ThenTheOutcomeIsAdded',
+    () async {
+      // Given - an API from before FR-SC-14, whose answer has no `invited`
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 201,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'scopeId': 's1',
+              'personId': 'p7',
+              'alreadyOwner': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.addScopeOwner(
+        scopeId: 's1',
+        personId: 'p7',
+      );
+
+      // Then
+      expect(result.valueOrNull, AddOwnerOutcome.added);
+    },
+  );
+
+  test(
+    'GivenAnAcceptedStatus_WhenTheBodySaysNotInvited_ThenTheOutcomeIsAdded',
+    () async {
+      // Given - the outcome is read from the body, never the status code
+      final repository = repositoryAnswering(
+        const _Answer(
+          status: 202,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'scopeId': 's1',
+              'personId': 'p7',
+              'alreadyOwner': false,
+              'invited': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.addScopeOwner(
+        scopeId: 's1',
+        personId: 'p7',
+      );
+
+      // Then
+      expect(result.valueOrNull, AddOwnerOutcome.added);
+    },
+  );
+
+  test('GivenAnExistingOwner_WhenAdded_ThenTheOutcomeIsAlreadyOwner', () async {
+    // Given - AF-21d
+    final repository = repositoryAnswering(
+      const _Answer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'scopeId': 's1',
+            'personId': 'p7',
+            'alreadyOwner': true,
+            'invited': false,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.addScopeOwner(
+      scopeId: 's1',
+      personId: 'p7',
+    );
+
+    // Then
+    expect(result.valueOrNull, AddOwnerOutcome.alreadyOwner);
   });
 
   test('GivenAPersonResponse_WhenReadById_ThenThePersonIsReturned', () async {

@@ -12,6 +12,11 @@ AddScopeOwnerCommandOutput _$AddScopeOwnerCommandOutputFromJson(
   scopeId: json['scopeId'] as String?,
   personId: json['personId'] as String?,
   alreadyOwner: json['alreadyOwner'] as bool?,
+  invited: json['invited'] as bool?,
+  invitationId: json['invitationId'] as String?,
+  invitationExpiresAt: json['invitationExpiresAt'] == null
+      ? null
+      : DateTime.parse(json['invitationExpiresAt'] as String),
 );
 
 Map<String, dynamic> _$AddScopeOwnerCommandOutputToJson(
@@ -20,4 +25,7 @@ Map<String, dynamic> _$AddScopeOwnerCommandOutputToJson(
   'scopeId': instance.scopeId,
   'personId': instance.personId,
   'alreadyOwner': instance.alreadyOwner,
+  'invited': instance.invited,
+  'invitationId': instance.invitationId,
+  'invitationExpiresAt': instance.invitationExpiresAt?.toIso8601String(),
 };

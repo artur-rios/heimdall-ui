@@ -12,6 +12,7 @@ class ReapplyErasuresCommandOutput {
     this.anonymised,
     this.alreadyAnonymised,
     this.notFound,
+    this.scopeOwnerInvitationsVoided,
   });
 
   factory ReapplyErasuresCommandOutput.fromJson(Map<String, Object?> json) =>
@@ -20,6 +21,7 @@ class ReapplyErasuresCommandOutput {
   final int? anonymised;
   final int? alreadyAnonymised;
   final List<String>? notFound;
+  final int? scopeOwnerInvitationsVoided;
 
   Map<String, Object?> toJson() => _$ReapplyErasuresCommandOutputToJson(this);
 }

@@ -8,13 +8,14 @@ part 'google_sign_in_command.g.dart';
 
 @JsonSerializable()
 class GoogleSignInCommand {
-  const GoogleSignInCommand({this.scopeId, this.idToken});
+  const GoogleSignInCommand({this.scopeId, this.idToken, this.nonce});
 
   factory GoogleSignInCommand.fromJson(Map<String, Object?> json) =>
       _$GoogleSignInCommandFromJson(json);
 
   final String? scopeId;
   final String? idToken;
+  final String? nonce;
 
   Map<String, Object?> toJson() => _$GoogleSignInCommandToJson(this);
 }

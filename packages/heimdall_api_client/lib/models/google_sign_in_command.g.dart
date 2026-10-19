@@ -10,6 +10,7 @@ GoogleSignInCommand _$GoogleSignInCommandFromJson(Map<String, dynamic> json) =>
     GoogleSignInCommand(
       scopeId: json['scopeId'] as String?,
       idToken: json['idToken'] as String?,
+      nonce: json['nonce'] as String?,
     );
 
 Map<String, dynamic> _$GoogleSignInCommandToJson(
@@ -17,4 +18,5 @@ Map<String, dynamic> _$GoogleSignInCommandToJson(
 ) => <String, dynamic>{
   'scopeId': instance.scopeId,
   'idToken': instance.idToken,
+  'nonce': instance.nonce,
 };

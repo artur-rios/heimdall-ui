@@ -12,6 +12,9 @@ class AddScopeOwnerCommandOutput {
     this.scopeId,
     this.personId,
     this.alreadyOwner,
+    this.invited,
+    this.invitationId,
+    this.invitationExpiresAt,
   });
 
   factory AddScopeOwnerCommandOutput.fromJson(Map<String, Object?> json) =>
@@ -20,6 +23,9 @@ class AddScopeOwnerCommandOutput {
   final String? scopeId;
   final String? personId;
   final bool? alreadyOwner;
+  final bool? invited;
+  final String? invitationId;
+  final DateTime? invitationExpiresAt;
 
   Map<String, Object?> toJson() => _$AddScopeOwnerCommandOutputToJson(this);
 }
