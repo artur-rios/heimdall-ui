@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The operations document and the comment in the web image's `nginx.conf` now say that yggdrasil's edge, from
+  0.7.4, leaves the image's Referrer-Policy in place, so `/password-reset` and `/verify-email` send `no-referrer`
+  in deployed environments too. Behind a proxy that replaces the header, the token removed from the address at
+  start-up remains the protection. The `curl -sI` check in the document now shows the headers production returns.
+
 ## [1.9.0] - 2026-10-19
 
 ### Added

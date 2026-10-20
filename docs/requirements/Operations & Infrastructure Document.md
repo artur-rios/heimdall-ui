@@ -229,22 +229,36 @@ host should send the same (NFR-10).
 | Header | Value | Why |
 | --- | --- | --- |
 | `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
-| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. In deployed environments the reverse proxy sets this header; see below |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. yggdrasil's edge (0.7.4 and later) passes it through; see below |
 | `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
 | `X-Content-Type-Options` | `nosniff` | |
 
-**Referrer-Policy behind a proxy.** In deployed environments Referrer-Policy is set by the reverse
-proxy. nginx's per-route `no-referrer` reaches the browser when the image is served directly. Behind
-yggdrasil's Traefik, the `secure-headers` middleware attached to the UI's routers sets
-`Referrer-Policy: strict-origin-when-cross-origin` on every response in place of nginx's value. The
+**Referrer-Policy behind a proxy.** nginx's per-route value reaches the browser when the image is
+served directly, and behind yggdrasil's Traefik from 0.7.4: the UI's routers carry the
+`secure-headers-ui` middleware, which is the shared `secure-headers` set without `referrerPolicy`.
+The edge still sends `Strict-Transport-Security: max-age=31536000; includeSubDomains` and
+`X-Content-Type-Options: nosniff`, and removes `Server` and `X-Powered-By`.
+
+Behind a proxy that does replace the header (yggdrasil before 0.7.4, whose `secure-headers` set
+`strict-origin-when-cross-origin` on every response, or another proxy's security-headers
+middleware), those two routes get the proxy's value. There the protection is that the
 application removes a link token from the address as it starts, so the requests it makes afterwards
 do not carry it.
 
 > [!NOTE]
-> For no Referer on those two routes behind a proxy, the edge middleware must not set
-> `referrerPolicy` for the UI's routers (nginx's per-route value then reaches the browser), or must
-> set a route-specific one: `no-referrer` for `/password-reset` and `/verify-email`. Confirm with
-> `curl -sI https://<host>/password-reset` after deploying.
+> Confirm after deploying. The first two commands each print exactly one line, ending
+> `no-referrer`; the last prints one ending `strict-origin-when-cross-origin`. A second line means
+> a proxy is adding its own header:
+>
+> ```bash
+> curl -sI 'https://<host>/password-reset?token=x' | grep -i '^referrer-policy'
+> curl -sI 'https://<host>/verify-email?token=x' | grep -i '^referrer-policy'
+> curl -sI 'https://<host>/' | grep -i '^referrer-policy'
+> ```
+>
+> The same responses carry `Strict-Transport-Security` and `X-Content-Type-Options: nosniff`, and no
+> `Server` header. All of this was verified in production on 2026-10-20, with heimdall-ui 1.9.0
+> behind yggdrasil 0.7.4.
 
 The Content-Security-Policy:
 
