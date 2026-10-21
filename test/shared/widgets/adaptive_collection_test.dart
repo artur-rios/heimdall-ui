@@ -3,6 +3,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/shared/widgets/adaptive_collection.dart';
 
+import '../../support/pump_app.dart';
+
 /// A minimal item, so the widget's own behavior is what is under test rather
 /// than any one feature's entity.
 class _Row {
@@ -32,9 +34,7 @@ void main() {
     String? titleLabel,
     String Function(_Row item)? subtitle,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -96,9 +96,7 @@ void main() {
     tester,
   ) async {
     // Given
-    tester.view.physicalSize = const Size(1400, 900);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, const Size(1400, 900));
 
     // When
     await tester.pumpWidget(

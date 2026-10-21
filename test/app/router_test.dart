@@ -1,11 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/router.dart';
-import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+
+import '../support/jwt.dart';
 
 void main() {
   final authenticated = Authenticated(
-    token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+    token: testToken('jwt'),
     principal: const Principal(
       id: 'id',
       email: 'a@b.c',
@@ -209,7 +210,7 @@ void main() {
   test('GivenUser_WhenVisitingAnAdminRoute_ThenRedirectsToNotAvailable', () {
     // Given
     final session = Authenticated(
-      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      token: testToken('jwt'),
       principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
     );
 
@@ -225,7 +226,7 @@ void main() {
     () {
       // Given
       final session = Authenticated(
-        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        token: testToken('jwt'),
         principal: const Principal(
           id: 'id',
           email: 'a@b.c',
@@ -246,7 +247,7 @@ void main() {
   test('GivenUser_WhenVisitingNotAvailable_ThenNoRedirect', () {
     // Given
     final session = Authenticated(
-      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      token: testToken('jwt'),
       principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
     );
 
@@ -260,7 +261,7 @@ void main() {
   test('GivenUser_WhenVisitingTheirProfile_ThenNoRedirect', () {
     // Given
     final session = Authenticated(
-      token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+      token: testToken('jwt'),
       principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
     );
 
@@ -277,7 +278,7 @@ void main() {
     () {
       // Given
       final session = Authenticated(
-        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        token: testToken('jwt'),
         principal: const Principal(id: 'id', email: 'a@b.c', role: Role.user),
       );
 
@@ -325,7 +326,7 @@ void main() {
     for (final role in Role.values) {
       // Given
       final session = Authenticated(
-        token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+        token: testToken('jwt'),
         principal: Principal(id: 'id', email: 'a@b.c', role: role),
       );
 
@@ -339,7 +340,7 @@ void main() {
 
   /// A subject-rights-only session (UI-30) holding [role].
   Authenticated restricted({Role role = Role.systemAdmin}) => Authenticated(
-    token: AuthToken(value: 'jwt', expiresAt: DateTime.utc(2030)),
+    token: testToken('jwt'),
     principal: Principal(
       id: 'id',
       email: 'a@b.c',

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +24,8 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -34,35 +34,6 @@ class _MockAuthRepository extends Mock implements AuthRepository {}
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 
 class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
-
-String _jwt({int role = 3}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'ada@example.com',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
-
-/// A Google sign-in's token: the subject is the Google User, in its scope.
-String _googleJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'google-1',
-        'role': 3,
-        'scopeId': 'scope-1',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _grace = GoogleUser(
   id: 'google-1',
@@ -117,73 +88,47 @@ void main() {
     bool viaGoogle = false,
     bool routed = false,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: viaGoogle ? _googleJwt() : _jwt(role: role),
-        expiresAt: DateTime.utc(2030),
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(
+        viaGoogle
+            ? testJwt(sub: 'google-1', role: 3, scopeId: 'scope-1', email: null)
+            : testJwt(email: 'ada@example.com', role: role),
         viaGoogle: viaGoogle,
       ),
-    );
-
-    container = ProviderContainer(
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(persons),
         googleUserRepositoryProvider.overrideWithValue(googleUsers),
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWithValue(auth),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
+      // [routed] puts the screen under a router, for a test that follows a
+      // link off it.
+      home: routed ? null : const ProfileScreen(),
+      router: !routed
+          ? null
+          : GoRouter(
+              initialLocation: '/profile',
+              routes: <RouteBase>[
+                // Nested and guarded as the app's own routes are (#156).
+                GoRoute(
+                  path: '/profile',
+                  builder: (context, state) => const ProfileScreen(),
+                  onExit: confirmLeaveWithUnsavedChanges,
+                  routes: <RouteBase>[
+                    GoRoute(
+                      path: 'security',
+                      builder: (context, state) =>
+                          const Scaffold(body: Text('security')),
+                    ),
+                  ],
+                ),
+              ],
+            ),
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    // [routed] puts the screen under a router, for a test that follows a
-    // link off it.
-    final router = routed
-        ? GoRouter(
-            initialLocation: '/profile',
-            routes: <RouteBase>[
-              // Nested and guarded as the app's own routes are (#156).
-              GoRoute(
-                path: '/profile',
-                builder: (context, state) => const ProfileScreen(),
-                onExit: confirmLeaveWithUnsavedChanges,
-                routes: <RouteBase>[
-                  GoRoute(
-                    path: 'security',
-                    builder: (context, state) =>
-                        const Scaffold(body: Text('security')),
-                  ),
-                ],
-              ),
-            ],
-          )
-        : null;
-
-    if (router != null) {
-      addTearDown(router.dispose);
-    }
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: router == null
-            ? MaterialApp(
-                theme: theme ?? buildLightTheme(),
-                home: const ProfileScreen(),
-              )
-            : MaterialApp.router(
-                theme: theme ?? buildLightTheme(),
-                routerConfig: router,
-              ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<Person> result) {

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -9,11 +7,9 @@ import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/network/dio_client.dart';
-import 'package:heimdall_ui/core/scope/scope_source.dart';
-import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
-import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
@@ -21,6 +17,8 @@ import 'package:heimdall_ui/features/applications/domain/application_credential_
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_detail_screen.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
+import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
+import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
@@ -33,7 +31,8 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
@@ -68,21 +67,6 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 }
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
-String _jwt({int role = 1}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = Person(
   id: 'person-1',
@@ -185,24 +169,16 @@ void main() {
     int role = 1,
     bool realRouter = false,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role),
-        expiresAt: DateTime.utc(2030),
-      ),
-    );
-
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9', role: role)),
       overrides: <Override>[
         applicationRepositoryProvider.overrideWithValue(applications),
         applicationCredentialRepositoryProvider.overrideWithValue(credentials),
         personRepositoryProvider.overrideWithValue(persons),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         if (realRouter) ...<Override>[
           scopeRepositoryProvider.overrideWithValue(scopesUnderneath()),
           appConfigProvider.overrideWithValue(
@@ -215,50 +191,40 @@ void main() {
           ),
         ],
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
+      routerFor: (container) {
+        if (realRouter) {
+          // The app's own router, so its `onExit` and redirect are the ones
+          // tested. It builds the scope and the listing under the detail too.
+          answerListWith();
+          router = container.read(routerProvider);
+          router.go('/scopes/$_scopeId/applications/$_appId');
 
-    if (realRouter) {
-      // The app's own router, so its `onExit` and redirect are the ones tested.
-      // It builds the scope and the listing under the detail as well.
-      answerListWith();
-      router = container.read(routerProvider);
-      router.go('/scopes/$_scopeId/applications/$_appId');
-    } else {
-      router = GoRouter(
-        initialLocation: '/scopes/$_scopeId/applications/$_appId',
-        // Nested and guarded as the app's own router is (#156).
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/scopes/:scopeId/applications',
-            builder: (context, state) => const Scaffold(body: Text('listing')),
-            routes: <RouteBase>[
-              GoRoute(
-                path: ':applicationId',
-                builder: (context, state) => ApplicationDetailScreen(
-                  scopeId: state.pathParameters['scopeId']!,
-                  applicationId: state.pathParameters['applicationId']!,
+          return router;
+        }
+
+        return router = GoRouter(
+          initialLocation: '/scopes/$_scopeId/applications/$_appId',
+          // Nested and guarded as the app's own router is (#156).
+          routes: <RouteBase>[
+            GoRoute(
+              path: '/scopes/:scopeId/applications',
+              builder: (context, state) =>
+                  const Scaffold(body: Text('listing')),
+              routes: <RouteBase>[
+                GoRoute(
+                  path: ':applicationId',
+                  builder: (context, state) => ApplicationDetailScreen(
+                    scopeId: state.pathParameters['scopeId']!,
+                    applicationId: state.pathParameters['applicationId']!,
+                  ),
+                  onExit: confirmLeaveWithUnsavedChanges,
                 ),
-                onExit: confirmLeaveWithUnsavedChanges,
-              ),
-            ],
-          ),
-        ],
-      );
-    }
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+              ],
+            ),
+          ],
+        );
+      },
     );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<Application> result) {

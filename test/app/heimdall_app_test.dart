@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -12,8 +11,8 @@ import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/entry/entry_link.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
@@ -37,7 +36,8 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/dashboard_fakes.dart';
-import '../support/idle_expiry_timer.dart';
+import '../support/jwt.dart';
+import '../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -48,11 +48,9 @@ class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
-const String _systemAdminJwt =
-    'header.'
-    'eyJzdWIiOiI2ZjFkM2EwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJlbWFpbCI6'
-    'ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6MX0.'
-    'signature';
+final String _systemAdminJwt = testJwt(
+  sub: '6f1d3a00-0000-0000-0000-000000000001',
+);
 
 void main() {
   late InMemoryTokenStore store;
@@ -72,7 +70,8 @@ void main() {
     List<Override> overrides = const <Override>[],
     FakeDashboardRepositories? fakes,
   }) async {
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...(fakes ?? FakeDashboardRepositories()).overrides,
         // The sign-in screen asks the configuration whether to offer the
@@ -80,14 +79,11 @@ void main() {
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
         ...overrides,
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -135,21 +131,13 @@ void main() {
     tester,
   ) async {
     // Given
-    final payload = base64Url
-        .encode(
-          utf8.encode(
-            jsonEncode(<String, String>{
-              'id': '6f1d3a00-0000-0000-0000-000000000003',
-              'role': '3',
-              'name': 'Ada Lovelace',
-            }),
-          ),
-        )
-        .replaceAll('=', '');
     await store.write(
-      AuthToken(
-        value: 'header.$payload.signature',
-        expiresAt: DateTime.utc(2030),
+      testToken(
+        testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+          'name': 'Ada Lovelace',
+        }),
       ),
     );
 
@@ -168,22 +156,14 @@ void main() {
     tester,
   ) async {
     // Given
-    final payload = base64Url
-        .encode(
-          utf8.encode(
-            jsonEncode(<String, String>{
-              'id': '6f1d3a00-0000-0000-0000-000000000004',
-              'role': '3',
-              'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
-              'name': 'Grace Hopper',
-            }),
-          ),
-        )
-        .replaceAll('=', '');
     await store.write(
-      AuthToken(
-        value: 'header.$payload.signature',
-        expiresAt: DateTime.utc(2030),
+      testToken(
+        testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000004',
+          'role': '3',
+          'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
+          'name': 'Grace Hopper',
+        }),
         viaGoogle: true,
       ),
     );
@@ -311,19 +291,17 @@ void main() {
     final slow = _SlowTokenStore(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: slow,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(slow),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
 
     // When
     await tester.pumpWidget(
@@ -348,19 +326,17 @@ void main() {
     final slow = _SlowTokenStore(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: slow,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(slow),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -384,21 +360,22 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _userJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testJwt(sub: 'id', email: 'user@example.com', role: 3),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -478,19 +455,17 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -535,19 +510,17 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -615,7 +588,14 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
 
     // When
@@ -636,7 +616,14 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
     final container = await pumpApp(tester);
 
@@ -1409,21 +1396,6 @@ void main() {
   );
 }
 
-/// A token naming a User, which is the role the matrix hides the most from.
-String _userJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'id',
-        'email': 'user@example.com',
-        'role': 3,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
-
 /// A store whose read does not complete until it is told to, so AF-07c's slow
 /// read is a state a test can actually observe.
 class _SlowTokenStore implements TokenStore {
@@ -1442,19 +1414,4 @@ class _SlowTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async {}
-}
-
-/// A subject-rights-only token, as UI-30 restores one from storage.
-String _restrictedJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'id': 'person-1',
-        'role': '3',
-        'subjectRightsOnly': 'true',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
 }

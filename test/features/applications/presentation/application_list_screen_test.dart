@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -13,33 +10,19 @@ import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_list_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': 1,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _billing = Application(id: 'app-1', name: 'Billing', ownerId: 'person-1');
 
@@ -70,7 +53,6 @@ void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -78,23 +60,6 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        applicationRepositoryProvider.overrideWithValue(applications),
-        personRepositoryProvider.overrideWithValue(persons),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/applications',
       routes: <RouteBase>[
@@ -126,18 +91,19 @@ void main() {
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9')),
+      overrides: <Override>[
+        applicationRepositoryProvider.overrideWithValue(applications),
+        personRepositoryProvider.overrideWithValue(persons),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<envelope.Page<Application>> result) {

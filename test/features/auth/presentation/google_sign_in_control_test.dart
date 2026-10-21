@@ -16,7 +16,8 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/pump_app.dart';
+import '../../../support/jwt.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -52,10 +53,7 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 }
 
 /// A token naming a User, which is all the control's outcomes need.
-const String _jwt =
-    'header.'
-    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
-    'signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
@@ -69,30 +67,18 @@ void main() {
     ThemeData? theme,
     bool enabled = true,
   }) async {
-    container = ProviderContainer(
+    addTearDown(gateway.tokens.close);
+    container = await pumpApp(
+      tester,
+      store: store,
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         googleSignInGatewayProvider.overrideWithValue(gateway),
         scopeSourceProvider.overrideWithValue(FixedScopeSource(scopeId)),
       ],
+      home: Scaffold(body: GoogleSignInControl(enabled: enabled)),
     );
-    addTearDown(container.dispose);
-    addTearDown(gateway.tokens.close);
-    // Settle the start-up read so it cannot land mid-exchange.
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: Scaffold(body: GoogleSignInControl(enabled: enabled)),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   void answerExchangeWith(Result<AuthToken> result) {

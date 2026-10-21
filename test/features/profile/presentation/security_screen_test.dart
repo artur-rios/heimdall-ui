@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -20,24 +18,11 @@ import 'package:heimdall_ui/shared/widgets/qr_code.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 import '../../../support/secret_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'ada@example.com',
-        'role': 3,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 class _FakeFileSaver implements FileSaver {
   final Map<String, String> saved = <String, String>{};
@@ -90,82 +75,70 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(email: 'ada@example.com', role: 3)),
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         secretClipboardProvider.overrideWithValue(secrets),
         fileSaverProvider.overrideWithValue(saver),
         screenSecurityProvider.overrideWithValue(security),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
+      routerFor: (container) {
+        // The application's guard sends a signed-out person to sign-in; this
+        // stands in for it, so a sign-out lands somewhere that settles.
+        final sessionChanges = ValueNotifier<int>(0);
+        addTearDown(sessionChanges.dispose);
+        container.listen(
+          sessionControllerProvider,
+          (_, _) => sessionChanges.value++,
+        );
 
-    // The application's guard sends a signed-out person to sign-in; this
-    // stands in for it, so a sign-out lands somewhere that settles.
-    final sessionChanges = ValueNotifier<int>(0);
-    addTearDown(sessionChanges.dispose);
-    container.listen(
-      sessionControllerProvider,
-      (_, _) => sessionChanges.value++,
-    );
-
-    // Built under a provider, as the application's is, so the security
-    // route's onExit has the Ref it reads the codes and the session through.
-    final routerProvider = Provider<GoRouter>(
-      (ref) => GoRouter(
-        initialLocation: '/profile/security',
-        refreshListenable: sessionChanges,
-        redirect: (context, state) =>
-            ref.read(sessionControllerProvider) is Unauthenticated
-            ? '/login'
-            : null,
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/',
-            builder: (context, state) => const Scaffold(body: Text('home')),
-          ),
-          GoRoute(
-            path: '/login',
-            builder: (context, state) => const Scaffold(body: Text('sign-in')),
-          ),
-          // Nested as the app's own routes are (#156).
-          GoRoute(
-            path: '/profile',
-            builder: (context, state) => const Scaffold(body: Text('profile')),
+        // Built under a provider, as the application's is, so the security
+        // route's onExit has the Ref it reads the codes and the session
+        // through.
+        final routerProvider = Provider<GoRouter>(
+          (ref) => GoRouter(
+            initialLocation: '/profile/security',
+            refreshListenable: sessionChanges,
+            redirect: (context, state) =>
+                ref.read(sessionControllerProvider) is Unauthenticated
+                ? '/login'
+                : null,
             routes: <RouteBase>[
               GoRoute(
-                path: 'security',
-                builder: (context, state) => const SecurityScreen(),
-                onExit: (context, state) =>
-                    confirmLeaveWithRecoveryCodes(context, ref),
+                path: '/',
+                builder: (context, state) => const Scaffold(body: Text('home')),
+              ),
+              GoRoute(
+                path: '/login',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('sign-in')),
+              ),
+              // Nested as the app's own routes are (#156).
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('profile')),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'security',
+                    builder: (context, state) => const SecurityScreen(),
+                    onExit: (context, state) =>
+                        confirmLeaveWithRecoveryCodes(context, ref),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
-      ),
-    );
-    router = container.read(routerProvider);
-    addTearDown(router.dispose);
+        );
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+        return router = container.read(routerProvider);
+      },
     );
-    await tester.pumpAndSettle();
   }
 
   void answerStatusWith(Result<TwoFactorStatus> result) {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -16,7 +15,8 @@ import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.d
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
@@ -80,16 +80,6 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
   Future<void> signOut() async {}
 }
 
-/// A subject-rights-only token, shaped as the API mints one.
-String _restrictedJwt() {
-  String segment(Map<String, Object> json) =>
-      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
-
-  return '${segment(<String, Object>{'alg': 'HS256'})}.'
-      '${segment(<String, Object>{'id': 'person-1', 'role': '3', 'subjectRightsOnly': 'true'})}.'
-      'signature';
-}
-
 const Failure _refused = Failure(
   kind: FailureKind.forbidden,
   errors: <String>['This identity is not eligible.'],
@@ -108,26 +98,27 @@ void main() {
   }) async {
     await store.write(
       AuthToken(
-        value: _restrictedJwt(),
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: viaGoogle,
         processingRestricted: true,
       ),
     );
-    final container = ProviderContainer(
+    final container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         dataRightsRepositoryProvider.overrideWithValue(repository),
         fileSaverProvider.overrideWithValue(saver),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(
           gateway = _FakeGoogleSignInGateway(google, hold: hold),
         ),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
     // Keep the controller alive for the whole test.
     container.listen(restrictedSessionControllerProvider, (_, _) {});
 

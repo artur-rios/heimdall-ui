@@ -11,14 +11,15 @@ import 'package:heimdall_ui/shared/layout/app_shell.dart';
 import 'package:heimdall_ui/shared/widgets/page_title.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../support/idle_expiry_timer.dart';
+import '../../support/pump_app.dart';
+import '../../support/jwt.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockGoogle extends Mock implements GoogleSignInGateway {}
 
 // role 3 (User).
-const String _jwt = 'header.eyJzdWIiOiIxIiwicm9sZSI6M30.signature';
+final String _jwt = testJwt(sub: '1', email: null, role: 3);
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -46,16 +47,13 @@ void main() {
   Future<void> pumpShell(WidgetTester tester, Widget title) async {
     final store = InMemoryTokenStore();
     await store.write(AuthToken(value: _jwt, expiresAt: DateTime.utc(2100)));
-    final container = ProviderContainer(
+    final container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(_MockGoogle()),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     await tester.pumpWidget(
       UncontrolledProviderScope(

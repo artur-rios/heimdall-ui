@@ -1,8 +1,6 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -10,7 +8,6 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/persons/presentation/person_detail_screen.dart';
@@ -19,24 +16,10 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
-
-/// A token naming the signed-in person, which AF-18e compares against.
-String _jwt({String sub = 'person-9', int role = 1}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': sub,
-        'email': 'admin@example.com',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = Person(
   id: 'person-1',
@@ -79,7 +62,6 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockPersonRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -90,27 +72,6 @@ void main() {
     int role = 1,
     String initialLocation = '/scopes/scope-1/persons/person-1',
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(sub: signedInAs, role: role),
-        expiresAt: DateTime.utc(2030),
-      ),
-    );
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        personRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: initialLocation,
       // Nested and guarded as the app's own router is (#156).
@@ -145,18 +106,18 @@ void main() {
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: signedInAs, role: role)),
+      overrides: <Override>[
+        personRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<Person> result) {

@@ -13,12 +13,13 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockGoogle extends Mock implements GoogleSignInGateway {}
 
-const String _jwt = 'header.eyJzdWIiOiIxIiwicm9sZSI6M30.signature';
+final String _jwt = testJwt(sub: '1', email: null, role: 3);
 
 /// #182 — the widget tester's clock is a fake one, so an expiry hours away is
 /// reached by pumping. The token's own expiry is read from the real clock when

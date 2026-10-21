@@ -14,6 +14,8 @@ import 'package:heimdall_ui/features/erasure_requests/presentation/reconciliatio
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/pump_app.dart';
+
 class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
 
@@ -28,9 +30,7 @@ void main() {
     ThemeData? theme,
     Size size = const Size(800, 900),
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       ProviderScope(

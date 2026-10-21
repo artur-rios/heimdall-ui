@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,7 +9,6 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
@@ -21,25 +19,8 @@ import 'package:heimdall_ui/shared/widgets/notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';
-import '../../support/idle_expiry_timer.dart';
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
-///
-/// A Google sign-in's token names a Google User instead, in its scope.
-String _jwt({int role = 1, bool viaGoogle = false}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': viaGoogle ? 'google-1' : 'person-1',
-        'name': 'Ada',
-        'role': role,
-        if (viaGoogle) 'scopeId': 'scope-1',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
+import '../../support/jwt.dart';
+import '../../support/pump_app.dart';
 
 const _acme = Scope(
   id: 'scope-1',
@@ -85,70 +66,55 @@ void main() {
     bool viaGoogle = false,
     void Function(ProviderContainer container)? withContainer,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role, viaGoogle: viaGoogle),
-        expiresAt: DateTime.utc(2030),
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(
+        testJwt(
+          sub: viaGoogle ? 'google-1' : 'person-1',
+          email: null,
+          name: 'Ada',
+          role: role,
+          scopeId: viaGoogle ? 'scope-1' : null,
+        ),
         viaGoogle: viaGoogle,
       ),
-    );
-
-    final container = ProviderContainer(
       overrides: <Override>[
         ...(fakes ?? FakeDashboardRepositories()).overrides,
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-    withContainer?.call(container);
-
-    final router = GoRouter(
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const HomeScreen(),
-          // A child of Home, as in the application: leaving it keeps Home
-          // beneath, and coming back re-reads Home through `onReturn`.
-          routes: <RouteBase>[
+      afterRestore: (container) async => withContainer?.call(container),
+      router: GoRouter(
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const HomeScreen(),
+            // A child of Home, as in the application: leaving it keeps Home
+            // beneath, and coming back re-reads Home through `onReturn`.
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'system-admins',
+                builder: (context, state) =>
+                    Scaffold(body: Text('opened ${state.uri.path}')),
+              ),
+            ],
+          ),
+          for (final path in <String>[
+            '/scopes',
+            '/scopes/:scopeId',
+            '/profile',
+            '/profile/security',
+            '/health',
+          ])
             GoRoute(
-              path: 'system-admins',
+              path: path,
               builder: (context, state) =>
                   Scaffold(body: Text('opened ${state.uri.path}')),
             ),
-          ],
-        ),
-        for (final path in <String>[
-          '/scopes',
-          '/scopes/:scopeId',
-          '/profile',
-          '/profile/security',
-          '/health',
-        ])
-          GoRoute(
-            path: path,
-            builder: (context, state) =>
-                Scaffold(body: Text('opened ${state.uri.path}')),
-          ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   testWidgets('GivenASystemAdmin_WhenOpened_ThenTheFiguresAreShown', (

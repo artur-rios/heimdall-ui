@@ -14,34 +14,29 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/idle_expiry_timer.dart';
 import '../../../support/late_answer.dart';
+import '../../../support/pump_app.dart';
+import '../../../support/jwt.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 /// A token naming a User, for the flows that need a session to correct.
-const String _jwt =
-    'header.'
-    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
-    'signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
   late ProviderContainer container;
 
   EmailVerificationController controllerUnderTest() {
-    container = ProviderContainer(
+    // A successful verification corrects the session's own answer, so the
+    // controller reaches the store even with nobody signed in.
+    container = testContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        // A successful verification corrects the session's own answer, so the
-        // controller reaches the store even with nobody signed in.
-        tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
-    addTearDown(container.dispose);
 
     return container.read(emailVerificationControllerProvider.notifier);
   }
@@ -121,16 +116,13 @@ void main() {
         emailVerified: false,
       ),
     );
-    container = ProviderContainer(
+    container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         personRepositoryProvider.overrideWithValue(people),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     await container
         .read(emailVerificationControllerProvider.notifier)
@@ -214,15 +206,12 @@ void main() {
         emailVerified: false,
       ),
     );
-    container = ProviderContainer(
+    container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     // When
     await container

@@ -1,18 +1,17 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/scope_invitations/data/scope_invitation_repository_impl.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiScopeInvitationRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiScopeInvitationRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiScopeInvitationRepository(ScopeInvitationClient(dio));
@@ -29,7 +28,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -72,7 +71,7 @@ void main() {
     'GivenAnInvitation_WhenWithdrawn_ThenItIsAddressedAndNoContentIsASuccess',
     () async {
       // Given — the API answers 204 with no body
-      final repository = repositoryAnswering(const _Answer(status: 204));
+      final repository = repositoryAnswering(const StubAnswer(status: 204));
 
       // When
       final result = await repository.withdraw('s1', 'i1');
@@ -89,7 +88,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 404,
           body: <String, dynamic>{
             'success': false,
@@ -110,7 +109,7 @@ void main() {
   test('GivenMyInvitations_WhenListed_ThenTheyAreMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -146,7 +145,7 @@ void main() {
   test('GivenAnInvitation_WhenAccepted_ThenItIsPosted', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -171,7 +170,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 404,
           body: <String, dynamic>{
             'success': false,
@@ -189,50 +188,4 @@ void main() {
       expect(result.failureOrNull!.errors, <String>[notOpen]);
     },
   );
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-
-  /// `null` answers with no body at all, as a `204` does.
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The request paths and methods it was sent, so a test can assert which
-  /// record was addressed and how.
-  final List<String> paths = <String>[];
-  final List<String> methods = <String>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    paths.add(options.path);
-    methods.add(options.method);
-
-    final body = _answer.body;
-
-    return body == null
-        ? ResponseBody.fromString('', _answer.status)
-        : ResponseBody.fromString(
-            jsonEncode(body),
-            _answer.status,
-            headers: <String, List<String>>{
-              Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-            },
-          );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -7,29 +6,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/core/time/clock.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/home/domain/dashboard.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 
 import '../../support/dashboard_fakes.dart';
-import '../../support/idle_expiry_timer.dart';
+import '../../support/jwt.dart';
 import '../../support/late_answer.dart';
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
-String _jwt(int role) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'name': 'Ada',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
+import '../../support/pump_app.dart';
 
 const _acme = Scope(
   id: 'scope-1',
@@ -57,17 +41,15 @@ void main() {
   ) async {
     final store = InMemoryTokenStore();
     await store.write(
-      AuthToken(value: _jwt(role), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testJwt(role: role, email: null, name: 'Ada'),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
-    final container = ProviderContainer(
-      overrides: <Override>[
-        ...fakes.overrides,
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-      ],
+    final container = await sessionContainer(
+      store: store,
+      overrides: <Override>[...fakes.overrides],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     await container.read(dashboardControllerProvider.notifier).load();
 
@@ -382,17 +364,15 @@ void main() {
       );
       final store = InMemoryTokenStore();
       await store.write(
-        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+        AuthToken(
+          value: testJwt(role: 1, email: null, name: 'Ada'),
+          expiresAt: DateTime.utc(2030),
+        ),
       );
-      final container = ProviderContainer(
-        overrides: <Override>[
-          ...fakes.overrides,
-          tokenStoreProvider.overrideWithValue(store),
-          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-        ],
+      final container = await sessionContainer(
+        store: store,
+        overrides: <Override>[...fakes.overrides],
       );
-      addTearDown(container.dispose);
-      await container.read(sessionControllerProvider.notifier).restore();
       final notifier = container.read(dashboardControllerProvider.notifier);
       final first = notifier.load();
       await Future<void>.delayed(Duration.zero);
@@ -438,17 +418,15 @@ void main() {
       );
       final store = InMemoryTokenStore();
       await store.write(
-        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+        AuthToken(
+          value: testJwt(role: 1, email: null, name: 'Ada'),
+          expiresAt: DateTime.utc(2030),
+        ),
       );
-      final container = ProviderContainer(
-        overrides: <Override>[
-          ...fakes.overrides,
-          tokenStoreProvider.overrideWithValue(store),
-          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-        ],
+      final container = await sessionContainer(
+        store: store,
+        overrides: <Override>[...fakes.overrides],
       );
-      addTearDown(container.dispose);
-      await container.read(sessionControllerProvider.notifier).restore();
       final notifier = container.read(dashboardControllerProvider.notifier);
 
       // When

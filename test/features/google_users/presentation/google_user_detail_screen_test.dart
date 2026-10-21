@@ -1,38 +1,20 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/google_users/presentation/google_user_detail_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
-String _jwt({int role = 1}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = GoogleUser(
   id: 'google-1',
@@ -57,7 +39,6 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockGoogleUserRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -66,27 +47,6 @@ void main() {
     ThemeData? theme,
     int role = 1,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role),
-        expiresAt: DateTime.utc(2030),
-      ),
-    );
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        googleUserRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/google-users/google-1',
       routes: <RouteBase>[
@@ -103,18 +63,18 @@ void main() {
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9', role: role)),
+      overrides: <Override>[
+        googleUserRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<GoogleUser> result) {

@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -19,7 +17,8 @@ import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.d
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_screen.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
@@ -68,22 +67,6 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 
   @override
   Future<void> signOut() async {}
-}
-
-/// A subject-rights-only token naming Ada.
-String _restrictedJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'id': 'person-1',
-        'name': 'Ada Lovelace',
-        'role': '3',
-        'subjectRightsOnly': 'true',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
 }
 
 const Size _compact = Size(400, 900);
@@ -135,20 +118,23 @@ void main() {
     bool viaGoogle = false,
     String? googleClientId,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _restrictedJwt(),
+    container = await pumpApp(
+      tester,
+      home: const RestrictedSessionScreen(),
+      size: size,
+      theme: theme,
+      store: store,
+      token: AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'name': 'Ada Lovelace',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: viaGoogle,
         processingRestricted: true,
       ),
-    );
-
-    container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
           AppConfig(
@@ -158,25 +144,10 @@ void main() {
         ),
         dataRightsRepositoryProvider.overrideWithValue(repository),
         fileSaverProvider.overrideWithValue(saver),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(google),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const RestrictedSessionScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   Future<void> tapButton(WidgetTester tester, String label) async {

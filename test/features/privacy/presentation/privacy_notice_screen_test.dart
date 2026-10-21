@@ -10,6 +10,8 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/features/privacy/domain/privacy_notice.dart';
 import 'package:heimdall_ui/features/privacy/presentation/privacy_notice_screen.dart';
 
+import '../../../support/pump_app.dart';
+
 /// An asset bundle that has nothing, standing in for a build that lost the
 /// notice.
 class _EmptyBundle extends CachingAssetBundle {
@@ -43,9 +45,7 @@ void main() {
     List<String> history = const <String>['/privacy'],
     AssetBundle? bundle,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     final router = GoRouter(
       initialLocation: history.first,

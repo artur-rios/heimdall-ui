@@ -1,24 +1,23 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/erasure_requests/data/erasure_request_repository_impl.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiErasureRequestRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiErasureRequestRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiErasureRequestRepository(AuthClient(dio));
   }
 
-  const emptyPage = _Answer(
+  const emptyPage = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -38,7 +37,7 @@ void main() {
   test('GivenAPage_WhenListed_ThenRequestsAreMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -87,7 +86,7 @@ void main() {
   test('GivenAScopeAdmin_WhenListed_ThenForbiddenIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{
           'success': false,
@@ -107,7 +106,7 @@ void main() {
   test('GivenIds_WhenReapplied_ThenTheyTravelAndTheOutcomeIsMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -140,7 +139,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 400,
           body: <String, dynamic>{
             'success': false,
@@ -161,7 +160,7 @@ void main() {
 
   test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.list();
@@ -169,56 +168,4 @@ void main() {
     // Then
     expect(result.failureOrNull!.kind, FailureKind.network);
   });
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The query parameters it was asked for, so a test can assert which filters
-  /// actually travelled.
-  final List<Map<String, dynamic>> queries = <Map<String, dynamic>>[];
-
-  /// The request bodies it was sent, as JSON, so a test can assert which
-  /// fields actually travelled.
-  final List<Object?> bodies = <Object?>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    queries.add(options.queryParameters);
-    bodies.add(
-      options.data == null ? null : jsonDecode(jsonEncode(options.data)),
-    );
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

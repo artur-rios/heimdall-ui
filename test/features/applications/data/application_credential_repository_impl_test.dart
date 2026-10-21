@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
@@ -8,12 +5,14 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/data/application_credential_repository_impl.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiApplicationCredentialRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiApplicationCredentialRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiApplicationCredentialRepository(ApplicationCredentialClient(dio));
@@ -26,7 +25,7 @@ void main() {
   test('GivenCredentials_WhenListed_ThenTheyAreMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -71,7 +70,7 @@ void main() {
   test('GivenAnExpiry_WhenIssued_ThenItTravelsAndTheSecretComesBack', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 201,
         body: <String, dynamic>{
           'success': true,
@@ -103,7 +102,7 @@ void main() {
   test('GivenNoExpiry_WhenIssued_ThenNoExpiryTravels', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 201,
         body: <String, dynamic>{
           'success': true,
@@ -129,7 +128,7 @@ void main() {
     () async {
       // Given — AF-37b
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 409,
           body: <String, dynamic>{
             'success': false,
@@ -155,7 +154,7 @@ void main() {
   test('GivenACredential_WhenRevoked_ThenItsPathIsAddressed', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -179,7 +178,7 @@ void main() {
 
   test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.list('s1', 'a1');
@@ -191,7 +190,7 @@ void main() {
   test('GivenARefusedListing_WhenListed_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': false,
@@ -210,7 +209,7 @@ void main() {
   test('GivenAnIssueAnswerWithoutASecret_WhenIssued_ThenItFails', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 201,
         body: <String, dynamic>{
           'success': true,
@@ -227,51 +226,4 @@ void main() {
     expect(result.isSuccess, isFalse);
     expect(result.failureOrNull!.kind, FailureKind.unknown);
   });
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  final List<String> paths = <String>[];
-  final List<String> methods = <String>[];
-  final List<Object?> bodies = <Object?>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    paths.add(options.path);
-    methods.add(options.method);
-    bodies.add(options.data);
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

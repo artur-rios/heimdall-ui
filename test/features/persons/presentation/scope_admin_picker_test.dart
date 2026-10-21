@@ -16,6 +16,7 @@ import 'package:heimdall_ui/shared/widgets/collection_states.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/late_answer.dart';
+import '../../../support/pump_app.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -86,9 +87,7 @@ void main() {
     Set<String> excludeIds = const <String>{},
     void Function(PersonSummary?)? onChosen,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(

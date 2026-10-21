@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +11,12 @@ import 'package:heimdall_ui/features/auth/presentation/password_reset_screen.dar
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
   late _MockAuthRepository repository;
-  late ProviderContainer container;
   late GoRouter router;
 
   /// Pumps the screen behind a router, so the actions that leave it — request a
@@ -27,50 +27,35 @@ void main() {
     Size size = const Size(400, 900),
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    container = ProviderContainer(
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
       ],
-    );
-    addTearDown(container.dispose);
-
-    router = GoRouter(
-      initialLocation: token == null
-          ? '/password-reset'
-          : '/password-reset?token=$token',
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/password-reset',
-          builder: (context, state) =>
-              PasswordResetScreen(token: state.uri.queryParameters['token']),
-        ),
-        GoRoute(
-          path: '/password-recovery',
-          builder: (context, state) =>
-              const Scaffold(body: Text('recovery screen')),
-        ),
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const Scaffold(body: Text('login')),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+      routerFor: (_) => router = GoRouter(
+        initialLocation: token == null
+            ? '/password-reset'
+            : '/password-reset?token=$token',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/password-reset',
+            builder: (context, state) =>
+                PasswordResetScreen(token: state.uri.queryParameters['token']),
+          ),
+          GoRoute(
+            path: '/password-recovery',
+            builder: (context, state) =>
+                const Scaffold(body: Text('recovery screen')),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) => const Scaffold(body: Text('login')),
+          ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<void> result) {

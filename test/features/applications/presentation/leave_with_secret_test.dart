@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,16 +11,15 @@ import 'package:heimdall_ui/features/applications/domain/application_credential.
 import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/credentials_card.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/idle_expiry_timer.dart';
+import '../../../support/pump_app.dart';
+import '../../../support/jwt.dart';
 
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}
 
 /// A token naming a System Admin: payload {sub, email, role: 1}.
-final String _jwt =
-    'header.${base64Url.encode(utf8.encode('{"sub":"p","email":"a@b.c","role":1}'))}.signature';
+final String _jwt = testJwt(sub: 'p', email: 'a@b.c');
 
 void main() {
   late _MockRepository repository;
@@ -30,10 +28,6 @@ void main() {
   late InMemoryTokenStore store;
 
   Future<void> pump(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(900, 1400);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
     when(() => repository.list('s1', 'a1')).thenAnswer(
       (_) async =>
           const Success<List<ApplicationCredential>>(<ApplicationCredential>[]),
@@ -66,27 +60,17 @@ void main() {
       ),
     );
 
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: const Size(900, 1400),
+      store: store,
+      // The guard only asks of a signed-in person.
+      token: testToken(_jwt),
       overrides: <Override>[
         applicationCredentialRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
+      routerFor: (container) => router = container.read(routerProvider),
     );
-    addTearDown(container.dispose);
-    // The guard only asks of a signed-in person.
-    await store.write(AuthToken(value: _jwt, expiresAt: DateTime.utc(2030)));
-    await container.read(sessionControllerProvider.notifier).restore();
-    router = container.read(routerProvider);
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(routerConfig: router),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   Future<void> issue(WidgetTester tester) async {
