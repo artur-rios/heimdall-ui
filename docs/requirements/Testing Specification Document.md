@@ -23,7 +23,7 @@ tools themselves.
 | --- | --- | --- |
 | **Unit** | Controllers and notifiers, repository implementations, envelope unwrapping, guards, mappers, and any pure function | `test/`, mirroring `lib/` |
 | **Widget** | Screens and shared widgets: what renders, what the user can do, and how the layout responds to the breakpoint | `test/`, mirroring `lib/` |
-| **Flow** | Whole flows across several screens, driven through the real router against fakes — a widget test that pumps the app with `pumpApp(router: ...)` | `test/app/` and the feature's own `presentation/` tests |
+| **Flow** | Whole flows across several screens, driven through the real router against fakes — a widget test that calls `pumpApp(router: ...)` or `routerFor:` | The feature's `presentation/` tests, e.g. `test/features/scopes/presentation/scope_list_screen_test.dart`. `test/app/` holds the app and router tests, which pump `HeimdallApp` directly |
 
 `test/` mirrors `lib/` one directory at a time: `lib/features/auth/presentation/session_controller.dart`
 is tested by `test/features/auth/presentation/session_controller_test.dart`. A test file that does

@@ -35,8 +35,8 @@ jobs:
       - name: Analyze
         run: flutter analyze
 
-      # The Testing document makes coverage part of the gate. It is uploaded for
-      # reading, with no threshold to fail on yet.
+      # Coverage is collected and uploaded for reading; there is no threshold, so
+      # it does not fail the build.
       - name: Test
         run: flutter test --coverage
 
