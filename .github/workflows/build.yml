@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+  # Weekly, so a break in the Windows or Android toolchain (a runner image, a
+  # plugin, a Gradle change) shows up between releases and not at the next one.
+  schedule:
+    - cron: '0 6 * * 1'
 
 concurrency:
   group: build-${{ github.ref }}
@@ -16,6 +20,8 @@ jobs:
   web:
     name: Web
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
@@ -35,6 +41,8 @@ jobs:
   linux:
     name: Linux
     runs-on: ubuntu-latest
+    if: github.event_name != 'schedule'
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
@@ -59,6 +67,7 @@ jobs:
   windows:
     name: Windows
     runs-on: windows-latest
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - uses: subosito/flutter-action@v2
@@ -78,6 +87,7 @@ jobs:
   android:
     name: Android
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     env:
       KEYSTORE_BASE64: ${{ secrets.HEIMDALL_UI_KEYSTORE_BASE64 }}
       HEIMDALL_UI_KEYSTORE_PASSWORD: ${{ secrets.HEIMDALL_UI_KEYSTORE_PASSWORD }}

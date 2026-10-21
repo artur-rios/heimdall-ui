@@ -105,6 +105,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   `close_sinks`, so a future dropped by accident, a closure that should be a tear-off, an unsorted import or an
   unclosed stream controller fails `flutter analyze`. The fire-and-forget calls the app makes on purpose are now
   written as `unawaited(...)` (#177).
+- Pull requests now build the web release, so a change that breaks it is seen before the release merge, and the CI test
+  run produces `coverage/lcov.info` and uploads it as an artifact, with no threshold. The Windows and Android builds
+  also run weekly, every job has a timeout, and the operations document lists the new triggers (#177).
 
 ## [1.9.0] - 2026-10-19
 

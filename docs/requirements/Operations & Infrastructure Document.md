@@ -351,8 +351,8 @@ Branding page.
 
 | Workflow | Trigger | What it does |
 | --- | --- | --- |
-| `ci.yml` | Push to `main` or `develop`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test` |
-| `build.yml` | Push to `main`, and manual dispatch | Builds web, Windows, Linux, and Android, and uploads each artifact |
+| `ci.yml` | Push to `main` or `develop`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test --coverage` (uploads `coverage/lcov.info`, no threshold), and a separate `flutter build web --release` job |
+| `build.yml` | Push to `main`, manual dispatch, and weekly (Monday 06:00 UTC, Windows and Android only) | Builds web, Windows, Linux, and Android, and uploads each artifact |
 | `check-api-client.yml` | Push to `main` or `develop`, and every pull request | Regenerates the client and fails if the committed output differs |
 | `branch-policy.yml` | Every pull request into `develop` or `main` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model) |
 
