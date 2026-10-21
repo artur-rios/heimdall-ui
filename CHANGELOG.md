@@ -23,6 +23,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   store the session, instead of reporting an expired sign-in (#163).
 - A user whose account needs a second factor now lands on the page they originally asked for after completing it,
   instead of on Home (#164).
+- Signing in or confirming an erasure with Google now runs one flow at a time: a second token event, a click on
+  Google's own web button while the password form submits, or a double tap on the erasure button no longer starts a
+  second exchange or a second Google flow (#168).
 
 ### Changed
 

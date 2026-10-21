@@ -46,9 +46,14 @@ class _FakeFileSaver implements FileSaver {
 
 /// Google's half, faked: answers the flow with [attempt].
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {
-  _FakeGoogleSignInGateway(this.attempt);
+  _FakeGoogleSignInGateway(this.attempt, {this.hold});
 
   final GoogleSignInAttempt attempt;
+
+  /// When set, the flow stays open until it completes.
+  final Completer<void>? hold;
+
+  int obtains = 0;
 
   @override
   GoogleSignInAvailability get availability =>
@@ -62,7 +67,12 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
       const Stream<GoogleIdTokenObtained>.empty();
 
   @override
-  Future<GoogleSignInAttempt> obtainIdToken() async => attempt;
+  Future<GoogleSignInAttempt> obtainIdToken() async {
+    obtains++;
+    await hold?.future;
+
+    return attempt;
+  }
 
   @override
   Future<void> signOut() async {}
@@ -87,10 +97,12 @@ void main() {
   late _MockDataRightsRepository repository;
   late _FakeFileSaver saver;
   late InMemoryTokenStore store;
+  late _FakeGoogleSignInGateway gateway;
 
   Future<ProviderContainer> containerWith({
     GoogleSignInAttempt google = const GoogleSignInCancelled(),
     bool viaGoogle = false,
+    Completer<void>? hold,
   }) async {
     await store.write(
       AuthToken(
@@ -107,7 +119,7 @@ void main() {
         tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(
-          _FakeGoogleSignInGateway(google),
+          gateway = _FakeGoogleSignInGateway(google, hold: hold),
         ),
       ],
     );
@@ -340,8 +352,32 @@ void main() {
       // Then
       verifyNever(() => repository.requestErasure(any()));
       expect(stateOf(container).failure, isNull);
+      expect(stateOf(container).busy, isNull);
     },
   );
+
+  test('GivenAGoogleFlowOpen_WhenErasureTappedAgain_ThenOneFlowRuns', () async {
+    // Given
+    final hold = Completer<void>();
+    when(
+      () => repository.requestErasure(any()),
+    ).thenAnswer((_) async => const Success<ErasureRequest>(ErasureRequest()));
+    final container = await containerWith(
+      google: const GoogleIdTokenObtained('fresh-google-token'),
+      viaGoogle: true,
+      hold: hold,
+    );
+    final first = controllerOf(container).requestErasureWithGoogle();
+
+    // When
+    await controllerOf(container).requestErasureWithGoogle();
+    hold.complete();
+    await first;
+
+    // Then
+    expect(gateway.obtains, 1);
+    verify(() => repository.requestErasure(any())).called(1);
+  });
 
   test('GivenAnActionInFlight_WhenAnotherIsStarted_ThenItIsIgnored', () async {
     // Given

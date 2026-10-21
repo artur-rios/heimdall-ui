@@ -173,6 +173,11 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState>
       return;
     }
 
+    await _erase(credential);
+  }
+
+  /// Sends the erasure request for a flow [_start] has already marked busy.
+  Future<void> _erase(ErasureCredential credential) async {
     final epoch = this.epoch;
     final result = await _repository.requestErasure(credential);
 
@@ -199,6 +204,12 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState>
   ///
   /// A cancelled flow changes nothing: nothing was sent.
   Future<void> requestErasureWithGoogle() async {
+    // Marked busy before Google is asked, so a second tap while its flow is
+    // open is ignored rather than opening another.
+    if (!_start(RestrictedSessionAction.erasing)) {
+      return;
+    }
+
     final epoch = this.epoch;
     final attempt = await ref.read(googleSignInGatewayProvider).obtainIdToken();
 
@@ -209,11 +220,12 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState>
 
     switch (attempt) {
       case GoogleIdTokenObtained(:final idToken):
-        await requestErasure(GoogleIdTokenCredential(idToken));
+        await _erase(GoogleIdTokenCredential(idToken));
       case GoogleSignInCancelled():
-        return;
+        state = state.copyWith(clearBusy: true);
       case GoogleSignInUnsupported():
         state = state.copyWith(
+          clearBusy: true,
           failure: const Failure(
             kind: FailureKind.unknown,
             errors: <String>[
@@ -224,6 +236,7 @@ class RestrictedSessionController extends Notifier<RestrictedSessionState>
         );
       case GoogleSignInUnavailable(:final message):
         state = state.copyWith(
+          clearBusy: true,
           failure: Failure(
             kind: FailureKind.unknown,
             errors: <String>[message],
