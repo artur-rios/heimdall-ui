@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/network/envelope.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/time/clock.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_list_controller.dart';
+import 'package:heimdall_ui/features/applications/presentation/owner_names.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
@@ -46,12 +48,14 @@ void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
   late ProviderContainer container;
+  var now = DateTime.utc(2026, 10, 21, 12);
 
   ApplicationListController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
         applicationRepositoryProvider.overrideWithValue(applications),
         personRepositoryProvider.overrideWithValue(persons),
+        clockProvider.overrideWithValue(() => now),
       ],
     );
     addTearDown(container.dispose);
@@ -85,6 +89,7 @@ void main() {
   }
 
   setUp(() {
+    now = DateTime.utc(2026, 10, 21, 12);
     applications = _MockApplicationRepository();
     persons = _MockPersonRepository();
     answerOwnerWith(const Success<Person>(_ada));
@@ -346,25 +351,83 @@ void main() {
     ).called(1);
   });
 
-  // A reload is where a renamed owner should show their new name.
-  test('GivenARenamedOwner_WhenReloaded_ThenTheNewNameIsShown', () async {
+  const lovelace = Success<Person>(
+    Person(
+      id: 'person-1',
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      role: Role.user,
+    ),
+  );
+
+  // #179 — a quick return reuses the names; no request per owner.
+  test('GivenAQuickReload_WhenLoaded_ThenTheOwnerIsNotReadAgain', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(lovelace);
+
+    // When
+    now = now.add(const Duration(minutes: 4, seconds: 59));
+    await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+    verify(
+      () =>
+          persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
+    ).called(1);
+  });
+
+  // A name older than five minutes is where a rename should show.
+  test('GivenARenamedOwner_WhenTheNameExpired_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(lovelace);
+
+    // When
+    now = now.add(OwnerNames.timeToLive);
+    await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada Lovelace');
+  });
+
+  test('GivenAnExpiredName_WhenTheReReadFails_ThenTheOldNameStays', () async {
     // Given
     answerWith(Success<Page<Application>>(_page()));
     final controller = controllerUnderTest();
     await controller.load();
     answerOwnerWith(
-      const Success<Person>(
-        Person(
-          id: 'person-1',
-          name: 'Ada Lovelace',
-          email: 'ada@example.com',
-          role: Role.user,
-        ),
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
       ),
     );
 
     // When
+    now = now.add(OwnerNames.timeToLive);
     await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+  });
+
+  // An explicit refresh forgets every name at once.
+  test('GivenARenamedOwner_WhenRefreshed_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(lovelace);
+
+    // When
+    await controller.refresh();
 
     // Then
     final state = currentState() as ApplicationListLoaded;

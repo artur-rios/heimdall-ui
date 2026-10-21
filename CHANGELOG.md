@@ -85,6 +85,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   (#171).
 - The person page opened from the System Admins list now lives at `/system-admins/<id>`, under the list, so Back
   returns to it; a link to its earlier address, `/persons/<id>`, still opens the page there (#156).
+- The applications list now remembers an owner's name for five minutes instead of reading every owner again on each
+  visit; a name older than that is read again, and **Retry** forgets every name at once (#179).
 
 ## [1.9.0] - 2026-10-19
 

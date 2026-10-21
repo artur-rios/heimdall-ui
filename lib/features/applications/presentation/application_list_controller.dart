@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/time/clock.dart';
 import '../../../shared/paging/list_state.dart';
 import '../../../shared/paging/paged_list_controller.dart';
 import '../../profile/presentation/profile_controller.dart';
@@ -115,8 +116,10 @@ class ApplicationListController
   /// request of an earlier build keeps teaching only the names it began with.
   OwnerNames? _ownersOfBuild;
 
-  OwnerNames get _owners =>
-      _ownersOfBuild ??= OwnerNames(ref.read(personRepositoryProvider));
+  OwnerNames get _owners => _ownersOfBuild ??= OwnerNames(
+    ref.read(personRepositoryProvider),
+    now: ref.read(clockProvider),
+  );
 
   @override
   ApplicationListState build() {
@@ -125,14 +128,13 @@ class ApplicationListController
     return super.build();
   }
 
-  /// Reads the page the current query names, with the owners' names read
-  /// afresh: a reload is where a renamed owner should show their new name.
-  /// Moving between pages and filters keeps what was learned.
-  @override
-  Future<void> load() {
+  /// Reads the page again, and forgets every owner's name first: an explicit
+  /// refresh is where a renamed owner should show their new name at once. A
+  /// plain [load] keeps the names learned in the last five minutes (#179).
+  Future<void> refresh() {
     _owners.forget();
 
-    return super.load();
+    return load();
   }
 
   /// A new search starts at the first page.

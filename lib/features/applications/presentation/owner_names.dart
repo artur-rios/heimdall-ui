@@ -11,25 +11,39 @@ import '../../persons/domain/person_repository.dart';
 /// such person, which is not retried on every page. A read that merely failed
 /// — the network, say — is asked again next time rather than pinning the
 /// owner to their identifier for the rest of the session.
+///
+/// What is remembered is remembered for [timeToLive] (#179): long enough that
+/// leaving the list and coming back does not re-read every owner, short enough
+/// that a renamed owner is shown by their new name soon, and at once after an
+/// explicit refresh ([forget]).
 class OwnerNames {
-  OwnerNames(this._repository);
+  OwnerNames(this._repository, {DateTime Function()? now})
+    : _now = now ?? DateTime.now;
+
+  /// How long a learned name is trusted.
+  static const Duration timeToLive = Duration(minutes: 5);
 
   final PersonRepository _repository;
+  final DateTime Function() _now;
 
-  /// Identifier to name, or to `null` when the API says nobody has it.
-  final Map<String, String?> _known = <String, String?>{};
+  /// Identifier to name, or to `null` when the API says nobody has it, with
+  /// when that was learned.
+  final Map<String, _Known> _known = <String, _Known>{};
 
   /// The name to show for [ownerId] — the identifier itself until something
   /// better is known, which is also the permanent answer for AF-20d.
-  String labelFor(String ownerId) => _known[ownerId] ?? ownerId;
+  String labelFor(String ownerId) => _known[ownerId]?.name ?? ownerId;
 
-  /// Reads whichever of [ownerIds] have not been looked up yet.
+  /// Reads whichever of [ownerIds] have not been looked up yet, or were looked
+  /// up more than [timeToLive] ago. An old name stays on show if its re-read
+  /// fails, rather than falling back to the identifier.
   ///
   /// Deduplicated and run together: a page of twenty applications owned by two
   /// people costs two requests, not twenty.
   Future<void> resolve(Iterable<String> ownerIds) async {
+    final now = _now();
     final unknown = ownerIds
-        .where((id) => id.isNotEmpty && !_known.containsKey(id))
+        .where((id) => id.isNotEmpty && !_isFresh(id, now))
         .toSet();
 
     if (unknown.isEmpty) {
@@ -45,10 +59,10 @@ class OwnerNames {
 
         switch (person) {
           case Success(:final value):
-            _known[id] = value.name;
+            _known[id] = _Known(value.name, now);
           case FailureResult(:final failure)
               when failure.kind == FailureKind.notFound:
-            _known[id] = null;
+            _known[id] = _Known(null, now);
           case FailureResult():
             // Not an answer about the person, so nothing to remember.
             break;
@@ -57,7 +71,20 @@ class OwnerNames {
     );
   }
 
+  bool _isFresh(String id, DateTime now) {
+    final known = _known[id];
+
+    return known != null && now.difference(known.learnedAt) < timeToLive;
+  }
+
   /// Forgets every name learned, so the next [resolve] reads them afresh — a
   /// person renamed since is then shown by their new name.
   void forget() => _known.clear();
+}
+
+class _Known {
+  const _Known(this.name, this.learnedAt);
+
+  final String? name;
+  final DateTime learnedAt;
 }

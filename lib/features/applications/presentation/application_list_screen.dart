@@ -84,7 +84,7 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
           Expanded(
             child: ListScaffold(
               state: state,
-              onRetry: _controller.load,
+              onRetry: _controller.refresh,
               onForbiddenBack: () => context.go('/scopes'),
               empty: (query) => _empty(query, createRoute),
               loaded: (ApplicationListLoaded loaded) =>
