@@ -35,6 +35,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The owner selector on an application's detail page now offers **Retry** after a failed read of the scope's
   people, and always shows the application's current owner, as a disabled entry when the loaded list does not
   contain them, instead of looking empty while Save would send the old owner (#167).
+- Reloading an application, scope, person, permission or Google user while a save or delete is in flight now
+  leaves that request alone, so its progress guard is no longer lost to the reload (#183).
 
 ### Changed
 

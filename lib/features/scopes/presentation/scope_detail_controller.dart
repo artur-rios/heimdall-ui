@@ -114,6 +114,14 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
   /// Deleted scopes are included: AF-12d shows one read-only, and it cannot do
   /// that if the API is asked to pretend it is gone.
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is ScopeDetailLoaded && (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const ScopeDetailLoading();
 
     final epoch = this.epoch;

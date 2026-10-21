@@ -126,6 +126,15 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
   }
 
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is ApplicationDetailLoaded &&
+        (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const ApplicationDetailLoading();
 
     final epoch = this.epoch;

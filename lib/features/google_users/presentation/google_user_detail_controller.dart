@@ -109,6 +109,14 @@ class GoogleUserDetailController extends Notifier<GoogleUserDetailState>
   }
 
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is GoogleUserDetailLoaded && (current.deleting)) {
+      return;
+    }
+
     state = const GoogleUserDetailLoading();
 
     final epoch = this.epoch;

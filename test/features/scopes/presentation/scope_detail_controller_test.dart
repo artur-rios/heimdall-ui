@@ -413,6 +413,70 @@ void main() {
     verify(() => repository.delete('scope-1')).called(1);
   });
 
+  // A reread must not replace a command that is still on its way: its
+  // `deleting` guard would be lost and its answer would overwrite the reread.
+  test(
+    'GivenADeletionInFlight_WhenLoaded_ThenTheDeletionIsLeftAlone',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final pending = Completer<Result<void>>();
+      when(() => repository.delete(any())).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final deleting = controller.delete();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect((currentState() as ScopeDetailLoaded).deleting, isTrue);
+      verify(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+      pending.complete(const Success<void>(null));
+      await deleting;
+    },
+  );
+
+  test('GivenASaveInFlight_WhenLoaded_ThenTheSaveIsLeftAlone', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<Scope>>();
+    when(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(
+      name: 'Acme 2',
+      description: 'The first tenant',
+    );
+
+    // When
+    await controller.load();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<Scope>(_acme));
+    await saving;
+  });
+
   // A sign-out resets the page while its read is in flight, and the late
   // answer must not land in the reset state.
   test(

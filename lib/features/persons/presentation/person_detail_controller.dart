@@ -107,6 +107,14 @@ class PersonDetailController extends Notifier<PersonDetailState>
   /// Deleted persons are included: AF-18d shows one read-only, and it cannot
   /// do that if the API is asked to pretend they are gone.
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is PersonDetailLoaded && (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const PersonDetailLoading();
 
     final epoch = this.epoch;

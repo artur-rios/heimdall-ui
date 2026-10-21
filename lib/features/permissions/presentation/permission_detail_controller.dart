@@ -133,6 +133,15 @@ class PermissionDetailController extends Notifier<PermissionDetailState>
   }
 
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is PermissionDetailLoaded &&
+        (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const PermissionDetailLoading();
 
     final epoch = this.epoch;
