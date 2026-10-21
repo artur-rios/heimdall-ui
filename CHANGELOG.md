@@ -108,6 +108,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Pull requests now build the web release, so a change that breaks it is seen before the release merge, and the CI test
   run produces `coverage/lcov.info` and uploads it as an artifact, with no threshold. The Windows and Android builds
   also run weekly, every job has a timeout, and the operations document lists the new triggers (#177).
+- `go_router` is now 18.1.1, `build_runner` 2.17.1 and `retrofit_generator` 10.3.2, with the transitive packages that
+  were behind (`material_ui`, `cupertino_ui`, `google_sign_in_android`, `google_sign_in_ios` and others) brought up
+  to date. The generated API client is unchanged by the newer generator (#185).
 
 ## [1.9.0] - 2026-10-19
 
