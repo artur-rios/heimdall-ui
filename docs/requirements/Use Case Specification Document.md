@@ -359,7 +359,9 @@ delivered the same way.
 - **AF-05d — Already verified.** The API reports the address as already verified. The client treats
   this as success and says so plainly.
 - **AF-05e — Unverified session banner.** An authenticated user whose address is unverified sees a
-  dismissible banner on the home screen offering the resend action.
+  dismissible banner on the home screen offering the resend action. Verifying a link ends the banner
+  only when the person's own record then reports the address as verified; a link mailed to someone
+  else leaves it.
 - **AF-05f — Resend held back.** The API answers `429`: "An email of this kind was sent to you
   recently. Try again in a few minutes." inside the account-email cooldown, a daily-limit message
   once the day's account emails are spent, or "Too many requests." from the rate limit. The client

@@ -9,11 +9,16 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/email_verification_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/features/persons/domain/person.dart';
+import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
+import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/late_answer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockPersonRepository extends Mock implements PersonRepository {}
 
 /// A token naming a User, for the flows that need a session to correct.
 const String _jwt =
@@ -100,11 +105,12 @@ void main() {
     ]);
   });
 
-  // AF-05e — verifying in this session does not get a new token from the API,
-  // so the session's own answer is corrected and the prompt stops.
-  test('GivenAnUnverifiedSession_WhenVerified_ThenThePromptEnds', () async {
-    // Given
+  /// Signs in as an unverified person whose record the API answers with
+  /// [record], then verifies a token.
+  Future<SessionState> verifySignedInWith(Result<Person> record) async {
     answerVerifyWith(const Success<List<String>>(<String>[]));
+    final people = _MockPersonRepository();
+    when(() => people.getById('id')).thenAnswer((_) async => record);
     final store = InMemoryTokenStore();
     await store.write(
       AuthToken(
@@ -116,20 +122,77 @@ void main() {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
+        personRepositoryProvider.overrideWithValue(people),
         tokenStoreProvider.overrideWithValue(store),
       ],
     );
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
 
-    // When
     await container
         .read(emailVerificationControllerProvider.notifier)
         .verify('verification-token');
 
+    return container.read(sessionControllerProvider);
+  }
+
+  // AF-05e — verifying in this session does not get a new token from the API,
+  // so the session's own answer is corrected and the prompt stops. The API's
+  // answer does not say whose address the token was for, so the person's own
+  // record is asked (#170).
+  test(
+    'GivenTheOwnAddressIsNowVerified_WhenVerified_ThenThePromptEnds',
+    () async {
+      // When
+      final session = await verifySignedInWith(
+        const Success<Person>(
+          Person(
+            id: 'id',
+            name: 'Ada',
+            email: 'a@b.c',
+            role: Role.user,
+            emailVerified: true,
+          ),
+        ),
+      );
+
+      // Then
+      expect((session as Authenticated).principal.emailVerified, isTrue);
+    },
+  );
+
+  // #170 — a link emailed to somebody else verified somebody else's address.
+  test(
+    'GivenTheOwnAddressIsStillUnverified_WhenVerified_ThenThePromptStays',
+    () async {
+      // When
+      final session = await verifySignedInWith(
+        const Success<Person>(
+          Person(
+            id: 'id',
+            name: 'Ada',
+            email: 'a@b.c',
+            role: Role.user,
+            emailVerified: false,
+          ),
+        ),
+      );
+
+      // Then
+      expect((session as Authenticated).principal.emailVerified, isFalse);
+    },
+  );
+
+  test('GivenTheRecordCannotBeRead_WhenVerified_ThenThePromptStays', () async {
+    // When
+    final session = await verifySignedInWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+
     // Then
-    final session = container.read(sessionControllerProvider) as Authenticated;
-    expect(session.principal.emailVerified, isTrue);
+    expect((session as Authenticated).principal.emailVerified, isFalse);
   });
 
   // A refused token verified nothing, so the prompt has to stay.

@@ -7,6 +7,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The Android release build now declares the `INTERNET` permission, which Flutter adds to debug and profile builds
+  only, so an installed release APK can reach the API. The Android CI job fails if the built APK lacks it (#155).
+- A request that fails without any answer, whatever Dio calls it (an unknown error or a bad certificate as well as
+  a timeout), now offers **Retry** instead of a bare error (#169).
+- Typing a name to confirm a permanent deletion no longer depends on leading or trailing whitespace in the stored
+  name or in what was typed (#184).
+- Opening a second password reset or email verification link in the same app run starts from a clean state instead
+  of showing the previous link's result, which hid the reset form (#158).
+- Verifying an email address no longer hides the signed-in administrator's own "verify your email" prompt unless
+  their own address is now verified, as the API reports it; a link mailed to somebody else leaves the prompt (#170).
+
 ### Changed
 
 - The operations document and the comment in the web image's `nginx.conf` now say that yggdrasil's edge, from
