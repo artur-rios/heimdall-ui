@@ -81,8 +81,10 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
   /// Exchanges a token that arrived from Google's own button.
   Future<void> _exchange(String idToken) async {
     // Google may send a token again while the first is being exchanged; the
-    // second would be a second sign-in for the same click.
-    if (_exchanging) {
+    // second would be a second sign-in for the same click. Nor may one be
+    // taken while the credentials form submits: on the web, Google's button is
+    // an iframe that pointer-ignoring in Flutter cannot reach.
+    if (_exchanging || !widget.enabled) {
       return;
     }
 

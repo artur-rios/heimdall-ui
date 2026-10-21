@@ -394,6 +394,31 @@ void main() {
     ).called(1);
   });
 
+  // Pointer-ignoring does not reach Google's iframe on the web, so a token can
+  // still arrive while the credentials form submits.
+  testWidgets('GivenADisabledControl_WhenATokenArrives_ThenNoExchangeRuns', (
+    tester,
+  ) async {
+    // Given
+    gateway = _FakeGoogleSignInGateway(
+      availability: GoogleSignInAvailability.platformControl,
+    );
+    answerExchangeWith(Success<AuthToken>(googleToken()));
+    await pump(tester, enabled: false);
+
+    // When
+    gateway.tokens.add(const GoogleIdTokenObtained('google-id-token'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(
+      () => repository.signInWithGoogle(
+        idToken: any(named: 'idToken'),
+        scopeId: any(named: 'scopeId'),
+      ),
+    );
+  });
+
   // The platform's own control cannot be greyed out, so it is not reachable.
   for (final enabled in <bool>[true, false]) {
     testWidgets(
