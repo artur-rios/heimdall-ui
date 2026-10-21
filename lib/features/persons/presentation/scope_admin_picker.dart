@@ -56,8 +56,16 @@ class _ScopeAdminPickerState extends ConsumerState<ScopeAdminPicker> {
   void initState() {
     super.initState();
     // The exclusion changes as owners are added, so the listing is read afresh
-    // each time the picker opens rather than trusted from the last one.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _controller.search());
+    // each time the picker opens rather than trusted from the last one. The
+    // provider outlives the dialog, so what the last opening left in it — a
+    // list that still holds the owner just added — is dropped first, and the
+    // dialog starts on its loading state instead of on those candidates.
+    ref.invalidate(scopeAdminPickerControllerProvider(_key));
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _controller.search();
+      }
+    });
   }
 
   @override
