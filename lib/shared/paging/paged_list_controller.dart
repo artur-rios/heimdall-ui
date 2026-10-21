@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart' show protected;
+import 'package:flutter/foundation.dart' show mustCallSuper, protected;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/network/envelope.dart';
@@ -85,7 +85,10 @@ abstract class PagedListController<
   @protected
   S failedState(Q query, Failure failure);
 
+  /// Overrides must call `super.build()`: it starts the epoch and clears the
+  /// queue, which is what makes a session reset drop a late answer.
   @override
+  @mustCallSuper
   S build() {
     startEpoch();
     // A request of an earlier build may still be in flight; it is not this

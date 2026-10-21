@@ -40,7 +40,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A change made to a list while it was still loading is no longer lost when a second change follows before the
   answer arrives: a search typed and then **Include deleted** flipped, or a filter and then another page, now both
   reach the request that follows. This applies to the scopes, people, applications, permissions, Google users,
-  erasure requests and pending registrations lists, as it already did to the audit trail and System Admins (#157).
+  and erasure requests lists, as it already did to the audit trail and System Admins (#157).
 - The audit trail now shows "The API returned an unexpected response." with **Retry** when the API answers with a
   body the app cannot read, as the other lists do, instead of staying on its loading placeholder (#160).
 
