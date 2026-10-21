@@ -21,6 +21,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   their own address is now verified, as the API reports it; a link mailed to somebody else leaves the prompt (#170).
 - Completing a second factor on a device whose secure storage refuses the session token now says the device could not
   store the session, instead of reporting an expired sign-in (#163).
+- A user whose account needs a second factor now lands on the page they originally asked for after completing it,
+  instead of on Home (#164).
 
 ### Changed
 

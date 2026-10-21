@@ -99,6 +99,35 @@ void main() {
     expect(redirect, isNull);
   });
 
+  // AF-07a — the deep link survives the second factor.
+  test('GivenChallengedOnLoginWithFrom_WhenRedirected_ThenFromIsCarried', () {
+    // Given
+    const session = Challenged(
+      challengeToken: 'challenge',
+      availableMethods: <String>['Totp'],
+    );
+
+    // When
+    final redirect = redirectFor(
+      session: session,
+      location: '/login?from=%2Fscopes%2FX%2Fapplications',
+    );
+
+    // Then
+    expect(redirect, '/login/two-factor?from=%2Fscopes%2FX%2Fapplications');
+  });
+
+  test('GivenChallengedWithFrom_WhenAuthenticated_ThenLandsOnTheDeepLink', () {
+    // Given / When
+    final redirect = redirectFor(
+      session: authenticated,
+      location: '/login/two-factor?from=%2Fscopes%2FX%2Fapplications',
+    );
+
+    // Then
+    expect(redirect, '/scopes/X/applications');
+  });
+
   // AF-02b and AF-02e — the challenge is gone, so the screen behind it is a
   // dead end and sign-in has to start over.
   test('GivenNoChallenge_WhenVisitingTheChallenge_ThenRedirectsToLogin', () {

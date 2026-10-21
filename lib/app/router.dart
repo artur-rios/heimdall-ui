@@ -98,7 +98,14 @@ String? redirectFor({
     // Say nothing until the stored token has been read, so a slow read cannot
     // bounce a returning user to sign-in.
     SessionRestoring() => null,
-    Challenged() => path == '/login/two-factor' ? null : '/login/two-factor',
+    // The deep link rides along, since the second factor is a detour on the
+    // way to it (AF-07a), not the end of the sign-in.
+    Challenged() when path == '/login/two-factor' => null,
+    Challenged() => switch (uri.queryParameters['from']) {
+      final String from when path == '/login' =>
+        '/login/two-factor?from=${Uri.encodeComponent(from)}',
+      _ => '/login/two-factor',
+    },
     // AF-02b and AF-02e: a challenge screen without a challenge is a dead end.
     // The token is gone and cannot be recovered, so sign-in restarts.
     Unauthenticated() when path == '/login/two-factor' => '/login',
