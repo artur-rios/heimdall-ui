@@ -43,6 +43,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   and erasure requests lists, as it already did to the audit trail and System Admins (#157).
 - The audit trail now shows "The API returned an unexpected response." with **Retry** when the API answers with a
   body the app cannot read, as the other lists do, instead of staying on its loading placeholder (#160).
+- The **Include deleted** switch on the scopes, people, applications, permissions and Google users lists is now
+  announced by a screen reader as "Include deleted", and tapping its label turns it on or off, instead of the
+  switch being unnamed with its label a separate stop that did nothing (#161).
 
 ### Changed
 
@@ -50,6 +53,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   0.7.4, leaves the image's Referrer-Policy in place, so `/password-reset` and `/verify-email` send `no-referrer`
   in deployed environments too. Behind a proxy that replaces the header, the token removed from the address at
   start-up remains the protection. The `curl -sI` check in the document now shows the headers production returns.
+- The search boxes and **Include deleted** switch of the scopes, people, applications, permissions and Google users
+  lists, and the loading, failure, empty and rows choice of those lists and the erasure requests list, are now one
+  shared widget each, so the lists look and behave alike (#160).
 
 ## [1.9.0] - 2026-10-19
 

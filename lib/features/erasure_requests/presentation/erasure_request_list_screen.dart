@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../domain/outstanding_erasure.dart';
 import 'erasure_request_list_controller.dart';
 import 'reconciliation_dialog.dart';
@@ -78,32 +79,27 @@ class _ErasureRequestListScreenState
             ),
           ),
           Expanded(
-            child: switch (state) {
-              ErasureRequestListLoading() => const CollectionLoading(),
-              // AF-32c and AF-32h — the returned errors, with a retry.
-              ErasureRequestListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
-              ),
-              ErasureRequestListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query),
-              final ErasureRequestListLoaded loaded =>
-                AdaptiveCollection<OutstandingErasure>(
-                  items: loaded.page.items,
-                  busy: loaded.busy,
-                  pageNumber: loaded.page.pageNumber,
-                  totalPages: loaded.page.totalPages,
-                  totalItems: loaded.page.totalItems,
-                  onPageChanged: _controller.goToPage,
-                  // The collection's title is plain text, so the identifier
-                  // keeps the default face rather than a monospace one.
-                  title: (erasure) => erasure.subjectId,
-                  subtitle: (erasure) =>
-                      erasure.isGoogleUser ? 'Google user' : 'Person',
-                  columns: _columns(context),
-                ),
-            },
+            // AF-32c and AF-32h — the returned errors, with a retry.
+            child: ListScaffold(
+              state: state,
+              onRetry: _controller.load,
+              empty: _empty,
+              loaded: (ErasureRequestListLoaded loaded) =>
+                  AdaptiveCollection<OutstandingErasure>(
+                    items: loaded.page.items,
+                    busy: loaded.busy,
+                    pageNumber: loaded.page.pageNumber,
+                    totalPages: loaded.page.totalPages,
+                    totalItems: loaded.page.totalItems,
+                    onPageChanged: _controller.goToPage,
+                    // The collection's title is plain text, so the identifier
+                    // keeps the default face rather than a monospace one.
+                    title: (erasure) => erasure.subjectId,
+                    subtitle: (erasure) =>
+                        erasure.isGoogleUser ? 'Google user' : 'Person',
+                    columns: _columns(context),
+                  ),
+            ),
           ),
         ],
       ),

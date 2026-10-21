@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_filters.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../../scopes/presentation/scope_detail_controller.dart';
 import '../domain/google_user.dart';
 import 'google_avatar.dart';
@@ -80,67 +82,58 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
       backTooltip: 'Back to the scope',
       body: Column(
         children: <Widget>[
-          _Filters(
-            name: _name,
-            email: _email,
+          ListFilters(
+            fields: <ListSearchField>[
+              ListSearchField(controller: _name, label: 'Search by name'),
+              ListSearchField(
+                controller: _email,
+                label: 'Search by email',
+                icon: Icons.alternate_email,
+              ),
+            ],
             includeDeleted: state.query.includeDeleted,
             onSearch: () =>
                 _controller.search(name: _name.text, email: _email.text),
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
-            child: switch (state) {
-              GoogleUserListLoading() => const CollectionLoading(),
-              // AF-28c — the scope is not one this admin owns.
-              GoogleUserListFailed(isForbidden: true) => CollectionEmpty(
-                title: 'Not available for your role',
-                message:
-                    'This scope is not one you administer. Nothing is '
-                    'wrong with your session.',
-                icon: Icons.lock_person_outlined,
-                actionLabel: 'Back to scopes',
-                onAction: () => context.go('/scopes'),
-              ),
-              // AF-28b — the returned errors, with a retry.
-              GoogleUserListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
-              ),
-              GoogleUserListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query),
-              final GoogleUserListLoaded loaded =>
-                AdaptiveCollection<GoogleUser>(
-                  items: loaded.page.items,
-                  busy: loaded.busy,
-                  pageNumber: loaded.page.pageNumber,
-                  totalPages: loaded.page.totalPages,
-                  totalItems: loaded.page.totalItems,
-                  onPageChanged: _controller.goToPage,
-                  onTap: (user) => context.go(
-                    '/scopes/${widget.scopeId}/google-users/${user.id}',
+            child: ListScaffold(
+              state: state,
+              onRetry: _controller.load,
+              onForbiddenBack: () => context.go('/scopes'),
+              empty: _empty,
+              loaded: (GoogleUserListLoaded loaded) =>
+                  AdaptiveCollection<GoogleUser>(
+                    items: loaded.page.items,
+                    busy: loaded.busy,
+                    pageNumber: loaded.page.pageNumber,
+                    totalPages: loaded.page.totalPages,
+                    totalItems: loaded.page.totalItems,
+                    onPageChanged: _controller.goToPage,
+                    onTap: (user) => context.go(
+                      '/scopes/${widget.scopeId}/google-users/${user.id}',
+                    ),
+                    title: (user) => user.name,
+                    subtitle: (user) => user.email,
+                    columns: <CollectionColumn<GoogleUser>>[
+                      CollectionColumn<GoogleUser>(
+                        label: 'Picture',
+                        // AF-28d: a missing or unreachable picture becomes
+                        // initials; the row never breaks.
+                        cell: (user) => GoogleAvatar(user: user, radius: 16),
+                      ),
+                      CollectionColumn<GoogleUser>(
+                        label: 'Verified by Google',
+                        cell: (user) => Text(user.emailVerified ? 'Yes' : 'No'),
+                      ),
+                      CollectionColumn<GoogleUser>(
+                        label: 'State',
+                        cell: (user) =>
+                            Text(user.isDeleted ? 'Deleted' : 'Active'),
+                      ),
+                    ],
                   ),
-                  title: (user) => user.name,
-                  subtitle: (user) => user.email,
-                  columns: <CollectionColumn<GoogleUser>>[
-                    CollectionColumn<GoogleUser>(
-                      label: 'Picture',
-                      // AF-28d: a missing or unreachable picture becomes
-                      // initials; the row never breaks.
-                      cell: (user) => GoogleAvatar(user: user, radius: 16),
-                    ),
-                    CollectionColumn<GoogleUser>(
-                      label: 'Verified by Google',
-                      cell: (user) => Text(user.emailVerified ? 'Yes' : 'No'),
-                    ),
-                    CollectionColumn<GoogleUser>(
-                      label: 'State',
-                      cell: (user) =>
-                          Text(user.isDeleted ? 'Deleted' : 'Active'),
-                    ),
-                  ],
-                ),
-            },
+            ),
           ),
         ],
       ),
@@ -181,64 +174,4 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
           : null,
     );
   }
-}
-
-/// The two search fields and the include-deleted switch.
-class _Filters extends StatelessWidget {
-  const _Filters({
-    required this.name,
-    required this.email,
-    required this.includeDeleted,
-    required this.onSearch,
-    required this.onIncludeDeletedChanged,
-  });
-
-  final TextEditingController name;
-  final TextEditingController email;
-  final bool includeDeleted;
-  final VoidCallback onSearch;
-  final ValueChanged<bool> onIncludeDeletedChanged;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    child: Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: name,
-            decoration: const InputDecoration(
-              labelText: 'Search by name',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onSubmitted: (_) => onSearch(),
-          ),
-        ),
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: email,
-            decoration: const InputDecoration(
-              labelText: 'Search by email',
-              prefixIcon: Icon(Icons.alternate_email),
-            ),
-            onSubmitted: (_) => onSearch(),
-          ),
-        ),
-        FilledButton.tonal(onPressed: onSearch, child: const Text('Search')),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Switch(value: includeDeleted, onChanged: onIncludeDeletedChanged),
-            const SizedBox(width: 8),
-            const Text('Include deleted'),
-          ],
-        ),
-      ],
-    ),
-  );
 }

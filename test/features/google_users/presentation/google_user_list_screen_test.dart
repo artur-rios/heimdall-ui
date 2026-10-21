@@ -434,6 +434,43 @@ void main() {
     ).called(1);
   });
 
+  testWidgets('GivenTheIncludeDeletedLabel_WhenTapped_ThenTheFlagIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Include deleted'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => googleUsers.list(
+        scopeId: 'scope-1',
+        name: '',
+        email: '',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+    'GivenARenderedListing_WhenChecked_ThenEveryTapTargetIsLabelled',
+    (tester) async {
+      // Given
+      final handle = tester.ensureSemantics();
+      answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+      await pump(tester);
+
+      // Then
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      handle.dispose();
+    },
+  );
+
   // AF-28e — there is nothing to create here, so nothing offers to.
   testWidgets('GivenTheListing_WhenRendered_ThenNoCreateControlIsShown', (
     tester,

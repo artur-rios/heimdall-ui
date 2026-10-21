@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_filters.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope.dart';
@@ -70,23 +72,20 @@ class _ScopeListScreenState extends ConsumerState<ScopeListScreen> {
           : null,
       body: Column(
         children: <Widget>[
-          _Filters(
-            search: _search,
+          ListFilters(
+            fields: <ListSearchField>[
+              ListSearchField(controller: _search, label: 'Search by name'),
+            ],
             includeDeleted: state.query.includeDeleted,
-            onSearch: controller.search,
+            onSearch: () => controller.search(_search.text),
             onIncludeDeletedChanged: controller.setIncludeDeleted,
           ),
           Expanded(
-            child: switch (state) {
-              ScopeListLoading() => const CollectionLoading(),
-              ScopeListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: controller.load,
-              ),
-              ScopeListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query: query, mayCreate: mayCreate),
-              final ScopeListLoaded loaded => AdaptiveCollection<Scope>(
+            child: ListScaffold(
+              state: state,
+              onRetry: controller.load,
+              empty: (query) => _empty(query: query, mayCreate: mayCreate),
+              loaded: (ScopeListLoaded loaded) => AdaptiveCollection<Scope>(
                 items: loaded.page.items,
                 busy: loaded.busy,
                 reservesFloatingAction: mayCreate,
@@ -114,7 +113,7 @@ class _ScopeListScreenState extends ConsumerState<ScopeListScreen> {
                   ),
                 ],
               ),
-            },
+            ),
           ),
         ],
       ),
@@ -145,55 +144,4 @@ class _ScopeListScreenState extends ConsumerState<ScopeListScreen> {
           actionLabel: mayCreate ? 'New scope' : null,
           onAction: mayCreate ? () => context.go('/scopes/new') : null,
         );
-}
-
-/// The search field and the include-deleted switch.
-class _Filters extends StatelessWidget {
-  const _Filters({
-    required this.search,
-    required this.includeDeleted,
-    required this.onSearch,
-    required this.onIncludeDeletedChanged,
-  });
-
-  final TextEditingController search;
-  final bool includeDeleted;
-  final ValueChanged<String> onSearch;
-  final ValueChanged<bool> onIncludeDeletedChanged;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    child: Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          width: 320,
-          child: TextField(
-            controller: search,
-            decoration: InputDecoration(
-              labelText: 'Search by name',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                tooltip: 'Search',
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: () => onSearch(search.text),
-              ),
-            ),
-            onSubmitted: onSearch,
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Switch(value: includeDeleted, onChanged: onIncludeDeletedChanged),
-            const SizedBox(width: 8),
-            const Text('Include deleted'),
-          ],
-        ),
-      ],
-    ),
-  );
 }

@@ -377,6 +377,42 @@ void main() {
     ).called(1);
   });
 
+  testWidgets('GivenTheIncludeDeletedLabel_WhenTapped_ThenTheFlagIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<Application>>(_page()));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Include deleted'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => applications.list(
+        scopeId: 'scope-1',
+        name: '',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+    'GivenARenderedListing_WhenChecked_ThenEveryTapTargetIsLabelled',
+    (tester) async {
+      // Given
+      final handle = tester.ensureSemantics();
+      answerWith(Success<envelope.Page<Application>>(_page()));
+      await pump(tester);
+
+      // Then
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      handle.dispose();
+    },
+  );
+
   testWidgets('GivenTheCreateControl_WhenTapped_ThenTheFormOpens', (
     tester,
   ) async {
