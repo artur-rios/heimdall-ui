@@ -94,20 +94,23 @@ void main() {
           path: '/scopes/:scopeId',
           builder: (context, state) => const Scaffold(body: Text('scope')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/persons',
           builder: (context, state) =>
               PersonListScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/persons/new',
-          builder: (context, state) => const Scaffold(body: Text('create')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/persons/:personId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['personId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const Scaffold(body: Text('create')),
+            ),
+            GoRoute(
+              path: ':personId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['personId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -457,5 +460,36 @@ void main() {
 
     // Then
     expect(find.text('Ada'), findsOneWidget);
+  });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets('GivenAPersonOpened_WhenSystemBackIsPressed_ThenTheListShows', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<Person>>(_page()));
+    await pump(tester, size: _compact);
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('detail person-1'), findsNothing);
+    expect(find.text('Ada'), findsOneWidget);
+    verify(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).called(2);
   });
 }

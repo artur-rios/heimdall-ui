@@ -86,15 +86,18 @@ void main() {
           path: '/',
           builder: (context, state) => const Scaffold(body: Text('home')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/system-admins',
           builder: (context, state) => const SystemAdminListScreen(),
-        ),
-        GoRoute(
-          path: '/persons/:personId',
-          builder: (context, state) => Scaffold(
-            body: Text('person ${state.pathParameters['personId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':personId',
+              builder: (context, state) => Scaffold(
+                body: Text('person ${state.pathParameters['personId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -185,6 +188,36 @@ void main() {
 
     // Then
     expect(find.text('person admin-1'), findsOneWidget);
+    expect(router.state.uri.path, '/system-admins/admin-1');
+  });
+
+  // #156 — Back from a person page returns to the listing, read again in case
+  // the person was changed or deleted there.
+  testWidgets('GivenAPersonOpened_WhenSystemBackIsPressed_ThenTheListShows', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<PersonSummary>>(_page()));
+    await pump(tester);
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('person admin-1'), findsNothing);
+    expect(find.text('Ada'), findsOneWidget);
+    verify(
+      () => repository.listSystemAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).called(2);
   });
 
   testWidgets('GivenANameTyped_WhenSearchIsPressed_ThenItIsSent', (

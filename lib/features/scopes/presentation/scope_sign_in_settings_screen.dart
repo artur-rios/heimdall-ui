@@ -114,10 +114,7 @@ class _ScopeSignInSettingsScreenState
     });
   }
 
-  /// Leaving with unsaved changes asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -239,7 +236,7 @@ class _ScopeSignInSettingsScreenState
       backRoute: '/scopes/${widget.scopeId}',
       backTooltip: 'Back to the scope',
       title: const Text('Sign-in & sign-up'),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       body: switch (state) {
         SignInSettingsLoading() => const Center(
           child: CircularProgressIndicator(),

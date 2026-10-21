@@ -6,13 +6,13 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission_repository.dart';
 import 'package:heimdall_ui/features/permissions/presentation/permission_detail_screen.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -87,17 +87,21 @@ void main() {
 
     router = GoRouter(
       initialLocation: '/scopes/scope-1/permissions/permission-1',
+      // Nested and guarded as the app's own router is (#156).
       routes: <RouteBase>[
         GoRoute(
           path: '/scopes/:scopeId/permissions',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/permissions/:permissionId',
-          builder: (context, state) => PermissionDetailScreen(
-            scopeId: state.pathParameters['scopeId']!,
-            permissionId: state.pathParameters['permissionId']!,
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':permissionId',
+              builder: (context, state) => PermissionDetailScreen(
+                scopeId: state.pathParameters['scopeId']!,
+                permissionId: state.pathParameters['permissionId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+          ],
         ),
       ],
     );
@@ -150,24 +154,6 @@ void main() {
         id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => repository.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<ScopePermission>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   void answerUpdateWith(Result<ScopePermission> result) {
@@ -602,7 +588,6 @@ void main() {
     // Given
     answerGetWith(const Success<ScopePermission>(_readInvoices));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -624,7 +609,6 @@ void main() {
     // Given
     answerGetWith(const Success<ScopePermission>(_readInvoices));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -753,7 +737,6 @@ void main() {
     // Given
     answerGetWith(const Success<ScopePermission>(_readInvoices));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -771,5 +754,59 @@ void main() {
     // Then
     verify(() => repository.hardDelete(scopeId: 'scope-1', id: 'permission-1'))
         .called(1);
+  });
+
+  /// Opens the edit and changes the name, which is an unsaved edit.
+  Future<void> editTheName(WidgetTester tester) async {
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'read:invoices'),
+      'read:all',
+    );
+    await tester.pumpAndSettle();
+  }
+
+  // #156 — Android's Back is a way off the screen too.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // The edit went with the permission, so the way back asks nothing.
+  testWidgets('GivenAnUnsavedEdit_WhenItIsDeleted_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete permission'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
   });
 }

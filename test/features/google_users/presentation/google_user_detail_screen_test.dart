@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
@@ -150,25 +149,6 @@ void main() {
         id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => repository.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        email: any(named: 'email'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<GoogleUser>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   setUp(() {
@@ -498,7 +478,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -520,7 +499,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -646,7 +624,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,

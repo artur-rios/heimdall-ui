@@ -59,6 +59,8 @@ class _SystemAdminListScreenState extends ConsumerState<SystemAdminListScreen> {
     return AppShell(
       currentRoute: '/',
       title: const Text('System Admins'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: _controller.load,
       backRoute: '/',
       backTooltip: 'Back to Home',
       body: Column(
@@ -117,7 +119,7 @@ class _SystemAdminListScreenState extends ConsumerState<SystemAdminListScreen> {
                   totalPages: loaded.page.totalPages,
                   totalItems: loaded.page.totalItems,
                   onPageChanged: _controller.goToPage,
-                  onTap: (admin) => context.go('/persons/${admin.id}'),
+                  onTap: (admin) => context.go('/system-admins/${admin.id}'),
                   title: (admin) =>
                       admin.id == me ? '${admin.name} (you)' : admin.name,
                   // The email is the subtitle, which the table shows under the

@@ -54,6 +54,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The delete confirmations no longer say the API can restore a deleted record, which it cannot: they now say the
   record is hidden and only an operator can restore it, from the database, within the retention window, and, for a
   person or a Google user, that after 90 days their personal data is anonymised and cannot be restored (#162).
+- Android's back button and gesture, and the browser's Back, now return from a record to the list it was opened
+  from, and from a scope's own pages to the scope, instead of closing the app; a link straight to a record arrives
+  with its list underneath, and the list shows the record as it now is. On Home and the main lists the back button
+  still closes the app. Leaving an unsaved edit on a scope, person, application, permission, the profile or a
+  scope's sign-in settings now asks "Discard your changes?" whichever way it is left, and signing out asks about an
+  edit left open on a page underneath (#156).
 
 ### Changed
 
@@ -76,6 +82,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   appear, as the others already were. The scope owners screen and the invitations card, which had their own banner,
   now use the same look, and the notices on the scope pages and the profile page no longer have private copies
   (#171).
+- The person page opened from the System Admins list now lives at `/system-admins/<id>`, under the list, so Back
+  returns to it; a link to its earlier address, `/persons/<id>`, still opens the page there (#156).
 
 ## [1.9.0] - 2026-10-19
 

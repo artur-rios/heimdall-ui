@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
@@ -31,6 +32,7 @@ import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_reque
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -1126,6 +1128,187 @@ void main() {
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
     expect(rail.selectedIndex, 0);
     expect(find.text('Home'), findsWidgets);
+  });
+
+  // #156 — a record's route is nested under its listing's, and a scope's own
+  // screens under the scope's, so a system or browser Back returns to the
+  // screen a record was opened from, and a deep link arrives with it beneath.
+  testWidgets('GivenTheRouter_WhenAScreenIsMatched_ThenItsParentsAreUnderIt', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpApp(tester);
+    final configuration = container.read(routerProvider).configuration;
+    const s = '6f1d3a00-0000-0000-0000-000000000001';
+    const r = '6f1d3a00-0000-0000-0000-000000000002';
+    final expected = <String, List<String>>{
+      '/': <String>['/'],
+      '/scopes': <String>['/scopes'],
+      '/scopes/new': <String>['/scopes', '/scopes/new'],
+      '/scopes/$s': <String>['/scopes', '/scopes/$s'],
+      for (final screen in <String>[
+        'owners',
+        'sign-in-settings',
+        'pending-registrations',
+        'persons',
+        'applications',
+        'permissions',
+        'google-users',
+      ])
+        '/scopes/$s/$screen': <String>[
+          '/scopes',
+          '/scopes/$s',
+          '/scopes/$s/$screen',
+        ],
+      for (final listing in <String>['persons', 'applications', 'permissions'])
+        for (final record in <String>['new', r])
+          '/scopes/$s/$listing/$record': <String>[
+            '/scopes',
+            '/scopes/$s',
+            '/scopes/$s/$listing',
+            '/scopes/$s/$listing/$record',
+          ],
+      '/scopes/$s/google-users/$r': <String>[
+        '/scopes',
+        '/scopes/$s',
+        '/scopes/$s/google-users',
+        '/scopes/$s/google-users/$r',
+      ],
+      '/system-admins/$r': <String>['/system-admins', '/system-admins/$r'],
+    };
+
+    // When
+    final stacks = <String, List<String>>{
+      for (final location in expected.keys)
+        location: <String>[
+          for (final match
+              in configuration.findMatch(Uri.parse(location)).matches)
+            match.matchedLocation,
+        ],
+    };
+
+    // Then
+    expect(stacks, expected);
+  });
+
+  // #156 — every route whose screen can hold an unsaved edit asks before it
+  // is left, whichever way it is left.
+  testWidgets('GivenAnEditableRoute_WhenMatched_ThenItGuardsUnsavedChanges', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpApp(tester);
+    final configuration = container.read(routerProvider).configuration;
+    const s = '6f1d3a00-0000-0000-0000-000000000001';
+    const r = '6f1d3a00-0000-0000-0000-000000000002';
+
+    GoRoute routeOf(String location) =>
+        configuration.findMatch(Uri.parse(location)).last.route;
+
+    // When / Then
+    for (final location in <String>[
+      '/profile',
+      '/scopes/$s',
+      '/scopes/$s/sign-in-settings',
+      '/scopes/$s/persons/$r',
+      '/scopes/$s/permissions/$r',
+      '/system-admins/$r',
+    ]) {
+      expect(
+        routeOf(location).onExit,
+        same(confirmLeaveWithUnsavedChanges),
+        reason: location,
+      );
+    }
+    // The application route asks about its pending secret as well; its test
+    // drives the combination through this router.
+    expect(routeOf('/scopes/$s/applications/$r').onExit, isNotNull);
+  });
+
+  // #156 — on a screen at the root of the navigation, Android's Back leaves
+  // the app as it always did, rather than going nowhere.
+  for (final location in <String>['/', '/scopes']) {
+    testWidgets(
+      'GivenTheRootScreen${location}_WhenSystemBack_ThenTheAppExits',
+      (tester) async {
+        // Given
+        await store.write(
+          AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+        );
+        final container = await pumpApp(tester);
+        container.read(routerProvider).go(location);
+        await tester.pumpAndSettle();
+        final calls = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call.method);
+
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+
+        // When
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        // Then
+        expect(handled, isFalse);
+        expect(calls, contains('SystemNavigator.pop'));
+        expect(container.read(routerProvider).state.uri.path, location);
+      },
+    );
+  }
+
+  // #156 — the person page without a scope sits under the System Admins
+  // listing; a link to its earlier address still opens it, there.
+  testWidgets('GivenThePersonPagesEarlierAddress_WhenOpened_ThenItRedirects', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000002';
+    final router = container.read(routerProvider);
+
+    // When
+    router.go('/persons/$guid');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(router.state.uri.path, '/system-admins/$guid');
+    expect(find.widgetWithText(AppBar, 'Me'), findsOneWidget);
+  });
+
+  // #156 — Back from a person page returns to the listing it sits under.
+  testWidgets('GivenAListedPersonPage_WhenSystemBack_ThenTheListingShows', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000002';
+    final router = container.read(routerProvider)..go('/system-admins/$guid');
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(router.state.uri.path, '/system-admins');
+    expect(find.widgetWithText(AppBar, 'System Admins'), findsOneWidget);
   });
 }
 

@@ -93,20 +93,23 @@ void main() {
           path: '/scopes/:scopeId',
           builder: (context, state) => const Scaffold(body: Text('scope')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/permissions',
           builder: (context, state) =>
               PermissionListScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/permissions/new',
-          builder: (context, state) => const Scaffold(body: Text('create')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/permissions/:permissionId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['permissionId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const Scaffold(body: Text('create')),
+            ),
+            GoRoute(
+              path: ':permissionId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['permissionId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -405,4 +408,35 @@ void main() {
     // Then
     expect(find.text('read:invoices'), findsOneWidget);
   });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets(
+    'GivenAPermissionOpened_WhenSystemBackIsPressed_ThenTheListShows',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<ScopePermission>>(_page()));
+      await pump(tester, size: _compact);
+      await tester.tap(find.text('read:invoices'));
+      await tester.pumpAndSettle();
+
+      // When
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(handled, isTrue);
+      expect(find.text('detail permission-1'), findsNothing);
+      expect(find.text('read:invoices'), findsOneWidget);
+      verify(
+        () => repository.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(2);
+    },
+  );
 }

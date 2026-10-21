@@ -63,6 +63,8 @@ class _ScopeListScreenState extends ConsumerState<ScopeListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Scopes'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: controller.load,
       floatingActionButton: mayCreate
           ? FloatingActionButton.extended(
               onPressed: () => context.go('/scopes/new'),

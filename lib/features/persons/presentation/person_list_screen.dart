@@ -65,6 +65,8 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Persons'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: _controller.load,
       backRoute: '/scopes/${widget.scopeId}',
       backTooltip: 'Back to the scope',
       floatingActionButton: FloatingActionButton.extended(

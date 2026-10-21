@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
@@ -16,6 +15,7 @@ import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/persons/presentation/person_detail_screen.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -110,27 +110,35 @@ void main() {
 
     router = GoRouter(
       initialLocation: initialLocation,
+      // Nested and guarded as the app's own router is (#156).
       routes: <RouteBase>[
         GoRoute(
           path: '/scopes/:scopeId/persons',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/persons/:personId',
-          builder: (context, state) => PersonDetailScreen(
-            scopeId: state.pathParameters['scopeId']!,
-            personId: state.pathParameters['personId']!,
-          ),
-        ),
-        GoRoute(
-          path: '/persons/:personId',
-          builder: (context, state) =>
-              PersonDetailScreen(personId: state.pathParameters['personId']!),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':personId',
+              builder: (context, state) => PersonDetailScreen(
+                scopeId: state.pathParameters['scopeId']!,
+                personId: state.pathParameters['personId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+          ],
         ),
         GoRoute(
           path: '/system-admins',
           builder: (context, state) =>
               const Scaffold(body: Text('system admins')),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':personId',
+              builder: (context, state) => PersonDetailScreen(
+                personId: state.pathParameters['personId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+          ],
         ),
       ],
     );
@@ -172,25 +180,6 @@ void main() {
 
   void answerHardDeleteWith(Result<void> result) {
     when(() => repository.hardDelete(any())).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => repository.listScopePersons(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        email: any(named: 'email'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<Person>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   void answerUpdateWith(Result<Person> result) {
@@ -915,7 +904,6 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -936,7 +924,6 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -1057,7 +1044,6 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(_ada));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -1124,7 +1110,7 @@ void main() {
   ) async {
     // Given — a System Admin (role 1) opens another System Admin
     answerGetWith(const Success<Person>(grace));
-    await pump(tester, initialLocation: '/persons/person-1');
+    await pump(tester, initialLocation: '/system-admins/person-1');
 
     // When
     await tester.tap(find.byTooltip('Back to System Admins'));
@@ -1145,7 +1131,7 @@ void main() {
     );
 
     // When
-    await pump(tester, initialLocation: '/persons/person-1');
+    await pump(tester, initialLocation: '/system-admins/person-1');
 
     // Then
     expect(
@@ -1164,7 +1150,7 @@ void main() {
     await pump(
       tester,
       signedInAs: 'person-1',
-      initialLocation: '/persons/person-1',
+      initialLocation: '/system-admins/person-1',
     );
 
     // Then — the own-record rules hold (AF-19d; UI-36 hides the card)
@@ -1183,7 +1169,7 @@ void main() {
     // Given
     answerGetWith(const Success<Person>(grace));
     answerDeleteWith(const Success<void>(null));
-    await pump(tester, initialLocation: '/persons/person-1');
+    await pump(tester, initialLocation: '/system-admins/person-1');
     await tapAfterScrolling(
       tester,
       find.widgetWithText(OutlinedButton, 'Delete person'),
@@ -1195,5 +1181,56 @@ void main() {
 
     // Then
     expect(find.text('system admins'), findsOneWidget);
+  });
+
+  /// Opens the edit and changes the name, which is an unsaved edit.
+  Future<void> editTheName(WidgetTester tester) async {
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Ada'), 'Ada L');
+    await tester.pumpAndSettle();
+  }
+
+  // #156 — Android's Back is a way off the screen too.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // The edit went with the person, so the way back asks nothing.
+  testWidgets('GivenAnUnsavedEdit_WhenThePersonIsDeleted_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete person'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
   });
 }

@@ -26,6 +26,10 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope.dart';
+import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -36,6 +40,8 @@ class _MockCredentialRepository extends Mock
     implements ApplicationCredentialRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
+
+class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 /// Google's half, faked; the sign-in screen the session redirect lands on
 /// asks for it.
@@ -129,6 +135,47 @@ void main() {
   late ProviderContainer container;
   late GoRouter router;
 
+  /// The scope screens the app's router builds under the detail; what they
+  /// are answered does not matter here, only that they are.
+  ScopeRepository scopesUnderneath() {
+    const failure = Failure(kind: FailureKind.network, errors: <String>[]);
+    final scopes = _MockScopeRepository();
+    when(
+      () => scopes.getById(any(), includeDeleted: any(named: 'includeDeleted')),
+    ).thenAnswer((_) async => const FailureResult<Scope>(failure));
+    when(
+      () => scopes.list(
+        name: any(named: 'name'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<envelope.Page<Scope>>(failure),
+    );
+
+    return scopes;
+  }
+
+  /// The app's router builds the listing under the detail; what it answers
+  /// does not matter here, only that it answers.
+  void answerListWith() {
+    when(
+      () => applications.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        ownerId: any(named: 'ownerId'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<envelope.Page<Application>>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
+  }
+
   Future<void> pump(
     WidgetTester tester, {
     Size size = _expanded,
@@ -154,6 +201,7 @@ void main() {
         personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
         if (realRouter) ...<Override>[
+          scopeRepositoryProvider.overrideWithValue(scopesUnderneath()),
           appConfigProvider.overrideWithValue(
             const AppConfig(apiBaseUrl: 'http://localhost:8080'),
           ),
@@ -170,22 +218,28 @@ void main() {
 
     if (realRouter) {
       // The app's own router, so its `onExit` and redirect are the ones tested.
+      // It builds the scope and the listing under the detail as well.
+      answerListWith();
       router = container.read(routerProvider);
       router.go('/scopes/$_scopeId/applications/$_appId');
     } else {
       router = GoRouter(
         initialLocation: '/scopes/$_scopeId/applications/$_appId',
+        // Nested and guarded as the app's own router is (#156).
         routes: <RouteBase>[
           GoRoute(
             path: '/scopes/:scopeId/applications',
             builder: (context, state) => const Scaffold(body: Text('listing')),
-          ),
-          GoRoute(
-            path: '/scopes/:scopeId/applications/:applicationId',
-            builder: (context, state) => ApplicationDetailScreen(
-              scopeId: state.pathParameters['scopeId']!,
-              applicationId: state.pathParameters['applicationId']!,
-            ),
+            routes: <RouteBase>[
+              GoRoute(
+                path: ':applicationId',
+                builder: (context, state) => ApplicationDetailScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                  applicationId: state.pathParameters['applicationId']!,
+                ),
+                onExit: confirmLeaveWithUnsavedChanges,
+              ),
+            ],
           ),
         ],
       );
@@ -239,25 +293,6 @@ void main() {
         id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<Application>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   void answerUpdateWith(Result<Application> result) {
@@ -964,7 +999,6 @@ void main() {
     // Given
     answerGetWith(const Success<Application>(_billing));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -985,7 +1019,6 @@ void main() {
     // Given
     answerGetWith(const Success<Application>(_billing));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -1111,7 +1144,6 @@ void main() {
     // Given
     answerGetWith(const Success<Application>(_billing));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -1129,5 +1161,77 @@ void main() {
     // Then
     verify(() => applications.hardDelete(scopeId: _scopeId, id: _appId))
         .called(1);
+  });
+
+  /// Opens the edit and changes the name, which is an unsaved edit.
+  Future<void> editTheName(WidgetTester tester) async {
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Billing'),
+      'Invoicing',
+    );
+    await tester.pumpAndSettle();
+  }
+
+  // #156 — Android's Back is a way off the screen too.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // The app's route asks about the pending secret and the edit both.
+  testWidgets('GivenAnUnsavedEdit_WhenTheRealRouterLeaves_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    await pump(tester, realRouter: true);
+    await editTheName(tester);
+
+    // When
+    router.go('/scopes');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Leave without the secret?'), findsNothing);
+    expect(find.text('Discard your changes?'), findsOneWidget);
+  });
+
+  // The edit went with the application, so the way back asks nothing.
+  testWidgets('GivenAnUnsavedEdit_WhenItIsDeleted_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete application'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
   });
 }

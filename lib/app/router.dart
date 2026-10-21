@@ -38,6 +38,7 @@ import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
 import '../features/scopes/presentation/scope_owners_screen.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
+import '../shared/forms/unsaved_changes.dart';
 import 'route_access.dart';
 
 /// Where a link that names no record lands: one whose id is not a `PublicId`.
@@ -203,6 +204,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
+        onExit: confirmLeaveWithUnsavedChanges,
       ),
       GoRoute(
         path: '/profile/security',
@@ -211,109 +213,150 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         // leaving, and leaving them signs the person out.
         onExit: (context, state) => confirmLeaveWithRecoveryCodes(context, ref),
       ),
+      // A record's route is nested under its listing's, and a scope's own
+      // screens under the scope's, so the pages below a screen are the ones it
+      // was opened from. A system or browser Back then returns to them, and a
+      // deep link arrives with them already underneath.
       GoRoute(
         path: '/scopes',
         builder: (context, state) => const ScopeListScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const ScopeCreateScreen(),
+          ),
+          GoRoute(
+            path: ':scopeId',
+            builder: (context, state) =>
+                ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
+            onExit: confirmLeaveWithUnsavedChanges,
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'applications',
+                builder: (context, state) => ApplicationListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => ApplicationCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':applicationId',
+                    builder: (context, state) => ApplicationDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      applicationId: state.pathParameters['applicationId']!,
+                    ),
+                    // UI-37 — a one-time secret not yet stored is lost by
+                    // leaving, and so is an unsaved edit.
+                    onExit: (context, state) async =>
+                        await confirmLeaveWithPendingSecret(context, ref) &&
+                        context.mounted &&
+                        await confirmLeaveWithUnsavedChanges(context, state),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'permissions',
+                builder: (context, state) => PermissionListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => PermissionCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':permissionId',
+                    builder: (context, state) => PermissionDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      permissionId: state.pathParameters['permissionId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'google-users',
+                builder: (context, state) => GoogleUserListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: ':googleUserId',
+                    builder: (context, state) => GoogleUserDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      googleUserId: state.pathParameters['googleUserId']!,
+                    ),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'owners',
+                builder: (context, state) => ScopeOwnersScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+              ),
+              GoRoute(
+                path: 'sign-in-settings',
+                builder: (context, state) => ScopeSignInSettingsScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                onExit: confirmLeaveWithUnsavedChanges,
+              ),
+              GoRoute(
+                path: 'pending-registrations',
+                builder: (context, state) => PendingRegistrationListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+              ),
+              GoRoute(
+                path: 'persons',
+                builder: (context, state) =>
+                    PersonListScreen(scopeId: state.pathParameters['scopeId']!),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => PersonCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                  ),
+                  GoRoute(
+                    path: ':personId',
+                    builder: (context, state) => PersonDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      personId: state.pathParameters['personId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/scopes/new',
-        builder: (context, state) => const ScopeCreateScreen(),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId',
-        builder: (context, state) =>
-            ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications',
-        builder: (context, state) =>
-            ApplicationListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications/new',
-        builder: (context, state) =>
-            ApplicationCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications/:applicationId',
-        builder: (context, state) => ApplicationDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          applicationId: state.pathParameters['applicationId']!,
-        ),
-        // UI-37 — a one-time secret not yet stored is lost by leaving.
-        onExit: (context, state) => confirmLeaveWithPendingSecret(context, ref),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions',
-        builder: (context, state) =>
-            PermissionListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions/new',
-        builder: (context, state) =>
-            PermissionCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions/:permissionId',
-        builder: (context, state) => PermissionDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          permissionId: state.pathParameters['permissionId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/google-users',
-        builder: (context, state) =>
-            GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/google-users/:googleUserId',
-        builder: (context, state) => GoogleUserDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          googleUserId: state.pathParameters['googleUserId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/owners',
-        builder: (context, state) =>
-            ScopeOwnersScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/sign-in-settings',
-        builder: (context, state) => ScopeSignInSettingsScreen(
-          scopeId: state.pathParameters['scopeId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/pending-registrations',
-        builder: (context, state) => PendingRegistrationListScreen(
-          scopeId: state.pathParameters['scopeId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons',
-        builder: (context, state) =>
-            PersonListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons/new',
-        builder: (context, state) =>
-            PersonCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons/:personId',
-        builder: (context, state) => PersonDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          personId: state.pathParameters['personId']!,
-        ),
-      ),
+      // The person page without a scope moved under the listing it is opened
+      // from; a link to its earlier address still arrives there.
       GoRoute(
         path: '/persons/:personId',
-        builder: (context, state) =>
-            PersonDetailScreen(personId: state.pathParameters['personId']!),
+        redirect: (context, state) =>
+            '/system-admins/${state.pathParameters['personId']}',
       ),
       GoRoute(
         path: '/system-admins',
         builder: (context, state) => const SystemAdminListScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: ':personId',
+            builder: (context, state) =>
+                PersonDetailScreen(personId: state.pathParameters['personId']!),
+            onExit: confirmLeaveWithUnsavedChanges,
+          ),
+        ],
       ),
       GoRoute(
         path: '/erasure-requests',

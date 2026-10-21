@@ -103,20 +103,23 @@ void main() {
           path: '/scopes/:scopeId',
           builder: (context, state) => const Scaffold(body: Text('scope')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/applications',
           builder: (context, state) =>
               ApplicationListScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/new',
-          builder: (context, state) => const Scaffold(body: Text('create')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/:applicationId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['applicationId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const Scaffold(body: Text('create')),
+            ),
+            GoRoute(
+              path: ':applicationId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['applicationId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -442,4 +445,36 @@ void main() {
     // Then
     expect(find.text('Billing'), findsOneWidget);
   });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets(
+    'GivenAnApplicationOpened_WhenSystemBackIsPressed_ThenTheListShows',
+    (tester) async {
+      // Given
+      answerWith(Success<envelope.Page<Application>>(_page()));
+      await pump(tester, size: _compact);
+      await tester.tap(find.text('Billing'));
+      await tester.pumpAndSettle();
+
+      // When
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(handled, isTrue);
+      expect(find.text('detail app-1'), findsNothing);
+      expect(find.text('Billing'), findsOneWidget);
+      verify(
+        () => applications.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          ownerId: any(named: 'ownerId'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(2);
+    },
+  );
 }

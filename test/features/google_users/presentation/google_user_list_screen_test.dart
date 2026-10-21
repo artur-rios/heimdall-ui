@@ -117,16 +117,19 @@ void main() {
           builder: (context, state) =>
               const Scaffold(body: Text('sign-in settings')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/google-users',
           builder: (context, state) =>
               GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/google-users/:googleUserId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['googleUserId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':googleUserId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['googleUserId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -497,4 +500,36 @@ void main() {
     // Then
     expect(find.text('Ada Lovelace'), findsOneWidget);
   });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets(
+    'GivenAGoogleUserOpened_WhenSystemBackIsPressed_ThenTheListShows',
+    (tester) async {
+      // Given
+      answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+      await pump(tester, size: _compact);
+      await tester.tap(find.text('Ada Lovelace'));
+      await tester.pumpAndSettle();
+
+      // When
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(handled, isTrue);
+      expect(find.text('detail google-1'), findsNothing);
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      verify(
+        () => googleUsers.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(2);
+    },
+  );
 }

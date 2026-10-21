@@ -10,7 +10,6 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import 'google_avatar.dart';
 import 'google_user_detail_controller.dart';
-import 'google_user_list_controller.dart';
 
 /// UI-28 — one Google user, read-only.
 ///
@@ -51,14 +50,11 @@ class _GoogleUserDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/google-users';
 
-    // A deleted Google user returns to the listing, which is now stale.
+    // A deleted Google user returns to the listing, which reads itself again.
     ref.listen<GoogleUserDetailState>(
       googleUserDetailControllerProvider(_ref),
       (previous, next) {
         if (next is GoogleUserDeleted) {
-          ref
-              .read(googleUserListControllerProvider(widget.scopeId).notifier)
-              .load();
           context.go(backToListing);
         }
       },

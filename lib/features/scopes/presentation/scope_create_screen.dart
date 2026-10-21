@@ -12,7 +12,6 @@ import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_admin_picker.dart';
 import 'scope_create_controller.dart';
-import 'scope_list_controller.dart';
 
 /// UI-11 — the create-scope form.
 ///
@@ -172,8 +171,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
       next,
     ) {
       if (next case ScopeCreated(:final scope)) {
-        // The listing behind this form is now stale.
-        ref.read(scopeListControllerProvider.notifier).load();
+        // The listing behind this form reads itself again once it is back
+        // on top (`AppShell.onReturn`).
         context.go('/scopes/${scope.id}');
       }
     });

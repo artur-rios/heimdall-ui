@@ -12,7 +12,6 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
 import 'person_create_controller.dart';
-import 'person_list_controller.dart';
 
 /// UI-17 — the create-person form.
 class PersonCreateScreen extends ConsumerStatefulWidget {
@@ -143,10 +142,8 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
       personCreateControllerProvider(widget.scopeId),
       (previous, next) {
         if (next case PersonCreated(:final person)) {
-          // The listing behind this form is now stale.
-          ref
-              .read(personListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The listing behind this form reads itself again once it is back
+          // on top (`AppShell.onReturn`).
           context.go('/scopes/${widget.scopeId}/persons/${person.id}');
         }
       },

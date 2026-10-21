@@ -13,7 +13,6 @@ import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_members.dart';
 import 'application_create_controller.dart';
-import 'application_list_controller.dart';
 
 /// UI-21 — the create-application form.
 class ApplicationCreateScreen extends ConsumerStatefulWidget {
@@ -185,10 +184,8 @@ class _ApplicationCreateScreenState
       applicationCreateControllerProvider(widget.scopeId),
       (previous, next) {
         if (next case ApplicationCreated(:final application)) {
-          // The listing behind this form is now stale.
-          ref
-              .read(applicationListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The listing behind this form reads itself again once it is back
+          // on top (`AppShell.onReturn`).
           context.go(
             '/scopes/${widget.scopeId}/applications/${application.id}',
           );

@@ -9,7 +9,6 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'permission_create_controller.dart';
-import 'permission_list_controller.dart';
 
 /// UI-25 — the create-permission form.
 class PermissionCreateScreen extends ConsumerStatefulWidget {
@@ -96,10 +95,8 @@ class _PermissionCreateScreenState
       permissionCreateControllerProvider(widget.scopeId),
       (previous, next) {
         if (next case PermissionCreated(:final permission)) {
-          // The listing behind this form is now stale.
-          ref
-              .read(permissionListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The listing behind this form reads itself again once it is back
+          // on top (`AppShell.onReturn`).
           context.go('/scopes/${widget.scopeId}/permissions/${permission.id}');
         }
       },

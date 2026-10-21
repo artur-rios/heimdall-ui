@@ -102,11 +102,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     controller.readSecondFactor();
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -137,12 +134,8 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _editing && changesEmail(person, _email.text.trim());
 
   /// AF-08i — opens the two-factor settings, where the email method is turned
-  /// off, once any unsaved edit has been let go.
-  Future<void> _openSecurity() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/profile/security');
-    }
-  }
+  /// off, once any unsaved edit has been let go: leaving this route asks.
+  void _openSecurity() => context.go('/profile/security');
 
   Future<void> _save() async {
     // AF-08a: an empty name or a malformed address never reaches the API, and
@@ -187,7 +180,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return AppShell(
       currentRoute: '/profile',
       title: const Text('Profile'),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       body: switch (state) {
         ProfileLoading() => const Center(child: CircularProgressIndicator()),
         ProfileUnavailable(:final failure, :final sessionEnded) => _Unavailable(

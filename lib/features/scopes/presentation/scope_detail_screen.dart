@@ -16,7 +16,6 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope.dart';
 import 'scope_detail_controller.dart';
-import 'scope_list_controller.dart';
 import 'scope_sign_in_settings_screen.dart' show signInSettingsSummary;
 
 /// UI-12 — one scope: what it is, who owns it, and what it contains.
@@ -69,7 +68,13 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     }
 
     _seeded = scope;
-    _restore(scope);
+
+    // A screen opened over this one can read the scope again (the Google
+    // users listing does) while an edit waits underneath; what was typed and
+    // not yet saved stays, as on the person page.
+    if (!_editing) {
+      _restore(scope);
+    }
   }
 
   void _restore(Scope scope) {
@@ -84,11 +89,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -157,7 +159,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
       scopeDetailControllerProvider(widget.scopeId).notifier,
     );
 
-    // A deleted scope returns to the listing, which is now stale.
+    // A deleted scope returns to the listing, which reads itself again.
     ref.listen<ScopeDetailState>(
       scopeDetailControllerProvider(widget.scopeId),
       (previous, next) {
@@ -170,7 +172,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         }
 
         if (next is ScopeDeleted) {
-          ref.read(scopeListControllerProvider.notifier).load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go('/scopes');
         }
       },
@@ -184,7 +187,14 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ScopeDetailLoaded(:final scope) => scope.name,
         _ => 'Scope',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
+      // Back from one of the scope's own screens, which may have changed what
+      // this one shows. An edit in progress is not read over.
+      onReturn: () {
+        if (!_editing) {
+          controller.load();
+        }
+      },
       body: switch (state) {
         ScopeDetailLoading() => const Center(
           child: CircularProgressIndicator(),

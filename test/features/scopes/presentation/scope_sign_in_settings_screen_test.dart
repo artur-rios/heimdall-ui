@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
@@ -120,15 +121,19 @@ void main() {
           path: '/scopes',
           builder: (context, state) => const Scaffold(body: Text('listing')),
         ),
+        // Nested and guarded as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId',
           builder: (context, state) => const Scaffold(body: Text('scope')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/sign-in-settings',
-          builder: (context, state) => ScopeSignInSettingsScreen(
-            scopeId: state.pathParameters['scopeId']!,
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'sign-in-settings',
+              builder: (context, state) => ScopeSignInSettingsScreen(
+                scopeId: state.pathParameters['scopeId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+          ],
         ),
       ],
     );
@@ -882,5 +887,31 @@ void main() {
 
     // Then
     expect(summary, 'Google off · Self-registration on · Custom email links');
+  });
+
+  // #156 — Android's Back is a way off the screen too.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Verification link'),
+      'https://acme.example/verify-email',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('scope'), findsOneWidget);
   });
 }

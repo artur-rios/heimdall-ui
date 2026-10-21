@@ -17,7 +17,6 @@ import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_members.dart';
 import '../domain/application.dart';
 import 'application_detail_controller.dart';
-import 'application_list_controller.dart';
 import 'credentials_card.dart';
 
 /// UI-22 — one application: what it is called and who owns it.
@@ -95,11 +94,8 @@ class _ApplicationDetailScreenState
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -160,7 +156,7 @@ class _ApplicationDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/applications';
 
-    // A deleted application returns to the listing, which is now stale.
+    // A deleted application returns to the listing, which reads itself again.
     ref.listen<ApplicationDetailState>(
       applicationDetailControllerProvider(_ref),
       (previous, next) {
@@ -173,9 +169,8 @@ class _ApplicationDetailScreenState
         }
 
         if (next is ApplicationDeleted) {
-          ref
-              .read(applicationListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -187,7 +182,7 @@ class _ApplicationDetailScreenState
         ApplicationDetailLoaded(:final application) => application.name,
         _ => 'Application',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: 'Back to the listing',
       body: switch (state) {

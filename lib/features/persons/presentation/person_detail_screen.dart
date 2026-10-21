@@ -17,7 +17,6 @@ import '../../home/presentation/home_screen.dart';
 import '../domain/person.dart';
 import 'account_emails_card.dart';
 import 'person_detail_controller.dart';
-import 'person_list_controller.dart';
 
 /// UI-18 — one person, as an administrator sees them.
 class PersonDetailScreen extends ConsumerStatefulWidget {
@@ -93,11 +92,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -182,7 +178,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         ? 'Back to System Admins'
         : 'Back to the listing';
 
-    // A deleted person returns to the listing, which is now stale.
+    // A deleted person returns to the listing, which reads itself again.
     ref.listen<PersonDetailState>(
       personDetailControllerProvider(widget.personId),
       (previous, next) {
@@ -195,9 +191,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         }
 
         if (next is PersonDeleted) {
-          if (scopeId != null) {
-            ref.read(personListControllerProvider(scopeId).notifier).load();
-          }
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -209,7 +204,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         PersonDetailLoaded(:final person) => person.name,
         _ => 'Person',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: backTooltip,
       body: switch (state) {

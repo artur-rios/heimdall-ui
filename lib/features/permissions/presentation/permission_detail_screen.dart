@@ -15,7 +15,6 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope_permission.dart';
 import 'permission_detail_controller.dart';
-import 'permission_list_controller.dart';
 
 /// UI-26 — one scope permission.
 class PermissionDetailScreen extends ConsumerStatefulWidget {
@@ -92,11 +91,8 @@ class _PermissionDetailScreenState
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -154,7 +150,7 @@ class _PermissionDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/permissions';
 
-    // A deleted permission returns to the listing, which is now stale.
+    // A deleted permission returns to the listing, which reads itself again.
     ref.listen<PermissionDetailState>(
       permissionDetailControllerProvider(_ref),
       (previous, next) {
@@ -167,9 +163,8 @@ class _PermissionDetailScreenState
         }
 
         if (next is PermissionDeleted) {
-          ref
-              .read(permissionListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -181,7 +176,7 @@ class _PermissionDetailScreenState
         PermissionDetailLoaded(:final permission) => permission.name,
         _ => 'Permission',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: 'Back to the listing',
       body: switch (state) {

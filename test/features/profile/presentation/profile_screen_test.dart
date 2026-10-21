@@ -21,6 +21,7 @@ import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_screen.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -144,9 +145,11 @@ void main() {
         ? GoRouter(
             initialLocation: '/profile',
             routes: <RouteBase>[
+              // Guarded as the app's own route is (#156).
               GoRoute(
                 path: '/profile',
                 builder: (context, state) => const ProfileScreen(),
+                onExit: confirmLeaveWithUnsavedChanges,
               ),
               GoRoute(
                 path: '/profile/security',
@@ -1281,6 +1284,48 @@ void main() {
 
     // Then
     expect(find.text('Restrict processing of your account?'), findsOneWidget);
+  });
+  // #156 — Android's Back would leave the app from here, and the edit with it,
+  // so it asks first; keeping the edit keeps the app open.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester, routed: true);
+    await changeEmailTo(tester, 'new@example.com');
+
+    // When
+    final handled = tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+    await tester.pumpAndSettle();
+    expect(await handled, isTrue);
+    expect(
+      find.widgetWithText(TextFormField, 'new@example.com'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsDiscarded_ThenTheAppExits', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester, routed: true);
+    await changeEmailTo(tester, 'new@example.com');
+    final handled = tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(await handled, isFalse);
   });
 }
 

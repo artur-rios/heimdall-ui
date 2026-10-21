@@ -93,18 +93,21 @@ void main() {
     router = GoRouter(
       initialLocation: '/scopes',
       routes: <RouteBase>[
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes',
           builder: (context, state) => const ScopeListScreen(),
-        ),
-        GoRoute(
-          path: '/scopes/new',
-          builder: (context, state) => const Scaffold(body: Text('create')),
-        ),
-        GoRoute(
-          path: '/scopes/:id',
-          builder: (context, state) =>
-              Scaffold(body: Text('detail ${state.pathParameters['id']}')),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const Scaffold(body: Text('create')),
+            ),
+            GoRoute(
+              path: ':id',
+              builder: (context, state) =>
+                  Scaffold(body: Text('detail ${state.pathParameters['id']}')),
+            ),
+          ],
         ),
       ],
     );
@@ -466,5 +469,34 @@ void main() {
 
     // Then
     expect(find.text('Acme'), findsOneWidget);
+  });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets('GivenAScopeOpened_WhenSystemBackIsPressed_ThenTheListShows', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<Scope>>(_page()));
+    await pump(tester, size: _compact);
+    await tester.tap(find.text('Acme'));
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('detail scope-1'), findsNothing);
+    expect(find.text('Acme'), findsOneWidget);
+    verify(
+      () => repository.list(
+        name: any(named: 'name'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).called(2);
   });
 }
