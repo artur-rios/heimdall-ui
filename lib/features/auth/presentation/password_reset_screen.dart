@@ -36,6 +36,17 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
   final _confirmation = TextEditingController();
 
   @override
+  void initState() {
+    super.initState();
+    // The controller outlives the screen, and nobody is signed in to scope it.
+    // A result left by an earlier link must not stand in for this one's: the
+    // form starts clean every time it is opened.
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => ref.invalidate(passwordResetControllerProvider),
+    );
+  }
+
+  @override
   void dispose() {
     _password.dispose();
     _confirmation.dispose();

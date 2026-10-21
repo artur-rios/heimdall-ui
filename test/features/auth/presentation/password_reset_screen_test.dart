@@ -152,6 +152,55 @@ void main() {
     expect(find.text('login'), findsOneWidget);
   });
 
+  // #158 — the controller outlives the screen, so a second link opened in the
+  // same app run must not inherit the first one's result.
+  testWidgets(
+    'GivenASucceededReset_WhenASecondLinkIsOpened_ThenTheFormIsShown',
+    (tester) async {
+      // Given
+      answerWith(const Success<void>(null));
+      await pump(tester, token: 'token-a');
+      await submit(tester, 'new-secret', 'new-secret');
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/password-reset?token=token-b');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Your password is set'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Set password'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAFailedReset_WhenASecondLinkIsOpened_ThenNoStaleFailureIsShown',
+    (tester) async {
+      // Given
+      answerWith(
+        const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['Token spent.'],
+          ),
+        ),
+      );
+      await pump(tester, token: 'token-a');
+      await submit(tester, 'new-secret', 'new-secret');
+      expect(find.text('Token spent.'), findsWidgets);
+      router.go('/login');
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/password-reset?token=token-b');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Token spent.'), findsNothing);
+    },
+  );
+
   // AF-04a — the link carried no token.
   testWidgets('GivenNoToken_WhenRendered_ThenTheLinkIsCalledIncomplete', (
     tester,

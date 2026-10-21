@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -181,6 +182,36 @@ void main() {
     // Then
     expect(find.text('home'), findsOneWidget);
   });
+
+  // #158 — the controller outlives the screen, so a second visit must start
+  // from a clean state rather than from the previous visit's answer. The
+  // first frame can still draw the old state; this checks it is gone as soon
+  // as the screen has settled itself, while the new answer is pending.
+  testWidgets(
+    'GivenAVerifiedLink_WhenASecondLinkIsOpened_ThenTheOldResultIsNotShown',
+    (tester) async {
+      // Given
+      answerVerifyWith(const Success<List<String>>(<String>[]));
+      await pump(tester, token: 'token-a');
+      expect(find.text('Your email is verified'), findsOneWidget);
+      router.go('/login');
+      await tester.pumpAndSettle();
+      final pending = Completer<Result<List<String>>>();
+      when(() => repository.verifyEmail(token: 'token-b'))
+          .thenAnswer((_) => pending.future);
+
+      // When
+      router.go('/verify-email?token=token-b');
+      await tester.pump();
+      await tester.pump();
+
+      // Then
+      expect(find.text('Your email is verified'), findsNothing);
+      pending.complete(const Success<List<String>>(<String>[]));
+      await tester.pumpAndSettle();
+      expect(find.text('Your email is verified'), findsOneWidget);
+    },
+  );
 
   // AF-05a — a link with no token verifies nothing and offers the resend.
   testWidgets('GivenNoToken_WhenOpened_ThenNoRequestIsMade', (tester) async {

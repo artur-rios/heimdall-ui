@@ -34,6 +34,8 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
+        // An answer left by an earlier link is not this one's.
+        ref.invalidate(emailVerificationControllerProvider);
         ref.read(emailVerificationControllerProvider.notifier).verify(_token);
       }
     });
