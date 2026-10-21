@@ -192,8 +192,39 @@ void main() {
     final failure = failureFromDioException(error);
 
     // Then
-    expect(failure.kind, FailureKind.unknown);
+    expect(failure.kind, FailureKind.network);
     expect(failure.message, kUnreachableMessage);
+  });
+
+  test(
+    'GivenABadCertificateWithoutAResponse_WhenMapped_ThenFailureKindIsNetwork',
+    () {
+      // Given
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/api/scopes'),
+        type: DioExceptionType.badCertificate,
+      );
+
+      // When
+      final failure = failureFromDioException(error);
+
+      // Then
+      expect(failure.kind, FailureKind.network);
+    },
+  );
+
+  test('GivenACancelledRequest_WhenMapped_ThenFailureKindIsNotNetwork', () {
+    // Given
+    final error = DioException(
+      requestOptions: RequestOptions(path: '/api/scopes'),
+      type: DioExceptionType.cancel,
+    );
+
+    // When
+    final failure = failureFromDioException(error);
+
+    // Then
+    expect(failure.kind, FailureKind.unknown);
   });
 
   test('GivenResponseWithoutABody_WhenMapped_ThenErrorsAreEmpty', () {

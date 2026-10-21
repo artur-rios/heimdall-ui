@@ -140,7 +140,13 @@ Failure failureFromDioException(DioException error) {
         DioExceptionType.sendTimeout ||
         DioExceptionType.receiveTimeout ||
         DioExceptionType.connectionError => FailureKind.network,
-        _ => FailureKind.unknown,
+        // The code cancels a request only on purpose (a screen that is
+        // closing), and nobody is waiting to retry that.
+        DioExceptionType.cancel => FailureKind.unknown,
+        // Everything else without an answer — `unknown` (some web XHR
+        // failures) and `badCertificate` — is the API being out of reach,
+        // which Retry can fix.
+        _ => FailureKind.network,
       },
       errors: const <String>[],
       // Never Dio's own text ("The connection errored: …"), which is written
