@@ -14,6 +14,7 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockApplicationRepository extends Mock
@@ -529,4 +530,43 @@ void main() {
       expect(currentState(), isA<ApplicationListLoading>());
     },
   );
+
+  // #157 — a search queued during a load, then a second change: the request
+  // that follows the load carries both.
+  test('GivenASearchQueuedDuringALoad_WhenIncludeDeletedIsToggled_ThenTheLastRequestCarriesBoth', () async {
+    // Given
+    final first = Completer<Result<Page<Application>>>();
+    when(
+      () => applications.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        ownerId: any(named: 'ownerId'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      heldFirstAnswer(first, () => Success<Page<Application>>(_page())),
+    );
+    final controller = controllerUnderTest();
+    final loading = controller.load();
+
+    // When
+    unawaited(controller.search('abc'));
+    unawaited(controller.setIncludeDeleted(true));
+    first.complete(Success<Page<Application>>(_page()));
+    await loading;
+
+    // Then
+    verify(
+      () => applications.list(
+        scopeId: 'scope-1',
+        name: 'abc',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+    expect(currentState().query.name, 'abc');
+    expect(currentState().query.includeDeleted, isTrue);
+  });
 }
