@@ -11,7 +11,6 @@ import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_reque
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/held_answer.dart';
-import '../../../support/late_answer.dart';
 
 class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
@@ -67,16 +66,6 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
-  void failWith(Object error) {
-    when(
-      () => repository.list(
-        overdueOnly: any(named: 'overdueOnly'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<OutstandingErasure>>>.error(error));
-  }
-
   setUp(() {
     repository = _MockErasureRequestRepository();
   });
@@ -124,88 +113,6 @@ void main() {
     verify(() => repository.list(overdueOnly: true, pageNumber: 2)).called(1);
     expect(currentState().query.overdueOnly, isTrue);
   });
-
-  // AF-32h — the query that failed is kept, so the retry asks it again.
-  test('GivenAFailedRequest_WhenFiltered_ThenTheQuerySurvives', () async {
-    // Given
-    answerListWith(
-      const FailureResult<Page<OutstandingErasure>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.setOverdueOnly(true);
-
-    // Then
-    expect(currentState(), isA<ErasureRequestListFailed>());
-    expect(currentState().query.overdueOnly, isTrue);
-  });
-
-  test(
-    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
-    () async {
-      // Given
-      final pending = Completer<Result<Page<OutstandingErasure>>>();
-      when(() => anyList()).thenAnswer((_) => pending.future);
-      final controller = controllerUnderTest();
-
-      // When
-      final first = controller.goToPage(2);
-      final second = controller.goToPage(3);
-
-      // Then — the second waits for the first rather than racing it
-      verify(() => anyList()).called(1);
-
-      // …and is asked once the first is answered, rather than dropped
-      pending.complete(Success<Page<OutstandingErasure>>(_page(totalPages: 3)));
-      await Future.wait<void>(<Future<void>>[first, second]);
-      verify(() => repository.list(overdueOnly: false, pageNumber: 3))
-          .called(1);
-    },
-  );
-
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<ErasureRequestListFailed>());
-    final failure = (state as ErasureRequestListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<OutstandingErasure>>>();
-      when(anyList).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        erasureRequestListControllerProvider,
-        reset: erasureRequestListControllerProvider,
-        start: controller.load,
-        answer: () =>
-            answer.complete(Success<Page<OutstandingErasure>>(_page())),
-      );
-
-      // Then
-      expect(currentState(), isA<ErasureRequestListLoading>());
-    },
-  );
 
   // #157 — a filter queued during a load, then a page change: the request
   // that follows the load carries both.

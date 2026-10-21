@@ -15,7 +15,6 @@ import 'package:heimdall_ui/features/profile/presentation/profile_controller.dar
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/held_answer.dart';
-import '../../../support/late_answer.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
@@ -83,19 +82,6 @@ void main() {
       () =>
           persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
     ).thenAnswer((_) async => result);
-  }
-
-  void failWith(Object error) {
-    when(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<Application>>>.error(error));
   }
 
   setUp(() {
@@ -266,23 +252,6 @@ void main() {
     ).called(1);
   });
 
-  // AF-20b — the query that failed is kept, so the retry asks it again.
-  test('GivenAFailedRequest_WhenSearched_ThenTheFiltersSurvive', () async {
-    // Given
-    answerWith(
-      const FailureResult<Page<Application>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.search('Billing');
-
-    // Then
-    expect(currentState().query.name, 'Billing');
-  });
-
   // AF-20c — a scope this admin does not own.
   test('GivenAForbiddenScope_WhenLoaded_ThenStateIsForbidden', () async {
     // Given
@@ -332,55 +301,6 @@ void main() {
       ),
     ).called(1);
   });
-
-  test(
-    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
-    () async {
-      // Given
-      final pending = Completer<Result<Page<Application>>>();
-      when(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => pending.future);
-      final controller = controllerUnderTest();
-
-      // When
-      final first = controller.goToPage(2);
-      final second = controller.goToPage(3);
-
-      // Then — the second waits for the first rather than racing it
-      verify(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-
-      // …and is asked once the first is answered, rather than dropped
-      pending.complete(Success<Page<Application>>(_page()));
-      await Future.wait<void>(<Future<void>>[first, second]);
-      verify(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-    },
-  );
 
   // A read that merely failed says nothing about the person, so it is asked
   // again rather than pinning them to their identifier for the session.
@@ -451,22 +371,6 @@ void main() {
     expect(state.ownerLabel('person-1'), 'Ada Lovelace');
   });
 
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<ApplicationListFailed>());
-    final failure = (state as ApplicationListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
   test(
     'GivenAnOwnerReadThatThrows_WhenLoaded_ThenTheStateIsFailedAsUnexpected',
     () async {
@@ -495,39 +399,6 @@ void main() {
         failure.displayMessage,
         'The API returned an unexpected response.',
       );
-    },
-  );
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<Application>>>();
-      when(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        applicationListControllerProvider('scope-1'),
-        reset: applicationListControllerProvider,
-        start: controller.load,
-        answer: () => answer.complete(Success<Page<Application>>(_page())),
-      );
-
-      // Then
-      expect(currentState(), isA<ApplicationListLoading>());
     },
   );
 

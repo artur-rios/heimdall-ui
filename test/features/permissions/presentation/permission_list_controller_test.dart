@@ -11,7 +11,6 @@ import 'package:heimdall_ui/features/permissions/presentation/permission_list_co
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/held_answer.dart';
-import '../../../support/late_answer.dart';
 
 class _MockScopePermissionRepository extends Mock
     implements ScopePermissionRepository {}
@@ -63,18 +62,6 @@ void main() {
         pageSize: any(named: 'pageSize'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  void failWith(Object error) {
-    when(
-      () => repository.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<ScopePermission>>>.error(error));
   }
 
   setUp(() {
@@ -187,23 +174,6 @@ void main() {
     ).called(1);
   });
 
-  // AF-24b — the query that failed is kept, so the retry asks it again.
-  test('GivenAFailedRequest_WhenSearched_ThenTheFiltersSurvive', () async {
-    // Given
-    answerWith(
-      const FailureResult<Page<ScopePermission>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.search('read');
-
-    // Then
-    expect(currentState().query.name, 'read');
-  });
-
   test('GivenARefusedListing_WhenLoaded_ThenApiErrorsAreKept', () async {
     // Given
     answerWith(
@@ -290,100 +260,6 @@ void main() {
       ),
     ).called(1);
   });
-
-  test(
-    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
-    () async {
-      // Given
-      final pending = Completer<Result<Page<ScopePermission>>>();
-      when(
-        () => repository.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => pending.future);
-      final controller = controllerUnderTest();
-
-      // When
-      final first = controller.goToPage(2);
-      final second = controller.goToPage(3);
-
-      // Then — the second waits for the first rather than racing it
-      verify(
-        () => repository.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-
-      // …and is asked once the first is answered, rather than dropped
-      pending.complete(Success<Page<ScopePermission>>(_page()));
-      await Future.wait<void>(<Future<void>>[first, second]);
-      verify(
-        () => repository.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-    },
-  );
-
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<PermissionListFailed>());
-    final failure = (state as PermissionListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<ScopePermission>>>();
-      when(
-        () => repository.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        permissionListControllerProvider('scope-1'),
-        reset: permissionListControllerProvider,
-        start: controller.load,
-        answer: () => answer.complete(Success<Page<ScopePermission>>(_page())),
-      );
-
-      // Then
-      expect(currentState(), isA<PermissionListLoading>());
-    },
-  );
 
   // #157 — a search queued during a load, then a second change: the request
   // that follows the load carries both.

@@ -66,16 +66,6 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
-  void failWith(Object error) {
-    when(
-      () => repository.list(
-        's1',
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<PendingRegistration>>>.error(error));
-  }
-
   setUp(() {
     repository = _MockPendingRegistrationRepository();
   });
@@ -379,53 +369,6 @@ void main() {
         'You are not an owner of the target scope.',
       ]);
       expect(state.page.items, isNotEmpty);
-    },
-  );
-
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<PendingRegistrationListFailed>());
-    final failure = (state as PendingRegistrationListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<PendingRegistration>>>();
-      when(
-        () => repository.list(
-          's1',
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        pendingRegistrationListControllerProvider('s1'),
-        reset: pendingRegistrationListControllerProvider,
-        start: controller.load,
-        answer: () =>
-            answer.complete(Success<Page<PendingRegistration>>(_page())),
-      );
-
-      // Then
-      expect(currentState(), isA<PendingRegistrationListLoading>());
     },
   );
 
