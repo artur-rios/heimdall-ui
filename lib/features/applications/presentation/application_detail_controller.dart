@@ -212,8 +212,10 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
     }
   }
 
-  /// Logically deletes the application. The record is kept and the API can
-  /// restore it, which is what the confirmation says before this is called.
+  /// Logically deletes the application. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window. The confirmation says so
+  /// before this is called.
   Future<void> delete() => _delete(
     (repository) =>
         repository.delete(scopeId: arg.scopeId, id: arg.applicationId),

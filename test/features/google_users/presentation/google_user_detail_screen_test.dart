@@ -425,10 +425,7 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(
-      find.textContaining('Neither stops them signing in again'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('they can sign in again'), findsOneWidget);
   });
 
   testWidgets('GivenTheDeleteControl_WhenTapped_ThenConfirmationIsAsked', (
@@ -463,7 +460,13 @@ void main() {
     );
 
     // Then
-    expect(find.textContaining('they can sign in again'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.textContaining('they can sign in again'),
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheyAreDeleted', (

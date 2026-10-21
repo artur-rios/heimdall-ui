@@ -60,7 +60,9 @@ abstract interface class PersonRepository {
     required Role role,
   });
 
-  /// Logically deletes a person. The record is kept and the API can restore it.
+  /// Logically deletes a person. The record is hidden, not erased. The
+  /// API has no restore: only an operator can undo it, in the database,
+  /// within the retention window.
   Future<Result<void>> delete(String id);
 
   /// Permanently deletes a person and everything that belonged to them. Only a

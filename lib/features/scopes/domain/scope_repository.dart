@@ -78,7 +78,9 @@ abstract interface class ScopeRepository {
     required String? passwordResetUrl,
   });
 
-  /// Logically deletes a scope. The record is kept and the API can restore it.
+  /// Logically deletes a scope. The record is hidden, not erased. The API
+  /// has no restore: only an operator can undo it, in the database,
+  /// within the retention window.
   Future<Result<void>> delete(String id);
 
   /// Permanently deletes a scope and everything it holds. Nothing survives it,

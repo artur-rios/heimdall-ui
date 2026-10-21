@@ -233,8 +233,10 @@ class PermissionDetailController extends Notifier<PermissionDetailState>
     }
   }
 
-  /// Logically deletes the permission. The record is kept and the API can
-  /// restore it, which is what the confirmation says before this is called.
+  /// Logically deletes the permission. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window. The confirmation says so
+  /// before this is called.
   Future<void> delete() => _delete(
     (repository) =>
         repository.delete(scopeId: arg.scopeId, id: arg.permissionId),

@@ -742,6 +742,12 @@ void main() {
 
     // Then
     expect(find.text('Delete this scope?'), findsOneWidget);
+    // The API has no restore endpoint, so the dialog must not promise one
+    expect(find.textContaining('the API can restore'), findsNothing);
+    expect(
+      find.textContaining('Only an operator can restore it'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheScopeIsDeleted', (

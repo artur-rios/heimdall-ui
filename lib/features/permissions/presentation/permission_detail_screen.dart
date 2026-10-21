@@ -8,7 +8,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
@@ -130,45 +130,6 @@ class _PermissionDetailScreenState
     final session = ref.watch(sessionControllerProvider);
 
     return session is Authenticated && session.principal.isSystemAdmin;
-  }
-
-  /// AF-27a — a dialog the user closes sends nothing.
-  Future<void> _confirmDelete(ScopePermission permission) async {
-    final confirmed = await showConfirm(
-      context: context,
-      title: 'Delete ${permission.name}?',
-      message:
-          '${permission.name} will be marked deleted. The record is kept '
-          'and the API can restore it.',
-      confirmLabel: 'Delete',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(permissionDetailControllerProvider(_ref).notifier)
-          .delete();
-    }
-  }
-
-  /// AF-27c — the confirm control stays disabled until the name matches.
-  Future<void> _confirmDeletePermanently(ScopePermission permission) async {
-    final confirmed = await showTypeToConfirm(
-      context: context,
-      title: 'Delete ${permission.name} permanently?',
-      message:
-          'The permission is erased. Tokens already issued that carry it '
-          'keep doing so until they expire. This cannot be undone. Type its '
-          'name to confirm:',
-      confirmationValue: permission.name,
-      fieldLabel: 'Permission name',
-      confirmLabel: 'Delete permanently',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(permissionDetailControllerProvider(_ref).notifier)
-          .deletePermanently();
-    }
   }
 
   Future<void> _save() async {
@@ -380,94 +341,28 @@ class _PermissionDetailScreenState
               // AF-26d leaves a deleted permission nothing left to delete.
               if (!state.isReadOnly) ...<Widget>[
                 const SizedBox(height: 24),
-                _DangerZone(
-                  permission: permission,
+                DeleteActions(
+                  recordName: permission.name,
+                  noun: 'permission',
+                  confirmationValue: permission.name,
+                  fieldLabel: 'Permission name',
+                  permanentConsequence:
+                      'The permission is erased. Tokens already issued that '
+                      'carry it keep doing so until they expire.',
                   deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
+                  // AF-27d: a Scope Admin never sees the permanent deletion.
                   mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
+                  onDelete: () => ref
+                      .read(permissionDetailControllerProvider(_ref).notifier)
+                      .delete(),
+                  onDeletePermanently: () => ref
+                      .read(permissionDetailControllerProvider(_ref).notifier)
+                      .deletePermanently(),
                 ),
               ],
             ],
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// The two deletions, kept apart from the rest of the screen because neither
-/// is an ordinary edit.
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.permission,
-    required this.deleting,
-    required this.failure,
-    required this.mayDeletePermanently,
-    required this.onDelete,
-    required this.onDeletePermanently,
-  });
-
-  final ScopePermission permission;
-  final bool deleting;
-  final Failure? failure;
-
-  /// AF-27d — a Scope Admin never sees the permanent deletion.
-  final bool mayDeletePermanently;
-
-  final Future<void> Function(ScopePermission permission) onDelete;
-  final Future<void> Function(ScopePermission permission) onDeletePermanently;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Delete this permission',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deleting keeps the record and can be undone by the API. '
-              'Deleting permanently erases it.',
-              style: TextStyle(color: theme.colorScheme.onErrorContainer),
-            ),
-            // AF-27b — the API refused, and the permission is still open.
-            if (failure case final refusal?) ...<Widget>[
-              const SizedBox(height: 16),
-              ErrorBanner(failure: refusal),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: deleting ? null : () => onDelete(permission),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete permission'),
-                ),
-                if (mayDeletePermanently)
-                  FilledButton.icon(
-                    onPressed: deleting
-                        ? null
-                        : () => onDeletePermanently(permission),
-                    icon: const Icon(Icons.delete_forever_outlined),
-                    label: const Text('Delete permanently'),
-                  ),
-              ],
-            ),
-          ],
         ),
       ),
     );

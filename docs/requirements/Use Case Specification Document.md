@@ -693,8 +693,8 @@ User's own record
 **Main flow — logical deletion**
 
 1. The user chooses to delete the scope.
-2. A confirmation dialog names the scope and explains that the record is kept and can be restored by
-   the API.
+2. A confirmation dialog explains that the record is hidden, not erased, and that only an operator can restore
+   it, from the database, within the retention window; the API has no restore endpoint.
 3. The client calls `DELETE /api/scopes/{id}` and returns to the listing with a confirmation.
 
 **Main flow — permanent deletion**
