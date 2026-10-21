@@ -17,8 +17,8 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/idle_expiry_timer.dart';
-import '../../../support/pump_app.dart';
 import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 

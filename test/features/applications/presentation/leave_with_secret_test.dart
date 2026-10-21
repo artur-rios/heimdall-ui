@@ -13,8 +13,8 @@ import 'package:heimdall_ui/features/applications/presentation/credentials_card.
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/pump_app.dart';
 import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}
 

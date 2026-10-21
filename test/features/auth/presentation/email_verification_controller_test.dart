@@ -14,9 +14,9 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
 import '../../../support/late_answer.dart';
 import '../../../support/pump_app.dart';
-import '../../../support/jwt.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 

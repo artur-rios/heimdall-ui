@@ -13,8 +13,8 @@ import 'package:heimdall_ui/features/auth/presentation/two_factor_screen.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/pump_app.dart';
 import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
