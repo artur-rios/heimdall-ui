@@ -748,6 +748,64 @@ void main() {
     expect(find.textContaining('replace your previous codes'), findsOneWidget);
   });
 
+  testWidgets('GivenTurnOff_WhenAsked_ThenItIsDestructive', (tester) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Turn off two-factor'));
+    await tester.pumpAndSettle();
+
+    // Then Cancel takes the focus and confirming looks destructive
+    final scheme = Theme.of(tester.element(find.byType(AlertDialog)))
+        .colorScheme;
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+          .autofocus,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Turn off'))
+          .style!
+          .backgroundColor!
+          .resolve(<WidgetState>{}),
+      scheme.error,
+    );
+  });
+
+  testWidgets('GivenGenerateNewCodes_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+
+    // Then Cancel takes the focus and confirming looks destructive
+    final scheme = Theme.of(tester.element(find.byType(AlertDialog)))
+        .colorScheme;
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+          .autofocus,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Generate'))
+          .style!
+          .backgroundColor!
+          .resolve(<WidgetState>{}),
+      scheme.error,
+    );
+  });
+
   // UC-39 — the API refuses to disable without the password *and* a second
   // factor, so both travel together.
   testWidgets('GivenAPasswordAndACode_WhenDisabled_ThenBothAreSent', (

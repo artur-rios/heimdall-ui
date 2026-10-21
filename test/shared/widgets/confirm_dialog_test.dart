@@ -74,12 +74,16 @@ void main() {
   });
 
   group('showConfirm', () {
+    bool? answer;
+
+    setUp(() => answer = null);
+
     Future<void> open(WidgetTester tester, {required bool destructive}) async {
       await tester.pumpWidget(
         MaterialApp(
           home: Builder(
             builder: (context) => TextButton(
-              onPressed: () => showConfirm(
+              onPressed: () async => answer = await showConfirm(
                 context: context,
                 title: 'Revoke',
                 message: 'It stops working.',
@@ -106,10 +110,10 @@ void main() {
         find.widgetWithText(TextButton, 'Cancel'),
       );
       expect(cancel.autofocus, isTrue);
-      expect(cancel.focusNode, isNull);
       await tester.sendKeyEvent(LogicalKeyboardKey.enter);
       await tester.pumpAndSettle();
       expect(find.byType(AlertDialog), findsNothing);
+      expect(answer, isFalse);
     });
 
     testWidgets('GivenADestructiveDialog_WhenOpened_ThenConfirmIsRed', (

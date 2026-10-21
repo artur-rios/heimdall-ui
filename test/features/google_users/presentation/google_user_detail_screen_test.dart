@@ -469,6 +469,29 @@ void main() {
     );
   });
 
+  testWidgets('GivenTheDeleteDialog_WhenOpened_ThenItSaysTheDataIsAnonymised', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // Then
+    expect(
+      find.textContaining(
+        'After 90 days, their personal data is anonymised and cannot be '
+        'restored.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheyAreDeleted', (
     tester,
   ) async {

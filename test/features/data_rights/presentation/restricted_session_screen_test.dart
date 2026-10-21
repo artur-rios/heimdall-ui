@@ -90,6 +90,35 @@ const Size _expanded = Size(1400, 900);
 
 const String _heading = 'Processing of your account is restricted';
 
+void expectDestructive(WidgetTester tester, String confirmLabel) {
+  final dialog = find.byType(AlertDialog);
+  final scheme = Theme.of(tester.element(dialog)).colorScheme;
+  expect(
+    tester
+        .widget<TextButton>(
+          find.descendant(
+            of: dialog,
+            matching: find.widgetWithText(TextButton, 'Cancel'),
+          ),
+        )
+        .autofocus,
+    isTrue,
+  );
+  expect(
+    tester
+        .widget<FilledButton>(
+          find.descendant(
+            of: dialog,
+            matching: find.widgetWithText(FilledButton, confirmLabel),
+          ),
+        )
+        .style!
+        .backgroundColor!
+        .resolve(<WidgetState>{}),
+    scheme.error,
+  );
+}
+
 void main() {
   late _MockDataRightsRepository repository;
   late _FakeFileSaver saver;
@@ -244,6 +273,19 @@ void main() {
     verify(() => repository.liftOwnRestriction()).called(1);
     final session = container.read(sessionControllerProvider);
     expect((session as Unauthenticated).restrictionLifted, isTrue);
+  });
+
+  testWidgets('GivenTheLiftDialog_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tapButton(tester, 'Lift the restriction');
+
+    // Then a pending erasure goes ahead, so Cancel has the focus
+    expectDestructive(tester, 'Lift the restriction');
   });
 
   testWidgets('GivenTheScreen_WhenLiftCancelled_ThenNothingIsSent', (
@@ -525,6 +567,19 @@ void main() {
         verify(() => repository.requestErasure(captureAny())).captured.single
             as GoogleIdTokenCredential;
     expect(sent.idToken, 'fresh-google-token');
+  });
+
+  testWidgets('GivenTheGoogleErasureDialog_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester, viaGoogle: true, googleClientId: 'client-id');
+
+    // When
+    await tapButton(tester, 'Request erasure');
+
+    // Then erasure is irreversible
+    expectDestructive(tester, 'Confirm with Google');
   });
 
   // AF-30h — without Google's flow there is no way to confirm it is them.

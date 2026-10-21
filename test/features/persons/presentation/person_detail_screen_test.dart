@@ -886,6 +886,29 @@ void main() {
     expect(find.text('Delete Ada?'), findsOneWidget);
   });
 
+  testWidgets('GivenTheDeleteDialog_WhenOpened_ThenItSaysTheDataIsAnonymised', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete person'),
+    );
+
+    // Then
+    expect(
+      find.textContaining(
+        'After 90 days, their personal data is anonymised and cannot be '
+        'restored.',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenThePersonIsDeleted', (
     tester,
   ) async {

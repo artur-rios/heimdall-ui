@@ -98,7 +98,7 @@ class RestrictedSessionScreen extends ConsumerWidget {
                           : 'Your data was saved to ${state.exportedTo}.',
                     ),
                     const SizedBox(height: 8),
-                    const Notice(_exportSensitivity),
+                    const Notice(_exportSensitivity, icon: Icons.info_outline),
                     const SizedBox(height: 16),
                   ],
                   if (state.erasure
@@ -175,6 +175,7 @@ class RestrictedSessionScreen extends ConsumerWidget {
           'restriction is lifted. You will be signed out, and can then sign in '
           'again with full access.',
       confirmLabel: 'Lift the restriction',
+      destructive: true,
     );
 
     if (confirmed) {
@@ -346,6 +347,7 @@ class _ErasureCard extends ConsumerWidget {
       title: 'Request erasure?',
       message: _erasureWarning,
       confirmLabel: 'Confirm with Google',
+      destructive: true,
     );
 
     if (confirmed) {

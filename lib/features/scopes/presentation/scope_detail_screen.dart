@@ -11,6 +11,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope.dart';
@@ -239,7 +240,12 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               // AF-12d — a deleted scope says so before anything else, since
               // everything below it is read-only because of it.
               if (state.isReadOnly) ...<Widget>[
-                const _DeletedNotice(),
+                const Notice(
+                  'This scope is deleted. It is shown for reference and cannot be '
+                  'changed from here.',
+                  icon: Icons.delete_outline,
+                  isError: true,
+                ),
                 const SizedBox(height: 16),
               ],
               _ScopeId(scopeId: scope.id),
@@ -260,7 +266,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _SavedNotice(),
+                      const Notice('Saved.'),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -501,56 +507,4 @@ class _Links extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// AF-12d — what a logically deleted scope says about itself.
-class _DeletedNotice extends StatelessWidget {
-  const _DeletedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.delete_outline, color: scheme.onErrorContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'This scope is deleted. It is shown for reference and cannot be '
-              'changed from here.',
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SavedNotice extends StatelessWidget {
-  const _SavedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Saved.',
-        style: TextStyle(color: scheme.onSecondaryContainer),
-      ),
-    );
-  }
 }

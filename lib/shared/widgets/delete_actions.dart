@@ -72,12 +72,14 @@ class DeleteActions extends StatelessWidget {
   /// and disables both buttons; null when they may.
   final String? blockedReason;
 
-  String get _hides =>
-      'This hides the $noun. Only an operator can restore it, from the '
-      'database, within the retention window.'
-      '${anonymises ? ' After $administrativeDeletionWindowText, their '
-                'personal data is anonymised and cannot be restored.' : ''}'
-      '${extraWarning == null ? '' : ' $extraWarning'}';
+  String get _hides => <String>[
+    'This hides the $noun. Only an operator can restore it, from the '
+        'database, within the retention window.',
+    if (anonymises)
+      'After $administrativeDeletionWindowText, their personal data is '
+          'anonymised and cannot be restored.',
+    ?extraWarning,
+  ].join(' ');
 
   Future<void> _confirmDelete(BuildContext context) async {
     final confirmed = await showConfirm(
@@ -98,10 +100,12 @@ class DeleteActions extends StatelessWidget {
     final confirmed = await showTypeToConfirm(
       context: context,
       title: 'Delete ${recordName ?? 'this $noun'} permanently?',
-      message:
-          '$permanentConsequence This cannot be undone.'
-          '${extraWarning == null ? '' : ' $extraWarning'} Type the '
-          '${fieldLabel.toLowerCase()} to confirm:',
+      message: <String>[
+        permanentConsequence,
+        'This cannot be undone.',
+        ?extraWarning,
+        'Type the ${fieldLabel.toLowerCase()} to confirm:',
+      ].join(' '),
       confirmationValue: confirmationValue,
       fieldLabel: fieldLabel,
       confirmLabel: 'Delete permanently',
@@ -134,9 +138,11 @@ class DeleteActions extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               blockedReason ??
-                  'Deleting hides the $noun, and only an operator can '
-                      'restore it. Deleting permanently erases it.'
-                      '${extraWarning == null ? '' : ' $extraWarning'}',
+                  <String>[
+                    'Deleting hides the $noun, and only an operator can '
+                        'restore it. Deleting permanently erases it.',
+                    ?extraWarning,
+                  ].join(' '),
               style: TextStyle(color: theme.colorScheme.onErrorContainer),
             ),
             if (failure case final refusal?) ...<Widget>[

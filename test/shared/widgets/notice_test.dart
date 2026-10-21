@@ -56,6 +56,9 @@ void main() {
       ),
     );
     expect(semantics.flagsCollection.isLiveRegion, isTrue);
+    // And it is a node of its own, not merged into a parent's announcement
+    expect(semantics.label, 'Invitation sent');
+    expect(semantics.parent?.label ?? '', isNot(contains('Invitation sent')));
     handle.dispose();
   });
 

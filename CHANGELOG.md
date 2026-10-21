@@ -64,15 +64,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The search boxes and **Include deleted** switch of the scopes, people, applications, permissions and Google users
   lists, and the loading, failure, empty and rows choice of those lists and the erasure requests list, are now one
   shared widget each, so the lists look and behave alike (#160).
-- Confirmation dialogs for destructive actions (deleting, revoking, discarding, turning Google Sign-In off, removing
-  an owner, leaving without a one-time secret or recovery codes, and re-applying erasures) now show their confirm
+- Confirmation dialogs for destructive actions (deleting, revoking, discarding, turning Google Sign-In or two-factor
+  authentication off, generating new recovery codes, removing an owner, leaving without a one-time secret or recovery
+  codes, lifting a processing restriction, requesting erasure, and re-applying erasures) now show their confirm
   button in the error colours, and **Cancel** takes the keyboard focus, so pressing Enter by reflex does not confirm
   them (#173).
 - The delete and permanent-delete panel, its confirmations and their wording are now one shared widget on the
   person, Google user, scope, application and permission pages, so they say the same thing everywhere (#180).
 - The confirmations, warnings and "saved" messages across the application, and the "session ended" message on the
   sign-in page, are now one shared notice. The sign-in page's messages are announced by a screen reader when they
-  appear, as the others already were (#171).
+  appear, as the others already were. The scope owners screen and the invitations card, which had their own banner,
+  now use the same look, and the notices on the scope pages and the profile page no longer have private copies
+  (#171).
 
 ## [1.9.0] - 2026-10-19
 

@@ -16,7 +16,8 @@ class Notice extends StatelessWidget {
   /// confirmation.
   final bool isError;
 
-  /// Defaults to a check mark, or an error mark when [isError] is set.
+  /// Defaults to a check mark, or an error mark when [isError] is set. A notice
+  /// that warns rather than confirms passes its own.
   final IconData? icon;
 
   @override

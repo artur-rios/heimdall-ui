@@ -158,6 +158,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             'or one of your recovery codes.',
         confirmLabel: 'Turn off',
         requirePassword: true,
+        destructive: true,
       ),
     );
 
@@ -179,6 +180,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             'The codes you have now stop working immediately. The new '
             'set is shown once. Confirm with any one of the following.',
         confirmLabel: 'Generate',
+        destructive: true,
       ),
     );
 
@@ -783,6 +785,7 @@ class _CredentialDialog extends StatefulWidget {
     required this.message,
     required this.confirmLabel,
     this.requirePassword = false,
+    this.destructive = false,
   });
 
   final String title;
@@ -793,6 +796,11 @@ class _CredentialDialog extends StatefulWidget {
   /// as hard as a login"); regenerating takes only the second factor, so the
   /// password field is not offered where the API would not take it.
   final bool requirePassword;
+
+  /// Gives the confirm button the error colours and Cancel the focus, as
+  /// `showConfirm` does. None of the fields takes the focus at first, so Cancel
+  /// can, and Enter pressed by reflex cancels.
+  final bool destructive;
 
   @override
   State<_CredentialDialog> createState() => _CredentialDialogState();
@@ -881,10 +889,12 @@ class _CredentialDialogState extends State<_CredentialDialog> {
       ),
       actions: <Widget>[
         TextButton(
+          autofocus: widget.destructive,
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
+          style: confirmButtonStyle(context, widget.destructive),
           // Nothing filled in is nothing to send, so the control says so by
           // staying disabled rather than by letting the API refuse an empty
           // command.

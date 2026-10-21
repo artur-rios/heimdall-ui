@@ -8,6 +8,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/two_factor.dart';
 import '../../data_rights/presentation/restrict_processing_dialog.dart';
 import '../../google_users/domain/google_user.dart';
@@ -228,7 +229,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                 ],
                 if (state.saved) ...<Widget>[
-                  const _SaveConfirmation(),
+                  // A change of address never stays here to be told: it signs the
+                  // person out (FR-AU-28), and the sign-in that follows reports
+                  // the address unverified and offers the resend (AF-05e).
+                  const Notice('Saved.'),
                   const SizedBox(height: 16),
                 ],
                 EditableSection(
@@ -542,32 +546,6 @@ class _EmailMethodHint extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// What a successful save says.
-///
-/// A change of address never stays here to be told: it signs the person out
-/// (FR-AU-28), and the sign-in that follows reports the address unverified
-/// and offers the resend (AF-05e).
-class _SaveConfirmation extends StatelessWidget {
-  const _SaveConfirmation();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Saved.',
-        style: TextStyle(color: scheme.onSecondaryContainer),
-      ),
-    );
-  }
 }
 
 /// FR-AU-16 — what a change of the person's own address is confirmed with:

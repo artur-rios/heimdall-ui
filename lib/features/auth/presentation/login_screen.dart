@@ -114,6 +114,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const Notice(
                           'Your session ended. Sign in again to pick up where '
                           'you left off.',
+                          icon: Icons.info_outline,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -127,6 +128,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                         const Notice(
                           'The restriction on processing your account is lifted. '
                           'Sign in again for full access.',
+                          icon: Icons.info_outline,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -142,6 +144,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           'account is suspended until the restriction is '
                           'lifted. Sign in again to lift it, or to download or '
                           'erase your data.',
+                          icon: Icons.info_outline,
                         ),
                         const SizedBox(height: 16),
                       ],
@@ -154,6 +157,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           )) ...<Widget>[
                         const Notice(
                           'Your sign-in details changed. Sign in again.',
+                          icon: Icons.info_outline,
                         ),
                         const SizedBox(height: 16),
                       ],

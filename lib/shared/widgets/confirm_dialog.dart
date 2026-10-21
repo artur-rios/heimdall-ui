@@ -32,7 +32,7 @@ Future<bool> showConfirm({
           child: Text(cancelLabel),
         ),
         FilledButton(
-          style: _confirmStyle(context, destructive),
+          style: confirmButtonStyle(context, destructive),
           onPressed: () => Navigator.of(context).pop(true),
           child: Text(confirmLabel),
         ),
@@ -146,7 +146,7 @@ class _TypeToConfirmDialogState extends State<_TypeToConfirmDialog> {
           child: Text(widget.cancelLabel),
         ),
         FilledButton(
-          style: _confirmStyle(context, widget.destructive),
+          style: confirmButtonStyle(context, widget.destructive),
           onPressed: _matches ? () => Navigator.of(context).pop(true) : null,
           child: Text(widget.confirmLabel),
         ),
@@ -157,7 +157,7 @@ class _TypeToConfirmDialogState extends State<_TypeToConfirmDialog> {
 
 /// The confirm button's look: the error colours when the action [destructive]ly
 /// loses something, the theme's own otherwise.
-ButtonStyle? _confirmStyle(BuildContext context, bool destructive) {
+ButtonStyle? confirmButtonStyle(BuildContext context, bool destructive) {
   if (!destructive) {
     return null;
   }
