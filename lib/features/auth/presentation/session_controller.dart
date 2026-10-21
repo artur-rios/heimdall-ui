@@ -32,6 +32,19 @@ final Provider<GoogleSignInGateway> googleSignInGatewayProvider =
       ),
     );
 
+/// How the session's expiry timer is made.
+///
+/// The session outlives every screen, so its timer belongs to no screen's
+/// frame: it is made in the root zone, where a widget test's fake clock does
+/// not count it as work the test left pending. The test of the expiry itself
+/// overrides this with `Timer.new` to run it on the fake clock.
+final Provider<Timer Function(Duration, void Function())>
+sessionExpiryTimerProvider =
+    Provider<Timer Function(Duration, void Function())>(
+      (ref) =>
+          (delay, callback) => Zone.root.createTimer(delay, callback),
+    );
+
 final NotifierProvider<SessionController, SessionState>
 sessionControllerProvider = NotifierProvider<SessionController, SessionState>(
   SessionController.new,
@@ -131,9 +144,42 @@ List<String> _idsFrom(Object? claim) => switch (claim) {
 class SessionController extends Notifier<SessionState> {
   @override
   SessionState build() {
+    // #182: the session ends at its token's expiry rather than at the next
+    // request that finds it refused. Following the state here, beside it,
+    // means every way a session begins, is replaced or ends — sign-in,
+    // restore, a verified address, sign-out — moves the timer with it.
+    listenSelf((previous, next) {
+      _expiry?.cancel();
+      _expiry = null;
+
+      if (next is Authenticated) {
+        _armExpiry(next.token);
+      }
+    });
+    ref.onDispose(() => _expiry?.cancel());
+
     unawaited(restore());
 
     return const SessionRestoring();
+  }
+
+  Timer? _expiry;
+
+  /// Ends the session as expired when [token] runs out; at once if it already
+  /// has, which a token handed over just as it lapsed can be.
+  void _armExpiry(AuthToken token) {
+    final remaining = token.expiresAt.toUtc().difference(
+      DateTime.now().toUtc(),
+    );
+
+    void expire() => unawaited(signOut(expired: true));
+
+    // An expiry already past is not acted on inside the state change that
+    // announced it.
+    _expiry = ref.read(sessionExpiryTimerProvider)(
+      remaining <= Duration.zero ? Duration.zero : remaining,
+      expire,
+    );
   }
 
   TokenStore get _store => ref.read(tokenStoreProvider);

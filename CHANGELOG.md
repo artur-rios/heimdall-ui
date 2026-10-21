@@ -64,6 +64,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The recovery codes shown after enabling or regenerating two-factor authentication can now be downloaded as
   `heimdall-recovery-codes.txt`, one code per line, as FR-AU-19 asks; closing or reloading the tab while they are
   shown was already confirmed with the browser (#181).
+- A signed-in session now ends when its token expires, with the "session ended" notice on the sign-in screen,
+  instead of leaving the expired session's data on screen until the next request is refused (#182).
 
 ### Changed
 
