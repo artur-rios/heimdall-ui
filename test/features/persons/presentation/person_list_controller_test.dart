@@ -12,6 +12,7 @@ import 'package:heimdall_ui/features/persons/presentation/person_list_controller
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -465,4 +466,42 @@ void main() {
       expect(currentState(), isA<PersonListLoading>());
     },
   );
+
+  // #157 — a search queued during a load, then a second change: the request
+  // that follows the load carries both.
+  test('GivenASearchQueuedDuringALoad_WhenIncludeDeletedIsToggled_ThenTheLastRequestCarriesBoth', () async {
+    // Given
+    final first = Completer<Result<Page<Person>>>();
+    when(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(heldFirstAnswer(first, () => Success<Page<Person>>(_page())));
+    final controller = controllerUnderTest();
+    final loading = controller.load();
+
+    // When
+    unawaited(controller.search(name: 'abc'));
+    unawaited(controller.setIncludeDeleted(true));
+    first.complete(Success<Page<Person>>(_page()));
+    await loading;
+
+    // Then
+    verify(
+      () => repository.listScopePersons(
+        scopeId: 'scope-1',
+        name: 'abc',
+        email: '',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+    expect(currentState().query.name, 'abc');
+    expect(currentState().query.includeDeleted, isTrue);
+  });
 }

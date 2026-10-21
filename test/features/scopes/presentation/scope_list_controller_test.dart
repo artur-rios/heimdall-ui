@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
@@ -392,4 +393,35 @@ void main() {
       );
     },
   );
+
+  // #157 — a search queued during a load, then a second change: the request
+  // that follows the load carries both.
+  test('GivenASearchQueuedDuringALoad_WhenIncludeDeletedIsToggled_ThenTheLastRequestCarriesBoth', () async {
+    // Given
+    final first = Completer<Result<Page<Scope>>>();
+    when(
+      () => repository.list(
+        name: any(named: 'name'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(heldFirstAnswer(first, () => Success<Page<Scope>>(_page())));
+    final controller = controllerUnderTest();
+    final loading = controller.load();
+
+    // When
+    unawaited(controller.search('abc'));
+    unawaited(controller.setIncludeDeleted(true));
+    first.complete(Success<Page<Scope>>(_page()));
+    await loading;
+
+    // Then
+    verify(
+      () => repository.list(name: 'abc', includeDeleted: true, pageNumber: 1),
+    ).called(1);
+    final query = container.read(scopeListControllerProvider).query;
+    expect(query.name, 'abc');
+    expect(query.includeDeleted, isTrue);
+  });
 }
