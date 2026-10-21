@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import '../../../shared/widgets/notice_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../domain/scope_invitation.dart';
 import 'scope_invitations_controller.dart';
 
@@ -83,7 +83,7 @@ class ScopeInvitationsCard extends ConsumerWidget {
               ],
               if (state.notice case final notice?) ...<Widget>[
                 const SizedBox(height: 12),
-                NoticeBanner(message: notice),
+                Notice(notice),
               ],
               for (final invitation in state.invitations) ...<Widget>[
                 const SizedBox(height: 8),

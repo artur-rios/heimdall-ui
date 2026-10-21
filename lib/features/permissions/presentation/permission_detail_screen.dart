@@ -10,6 +10,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope_permission.dart';
@@ -273,12 +274,11 @@ class _PermissionDetailScreenState
             children: <Widget>[
               // AF-26d — a deleted permission says so before anything else.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This permission is deleted. It is shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.delete_outline,
-                  message:
-                      'This permission is deleted. It is shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -298,11 +298,8 @@ class _PermissionDetailScreenState
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      _Notice(
-                        icon: Icons.check_circle_outline,
-                        // AF-26e — the tokens already out there are unchanged,
-                        // which is the part that is easy to assume otherwise.
-                        message: state.claimChanged
+                      Notice(
+                        state.claimChanged
                             ? (permission.includeAsJwtClaim
                                   ? 'Saved. Tokens this scope issues from now '
                                         'on carry this permission; tokens '
@@ -312,6 +309,7 @@ class _PermissionDetailScreenState
                                         'already issued still carry it until '
                                         'they expire.')
                             : 'Saved.',
+                        icon: Icons.check_circle_outline,
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -471,47 +469,6 @@ class _DangerZone extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// A one-line panel: what a deleted record and a saved edit each say.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
       ),
     );
   }

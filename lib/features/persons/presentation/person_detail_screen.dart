@@ -10,6 +10,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
@@ -304,24 +305,22 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               // AF-18d — a deleted person says so before anything else, since
               // everything below is read-only because of it.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This person is deleted. They are shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.person_off_outlined,
-                  message:
-                      'This person is deleted. They are shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
               // AF-18e — this is you. The editing is the same as UI-08's, and
               // the role is not editable here for anyone.
               if (_isSelf && !state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This is your own record. Your role is not '
+                  'something you can change here. Change your email '
+                  'address from your profile.',
                   icon: Icons.person_outline,
-                  message:
-                      'This is your own record. Your role is not '
-                      'something you can change here. Change your email '
-                      'address from your profile.',
                 ),
                 const SizedBox(height: 16),
               ],
@@ -341,10 +340,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _Notice(
-                        icon: Icons.check_circle_outline,
-                        message: 'Saved.',
-                      ),
+                      const Notice('Saved.', icon: Icons.check_circle_outline),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -476,48 +472,6 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A one-line panel: what a deleted record, your own record, and a saved edit
-/// each say about themselves.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
       ),
     );
   }

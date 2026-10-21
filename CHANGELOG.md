@@ -61,6 +61,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The search boxes and **Include deleted** switch of the scopes, people, applications, permissions and Google users
   lists, and the loading, failure, empty and rows choice of those lists and the erasure requests list, are now one
   shared widget each, so the lists look and behave alike (#160).
+- The confirmations, warnings and "saved" messages across the application, and the "session ended" message on the
+  sign-in page, are now one shared notice. The sign-in page's messages are announced by a screen reader when they
+  appear, as the others already were (#171).
 
 ## [1.9.0] - 2026-10-19
 

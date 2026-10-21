@@ -8,6 +8,7 @@ import '../../../core/network/dio_client.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/google_sign_in_gateway.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/google_button.dart';
@@ -90,19 +91,19 @@ class RestrictedSessionScreen extends ConsumerWidget {
                     const SizedBox(height: 16),
                   ],
                   if (state.exported) ...<Widget>[
-                    _Notice(
+                    Notice(
                       state.exportedTo == null
                           ? 'Your data was handed to your browser as a '
                                 'download.'
                           : 'Your data was saved to ${state.exportedTo}.',
                     ),
                     const SizedBox(height: 8),
-                    const _Notice(_exportSensitivity),
+                    const Notice(_exportSensitivity),
                     const SizedBox(height: 16),
                   ],
                   if (state.erasure
                       case final ErasureRequest erasure) ...<Widget>[
-                    _Notice(_erasureOutcome(context, erasure)),
+                    Notice(_erasureOutcome(context, erasure)),
                     const SizedBox(height: 16),
                   ],
                   _ActionCard(
@@ -475,35 +476,6 @@ class _GoogleErasureDialogState extends ConsumerState<_GoogleErasureDialog> {
 const String _exportSensitivity =
     'This file holds your personal data and is not encrypted. Keep it '
     'somewhere private, and delete it when you no longer need it.';
-
-/// What went well, said plainly. Not an error banner: nothing went wrong.
-class _Notice extends StatelessWidget {
-  const _Notice(this.message);
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    // A live region, so a screen reader announces the outcome when it appears.
-    return Semantics(
-      liveRegion: true,
-      container: true,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: scheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          message,
-          style: TextStyle(color: scheme.onSecondaryContainer),
-        ),
-      ),
-    );
-  }
-}
 
 /// A button's label, or a spinner in its place while its request is in flight.
 class _Label extends StatelessWidget {

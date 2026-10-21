@@ -7,6 +7,7 @@ import '../../../core/result/result.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/google_user.dart';
@@ -171,7 +172,11 @@ class _GoogleUserDetailScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: <Widget>[
               if (user.isDeleted) ...<Widget>[
-                _DeletedNotice(),
+                const Notice(
+                  'This Google user is deleted. They are shown for reference.',
+                  icon: Icons.person_off_outlined,
+                  isError: true,
+                ),
                 const SizedBox(height: 16),
               ],
               Row(
@@ -325,33 +330,6 @@ class _DangerZone extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _DeletedNotice extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.person_off_outlined, color: scheme.onErrorContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'This Google user is deleted. They are shown for reference.',
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
-          ),
-        ],
       ),
     );
   }

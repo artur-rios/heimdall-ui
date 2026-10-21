@@ -16,7 +16,7 @@ import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
-import 'package:heimdall_ui/shared/widgets/notice_banner.dart';
+import 'package:heimdall_ui/shared/widgets/notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';
@@ -543,7 +543,7 @@ void main() {
       expect(fakes.accepted, <String>['invitation-1']);
       expect(
         find.descendant(
-          of: find.byType(NoticeBanner),
+          of: find.byType(Notice),
           matching: find.text('Invitation accepted. You now co-own Initech.'),
         ),
         findsOneWidget,

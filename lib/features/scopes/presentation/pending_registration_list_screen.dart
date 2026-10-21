@@ -9,6 +9,7 @@ import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../domain/pending_registration.dart';
 import 'pending_registration_list_controller.dart';
 import 'scope_detail_controller.dart';
@@ -142,7 +143,7 @@ class _PendingRegistrationListScreenState
       if (loaded.notice case final notice?)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: _Notice(icon: Icons.check_circle_outline, message: notice),
+          child: Notice(notice, icon: Icons.check_circle_outline),
         ),
       Expanded(
         child: loaded.page.items.isEmpty
@@ -210,37 +211,5 @@ class _PendingRegistrationListScreenState
         cell: (registration) => Text('${registration.attemptsLeft}'),
       ),
     ];
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: scheme.onSecondaryContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: scheme.onSecondaryContainer),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

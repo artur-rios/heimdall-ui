@@ -10,6 +10,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
@@ -282,12 +283,11 @@ class _ApplicationDetailScreenState
             children: <Widget>[
               // AF-22d — a deleted application says so before anything else.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This application is deleted. It is shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.delete_outline,
-                  message:
-                      'This application is deleted. It is shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -307,10 +307,7 @@ class _ApplicationDetailScreenState
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _Notice(
-                        icon: Icons.check_circle_outline,
-                        message: 'Saved.',
-                      ),
+                      const Notice('Saved.', icon: Icons.check_circle_outline),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -495,47 +492,6 @@ class _ApplicationDetailScreenState
     }
 
     return application.ownerId.isEmpty ? 'Nobody' : application.ownerId;
-  }
-}
-
-/// A one-line panel: what a deleted record and a saved edit each say.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
-      ),
-    );
   }
 }
 

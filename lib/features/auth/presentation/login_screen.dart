@@ -7,6 +7,7 @@ import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../domain/google_sign_in_gateway.dart';
 import '../domain/session.dart';
 import 'credential_field.dart';
@@ -110,7 +111,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           case Unauthenticated(
                             sessionExpired: true,
                           )) ...<Widget>[
-                        const _NoticeBanner(
+                        const Notice(
                           'Your session ended. Sign in again to pick up where '
                           'you left off.',
                         ),
@@ -123,7 +124,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           case Unauthenticated(
                             restrictionLifted: true,
                           )) ...<Widget>[
-                        const _NoticeBanner(
+                        const Notice(
                           'The restriction on processing your account is lifted. '
                           'Sign in again for full access.',
                         ),
@@ -136,7 +137,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           case Unauthenticated(
                             processingRestricted: true,
                           )) ...<Widget>[
-                        const _NoticeBanner(
+                        const Notice(
                           'Processing of your account is restricted, and your '
                           'account is suspended until the restriction is '
                           'lifted. Sign in again to lift it, or to download or '
@@ -151,7 +152,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           case Unauthenticated(
                             credentialsChanged: true,
                           )) ...<Widget>[
-                        const _NoticeBanner(
+                        const Notice(
                           'Your sign-in details changed. Sign in again.',
                         ),
                         const SizedBox(height: 16),
@@ -242,32 +243,6 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// Says why the person is back at sign-in — the session ended (AF-07e), or a
-/// restriction was lifted (UI-30). It is not an error banner: nothing the user
-/// did was wrong.
-class _NoticeBanner extends StatelessWidget {
-  const _NoticeBanner(this.message);
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        message,
-        style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );
   }

@@ -504,6 +504,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    // And a screen reader announces it, which the sign-in banner did not do
+    expect(
+      find.ancestor(
+        of: find.text(
+          'Your session ended. Sign in again to pick up where you left off.',
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics && widget.properties.liveRegion == true,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   // Signing out deliberately is not a session that ended under the caller.

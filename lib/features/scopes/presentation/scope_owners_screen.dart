@@ -11,7 +11,7 @@ import '../../../shared/widgets/collection_pager.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import '../../../shared/widgets/notice_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
@@ -207,7 +207,7 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
         ],
         // AF-14h: an add that invited rather than added says so.
         if (state.notice case final notice?) ...<Widget>[
-          NoticeBanner(message: notice),
+          Notice(notice),
           const SizedBox(height: 16),
         ],
         // A Wrap rather than a Row: on a narrow window the heading and the two
