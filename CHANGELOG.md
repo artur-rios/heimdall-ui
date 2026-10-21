@@ -68,6 +68,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   instead of leaving the expired session's data on screen until the next request is refused (#182).
 - The browser tab and history entry now name the screen ("Permissions - Heimdall") on every screen, and follow the
   screen on top when a record is opened over its list (#178).
+- At a large text size, a record on a phone-sized list no longer runs its labelled values (such as Google Sign-In
+  or Owners) off the edge of the card: the value drops under its label. The navigation rail's destinations on a
+  tablet or desktop are now the 48-pixel tap target the platform guidelines ask for (#176).
 
 ### Changed
 

@@ -122,13 +122,17 @@ class AdaptiveCollection<T> extends StatelessWidget {
                 ],
                 for (final column in onCard) ...<Widget>[
                   const SizedBox(height: 8),
-                  Row(
+                  // A Wrap rather than a Row: at a large text size the label
+                  // and the value no longer fit side by side, and the value
+                  // drops under the label rather than running off the card.
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
                     children: <Widget>[
                       Text(
                         '${column.label}: ',
                         style: Theme.of(context).textTheme.labelMedium,
                       ),
-                      Flexible(child: column.cell(item)),
+                      column.cell(item),
                     ],
                   ),
                 ],

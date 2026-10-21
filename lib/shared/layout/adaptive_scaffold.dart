@@ -104,6 +104,9 @@ class AdaptiveScaffold extends StatelessWidget {
                         destination.selectedIcon ?? destination.icon,
                       ),
                       label: Text(destination.label),
+                      // The rail's own height is 44, under the 48 a tap
+                      // target needs; two more each side makes it so.
+                      padding: const EdgeInsets.symmetric(vertical: 2),
                     ),
                 ],
               ),
