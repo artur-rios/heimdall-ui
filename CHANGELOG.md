@@ -66,6 +66,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   shown was already confirmed with the browser (#181).
 - A signed-in session now ends when its token expires, with the "session ended" notice on the sign-in screen,
   instead of leaving the expired session's data on screen until the next request is refused (#182).
+- The browser tab and history entry now name the screen ("Permissions - Heimdall") on every screen, and follow the
+  screen on top when a record is opened over its list (#178).
 
 ### Changed
 

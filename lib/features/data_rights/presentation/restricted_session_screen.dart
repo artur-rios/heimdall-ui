@@ -15,6 +15,7 @@ import '../../auth/presentation/google_button.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/data_rights.dart';
 import 'restricted_session_controller.dart';
+import '../../../shared/widgets/page_title.dart';
 
 /// UI-30 — what a person whose processing is restricted can do.
 ///
@@ -37,123 +38,129 @@ class RestrictedSessionScreen extends ConsumerWidget {
     };
     final idle = state.busy == null;
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Restricted account')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 560),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  Icon(
-                    Icons.pause_circle_outline,
-                    size: 48,
-                    color: theme.colorScheme.primary,
-                    semanticLabel: 'Restricted',
-                  ),
-                  const SizedBox(height: 16),
-                  Semantics(
-                    header: true,
-                    child: Text(
-                      'Processing of your account is restricted',
-                      style: theme.textTheme.headlineSmall,
-                      textAlign: TextAlign.center,
+    return PageTitle(
+      title: 'Restricted account',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Restricted account')),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    Icon(
+                      Icons.pause_circle_outline,
+                      size: 48,
+                      color: theme.colorScheme.primary,
+                      semanticLabel: 'Restricted',
                     ),
-                  ),
-                  if (name.isNotEmpty) ...<Widget>[
+                    const SizedBox(height: 16),
+                    Semantics(
+                      header: true,
+                      child: Text(
+                        'Processing of your account is restricted',
+                        style: theme.textTheme.headlineSmall,
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                    if (name.isNotEmpty) ...<Widget>[
+                      const SizedBox(height: 8),
+                      Text(
+                        'Signed in as $name',
+                        style: theme.textTheme.bodyMedium,
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Text(
+                      'You asked for processing of your account to be '
+                      'restricted. While it is, Heimdall keeps your data '
+                      'exactly as it is and uses it for nothing else, so the '
+                      'rest of the application is not available to you.',
+                      style: theme.textTheme.bodyLarge,
+                    ),
                     const SizedBox(height: 8),
                     Text(
-                      'Signed in as $name',
-                      style: theme.textTheme.bodyMedium,
-                      textAlign: TextAlign.center,
+                      'Only these actions are available until the restriction '
+                      'is lifted.',
+                      style: theme.textTheme.bodyLarge,
                     ),
-                  ],
-                  const SizedBox(height: 16),
-                  Text(
-                    'You asked for processing of your account to be '
-                    'restricted. While it is, Heimdall keeps your data '
-                    'exactly as it is and uses it for nothing else, so the '
-                    'rest of the application is not available to you.',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Only these actions are available until the restriction '
-                    'is lifted.',
-                    style: theme.textTheme.bodyLarge,
-                  ),
-                  const SizedBox(height: 24),
-                  if (state.failure case final Failure failure) ...<Widget>[
-                    ErrorBanner(failure: failure),
+                    const SizedBox(height: 24),
+                    if (state.failure case final Failure failure) ...<Widget>[
+                      ErrorBanner(failure: failure),
+                      const SizedBox(height: 16),
+                    ],
+                    if (state.exported) ...<Widget>[
+                      Notice(
+                        state.exportedTo == null
+                            ? 'Your data was handed to your browser as a '
+                                  'download.'
+                            : 'Your data was saved to ${state.exportedTo}.',
+                      ),
+                      const SizedBox(height: 8),
+                      const Notice(
+                        _exportSensitivity,
+                        icon: Icons.info_outline,
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                    if (state.erasure
+                        case final ErasureRequest erasure) ...<Widget>[
+                      Notice(_erasureOutcome(context, erasure)),
+                      const SizedBox(height: 16),
+                    ],
+                    _ActionCard(
+                      icon: Icons.lock_open_outlined,
+                      title: 'Lift the restriction',
+                      description:
+                          'Heimdall will process your account normally again. '
+                          'You will be signed out, and signing in again gives '
+                          'you your full access back.',
+                      action: FilledButton(
+                        onPressed: idle ? () => _lift(context, ref) : null,
+                        child: _Label(
+                          'Lift the restriction',
+                          busy: state.busy == RestrictedSessionAction.lifting,
+                        ),
+                      ),
+                    ),
                     const SizedBox(height: 16),
-                  ],
-                  if (state.exported) ...<Widget>[
-                    Notice(
-                      state.exportedTo == null
-                          ? 'Your data was handed to your browser as a '
-                                'download.'
-                          : 'Your data was saved to ${state.exportedTo}.',
+                    _ActionCard(
+                      icon: Icons.download_outlined,
+                      title: 'Download my data',
+                      description:
+                          'A copy of everything Heimdall holds about you, with '
+                          'who receives it and how long it is kept, as a JSON '
+                          'file.',
+                      action: OutlinedButton(
+                        onPressed: idle ? controller.exportData : null,
+                        child: _Label(
+                          'Download my data',
+                          busy: state.busy == RestrictedSessionAction.exporting,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    _ErasureCard(
+                      busy: state.busy == RestrictedSessionAction.erasing,
+                      enabled: idle && state.erasure == null,
+                    ),
+                    const SizedBox(height: 24),
+                    OutlinedButton.icon(
+                      onPressed: idle ? controller.signOut : null,
+                      icon: const Icon(Icons.logout),
+                      label: const Text('Sign out'),
                     ),
                     const SizedBox(height: 8),
-                    const Notice(_exportSensitivity, icon: Icons.info_outline),
-                    const SizedBox(height: 16),
-                  ],
-                  if (state.erasure
-                      case final ErasureRequest erasure) ...<Widget>[
-                    Notice(_erasureOutcome(context, erasure)),
-                    const SizedBox(height: 16),
-                  ],
-                  _ActionCard(
-                    icon: Icons.lock_open_outlined,
-                    title: 'Lift the restriction',
-                    description:
-                        'Heimdall will process your account normally again. '
-                        'You will be signed out, and signing in again gives '
-                        'you your full access back.',
-                    action: FilledButton(
-                      onPressed: idle ? () => _lift(context, ref) : null,
-                      child: _Label(
-                        'Lift the restriction',
-                        busy: state.busy == RestrictedSessionAction.lifting,
-                      ),
+                    TextButton(
+                      onPressed: () => context.push('/privacy'),
+                      child: const Text('Privacy notice'),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  _ActionCard(
-                    icon: Icons.download_outlined,
-                    title: 'Download my data',
-                    description:
-                        'A copy of everything Heimdall holds about you, with '
-                        'who receives it and how long it is kept, as a JSON '
-                        'file.',
-                    action: OutlinedButton(
-                      onPressed: idle ? controller.exportData : null,
-                      child: _Label(
-                        'Download my data',
-                        busy: state.busy == RestrictedSessionAction.exporting,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _ErasureCard(
-                    busy: state.busy == RestrictedSessionAction.erasing,
-                    enabled: idle && state.erasure == null,
-                  ),
-                  const SizedBox(height: 24),
-                  OutlinedButton.icon(
-                    onPressed: idle ? controller.signOut : null,
-                    icon: const Icon(Icons.logout),
-                    label: const Text('Sign out'),
-                  ),
-                  const SizedBox(height: 8),
-                  TextButton(
-                    onPressed: () => context.push('/privacy'),
-                    child: const Text('Privacy notice'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),

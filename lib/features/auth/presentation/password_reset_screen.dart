@@ -8,6 +8,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'password_reset_controller.dart';
+import '../../../shared/widgets/page_title.dart';
 
 /// The password reset screen, opened by the link mailed in UI-03.
 ///
@@ -88,22 +89,25 @@ class _PasswordResetScreenState extends ConsumerState<PasswordResetScreen> {
       }
     });
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Set a new password')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: switch (state) {
-                // AF-04a: no token, nothing to reset. The only useful action is
-                // to ask for a link that carries one.
-                _ when token == null || token.isEmpty =>
-                  const _IncompleteLink(),
-                ResetSucceeded() => const _Confirmation(),
-                _ => _buildForm(context, theme, state),
-              },
+    return PageTitle(
+      title: 'Set a new password',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Set a new password')),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: switch (state) {
+                  // AF-04a: no token, nothing to reset. The only useful action is
+                  // to ask for a link that carries one.
+                  _ when token == null || token.isEmpty =>
+                    const _IncompleteLink(),
+                  ResetSucceeded() => const _Confirmation(),
+                  _ => _buildForm(context, theme, state),
+                },
+              ),
             ),
           ),
         ),

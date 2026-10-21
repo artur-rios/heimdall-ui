@@ -9,6 +9,7 @@ import '../../features/auth/presentation/verification_banner.dart';
 import '../../features/home/presentation/destinations.dart';
 import '../forms/edit_mode.dart';
 import '../forms/unsaved_changes.dart';
+import '../widgets/page_title.dart';
 import 'adaptive_scaffold.dart';
 
 /// The frame every signed-in screen sits in: the navigation for the role, the
@@ -37,6 +38,10 @@ class AppShell extends ConsumerWidget {
   /// navigation shows as selected. A screen below a destination — a detail
   /// under a listing — passes the destination's own route.
   final String currentRoute;
+
+  /// The screen's name. When it is a plain [Text] it also names the browser
+  /// tab (`<name> - Heimdall`), so every shell screen is titled from this one
+  /// place.
   final Widget title;
   final Widget body;
   final List<Widget> actions;
@@ -138,14 +143,19 @@ class AppShell extends ConsumerWidget {
       ),
     );
 
+    final Widget screen = switch (title) {
+      Text(data: final name?) => PageTitle(title: name, child: scaffold),
+      _ => scaffold,
+    };
+
     if (hasUnsavedChanges == null && onReturn == null) {
-      return scaffold;
+      return screen;
     }
 
     return _RouteBindings(
       hasUnsavedChanges: hasUnsavedChanges,
       onReturn: onReturn,
-      child: scaffold,
+      child: screen,
     );
   }
 

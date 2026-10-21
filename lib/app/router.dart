@@ -40,6 +40,7 @@ import '../features/scopes/presentation/scope_owners_screen.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
 import '../shared/forms/unsaved_changes.dart';
 import 'route_access.dart';
+import '../shared/widgets/page_title.dart';
 
 /// Where a link that names no record lands: one whose id is not a `PublicId`.
 const String notFoundRoute = '/not-found';
@@ -417,40 +418,43 @@ class _NotForYourRoleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Not available')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(
-                  Icons.lock_person_outlined,
-                  size: 48,
-                  color: theme.colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Not available for your role',
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your account is signed in, but this screen is not part of '
-                  'what your role does. Nothing is wrong with your session.',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Back to home'),
-                ),
-              ],
+    return PageTitle(
+      title: 'Not available',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Not available')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.lock_person_outlined,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Not available for your role',
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your account is signed in, but this screen is not part of '
+                    'what your role does. Nothing is wrong with your session.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Back to home'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -470,36 +474,43 @@ class _NotFoundScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Not found')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(Icons.link_off, size: 48, color: theme.colorScheme.error),
-                const SizedBox(height: 16),
-                Text(
-                  'Nothing at this address',
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'The link is incomplete or was changed, so it names no '
-                  'record. Nothing was opened.',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Back to home'),
-                ),
-              ],
+    return PageTitle(
+      title: 'Not found',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Not found')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.link_off,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nothing at this address',
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'The link is incomplete or was changed, so it names no '
+                    'record. Nothing was opened.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Back to home'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -514,22 +525,25 @@ class _RouteNotReadyScreen extends StatelessWidget {
   final String path;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: IconButton(
-        tooltip: 'Back to home',
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () => context.go('/'),
+  Widget build(BuildContext context) => PageTitle(
+    title: 'Not available yet',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back to home',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+        ),
+        title: const Text('Not available yet'),
       ),
-      title: const Text('Not available yet'),
-    ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          '$path has not been built yet.',
-          style: Theme.of(context).textTheme.bodyLarge,
-          textAlign: TextAlign.center,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            '$path has not been built yet.',
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     ),
