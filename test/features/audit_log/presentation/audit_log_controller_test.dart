@@ -309,4 +309,27 @@ void main() {
       expect(currentState(), isA<AuditLogLoading>());
     },
   );
+
+  // FR-UX-07 — an answer the client cannot read ends in the failed state with
+  // Retry, as on every other list, not on the placeholder for good.
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    when(anyList).thenAnswer(
+      (_) => Future<Result<Page<AuditEntry>>>.error(
+        const FormatException('not the shape of a page'),
+      ),
+    );
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.load();
+
+    // Then
+    final state = currentState();
+    expect(state, isA<AuditLogFailed>());
+    expect(
+      (state as AuditLogFailed).failure.displayMessage,
+      'The API returned an unexpected response.',
+    );
+  });
 }

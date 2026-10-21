@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockErasureRequestRepository extends Mock
@@ -205,4 +206,30 @@ void main() {
       expect(currentState(), isA<ErasureRequestListLoading>());
     },
   );
+
+  // #157 — a filter queued during a load, then a page change: the request
+  // that follows the load carries both.
+  test('GivenAFilterQueuedDuringALoad_WhenAnotherPageIsAsked_ThenTheLastRequestCarriesBoth', () async {
+    // Given
+    final first = Completer<Result<Page<OutstandingErasure>>>();
+    when(anyList).thenAnswer(
+      heldFirstAnswer(
+        first,
+        () => Success<Page<OutstandingErasure>>(_page(totalPages: 5)),
+      ),
+    );
+    final controller = controllerUnderTest();
+    final loading = controller.load();
+
+    // When
+    unawaited(controller.setOverdueOnly(true));
+    unawaited(controller.goToPage(3));
+    first.complete(Success<Page<OutstandingErasure>>(_page(totalPages: 5)));
+    await loading;
+
+    // Then
+    verify(() => repository.list(overdueOnly: true, pageNumber: 3)).called(1);
+    expect(currentState().query.overdueOnly, isTrue);
+    expect(currentState().query.pageNumber, 3);
+  });
 }

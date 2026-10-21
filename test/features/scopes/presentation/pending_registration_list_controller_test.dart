@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/domain/pending_registration_reposito
 import 'package:heimdall_ui/features/scopes/presentation/pending_registration_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPendingRegistrationRepository extends Mock
@@ -451,6 +452,42 @@ void main() {
 
       // Then
       expect(currentState(), isA<PendingRegistrationListLoading>());
+    },
+  );
+
+  // #157 — a page asked for during the first load, then the screen's own
+  // load: the request that follows the first load is that page.
+  test(
+    'GivenAPageQueuedDuringTheFirstLoad_WhenReloaded_ThenThatPageIsAsked',
+    () async {
+      // Given
+      final first = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        heldFirstAnswer(
+          first,
+          () => Success<Page<PendingRegistration>>(
+            _page(pageNumber: 2, totalPages: 2),
+          ),
+        ),
+      );
+      final controller = controllerUnderTest();
+      final loading = controller.load();
+
+      // When
+      unawaited(controller.goToPage(2));
+      unawaited(controller.load());
+      first.complete(Success<Page<PendingRegistration>>(_page(totalPages: 2)));
+      await loading;
+
+      // Then
+      verify(() => repository.list('s1', pageNumber: 2)).called(1);
+      expect(currentState().pageNumber, 2);
     },
   );
 }

@@ -2,8 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/state/build_epoch.dart';
 import '../../../shared/formatting/identifier.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../domain/audit_entry.dart';
 import '../domain/audit_log_repository.dart';
 
@@ -25,29 +26,37 @@ class AuditLogQuery {
 }
 
 /// How far the listing has got.
-sealed class AuditLogState {
+sealed class AuditLogState implements ListState<AuditLogQuery, AuditEntry> {
   const AuditLogState(this.query);
 
+  @override
   final AuditLogQuery query;
 }
 
 /// The first page is on its way and the list shows a placeholder.
-final class AuditLogLoading extends AuditLogState {
+final class AuditLogLoading extends AuditLogState
+    implements ListLoading<AuditLogQuery, AuditEntry> {
   const AuditLogLoading(super.query);
 }
 
 /// A page arrived.
-final class AuditLogLoaded extends AuditLogState {
+final class AuditLogLoaded extends AuditLogState
+    implements ListLoaded<AuditLogQuery, AuditEntry> {
   const AuditLogLoaded(super.query, this.page, {this.busy = false});
 
+  @override
   final Page<AuditEntry> page;
+
+  @override
   final bool busy;
 }
 
 /// AF-34b, AF-34c, AF-34e — the request failed, and the query that failed is kept.
-final class AuditLogFailed extends AuditLogState {
+final class AuditLogFailed extends AuditLogState
+    implements ListFailed<AuditLogQuery, AuditEntry> {
   const AuditLogFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
 }
 
@@ -56,40 +65,14 @@ auditLogControllerProvider =
     NotifierProvider<AuditLogController, AuditLogState>(AuditLogController.new);
 
 /// Owns the audit-trail listing (UI-34).
-class AuditLogController extends Notifier<AuditLogState>
-    with BuildEpoch<AuditLogState> {
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight. It is asked as
-  /// soon as that one is answered, so a change made during a load is not lost.
-  AuditLogQuery? _queued;
-
-  /// What the next change builds on: the queued query when one is waiting, so
-  /// a second change during a load keeps the first rather than replacing it.
-  AuditLogQuery get _latest => _queued ?? state.query;
-
-  @override
-  AuditLogState build() {
-    startEpoch();
-    // A request of an earlier build may still be in flight; it is not this
-    // build's, which has asked for nothing yet.
-    _inFlight = false;
-    _queued = null;
-
-    return const AuditLogLoading(AuditLogQuery());
-  }
-
-  Future<void> load() => _fetch(_latest);
-
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(_latest.copyWith(pageNumber: pageNumber));
-
+class AuditLogController
+    extends PagedListController<AuditLogQuery, AuditEntry, AuditLogState> {
   Future<void> setDays(DateTime firstDay, DateTime lastDay) => _filter(
-    _latest.filter.copyWith(firstDay: () => firstDay, lastDay: () => lastDay),
+    latest.filter.copyWith(firstDay: () => firstDay, lastDay: () => lastDay),
   );
 
   Future<void> clearDays() => _filter(
-    _latest.filter.copyWith(firstDay: () => null, lastDay: () => null),
+    latest.filter.copyWith(firstDay: () => null, lastDay: () => null),
   );
 
   /// An empty action is no filter at all, as the API reads it.
@@ -97,24 +80,24 @@ class AuditLogController extends Notifier<AuditLogState>
     final trimmed = action.trim();
 
     return _filter(
-      _latest.filter.copyWith(action: () => trimmed.isEmpty ? null : trimmed),
+      latest.filter.copyWith(action: () => trimmed.isEmpty ? null : trimmed),
     );
   }
 
   /// AF-34d — `false`, and nothing sent, when [text] is not an identifier.
   bool setActor(String text) => _setIdentifier(
     text,
-    (value) => _latest.filter.copyWith(actorId: () => value),
+    (value) => latest.filter.copyWith(actorId: () => value),
   );
 
   /// AF-34d, for the target.
   bool setTarget(String text) => _setIdentifier(
     text,
-    (value) => _latest.filter.copyWith(targetId: () => value),
+    (value) => latest.filter.copyWith(targetId: () => value),
   );
 
   Future<void> setOutcome(bool? succeeded) =>
-      _filter(_latest.filter.copyWith(succeeded: () => succeeded));
+      _filter(latest.filter.copyWith(succeeded: () => succeeded));
 
   Future<void> clearFilters() => _filter(const AuditLogFilter());
 
@@ -139,59 +122,34 @@ class AuditLogController extends Notifier<AuditLogState>
 
   /// A new filter starts at the first page.
   Future<void> _filter(AuditLogFilter filter) =>
-      _fetch(_latest.copyWith(filter: filter, pageNumber: 1));
+      request(latest.copyWith(filter: filter, pageNumber: 1));
 
-  Future<void> _fetch(AuditLogQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  AuditLogQuery get initialQuery => const AuditLogQuery();
 
-      return;
-    }
+  @override
+  int pageNumberOf(AuditLogQuery query) => query.pageNumber;
 
-    final epoch = this.epoch;
-    final current = state;
-    _inFlight = true;
+  @override
+  AuditLogQuery withPageNumber(AuditLogQuery query, int pageNumber) =>
+      query.copyWith(pageNumber: pageNumber);
 
-    state = current is AuditLogLoaded
-        ? AuditLogLoaded(query, current.page, busy: true)
-        : AuditLogLoading(query);
+  @override
+  Future<Result<Page<AuditEntry>>> fetch(AuditLogQuery query) => ref
+      .read(auditLogRepositoryProvider)
+      .list(filter: query.filter, pageNumber: query.pageNumber);
 
-    try {
-      final result = await ref
-          .read(auditLogRepositoryProvider)
-          .list(filter: query.filter, pageNumber: query.pageNumber);
+  @override
+  AuditLogState loadingState(AuditLogQuery query) => AuditLogLoading(query);
 
-      // Reset since it was asked: the answer is an earlier build's.
-      if (!isCurrent(epoch)) {
-        return;
-      }
+  @override
+  AuditLogState loadedState(
+    AuditLogQuery query,
+    Page<AuditEntry> page, {
+    bool busy = false,
+  }) => AuditLogLoaded(query, page, busy: busy);
 
-      state = result.fold(
-        onSuccess: (page) => AuditLogLoaded(query, page),
-        onFailure: (failure) => AuditLogFailed(query, failure),
-      );
-    } finally {
-      if (isCurrent(epoch)) {
-        _inFlight = false;
-      }
-    }
-
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the trail can shrink only through retention, but a
-    // narrowed filter can — would show "nothing here" with no pager to go back with.
-    if (state case AuditLogLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
-      );
-    }
-  }
+  @override
+  AuditLogState failedState(AuditLogQuery query, Failure failure) =>
+      AuditLogFailed(query, failure);
 }

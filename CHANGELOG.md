@@ -37,6 +37,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   contain them, instead of looking empty while Save would send the old owner (#167).
 - Reloading an application, scope, person, permission or Google user while a save or delete is in flight now
   leaves that request alone, so its progress guard is no longer lost to the reload (#183).
+- A change made to a list while it was still loading is no longer lost when a second change follows before the
+  answer arrives: a search typed and then **Include deleted** flipped, or a filter and then another page, now both
+  reach the request that follows. This applies to the scopes, people, applications, permissions, Google users,
+  erasure requests and pending registrations lists, as it already did to the audit trail and System Admins (#157).
+- The audit trail now shows "The API returned an unexpected response." with **Retry** when the API answers with a
+  body the app cannot read, as the other lists do, instead of staying on its loading placeholder (#160).
 
 ### Changed
 
