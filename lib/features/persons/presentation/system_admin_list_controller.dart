@@ -66,9 +66,6 @@ final class SystemAdminListFailed extends SystemAdminListState
 
   @override
   final Failure failure;
-
-  /// AF-38c — only a System Admin may list System Admins.
-  bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
 /// Disposed when the screen is left, so a return starts from a fresh,

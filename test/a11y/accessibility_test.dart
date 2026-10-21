@@ -115,9 +115,13 @@ const _ada = Person(
 /// One screen to check: what it shows, and the repositories it reads from,
 /// answered with a page of rows so the rows themselves are laid out.
 class _Screen {
-  const _Screen(this.name, this.build);
+  const _Screen(this.name, this.rowText, this.build);
 
   final String name;
+
+  /// Text only a rendered row shows, so a failure or empty state cannot pass
+  /// for the screen.
+  final String rowText;
 
   /// The screen's widget, and the overrides that feed it; built per test so
   /// no mock outlives one.
@@ -125,7 +129,7 @@ class _Screen {
 }
 
 final List<_Screen> _screens = <_Screen>[
-  _Screen('scope list', () {
+  _Screen('scope list', 'Acme', () {
     final scopes = _MockScopeRepository();
     when(
       () => scopes.list(
@@ -141,7 +145,7 @@ final List<_Screen> _screens = <_Screen>[
       overrides: <Override>[scopeRepositoryProvider.overrideWithValue(scopes)],
     );
   }),
-  _Screen('person list', () {
+  _Screen('person list', 'Ada Lovelace', () {
     final persons = _MockPersonRepository();
     when(
       () => persons.listScopePersons(
@@ -161,7 +165,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('system admin list', () {
+  _Screen('system admin list', 'Ada Lovelace', () {
     final persons = _MockPersonRepository();
     when(
       () => persons.listSystemAdmins(
@@ -189,7 +193,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('permission list', () {
+  _Screen('permission list', 'read:invoices', () {
     final permissions = _MockScopePermissionRepository();
     when(
       () => permissions.list(
@@ -219,7 +223,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('application list', () {
+  _Screen('application list', 'Billing', () {
     final applications = _MockApplicationRepository();
     final persons = _MockPersonRepository();
     when(
@@ -251,7 +255,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('google user list', () {
+  _Screen('google user list', 'Ada Lovelace', () {
     final googleUsers = _MockGoogleUserRepository();
     final scopes = _MockScopeRepository();
     when(
@@ -286,7 +290,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('pending registration list', () {
+  _Screen('pending registration list', 'Ada Lovelace', () {
     final pending = _MockPendingRegistrationRepository();
     final scopes = _MockScopeRepository();
     when(
@@ -322,7 +326,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('erasure request list', () {
+  _Screen('erasure request list', 'subject-1', () {
     final erasures = _MockErasureRequestRepository();
     when(
       () => erasures.list(
@@ -352,7 +356,7 @@ final List<_Screen> _screens = <_Screen>[
       ],
     );
   }),
-  _Screen('audit log', () {
+  _Screen('audit log', 'CreateScopeCommand', () {
     final audit = _MockAuditLogRepository();
     when(
       () => audit.list(
@@ -394,10 +398,12 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
   });
 
-  // A phone, where large text has the least room, and a desktop window, where
-  // the rows become a table whose cells must still grow with the text.
+  // A phone, where large text has the least room; a tablet, whose rail shows
+  // its labels under the icons; and a desktop window, where the rows become a
+  // table whose cells must still grow with the text.
   final windows = <String, Size>{
     'compact': compactWindow,
+    'medium': mediumWindow,
     'expanded': expandedWindow,
   };
   final themes = <String, ThemeData Function()>{
@@ -433,6 +439,7 @@ void main() {
             );
 
             expect(tester.takeException(), isNull);
+            expect(find.textContaining(screen.rowText), findsWidgets);
             await meetsTheGuidelines(tester);
           },
         );
@@ -470,6 +477,7 @@ void main() {
           );
 
           expect(tester.takeException(), isNull);
+          expect(find.byType(TextFormField), findsWidgets);
           await meetsTheGuidelines(tester);
         },
       );

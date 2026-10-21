@@ -43,7 +43,7 @@ String testApiJwt(Map<String, Object?> claims) {
       base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
 
   return '${segment(<String, Object?>{'alg': 'HS256', 'typ': 'JWT'})}.'
-      '${segment(<String, Object?>{'exp': 1893456000, ...claims})}.'
+      '${segment(<String, Object?>{...claims, 'exp': 1893456000})}.'
       'signature';
 }
 

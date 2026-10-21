@@ -154,7 +154,10 @@ void main() {
     await controller.load();
 
     // Then
-    expect((currentState() as SystemAdminListFailed).isForbidden, isTrue);
+    expect(
+      (currentState() as SystemAdminListFailed).failure.kind,
+      FailureKind.forbidden,
+    );
   });
 
   test('GivenFilters_WhenTheScreenIsLeft_ThenTheListStartsFresh', () async {
