@@ -671,7 +671,7 @@ void main() {
       ),
     );
     final repository = _MockAuthRepository();
-    when(() => repository.signOutFromGoogle())
+    when(repository.signOutFromGoogle)
         .thenAnswer((_) async => const Success<void>(null));
     final container = testContainer(
       store: store,
@@ -688,7 +688,7 @@ void main() {
     await controller.signOut();
 
     // Then
-    verify(() => repository.signOutFromGoogle()).called(1);
+    verify(repository.signOutFromGoogle).called(1);
     expect(gateway.signOuts, 1);
   });
 
@@ -716,7 +716,7 @@ void main() {
     await controller.signOut();
 
     // Then
-    verifyNever(() => repository.signOutFromGoogle());
+    verifyNever(repository.signOutFromGoogle);
     expect(gateway.signOuts, 0);
   });
 
@@ -736,7 +736,7 @@ void main() {
         ),
       );
       final repository = _MockAuthRepository();
-      when(() => repository.signOutFromGoogle()).thenAnswer(
+      when(repository.signOutFromGoogle).thenAnswer(
         (_) async => const FailureResult<void>(
           Failure(kind: FailureKind.unauthorized, errors: <String>['No.']),
         ),

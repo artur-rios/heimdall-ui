@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
@@ -106,7 +108,7 @@ class AuditLogController
     AuditLogFilter Function(String? value) apply,
   ) {
     if (text.trim().isEmpty) {
-      _filter(apply(null));
+      unawaited(_filter(apply(null)));
 
       return true;
     }
@@ -115,7 +117,7 @@ class AuditLogController
       return false;
     }
 
-    _filter(apply(normaliseIdentifier(text)));
+    unawaited(_filter(apply(normaliseIdentifier(text))));
 
     return true;
   }

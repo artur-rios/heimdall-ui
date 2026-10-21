@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -63,7 +65,7 @@ class _ScopeAdminPickerState extends ConsumerState<ScopeAdminPicker> {
     ref.invalidate(scopeAdminPickerControllerProvider(_key));
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _controller.search();
+        unawaited(_controller.search());
       }
     });
   }

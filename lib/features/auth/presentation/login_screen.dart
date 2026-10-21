@@ -8,12 +8,12 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../../shared/widgets/notice.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/google_sign_in_gateway.dart';
 import '../domain/session.dart';
 import 'credential_field.dart';
 import 'google_sign_in_control.dart';
 import 'session_controller.dart';
-import '../../../shared/widgets/page_title.dart';
 
 /// The sign-in screen.
 class LoginScreen extends ConsumerStatefulWidget {

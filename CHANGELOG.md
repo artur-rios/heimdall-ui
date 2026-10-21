@@ -101,6 +101,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   **Refresh** always does (#172).
 - The applications list now remembers an owner's name for five minutes instead of reading every owner again on each
   visit; a name older than that is read again, and **Retry** forgets every name at once (#179).
+- The analyzer now enforces `strict-inference`, `discarded_futures`, `unnecessary_lambdas`, `directives_ordering` and
+  `close_sinks`, so a future dropped by accident, a closure that should be a tear-off, an unsorted import or an
+  unclosed stream controller fails `flutter analyze`. The fire-and-forget calls the app makes on purpose are now
+  written as `unawaited(...)` (#177).
 
 ## [1.9.0] - 2026-10-19
 

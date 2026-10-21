@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../shared/layout/breakpoints.dart';
-import '../domain/privacy_notice.dart';
 import '../../../shared/widgets/page_title.dart';
+import '../domain/privacy_notice.dart';
 
 /// The public privacy notice, at `/privacy` — the page Google's consent screen
 /// links to as the application's privacy policy.
@@ -91,7 +93,9 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                       styleSheet: _styleSheet(theme, compact: compact),
                       onTapLink: (text, href, title) {
                         if (href != null) {
-                          widget.openLink(resolvePrivacyNoticeLink(href));
+                          unawaited(
+                            widget.openLink(resolvePrivacyNoticeLink(href)),
+                          );
                         }
                       },
                     ),

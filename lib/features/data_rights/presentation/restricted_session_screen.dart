@@ -9,13 +9,13 @@ import '../../../core/result/result.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import '../../../shared/widgets/notice.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../../auth/domain/google_sign_in_gateway.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/google_button.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/data_rights.dart';
 import 'restricted_session_controller.dart';
-import '../../../shared/widgets/page_title.dart';
 
 /// UI-30 — what a person whose processing is restricted can do.
 ///

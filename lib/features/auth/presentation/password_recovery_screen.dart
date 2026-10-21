@@ -6,8 +6,8 @@ import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import 'password_recovery_controller.dart';
 import '../../../shared/widgets/page_title.dart';
+import 'password_recovery_controller.dart';
 
 /// The password recovery screen.
 ///

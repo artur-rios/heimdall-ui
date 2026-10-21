@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -192,7 +194,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
       // this one shows. An edit in progress is not read over.
       onReturn: () {
         if (!_editing) {
-          controller.refresh();
+          unawaited(controller.refresh());
         }
       },
       body: switch (state) {

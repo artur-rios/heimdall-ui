@@ -1,11 +1,13 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/result/result.dart';
+import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
-import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_pager.dart';
 import '../../../shared/widgets/collection_states.dart';
@@ -40,8 +42,12 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
         return;
       }
 
-      ref.read(scopeOwnersControllerProvider(widget.scopeId).notifier).load();
-      ref.read(scopeUsersControllerProvider(widget.scopeId).notifier).load();
+      unawaited(
+        ref.read(scopeOwnersControllerProvider(widget.scopeId).notifier).load(),
+      );
+      unawaited(
+        ref.read(scopeUsersControllerProvider(widget.scopeId).notifier).load(),
+      );
     });
   }
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,10 +7,10 @@ import 'package:go_router/go_router.dart';
 import '../../../core/entry/entry_link.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/session.dart';
 import 'email_verification_controller.dart';
 import 'session_controller.dart';
-import '../../../shared/widgets/page_title.dart';
 
 /// The email verification screen, opened by the link mailed at person creation.
 ///
@@ -37,7 +39,9 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       if (mounted) {
         // An answer left by an earlier link is not this one's.
         ref.invalidate(emailVerificationControllerProvider);
-        ref.read(emailVerificationControllerProvider.notifier).verify(_token);
+        unawaited(
+          ref.read(emailVerificationControllerProvider.notifier).verify(_token),
+        );
       }
     });
   }

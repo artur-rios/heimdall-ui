@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -25,7 +27,7 @@ class _ErasureRequestListScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(erasureRequestListControllerProvider.notifier).load();
+      unawaited(ref.read(erasureRequestListControllerProvider.notifier).load());
     });
   }
 

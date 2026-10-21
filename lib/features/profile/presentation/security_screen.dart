@@ -79,7 +79,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       // AF-09c: codes still waiting to be acknowledged are not thrown away by
       // a fresh read on the way back to this screen.
       if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
-        ref.read(twoFactorControllerProvider.notifier).load();
+        unawaited(ref.read(twoFactorControllerProvider.notifier).load());
       }
     });
   }

@@ -36,6 +36,9 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
   final StreamController<GoogleIdTokenObtained> tokens =
       StreamController<GoogleIdTokenObtained>.broadcast();
 
+  /// Closes the token stream the test feeds; registered as a tear-down.
+  Future<void> close() => tokens.close();
+
   int initializations = 0;
   int signOuts = 0;
 
@@ -67,7 +70,7 @@ void main() {
     ThemeData? theme,
     bool enabled = true,
   }) async {
-    addTearDown(gateway.tokens.close);
+    addTearDown(gateway.close);
     container = await pumpApp(
       tester,
       store: store,

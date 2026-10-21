@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -38,12 +40,16 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
     _name.text = query.name;
     _email.text = query.email;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref
-          .read(googleUserListControllerProvider(widget.scopeId).notifier)
-          .load();
+      unawaited(
+        ref
+            .read(googleUserListControllerProvider(widget.scopeId).notifier)
+            .load(),
+      );
       // AF-28a needs to know whether the scope has Google Sign-In on, which is
       // the scope's own record rather than anything in this listing.
-      ref.read(scopeDetailControllerProvider(widget.scopeId).notifier).load();
+      unawaited(
+        ref.read(scopeDetailControllerProvider(widget.scopeId).notifier).load(),
+      );
     });
   }
 
@@ -60,7 +66,7 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
   void _clearFilters() {
     _name.clear();
     _email.clear();
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   /// Whether the scope has Google Sign-In switched off, which is why nobody

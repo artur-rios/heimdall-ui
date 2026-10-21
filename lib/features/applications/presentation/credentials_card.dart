@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +44,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
     _pending = ref.read(pendingSecretProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _controller.load();
+        unawaited(_controller.load());
       }
     });
   }

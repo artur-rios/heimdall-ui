@@ -7,8 +7,8 @@ import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
-import 'password_reset_controller.dart';
 import '../../../shared/widgets/page_title.dart';
+import 'password_reset_controller.dart';
 
 /// The password reset screen, opened by the link mailed in UI-03.
 ///

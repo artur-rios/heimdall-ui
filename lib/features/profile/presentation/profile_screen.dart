@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -99,7 +101,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _editing = true);
     // FR-AU-16: which second factor is on decides what a new address's code
     // field suggests, so it is read before one can be typed.
-    controller.readSecondFactor();
+    unawaited(controller.readSecondFactor());
   }
 
   /// Leaving with unsaved changes — by the navigation, the back control, a
@@ -199,7 +201,7 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       // edit in progress is not read over.
       onReturn: () {
         if (!_editing) {
-          ref.read(profileControllerProvider.notifier).load();
+          unawaited(ref.read(profileControllerProvider.notifier).load());
         }
       },
       body: switch (state) {

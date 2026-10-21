@@ -6,9 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/session.dart';
 import 'session_controller.dart';
-import '../../../shared/widgets/page_title.dart';
 
 /// How long the resend control waits after each send.
 const Duration resendCooldown = Duration(seconds: 30);

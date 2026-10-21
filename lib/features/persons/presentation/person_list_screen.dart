@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -55,7 +57,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   void _clearFilters() {
     _name.clear();
     _email.clear();
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   @override
