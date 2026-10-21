@@ -107,8 +107,9 @@ abstract class PagedListController<
 
   /// Asks for [query], or queues it behind the request in flight.
   ///
-  /// Completes once [query] — or whatever replaced it in the queue — has been
-  /// answered and shown.
+  /// Completes once [query] has been answered and shown. When another request
+  /// is already in flight, [query] is only queued (a later call replaces it)
+  /// and this completes at once, before it has been asked.
   @protected
   Future<void> request(Q query) async {
     if (_inFlight) {

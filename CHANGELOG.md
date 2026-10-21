@@ -101,10 +101,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   returns to it; a link to its earlier address, `/persons/<id>`, still opens the page there (#156).
 - Home now reuses a dashboard read in the last minute instead of issuing about forty requests every time it is
   shown, so going back to it from another screen settles at once. Creating or deleting a scope, person,
-  application, permission or Google user, or changing a scope's owners, makes the next visit read again, and
-  **Refresh** always does (#172).
+  application, permission or Google user, renaming or updating a scope, changing a scope's sign-in settings, or
+  changing a scope's owners, makes the next visit read again, and **Refresh** always does (#172).
 - The applications list now remembers an owner's name for five minutes instead of reading every owner again on each
-  visit; a name older than that is read again, and **Retry** forgets every name at once (#179).
+  visit; a name older than that is read again, and **Retry** forgets every name at once. Saving a person's changes
+  also forgets them, so a renamed owner is shown by their new name (#179).
 - The analyzer now enforces `strict-inference`, `discarded_futures`, `unnecessary_lambdas`, `directives_ordering` and
   `close_sinks`, so a future dropped by accident, a closure that should be a tear-off, an unsorted import or an
   unclosed stream controller fails `flutter analyze`. The fire-and-forget calls the app makes on purpose are now
