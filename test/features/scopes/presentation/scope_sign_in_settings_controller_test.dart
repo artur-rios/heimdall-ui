@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.d
 import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
@@ -52,6 +53,7 @@ void main() {
   ScopeSignInSettingsController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopeRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -184,6 +186,7 @@ void main() {
     expect(scope.selfRegistrationEnabled, isTrue);
     expect(scope.defaultLegalBasis, 2);
     expect(scope.privacyNoticeUri, 'https://acme.example/privacy');
+    expect(staleMarksOf(container), 1);
   });
 
   test(
@@ -353,6 +356,7 @@ void main() {
       'https://acme.example/verify-email',
     );
     expect(loaded().linksSaved, isFalse);
+    expect(staleMarksOf(container), 0);
   });
 
   test(

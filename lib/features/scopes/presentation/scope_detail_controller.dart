@@ -219,6 +219,11 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
       return;
     }
 
+    if (result.isSuccess) {
+      // Home lists scope names.
+      ref.markHomeDataStale();
+    }
+
     state = result.fold(
       onSuccess: (scope) => ScopeDetailLoaded(scope, saved: true),
       // AF-12c: the refusal is kept as it came back, and the record on screen

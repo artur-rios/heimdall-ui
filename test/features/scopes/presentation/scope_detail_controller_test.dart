@@ -171,6 +171,7 @@ void main() {
         privacyNoticeUri: null,
       ),
     ).called(1);
+    expect(staleMarksOf(container), 1);
   });
 
   // The API replaces the privacy settings on every update, so an edit that
@@ -224,6 +225,7 @@ void main() {
       'A scope with that name already exists.',
     ]);
     expect(state.scope.name, 'Acme');
+    expect(staleMarksOf(container), 0);
   });
 
   // AF-12d — a deleted scope is read-only.
