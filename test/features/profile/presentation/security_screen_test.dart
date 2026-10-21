@@ -28,6 +28,9 @@ class _FakeFileSaver implements FileSaver {
   final Map<String, String> saved = <String, String>{};
   Object? failWith;
 
+  /// Where the saver says it wrote the file; `null` is a browser download.
+  String? savedTo;
+
   @override
   Future<String?> saveText({
     required String fileName,
@@ -39,7 +42,7 @@ class _FakeFileSaver implements FileSaver {
     }
     saved[fileName] = '$mimeType|$contents';
 
-    return null;
+    return savedTo;
   }
 }
 
@@ -1355,6 +1358,23 @@ void main() {
       'heimdall-recovery-codes.txt': 'text/plain|aaa\nbbb',
     });
     expect(find.text('Recovery codes saved.'), findsOneWidget);
+  });
+
+  testWidgets('GivenAFileSavedToAPath_WhenDownloaded_ThenThePathIsShown', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+    saver.savedTo = '/downloads/heimdall-recovery-codes.txt';
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Recovery codes saved to /downloads/heimdall-recovery-codes.txt.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenRecoveryCodes_WhenTheDownloadFails_ThenItIsSaid', (

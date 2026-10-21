@@ -3,10 +3,8 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/time/clock.dart';
 import '../../../shared/paging/list_state.dart';
 import '../../../shared/paging/paged_list_controller.dart';
-import '../../profile/presentation/profile_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 import 'owner_names.dart';
@@ -112,21 +110,9 @@ class ApplicationListController
   /// The family argument this controller was created for.
   final String arg;
 
-  /// The owners' names learned under this build. A reset starts afresh, and a
+  /// The owners' names learned this session. A reset starts afresh, and a
   /// request of an earlier build keeps teaching only the names it began with.
-  OwnerNames? _ownersOfBuild;
-
-  OwnerNames get _owners => _ownersOfBuild ??= OwnerNames(
-    ref.read(personRepositoryProvider),
-    now: ref.read(clockProvider),
-  );
-
-  @override
-  ApplicationListState build() {
-    _ownersOfBuild = null;
-
-    return super.build();
-  }
+  OwnerNames get _owners => ref.read(ownerNamesProvider);
 
   /// Reads the page again, and forgets every owner's name first: an explicit
   /// refresh is where a renamed owner should show their new name at once. A

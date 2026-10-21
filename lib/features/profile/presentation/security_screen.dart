@@ -604,15 +604,23 @@ class _RecoveryCodes extends ConsumerWidget {
     final messenger = ScaffoldMessenger.maybeOf(context);
 
     try {
-      await ref
+      final savedTo = await ref
           .read(fileSaverProvider)
           .saveText(
             fileName: 'heimdall-recovery-codes.txt',
             contents: asText,
             mimeType: 'text/plain',
           );
+      // A path where the file was written; none when a browser took it, which
+      // decides for itself where it goes.
       messenger?.showSnackBar(
-        const SnackBar(content: Text('Recovery codes saved.')),
+        SnackBar(
+          content: Text(
+            savedTo == null
+                ? 'Recovery codes saved.'
+                : 'Recovery codes saved to $savedTo.',
+          ),
+        ),
       );
     } on Object {
       messenger?.showSnackBar(

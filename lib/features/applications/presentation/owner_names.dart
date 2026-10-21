@@ -1,5 +1,21 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../core/result/result.dart';
+import '../../../core/time/clock.dart';
 import '../../persons/domain/person_repository.dart';
+import '../../profile/presentation/profile_controller.dart';
+
+/// The owner names learned this session.
+///
+/// A provider rather than a field of the applications list, so that a person
+/// saved elsewhere can make it forget (#179), and listed among the
+/// session-scoped providers so that the next session starts with none.
+final Provider<OwnerNames> ownerNamesProvider = Provider<OwnerNames>(
+  (ref) => OwnerNames(
+    ref.read(personRepositoryProvider),
+    now: ref.read(clockProvider),
+  ),
+);
 
 /// Resolves owner identifiers to person names, and remembers what it learned.
 ///

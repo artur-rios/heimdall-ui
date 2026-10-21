@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../applications/presentation/owner_names.dart';
 import '../../home/presentation/dashboard_controller.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
@@ -193,6 +194,11 @@ class PersonDetailController extends Notifier<PersonDetailState>
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
       return;
+    }
+
+    if (result.isSuccess) {
+      // The applications list shows owners by name; a rename must reach it.
+      ref.read(ownerNamesProvider).forget();
     }
 
     state = result.fold(

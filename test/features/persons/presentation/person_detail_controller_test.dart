@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/features/applications/presentation/owner_names.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
@@ -231,6 +232,37 @@ void main() {
     ).captured;
     expect(captured.single, isNull);
   });
+
+  // #179 — the applications list names owners from a cache, which a rename
+  // must not leave stale.
+  for (final accepted in <bool>[true, false]) {
+    test(
+      'Given${accepted ? 'ASaved' : 'ARefused'}Edit_WhenSaved_Then'
+      '${accepted ? 'TheOwnerNamesAreForgotten' : 'TheOwnerNamesAreKept'}',
+      () async {
+        // Given
+        answerGetWith(const Success<Person>(_ada));
+        answerUpdateWith(
+          accepted
+              ? const Success<Person>(_ada)
+              : const FailureResult<Person>(
+                  Failure(kind: FailureKind.validation, errors: <String>['no']),
+                ),
+        );
+        final controller = controllerUnderTest();
+        await controller.load();
+        final names = container.read(ownerNamesProvider);
+        await names.resolve(<String>['person-1']);
+        expect(names.labelFor('person-1'), 'Ada');
+
+        // When
+        await controller.save(name: 'Ada L', email: 'ada@example.com');
+
+        // Then
+        expect(names.labelFor('person-1'), accepted ? 'person-1' : 'Ada');
+      },
+    );
+  }
 
   // AF-18c — a refusal keeps the record and carries the API's own errors.
   test('GivenARejectedUpdate_WhenSaved_ThenApiErrorsAreKept', () async {

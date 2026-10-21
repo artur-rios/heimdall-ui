@@ -13,6 +13,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/list_scaffold.dart' show ListForbidden;
 import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
@@ -213,15 +214,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ),
         // AF-12b — the API says this scope is not this caller's, which is the
         // same answer UI-07 gives for a screen a role is not offered.
-        ScopeDetailUnavailable(isForbidden: true) => CollectionEmpty(
-          title: 'Not available for your role',
-          message:
-              'This scope is not one you administer. Nothing is wrong '
-              'with your session.',
-          icon: Icons.lock_person_outlined,
-          actionLabel: 'Back to scopes',
-          onAction: () => context.go('/scopes'),
-        ),
+        ScopeDetailUnavailable(isForbidden: true) => _forbidden(),
         ScopeDetailUnavailable(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: controller.load,
@@ -231,6 +224,21 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ScopeDeleted() => const Center(child: CircularProgressIndicator()),
         final ScopeDetailLoaded loaded => _detail(loaded),
       },
+    );
+  }
+
+  /// The wording is the listings': [ListForbidden.scope] owns it.
+  Widget _forbidden() {
+    final forbidden = ListForbidden.scope(
+      onAction: () => context.go('/scopes'),
+    );
+
+    return CollectionEmpty(
+      title: 'Not available for your role',
+      message: forbidden.message,
+      icon: Icons.lock_person_outlined,
+      actionLabel: forbidden.actionLabel,
+      onAction: forbidden.onAction,
     );
   }
 
