@@ -4,6 +4,31 @@ import '../../core/result/result.dart';
 import '../paging/list_state.dart';
 import 'collection_states.dart';
 
+/// What a forbidden answer says, and where it sends the admin, for a listing
+/// only some roles may read.
+///
+/// The words differ by listing: a scope's records are not "the System Admins".
+class ListForbidden {
+  const ListForbidden({
+    required this.message,
+    required this.actionLabel,
+    required this.onAction,
+  });
+
+  /// A listing that belongs to a scope the admin does not administer.
+  const ListForbidden.scope({required this.onAction})
+    : message =
+          'This scope is not one you administer. Nothing is wrong with '
+          'your session.',
+      actionLabel = 'Back to scopes';
+
+  /// Why the listing is closed to this role, and that the session is fine.
+  final String message;
+
+  final String actionLabel;
+  final VoidCallback onAction;
+}
+
 /// What a listing shows for its [state]: the placeholder while the first page
 /// loads, the failure with a retry, the empty message, or the rows.
 ///
@@ -16,7 +41,7 @@ class ListScaffold<Q, T, L extends ListLoaded<Q, T>> extends StatelessWidget {
     required this.onRetry,
     required this.empty,
     required this.loaded,
-    this.onForbiddenBack,
+    this.forbidden,
     super.key,
   });
 
@@ -34,23 +59,21 @@ class ListScaffold<Q, T, L extends ListLoaded<Q, T>> extends StatelessWidget {
   /// for a screen that reads more from it than the page.
   final Widget Function(L state) loaded;
 
-  /// Where a forbidden answer sends the admin, for a listing that belongs to a
-  /// scope they may not administer. `null` for a listing with no such answer,
-  /// whose forbidden failure is shown like any other.
-  final VoidCallback? onForbiddenBack;
+  /// What a forbidden answer says and where it sends the admin. `null` for a
+  /// listing with no such answer, whose forbidden failure is shown like any
+  /// other.
+  final ListForbidden? forbidden;
 
   @override
   Widget build(BuildContext context) => switch (state) {
     ListFailed(:final failure)
-        when failure.kind == FailureKind.forbidden && onForbiddenBack != null =>
+        when failure.kind == FailureKind.forbidden && forbidden != null =>
       CollectionEmpty(
         title: 'Not available for your role',
-        message:
-            'This scope is not one you administer. Nothing is wrong with '
-            'your session.',
+        message: forbidden!.message,
         icon: Icons.lock_person_outlined,
-        actionLabel: 'Back to scopes',
-        onAction: onForbiddenBack,
+        actionLabel: forbidden!.actionLabel,
+        onAction: forbidden!.onAction,
       ),
     ListFailed(:final failure) => CollectionFailed(
       failure: failure,
@@ -60,6 +83,19 @@ class ListScaffold<Q, T, L extends ListLoaded<Q, T>> extends StatelessWidget {
       page.query,
     ),
     final L page => loaded(page),
-    _ => const CollectionLoading(),
+    _ => _fallback(),
   };
+
+  /// Whatever is neither failed nor loaded reads as loading. A loaded state
+  /// that is not the feature's own [L] lands here too, which is a wiring
+  /// mistake that would otherwise show a placeholder for good, so debug builds
+  /// refuse it.
+  Widget _fallback() {
+    assert(
+      state is! ListLoaded<Q, T>,
+      'A ${state.runtimeType} is loaded but is not the expected $L.',
+    );
+
+    return const CollectionLoading();
+  }
 }

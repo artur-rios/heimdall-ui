@@ -90,10 +90,14 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
+            // AF-16c — the scope is not one this admin owns. AF-16b — the
+            // returned errors, with a retry that keeps the filters.
             child: ListScaffold(
               state: state,
               onRetry: _controller.load,
-              onForbiddenBack: () => context.go('/scopes'),
+              forbidden: ListForbidden.scope(
+                onAction: () => context.go('/scopes'),
+              ),
               empty: _empty,
               loaded: (PersonListLoaded loaded) => AdaptiveCollection<Person>(
                 items: loaded.page.items,

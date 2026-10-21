@@ -82,10 +82,14 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
+            // AF-20c — the scope is not one this admin owns. AF-20b — the
+            // returned errors, with a retry.
             child: ListScaffold(
               state: state,
               onRetry: _controller.refresh,
-              onForbiddenBack: () => context.go('/scopes'),
+              forbidden: ListForbidden.scope(
+                onAction: () => context.go('/scopes'),
+              ),
               empty: (query) => _empty(query, createRoute),
               loaded: (ApplicationListLoaded loaded) =>
                   AdaptiveCollection<Application>(

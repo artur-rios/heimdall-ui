@@ -99,10 +99,14 @@ class _GoogleUserListScreenState extends ConsumerState<GoogleUserListScreen> {
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
+            // AF-28c — the scope is not one this admin owns. AF-28b — the
+            // returned errors, with a retry.
             child: ListScaffold(
               state: state,
               onRetry: _controller.load,
-              onForbiddenBack: () => context.go('/scopes'),
+              forbidden: ListForbidden.scope(
+                onAction: () => context.go('/scopes'),
+              ),
               empty: _empty,
               loaded: (GoogleUserListLoaded loaded) =>
                   AdaptiveCollection<GoogleUser>(
