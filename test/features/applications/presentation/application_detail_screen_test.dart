@@ -577,6 +577,109 @@ void main() {
     ).called(1);
   });
 
+  // A failed members read is cached for the session, so the selector offers
+  // the one way out.
+  testWidgets('GivenAFailedMembersRead_WhenRetried_ThenTheSelectorAppears', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    var reads = 0;
+    when(
+      () => persons.listScopeOwners(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) async {
+      reads++;
+
+      return reads == 1
+          ? const FailureResult<envelope.Page<Person>>(
+              Failure(kind: FailureKind.network, errors: <String>[]),
+            )
+          : Success<envelope.Page<Person>>(_people(<Person>[_ada, _grace]));
+    });
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    expect(find.byType(DropdownButtonFormField<String>), findsNothing);
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Retry'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.byType(DropdownButtonFormField<String>), findsOneWidget);
+    expect(reads, 2);
+  });
+
+  // More owners than the listing holds, or an owner who left the scope: the
+  // field must not look empty while Save would still send the old id.
+  testWidgets('GivenAnOwnerOutsideTheList_WhenEdited_ThenTheOwnerIsShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerMembersWith(<Person>[_grace]);
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+
+    // Then
+    final field = tester.widget<DropdownButtonFormField<String>>(
+      find.byType(DropdownButtonFormField<String>),
+    );
+    expect(field.initialValue, 'person-1');
+    expect(find.text('person-1'), findsOneWidget);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    final current = tester.widget<DropdownMenuItem<String>>(
+      find.widgetWithText(DropdownMenuItem<String>, 'person-1').last,
+    );
+    expect(current.enabled, isFalse);
+  });
+
+  testWidgets('GivenOwnerOutsideTheList_WhenSaved_ThenTheOwnerIsKept', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Application>(_billing));
+    answerMembersWith(<Person>[_grace]);
+    answerUpdateWith(
+      const Success<Application>(
+        Application(id: _appId, name: 'Invoicing', ownerId: 'person-1'),
+      ),
+    );
+    await pump(tester);
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Billing'),
+      'Invoicing',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => applications.update(
+        scopeId: _scopeId,
+        id: _appId,
+        name: 'Invoicing',
+        ownerId: 'person-1',
+      ),
+    ).called(1);
+  });
+
   // AF-22a — no such application.
   testWidgets('GivenAMissingApplication_WhenOpened_ThenNotFoundIsShown', (
     tester,

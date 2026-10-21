@@ -32,6 +32,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The owner picker now opens on its loading state instead of the list it showed last time, which still held the
   owner just added and led to the API's "already an owner" refusal, and only the latest of overlapping searches
   writes its result (#166).
+- The owner selector on an application's detail page now offers **Retry** after a failed read of the scope's
+  people, and always shows the application's current owner, as a disabled entry when the loaded list does not
+  contain them, instead of looking empty while Save would send the old owner (#167).
 
 ### Changed
 

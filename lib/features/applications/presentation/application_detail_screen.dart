@@ -422,19 +422,33 @@ class _ApplicationDetailScreenState
     }
 
     return switch (members) {
-      AsyncData<List<Person>>(:final value) when value.isEmpty => Text(
-        'This scope has nobody who could own an application.',
-        style: theme.textTheme.bodyMedium,
-      ),
+      AsyncData<List<Person>>(:final value)
+          when value.isEmpty && _ownerId == null =>
+        Text(
+          'This scope has nobody who could own an application.',
+          style: theme.textTheme.bodyMedium,
+        ),
       AsyncData<List<Person>>(:final value) => DropdownButtonFormField<String>(
-        initialValue: value.any((person) => person.id == _ownerId)
-            ? _ownerId
-            : null,
+        initialValue: _ownerId,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Owner'),
         validator: (_) =>
             _ownerId == null ? 'Choose an owner for the application.' : null,
         items: <DropdownMenuItem<String>>[
+          // The owner the application has is always on show. One the listing
+          // does not hold — past its first page, or no longer in the scope —
+          // would otherwise leave the field blank while Save still sends the
+          // old id. It cannot be picked again, only kept.
+          if (_ownerId case final current?
+              when !value.any((person) => person.id == current))
+            DropdownMenuItem<String>(
+              value: current,
+              enabled: false,
+              child: Text(
+                _ownerLabel(members, application),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           for (final person in value)
             DropdownMenuItem<String>(
               value: person.id,
@@ -446,9 +460,22 @@ class _ApplicationDetailScreenState
         ],
         onChanged: state.saving ? null : (id) => setState(() => _ownerId = id),
       ),
-      AsyncError<List<Person>>() => _Fact(
-        label: 'Owner',
-        value: _ownerLabel(members, application),
+      AsyncError<List<Person>>() => Row(
+        children: <Widget>[
+          Expanded(
+            child: _Fact(
+              label: 'Owner',
+              value: _ownerLabel(members, application),
+            ),
+          ),
+          // A failed read stays cached for the session, so the way out is to
+          // ask again.
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(scopeMembersProvider(widget.scopeId)),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
       _ => const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
