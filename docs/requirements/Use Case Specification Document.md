@@ -726,8 +726,11 @@ User's own record
 
 1. The user opens the owners section of a scope, which lists the current owners and, under **Pending
    invitations**, the people invited to co-own it who have not answered yet, each with their address and
-   the invitation's expiry. The section is hidden while there are none.
-2. The client calls `GET /api/scopes/{scopeId}/owners` and `GET /api/scopes/{scopeId}/owner-invitations`.
+   the invitation's expiry. The section is hidden while there are none. Under **Promote a user** it lists
+   the scope's users, with a search box for a name or an address.
+2. The client calls `GET /api/scopes/{scopeId}/owners`, `GET /api/scopes/{scopeId}/owner-invitations`
+   and `GET /api/scopes/{scopeId}/persons`. The owners and the users are paged, with a pager shown
+   whenever there is more than one page, so every owner and every user can be reached.
 3. The user adds an existing Scope Admin (or, as a System Admin, a System Admin) as a co-owner, and
    the client calls `POST /api/scopes/{scopeId}/owners/{personId}`. The client tells an owner added from
    a person invited by the `invited` field of the answer, not by its status code. For a System Admin the
@@ -746,7 +749,8 @@ User's own record
 **Alternative flows**
 
 - **AF-14a — Last owner.** The API refuses to remove the only owner. The client shows the returned
-  errors; the remove control is disabled when the list holds a single owner.
+  errors; the remove control is disabled when the scope has a single owner, as the API's total owner
+  count says, not as the page on screen shows.
 - **AF-14b — Person is not a Scope Admin.** The API refuses. The client shows the returned errors
   against the selector.
 - **AF-14c — Already an owner.** The API refuses a duplicate. The client shows the returned errors,

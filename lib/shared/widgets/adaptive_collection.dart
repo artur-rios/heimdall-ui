@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../layout/breakpoints.dart';
+import 'collection_pager.dart';
 
 /// One column of a collection, and how to read it off an item.
 ///
@@ -82,7 +83,7 @@ class AdaptiveCollection<T> extends StatelessWidget {
       ),
       Padding(
         padding: EdgeInsets.only(bottom: reservesFloatingAction ? 72 : 0),
-        child: _Pager(
+        child: CollectionPager(
           pageNumber: pageNumber,
           totalPages: totalPages,
           totalItems: totalItems,
@@ -211,56 +212,4 @@ class _OneLine extends StatelessWidget {
       overflow: TextOverflow.ellipsis,
     ),
   );
-}
-
-/// The page controls, which say where the user is as well as moving them.
-class _Pager extends StatelessWidget {
-  const _Pager({
-    required this.pageNumber,
-    required this.totalPages,
-    required this.totalItems,
-    required this.onPageChanged,
-  });
-
-  final int pageNumber;
-  final int totalPages;
-  final int totalItems;
-
-  /// `null` while a page is in flight, which disables both controls.
-  final ValueChanged<int>? onPageChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    final change = onPageChanged;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      // A Wrap rather than a Row: on a narrow window the counts and the
-      // controls do not fit on one line, and an overflowing pager hides the
-      // control that moves the user off the page.
-      child: Wrap(
-        alignment: WrapAlignment.end,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 16,
-        children: <Widget>[
-          Text('$totalItems in total'),
-          Text('Page $pageNumber of $totalPages'),
-          IconButton(
-            tooltip: 'Previous page',
-            icon: const Icon(Icons.chevron_left),
-            onPressed: (change == null || pageNumber <= 1)
-                ? null
-                : () => change(pageNumber - 1),
-          ),
-          IconButton(
-            tooltip: 'Next page',
-            icon: const Icon(Icons.chevron_right),
-            onPressed: (change == null || pageNumber >= totalPages)
-                ? null
-                : () => change(pageNumber + 1),
-          ),
-        ],
-      ),
-    );
-  }
 }

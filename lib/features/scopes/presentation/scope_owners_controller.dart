@@ -10,6 +10,7 @@ import '../../persons/presentation/scope_members.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../../scope_invitations/domain/scope_invitation.dart';
 import '../../scope_invitations/domain/scope_invitation_repository.dart';
+import 'scope_users_controller.dart';
 
 /// How far the owners section has got.
 sealed class ScopeOwnersState {
@@ -30,21 +31,21 @@ final class ScopeOwnersUnavailable extends ScopeOwnersState {
 
 /// The owners are on screen.
 ///
-/// [users] are the scope's User persons, which is what the promotion offers;
-/// [invitations] are the people asked to co-own it who have not answered yet.
-/// Both are read alongside the owners because the screen acts on them.
+/// [ownersPage] is the page of owners being shown, whose paging metadata says
+/// how many the scope has in all; [invitations] are the people asked to co-own
+/// it who have not answered yet. They are read alongside the owners because the
+/// screen acts on them. The users the promotion offers are a listing of their
+/// own (`scopeUsersControllerProvider`).
 final class ScopeOwnersLoaded extends ScopeOwnersState {
   const ScopeOwnersLoaded({
-    required this.owners,
-    required this.users,
+    required this.ownersPage,
     this.invitations = const <OwnerInvitation>[],
     this.busy = false,
     this.failure,
     this.notice,
   });
 
-  final List<Person> owners;
-  final List<Person> users;
+  final Page<Person> ownersPage;
 
   /// The scope's open owner invitations (UC-58). The people in it own nothing
   /// until they accept.
@@ -61,23 +62,26 @@ final class ScopeOwnersLoaded extends ScopeOwnersState {
   /// "Invitation sent" after a Scope Admin's add (AF-14h).
   final String? notice;
 
+  /// The owners on the page being shown.
+  List<Person> get owners => ownersPage.items;
+
+  /// How many owners the scope has in all, as the API counts them — not how
+  /// many are on this page (#159).
+  int get ownerCount => ownersPage.totalItems;
+
   /// AF-14a — a scope with one owner cannot lose it, so the control does not
   /// offer to. The API refuses regardless; this is what stops the interface
-  /// promising otherwise.
-  bool get canRemove => owners.length > 1;
+  /// promising otherwise. It counts every owner, because the page shown may
+  /// hold only one of many.
+  bool get canRemove => ownerCount > 1;
 
-  /// AF-14c — someone who already owns the scope is not offered again.
+  /// AF-14c — someone who already owns the scope is not offered again. Only the
+  /// owners on this page are known here; the users the promotion lists are
+  /// never owners (a User owns no scope, FR-SC-08), so this is a safeguard.
   Set<String> get ownerIds => owners.map((owner) => owner.id).toSet();
 
-  /// The users who could be promoted: the scope's users, minus anyone already
-  /// owning it.
-  List<Person> get promotable => users
-      .where((user) => !ownerIds.contains(user.id))
-      .toList(growable: false);
-
   ScopeOwnersLoaded copyWith({
-    List<Person>? owners,
-    List<Person>? users,
+    Page<Person>? ownersPage,
     List<OwnerInvitation>? invitations,
     bool? busy,
     Failure? failure,
@@ -85,8 +89,7 @@ final class ScopeOwnersLoaded extends ScopeOwnersState {
     String? notice,
     bool clearNotice = false,
   }) => ScopeOwnersLoaded(
-    owners: owners ?? this.owners,
-    users: users ?? this.users,
+    ownersPage: ownersPage ?? this.ownersPage,
     invitations: invitations ?? this.invitations,
     busy: busy ?? this.busy,
     failure: clearFailure ? null : (failure ?? this.failure),
@@ -145,13 +148,14 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   ScopeInvitationRepository get _invitations =>
       ref.read(scopeInvitationRepositoryProvider);
 
-  /// Reads the owners, and the scope's users the promotion draws on.
-  ///
-  /// The users are not what this screen is about, so a listing that fails does
-  /// not take the owners down with it: the promotion is simply not offered.
+  /// Reads the owners — the page already shown, or the first — and the open
+  /// invitations.
   Future<void> load() async {
     final epoch = this.epoch;
-    final owners = await _repository.listScopeOwners(scopeId: arg);
+    final shown = state;
+    final owners = await _readOwners(
+      shown is ScopeOwnersLoaded ? shown.ownersPage.pageNumber : 1,
+    );
 
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
@@ -162,15 +166,8 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
       case FailureResult<Page<Person>>(:final failure):
         state = ScopeOwnersUnavailable(failure);
       case Success<Page<Person>>(:final value):
-        final users = await _repository.listScopePersons(scopeId: arg);
-
-        // Reset since it was asked: the answer is an earlier build's.
-        if (!isCurrent(epoch)) {
-          return;
-        }
-
-        // Like the users, the pending invitations do not decide whether the
-        // owners can be shown: a listing that fails shows none.
+        // The pending invitations do not decide whether the owners can be
+        // shown: a listing that fails shows none.
         final invitations = await _invitations.listForScope(arg);
 
         // Reset since it was asked: the answer is an earlier build's.
@@ -179,12 +176,68 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
         }
 
         state = ScopeOwnersLoaded(
-          owners: value.items,
-          users: users.valueOrNull?.items ?? const <Person>[],
+          ownersPage: value,
           invitations:
               invitations.valueOrNull?.items ?? const <OwnerInvitation>[],
         );
     }
+  }
+
+  /// Reads one page of owners. A page past the end — the last owner of the
+  /// last page was removed — would show nobody and no pager to leave by, so the
+  /// last page that still exists is read instead.
+  Future<Result<Page<Person>>> _readOwners(int pageNumber) async {
+    final result = await _repository.listScopeOwners(
+      scopeId: arg,
+      pageNumber: pageNumber,
+    );
+
+    if (result case Success<Page<Person>>(:final value)
+        when value.items.isEmpty && pageNumber > 1) {
+      return _repository.listScopeOwners(
+        scopeId: arg,
+        pageNumber: value.totalPages.clamp(1, pageNumber - 1),
+      );
+    }
+
+    return result;
+  }
+
+  /// Shows another page of the owners.
+  ///
+  /// The page on screen stays while it is read, and a page that cannot be read
+  /// leaves it in place with the failure beside it, rather than replacing the
+  /// screen: the owners are still there to act on.
+  Future<void> goToOwnersPage(int pageNumber) async {
+    final current = state;
+
+    if (current is! ScopeOwnersLoaded || current.busy) {
+      return;
+    }
+
+    state = current.copyWith(busy: true, clearFailure: true, clearNotice: true);
+
+    final epoch = this.epoch;
+    final result = await _readOwners(pageNumber);
+
+    // Reset since it was asked: the answer is an earlier build's.
+    if (!isCurrent(epoch)) {
+      return;
+    }
+
+    state = switch (result) {
+      Success<Page<Person>>(:final value) => current.copyWith(
+        ownersPage: value,
+        busy: false,
+        clearFailure: true,
+        clearNotice: true,
+      ),
+      FailureResult<Page<Person>>(:final failure) => current.copyWith(
+        busy: false,
+        failure: failure,
+        clearNotice: true,
+      ),
+    };
   }
 
   /// Adds a person who is already a Scope Admin as a co-owner — or, when the
@@ -261,9 +314,21 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   );
 
   /// Promotes a User of the scope to Scope Admin and co-owner.
-  Future<void> promote(String personId) => _command(
-    () => _repository.promoteScopeUser(scopeId: arg, personId: personId),
-  );
+  ///
+  /// The user is a Scope Admin from then on, so the list they were offered in
+  /// is read again, on the page and search it was showing.
+  Future<OwnerCommandResult> promote(String personId) async {
+    final epoch = this.epoch;
+    final result = await _command(
+      () => _repository.promoteScopeUser(scopeId: arg, personId: personId),
+    );
+
+    if (result is OwnerCommandDone && isCurrent(epoch)) {
+      await ref.read(scopeUsersControllerProvider(arg).notifier).load();
+    }
+
+    return result;
+  }
 
   /// Creates a brand-new Scope Admin directly as a co-owner.
   ///

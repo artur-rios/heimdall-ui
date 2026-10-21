@@ -30,6 +30,7 @@ import '../features/scopes/presentation/scope_detail_controller.dart';
 import '../features/scopes/presentation/scope_list_controller.dart';
 import '../features/scopes/presentation/scope_owners_controller.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_controller.dart';
+import '../features/scopes/presentation/scope_users_controller.dart';
 
 /// Every provider that remembers something about the person signed in: their
 /// listings and filters, the records they opened, their own profile, the
@@ -61,6 +62,7 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   scopeCreateControllerProvider,
   scopeDetailControllerProvider,
   scopeOwnersControllerProvider,
+  scopeUsersControllerProvider,
   scopeSignInSettingsControllerProvider,
   pendingRegistrationListControllerProvider,
   scopeInvitationsControllerProvider,

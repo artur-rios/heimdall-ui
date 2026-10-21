@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,6 +78,37 @@ envelope.Page<Person> _page(List<Person> items) => envelope.Page<Person>(
   totalItems: items.length,
   totalPages: 1,
 );
+
+/// [count] people called "PREFIX 01" and so on, in the API's order.
+List<Person> _people(String prefix, int count, Role role) => <Person>[
+  for (var i = 1; i <= count; i++)
+    Person(
+      id: '${prefix.toLowerCase()}-$i',
+      name: '$prefix ${i.toString().padLeft(2, '0')}',
+      email: '${prefix.toLowerCase()}$i@example.com',
+      role: role,
+    ),
+];
+
+/// What the API answers for the page and the name filter in [invocation].
+Result<envelope.Page<Person>> _paged(List<Person> all, Invocation invocation) {
+  final number = invocation.namedArguments[#pageNumber] as int? ?? 1;
+  final size = invocation.namedArguments[#pageSize] as int? ?? 20;
+  final name = invocation.namedArguments[#name] as String?;
+  final matching = name == null || name.isEmpty
+      ? all
+      : all.where((person) => person.name.contains(name)).toList();
+
+  return Success<envelope.Page<Person>>(
+    envelope.Page<Person>(
+      items: matching.skip((number - 1) * size).take(size).toList(),
+      pageNumber: number,
+      pageSize: size,
+      totalItems: matching.length,
+      totalPages: math.max(1, (matching.length / size).ceil()),
+    ),
+  );
+}
 
 envelope.Page<PersonSummary> _candidates(List<PersonSummary> items) =>
     envelope.Page<PersonSummary>(
@@ -187,6 +219,30 @@ void main() {
       ),
     ).thenAnswer((_) async => result);
   }
+
+  /// Answers a scope's owners from [all], honouring the page asked for the way
+  /// the API does, so a test can tell the first page from the rest (#159).
+  void answerOwnersFrom(List<Person> all) => when(
+    () => repository.listScopeOwners(
+      scopeId: any(named: 'scopeId'),
+      name: any(named: 'name'),
+      email: any(named: 'email'),
+      includeDeleted: any(named: 'includeDeleted'),
+      pageNumber: any(named: 'pageNumber'),
+      pageSize: any(named: 'pageSize'),
+    ),
+  ).thenAnswer((invocation) async => _paged(all, invocation));
+
+  void answerUsersFrom(List<Person> all) => when(
+    () => repository.listScopePersons(
+      scopeId: any(named: 'scopeId'),
+      name: any(named: 'name'),
+      email: any(named: 'email'),
+      includeDeleted: any(named: 'includeDeleted'),
+      pageNumber: any(named: 'pageNumber'),
+      pageSize: any(named: 'pageSize'),
+    ),
+  ).thenAnswer((invocation) async => _paged(all, invocation));
 
   void answerAdminsWith(Result<envelope.Page<PersonSummary>> result) {
     when(
@@ -866,6 +922,200 @@ void main() {
     release.complete(const Success<void>(null));
     await removing;
   });
+
+  // #159 — a scope with more users than one page: the 21st user is on the
+  // second page and must be reachable and promotable.
+  testWidgets(
+    'GivenTwentyFiveUsers_WhenThePromotionListIsPaged_ThenThe21stIsPromoted',
+    (tester) async {
+      // Given
+      answerUsersFrom(_people('User', 25, Role.user));
+      await pump(tester, size: const Size(1400, 4000));
+      expect(find.text('User 21'), findsNothing);
+      final promotion = find.byKey(const Key('promotion-section'));
+
+      // When
+      await tester.tap(
+        find.descendant(of: promotion, matching: find.byTooltip('Next page')),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('User 21'), findsOneWidget);
+      await tester.tap(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'User 21'),
+          matching: find.widgetWithText(TextButton, 'Promote'),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Promote'));
+      await tester.pumpAndSettle();
+
+      // Then
+      verify(
+        () => repository.promoteScopeUser(
+          scopeId: 'scope-1',
+          personId: 'user-21',
+        ),
+      ).called(1);
+    },
+  );
+
+  testWidgets(
+    'GivenTwentyFiveUsers_WhenSearched_ThenTheApiIsAskedForThatName',
+    (tester) async {
+      // Given
+      answerUsersFrom(_people('User', 25, Role.user));
+      await pump(tester, size: const Size(1400, 4000));
+
+      // When
+      await tester.enterText(
+        find.byKey(const Key('promotion-search')),
+        'User 23',
+      );
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.widgetWithText(ListTile, 'User 23'), findsOneWidget);
+      expect(find.widgetWithText(ListTile, 'User 01'), findsNothing);
+    },
+  );
+
+  testWidgets('GivenASearchNobodyMatches_WhenShown_ThenItSaysNobodyMatches', (
+    tester,
+  ) async {
+    // Given
+    answerUsersFrom(_people('User', 25, Role.user));
+    await pump(tester, size: const Size(1400, 4000));
+
+    // When
+    await tester.enterText(find.byKey(const Key('promotion-search')), 'Zed');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Nobody matches'), findsOneWidget);
+  });
+
+  testWidgets('GivenAnOwnerAmongTheUsers_WhenListed_ThenTheyAreNotOffered', (
+    tester,
+  ) async {
+    // Given
+    answerUsersFrom(<Person>[_ada, _alan]);
+
+    // When
+    await pump(tester);
+
+    // Then
+    expect(
+      find.descendant(
+        of: find.byKey(const Key('promotion-section')),
+        matching: find.text('Ada'),
+      ),
+      findsNothing,
+    );
+    expect(find.widgetWithText(TextButton, 'Promote'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenAFailedUserListing_WhenOpened_ThenOwnersShowAndARetryIsOffered',
+    (tester) async {
+      // Given
+      answerUsersWith(
+        const FailureResult<envelope.Page<Person>>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await pump(tester);
+
+      // Then
+      expect(find.text('Ada'), findsOneWidget);
+      expect(
+        find.descendant(
+          of: find.byKey(const Key('promotion-section')),
+          matching: find.widgetWithText(TextButton, 'Retry'),
+        ),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('GivenAPromotion_WhenDone_ThenTheUserListIsReadAgain', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.widgetWithText(TextButton, 'Promote'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.widgetWithText(FilledButton, 'Promote'));
+    await tester.pumpAndSettle();
+
+    // Then: once on opening, once after the promotion.
+    verify(
+      () => repository.listScopePersons(
+        scopeId: 'scope-1',
+        name: null,
+        email: null,
+        pageNumber: 1,
+      ),
+    ).called(2);
+  });
+
+  // #159 — 25 owners are two pages, and the second one is reachable.
+  testWidgets('GivenTwentyFiveOwners_WhenThePageChanges_ThenTheRestAreListed', (
+    tester,
+  ) async {
+    // Given
+    answerOwnersFrom(_people('Owner', 25, Role.scopeAdmin));
+    await pump(tester, size: const Size(1400, 4000));
+    expect(find.text('Owner 21'), findsNothing);
+    expect(find.text('25 in total'), findsOneWidget);
+
+    // When
+    await tester.tap(
+      find.descendant(
+        of: find.byKey(const Key('owners-section')),
+        matching: find.byTooltip('Next page'),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Owner 21'), findsOneWidget);
+    expect(find.text('Owner 25'), findsOneWidget);
+    expect(find.text('Owner 01'), findsNothing);
+  });
+
+  // The last-owner rule counts every owner, not the ones on the page: the
+  // second page of 21 owners holds one, who may still be removed.
+  testWidgets(
+    'GivenTwentyOneOwners_WhenTheLastPageIsShown_ThenRemovalIsOffered',
+    (tester) async {
+      // Given
+      answerOwnersFrom(_people('Owner', 21, Role.scopeAdmin));
+      await pump(tester, size: const Size(1400, 4000));
+      await tester.tap(
+        find.descendant(
+          of: find.byKey(const Key('owners-section')),
+          matching: find.byTooltip('Next page'),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // Then
+      final remove = tester.widget<IconButton>(
+        find.descendant(
+          of: find.widgetWithText(ListTile, 'Owner 21'),
+          matching: find.byType(IconButton),
+        ),
+      );
+      expect(remove.onPressed, isNotNull);
+    },
+  );
 
   testWidgets('GivenAFailedListing_WhenOpened_ThenARetryIsOffered', (
     tester,

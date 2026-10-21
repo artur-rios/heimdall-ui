@@ -33,6 +33,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_controller.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_users_controller.dart';
 
 /// Every stateful provider the application declares that holds something of
 /// the person signed in, by the name it is declared under.
@@ -47,6 +48,7 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
   'scopeCreateControllerProvider': scopeCreateControllerProvider,
   'scopeDetailControllerProvider': scopeDetailControllerProvider,
   'scopeOwnersControllerProvider': scopeOwnersControllerProvider,
+  'scopeUsersControllerProvider': scopeUsersControllerProvider,
   'scopeSignInSettingsControllerProvider':
       scopeSignInSettingsControllerProvider,
   'pendingRegistrationListControllerProvider':

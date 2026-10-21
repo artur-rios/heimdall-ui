@@ -31,6 +31,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   created (#165).
 - Choosing an owner in the picker while the owners are still loading or another change is on its way now says nothing
   was sent, instead of closing silently as if the owner had been added (#165).
+- The scope owners screen now pages its owners and its promotion list, and the promotion list can be searched by
+  name or address, so a scope with more than twenty people no longer leaves the twenty-first unreachable. The rule
+  that a scope must keep at least one owner now counts every owner the API reports, not the ones on the page (#159).
 - The owner picker now opens on its loading state instead of the list it showed last time, which still held the
   owner just added and led to the API's "already an owner" refusal, and only the latest of overlapping searches
   writes its result (#166).

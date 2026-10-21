@@ -7,6 +7,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/layout/app_shell.dart';
+import '../../../shared/widgets/collection_pager.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
@@ -17,6 +18,7 @@ import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_admin_picker.dart';
 import '../../scope_invitations/domain/scope_invitation.dart';
 import 'scope_owners_controller.dart';
+import 'scope_users_controller.dart';
 
 /// UI-14 — the owners of one scope, its pending invitations, and the five ways
 /// they change.
@@ -33,11 +35,14 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback(
-      (_) => ref
-          .read(scopeOwnersControllerProvider(widget.scopeId).notifier)
-          .load(),
-    );
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+
+      ref.read(scopeOwnersControllerProvider(widget.scopeId).notifier).load();
+      ref.read(scopeUsersControllerProvider(widget.scopeId).notifier).load();
+    });
   }
 
   ScopeOwnersController get _controller =>
@@ -227,35 +232,49 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
           ],
         ),
         const SizedBox(height: 8),
-        if (state.owners.isEmpty)
-          const CollectionEmpty(
-            title: 'No owners recorded',
-            message: 'The API reports no owners for this scope.',
-            icon: Icons.shield_outlined,
-          )
-        else
-          Card(
-            child: Column(
-              children: <Widget>[
-                for (final owner in state.owners)
-                  ListTile(
-                    leading: const Icon(Icons.shield_outlined),
-                    title: Text(owner.name),
-                    subtitle: Text(owner.email),
-                    trailing: IconButton(
-                      tooltip: state.canRemove
-                          ? 'Remove owner'
-                          : 'A scope must keep at least one owner',
-                      icon: const Icon(Icons.person_remove_outlined),
-                      // AF-14a: the only owner cannot be removed.
-                      onPressed: (state.busy || !state.canRemove)
-                          ? null
-                          : () => _remove(owner),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+        Column(
+          key: const Key('owners-section'),
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            if (state.owners.isEmpty)
+              const CollectionEmpty(
+                title: 'No owners recorded',
+                message: 'The API reports no owners for this scope.',
+                icon: Icons.shield_outlined,
+              )
+            else
+              Card(
+                child: Column(
+                  children: <Widget>[
+                    for (final owner in state.owners)
+                      ListTile(
+                        leading: const Icon(Icons.shield_outlined),
+                        title: Text(owner.name),
+                        subtitle: Text(owner.email),
+                        trailing: IconButton(
+                          tooltip: state.canRemove
+                              ? 'Remove owner'
+                              : 'A scope must keep at least one owner',
+                          icon: const Icon(Icons.person_remove_outlined),
+                          // AF-14a: the only owner cannot be removed.
+                          onPressed: (state.busy || !state.canRemove)
+                              ? null
+                              : () => _remove(owner),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            // #159: a scope can have more owners than one page.
+            if (state.ownersPage.totalPages > 1)
+              CollectionPager(
+                pageNumber: state.ownersPage.pageNumber,
+                totalPages: state.ownersPage.totalPages,
+                totalItems: state.ownersPage.totalItems,
+                onPageChanged: state.busy ? null : _controller.goToOwnersPage,
+              ),
+          ],
+        ),
         if (state.invitations.isNotEmpty) ...<Widget>[
           const SizedBox(height: 24),
           Text('Pending invitations', style: theme.textTheme.titleLarge),
@@ -294,28 +313,150 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
           style: theme.textTheme.bodyMedium,
         ),
         const SizedBox(height: 8),
-        if (state.promotable.isEmpty)
-          const CollectionEmpty(
-            title: 'Nobody to promote',
-            message: 'This scope has no users who are not already owners.',
-            icon: Icons.people_outline,
-          )
+        _PromotionSection(
+          scopeId: widget.scopeId,
+          ownerIds: state.ownerIds,
+          busy: state.busy,
+          onPromote: _promote,
+        ),
+      ],
+    );
+  }
+}
+
+/// UI-14's promotion list: the scope's users, searched and paged by the API so
+/// that every one of them can be reached, not only the first page (#159).
+class _PromotionSection extends ConsumerStatefulWidget {
+  const _PromotionSection({
+    required this.scopeId,
+    required this.ownerIds,
+    required this.busy,
+    required this.onPromote,
+  });
+
+  final String scopeId;
+
+  /// Owners the screen already knows, who are never offered.
+  final Set<String> ownerIds;
+
+  /// A command is on its way, so promoting is disabled.
+  final bool busy;
+  final ValueChanged<Person> onPromote;
+
+  @override
+  ConsumerState<_PromotionSection> createState() => _PromotionSectionState();
+}
+
+class _PromotionSectionState extends ConsumerState<_PromotionSection> {
+  final _search = TextEditingController();
+
+  ScopeUsersController get _controller =>
+      ref.read(scopeUsersControllerProvider(widget.scopeId).notifier);
+
+  @override
+  void initState() {
+    super.initState();
+    // The listing outlives the screen, so what the last visit searched for is
+    // still in it; the box shows that rather than an empty field over a
+    // narrowed list.
+    _search.text = ref
+        .read(scopeUsersControllerProvider(widget.scopeId))
+        .query
+        .search;
+  }
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = ref.watch(scopeUsersControllerProvider(widget.scopeId));
+
+    return Column(
+      key: const Key('promotion-section'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: <Widget>[
+        TextField(
+          key: const Key('promotion-search'),
+          controller: _search,
+          decoration: InputDecoration(
+            labelText: 'Search users',
+            helperText: 'By name, or by email address.',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: IconButton(
+              tooltip: 'Search',
+              icon: const Icon(Icons.arrow_forward),
+              onPressed: () => _controller.search(_search.text),
+            ),
+          ),
+          onSubmitted: _controller.search,
+        ),
+        const SizedBox(height: 8),
+        switch (state) {
+          ScopeUsersLoading() => const Padding(
+            padding: EdgeInsets.all(16),
+            child: LinearProgressIndicator(),
+          ),
+          ScopeUsersFailed(:final failure) => CollectionFailed(
+            failure: failure,
+            onRetry: _controller.load,
+          ),
+          final ScopeUsersLoaded loaded => _users(loaded),
+        },
+      ],
+    );
+  }
+
+  Widget _users(ScopeUsersLoaded state) {
+    final offered = state.page.items
+        .where((user) => !widget.ownerIds.contains(user.id))
+        .toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        if (state.busy) const LinearProgressIndicator(),
+        if (offered.isEmpty)
+          state.query.isFiltered
+              ? const CollectionEmpty(
+                  title: 'Nobody matches',
+                  message: 'No user of this scope matches that search.',
+                  icon: Icons.search_off,
+                )
+              : const CollectionEmpty(
+                  title: 'Nobody to promote',
+                  message:
+                      'This scope has no users who are not already owners.',
+                  icon: Icons.people_outline,
+                )
         else
           Card(
             child: Column(
               children: <Widget>[
-                for (final user in state.promotable)
+                for (final user in offered)
                   ListTile(
                     leading: const Icon(Icons.person_outline),
                     title: Text(user.name),
                     subtitle: Text(user.email),
                     trailing: TextButton(
-                      onPressed: state.busy ? null : () => _promote(user),
+                      onPressed: widget.busy
+                          ? null
+                          : () => widget.onPromote(user),
                       child: const Text('Promote'),
                     ),
                   ),
               ],
             ),
+          ),
+        if (state.page.totalPages > 1)
+          CollectionPager(
+            pageNumber: state.page.pageNumber,
+            totalPages: state.page.totalPages,
+            totalItems: state.page.totalItems,
+            onPageChanged: state.busy ? null : _controller.goToPage,
           ),
       ],
     );
