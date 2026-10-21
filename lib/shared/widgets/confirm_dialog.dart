@@ -95,9 +95,10 @@ class _TypeToConfirmDialogState extends State<_TypeToConfirmDialog> {
     super.dispose();
   }
 
-  /// An exact match, not a trimmed or case-folded one. A confirmation that
-  /// accepts nearly the right value is not much of a confirmation.
-  bool get _matches => _typed.text == widget.confirmationValue;
+  /// A match of the trimmed texts, not a case-folded one: a name another client
+  /// stored with stray whitespace is shown, and must be typed, without it.
+  /// A confirmation that accepts nearly the right value is not much of one.
+  bool get _matches => _typed.text.trim() == widget.confirmationValue.trim();
 
   @override
   Widget build(BuildContext context) {
