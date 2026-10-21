@@ -93,6 +93,7 @@ class _ApplicationCreateScreenState
         title: 'Discard this application?',
         message: 'What you have entered has not been saved and will be lost.',
         confirmLabel: 'Discard',
+        destructive: true,
         cancelLabel: 'Keep editing',
       );
 

@@ -54,6 +54,7 @@ class _PendingRegistrationListScreenState
       title: 'Discard the registration for ${registration.email}?',
       message: 'Its confirmation link will stop working.',
       confirmLabel: 'Discard',
+      destructive: true,
     );
 
     if (!confirmed || !mounted) {

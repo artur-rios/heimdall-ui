@@ -116,6 +116,7 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
         title: 'Discard this person?',
         message: 'What you have entered has not been saved and will be lost.',
         confirmLabel: 'Discard',
+        destructive: true,
         cancelLabel: 'Keep editing',
       );
 

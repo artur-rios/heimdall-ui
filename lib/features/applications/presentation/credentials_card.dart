@@ -81,6 +81,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
       title: 'Revoke this credential?',
       message: 'Tokens issued from it stop working at the next check.',
       confirmLabel: 'Revoke',
+      destructive: true,
     );
 
     if (confirmed && mounted) {

@@ -128,6 +128,7 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
           : '${owner.name} will stop owning this scope. Their account is not '
                 'deleted.',
       confirmLabel: 'Remove',
+      destructive: true,
     );
 
     if (confirmed && mounted) {

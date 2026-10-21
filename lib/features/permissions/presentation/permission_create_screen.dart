@@ -76,6 +76,7 @@ class _PermissionCreateScreenState
         title: 'Discard this permission?',
         message: 'What you have entered has not been saved and will be lost.',
         confirmLabel: 'Discard',
+        destructive: true,
         cancelLabel: 'Keep editing',
       );
 

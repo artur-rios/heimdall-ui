@@ -50,6 +50,7 @@ class _ReconciliationDialogState extends ConsumerState<_ReconciliationDialog> {
           'Each identity the restore brought back is anonymised again. '
           'Running this twice anonymises nothing extra.',
       confirmLabel: 'Re-apply',
+      destructive: true,
     );
 
     if (!confirmed || !mounted) {

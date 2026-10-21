@@ -27,6 +27,7 @@ Future<bool> _confirmLeavingCodes(BuildContext context) => showConfirm(
       'leave now you will not see them again, and you would have to '
       'generate a new set.',
   confirmLabel: 'Leave anyway',
+  destructive: true,
   cancelLabel: 'Stay',
 );
 

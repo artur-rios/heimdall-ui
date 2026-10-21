@@ -165,6 +165,7 @@ class _ScopeSignInSettingsScreenState
               : 'The $present Google accounts already in this scope will no '
                     'longer be able to sign in.',
           confirmLabel: 'Turn off',
+          destructive: true,
         );
 
         if (!confirmed || !mounted) {
