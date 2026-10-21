@@ -27,7 +27,7 @@ versions and roles are maintained in exactly one place.
 | Concern | Choice | Notes |
 | --- | --- | --- |
 | Framework | **Flutter 3.47.7** (stable) | One codebase for every target. |
-| Language | **Dart 3.13.5** | Ships with the Flutter version above. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
+| Language | **Dart 3.13.5+** | `pubspec.yaml` requires `sdk: ^3.13.5`; Flutter 3.47.7 and newer ship it. A Flutter whose bundled Dart is older (3.13.2, say) fails `flutter pub get`. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
 | Design system | **Material 3** | `useMaterial3: true`, with both schemes derived from one seed color. |
 | Targets | **Web, Windows, Linux, Android** | No iOS or macOS platform folder exists. |
 | Analysis | `flutter_lints`, with `strict-casts` and `strict-raw-types` enabled | Generated code is excluded from analysis. |
@@ -109,7 +109,6 @@ named after their area — `AuthClient`, `ScopeClient`, `PersonClient`, `Applica
 | Package | Constraint | Role |
 | --- | --- | --- |
 | **flutter_test** | SDK | The test framework for unit and widget tests. |
-| **integration_test** | SDK | Drives end-to-end flows against a stubbed API. |
 | **mocktail** | `^1.0.5` | The single mocking library, for repositories and other collaborators. Chosen over `mockito` because it needs no code generation. Do not introduce a second one. |
 
 How tests are written — naming, structure, and what each use case must cover — is defined in the
@@ -134,7 +133,7 @@ no test reaches the network.
 | Category | Package / tool | Version |
 | --- | --- | --- |
 | Framework | Flutter | `3.47.7` |
-| Language | Dart | `3.13.5` |
+| Language | Dart | `3.13.5+` |
 | State | flutter_riverpod | `^3.4.3` |
 | Routing | go_router | `^18.0.2` |
 | HTTP | dio | `^5.11.1` |

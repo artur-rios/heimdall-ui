@@ -74,6 +74,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- The setup and contributor documents now match the repository (#174). The Testing Specification no longer lists an
+  `integration_test/` level that does not exist and says what CI does with coverage, the README and the Technology
+  Stack ask for Dart 3.13.5+ (Flutter 3.47.7+), and CONTRIBUTING.md explains how to add a list screen, a detail
+  screen and a test, and where a shared widget lives.
 - The operations document and the comment in the web image's `nginx.conf` now say that yggdrasil's edge, from
   0.7.4, leaves the image's Referrer-Policy in place, so `/password-reset` and `/verify-email` send `no-referrer`
   in deployed environments too. Behind a proxy that replaces the header, the token removed from the address at
@@ -245,8 +249,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A list screen stayed on its loading placeholder for good, with no error and no Retry, when the API answered with a
-  body the app could not read. The eight lists (people, scopes, applications, permissions, Google users, erasure
-  requests, pending registrations and System Admins) now show "The API returned an unexpected response." with Retry.
+  body the app could not read. The ten paged lists (people, scopes, applications, permissions, Google users, erasure
+  requests, pending registrations, System Admins, a scope's users and the audit log) now show "The API returned an
+  unexpected response." with Retry.
 - The System Admins list could be left on an empty page with no pager when the last admin of the last page went
   away. It now steps back to the last page that still exists, as the other lists do.
 - On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its

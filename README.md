@@ -51,7 +51,8 @@ The design this repository was built from is at
 
 ## Prerequisites
 
-- **Flutter 3.47.7** or newer, on the stable channel.
+- **Dart 3.13.5+ (Flutter 3.47.7+)**, on the stable channel. `pubspec.yaml` requires `sdk: ^3.13.5`, so a Flutter
+  that bundles an older Dart fails `flutter pub get`.
 - **Web** — a Chromium-based browser for `flutter run -d chrome`.
 - **Windows** — Visual Studio (or Build Tools) with the *Desktop development with C++* workload
   **and the C++ ATL component**. Without ATL the build fails on `atlstr.h`, which

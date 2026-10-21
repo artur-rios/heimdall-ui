@@ -23,7 +23,7 @@ tools themselves.
 | --- | --- | --- |
 | **Unit** | Controllers and notifiers, repository implementations, envelope unwrapping, guards, mappers, and any pure function | `test/`, mirroring `lib/` |
 | **Widget** | Screens and shared widgets: what renders, what the user can do, and how the layout responds to the breakpoint | `test/`, mirroring `lib/` |
-| **Integration** | Whole flows across several screens, driven end to end against a stubbed API | `integration_test/` |
+| **Flow** | Whole flows across several screens, driven through the real router against fakes — a widget test that pumps the app with `pumpApp(router: ...)` | `test/app/` and the feature's own `presentation/` tests |
 
 `test/` mirrors `lib/` one directory at a time: `lib/features/auth/presentation/session_controller.dart`
 is tested by `test/features/auth/presentation/session_controller_test.dart`. A test file that does
@@ -33,12 +33,12 @@ not correspond to a source file is a sign the source is in the wrong place.
 
 ## 3. The network rule
 
-**No test reaches the network.** There is no exception, including integration tests.
+**No test reaches the network.** There is no exception, including flow tests.
 
 - Repository and interceptor tests replace Dio's `HttpClientAdapter` with a local adapter that
   answers from memory and records what it was asked for.
 - Controller and screen tests depend on a fake repository, not on Dio at all.
-- Integration tests run against a stubbed API assembled from the same fakes.
+- Flow tests run the real router against the same fakes.
 
 A test that would pass or fail depending on a live API is not a test of this repository.
 
@@ -120,19 +120,22 @@ Stub the **interface**, never the generated client. A test that mentions a gener
 
 ## 7. Running the tests
 
+There is no `integration_test/` directory and no device-driven test: the whole suite is `flutter test`.
+Shared helpers live in `test/support/` (`pumpApp`, `testApiJwt`, `StubAdapter`, the idle session-expiry
+timer), and the accessibility checks in `test/a11y/`. CONTRIBUTING.md shows where to start for a new test.
+
 ```bash
 flutter test
 ```
 
-```bash
-flutter test integration_test
-```
+CI runs it as `flutter test --coverage` and uploads `coverage/lcov.info` as the `coverage-lcov` artifact for
+reading. Coverage has no threshold, so it does not fail a pull request. To see it locally:
 
 ```bash
 flutter test --coverage
 ```
 
-The gate before a pull request is all three of these, in order, all passing:
+The gate before a pull request is these three, in order, all passing:
 
 ```bash
 dart format --set-exit-if-changed .
