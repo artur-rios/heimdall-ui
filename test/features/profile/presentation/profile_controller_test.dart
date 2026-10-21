@@ -19,6 +19,7 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -125,6 +126,7 @@ void main() {
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWithValue(auth),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

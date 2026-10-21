@@ -13,6 +13,8 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A store the platform cannot use — a locked keyring, a key lost to a backup
@@ -103,6 +105,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(FixedScopeSource(scopeId)),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);
@@ -155,6 +158,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
@@ -692,6 +696,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
@@ -721,6 +726,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
@@ -762,6 +768,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
@@ -876,6 +883,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(
             _FakeGoogleSignInGateway(),
           ),
@@ -921,6 +929,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
@@ -1035,6 +1044,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(held),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         ],
       );
       addTearDown(container.dispose);
@@ -1138,6 +1148,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);
@@ -1167,6 +1178,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         ],
       );
       addTearDown(container.dispose);
@@ -1199,6 +1211,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         ],
       );
       addTearDown(container.dispose);
@@ -1435,6 +1448,7 @@ void main() {
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
@@ -1471,6 +1485,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );

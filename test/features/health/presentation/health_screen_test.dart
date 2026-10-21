@@ -14,6 +14,8 @@ import 'package:heimdall_ui/features/health/presentation/health_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockHealthRepository extends Mock implements HealthRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
@@ -77,6 +79,7 @@ void main() {
       overrides: <Override>[
         healthRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

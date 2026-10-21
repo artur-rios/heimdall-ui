@@ -13,6 +13,8 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verification_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A token naming a User. The JWT says nothing about verification — the API
@@ -48,6 +50,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

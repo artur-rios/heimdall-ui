@@ -9,6 +9,7 @@ void main() {
   late List<String> titles;
 
   setUp(() {
+    PageTitle.reset();
     titles = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -91,5 +92,53 @@ void main() {
     );
 
     expect(titles.last, 'Alone - Heimdall');
+  });
+
+  testWidgets('GivenAScreenOnTop_WhenTheAppRebuilds_ThenItsTitleSurvives', (
+    tester,
+  ) async {
+    final mode = ValueNotifier<ThemeMode>(ThemeMode.light);
+    await tester.pumpWidget(
+      ValueListenableBuilder<ThemeMode>(
+        valueListenable: mode,
+        builder: (context, value, _) => MaterialApp(
+          themeMode: value,
+          onGenerateTitle: (_) => PageTitle.currentLabel,
+          home: screen('Persons'),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    mode.value = ThemeMode.dark;
+    await tester.pumpAndSettle();
+
+    // Whatever the application's own title put last is the screen's.
+    expect(titles.last, 'Persons - Heimdall');
+  });
+
+  testWidgets('GivenTheSameTitle_WhenRebuilt_ThenThePlatformIsToldOnce', (
+    tester,
+  ) async {
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) {
+          rebuild = setState;
+
+          return const PageTitle(
+            title: 'Same',
+            child: Directionality(
+              textDirection: TextDirection.ltr,
+              child: SizedBox(),
+            ),
+          );
+        },
+      ),
+    );
+    rebuild(() {});
+    await tester.pump();
+
+    expect(titles, <String>['Same - Heimdall']);
   });
 }

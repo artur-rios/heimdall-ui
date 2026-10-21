@@ -19,6 +19,8 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
@@ -75,6 +77,7 @@ void main() {
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

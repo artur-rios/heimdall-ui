@@ -17,6 +17,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_screen.dart'
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
@@ -85,6 +87,7 @@ void main() {
       overrides: <Override>[
         scopeRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

@@ -37,6 +37,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/dashboard_fakes.dart';
+import '../support/idle_expiry_timer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -80,6 +81,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
         ...overrides,
@@ -316,6 +318,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
@@ -352,6 +355,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(slow),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
@@ -389,6 +393,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
@@ -480,6 +485,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
@@ -536,6 +542,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],

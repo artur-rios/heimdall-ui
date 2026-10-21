@@ -21,15 +21,32 @@ class PageTitle extends StatelessWidget {
   /// The label the application adds after every screen's name.
   static const String suffix = 'Heimdall';
 
+  static String _label = suffix;
+
+  /// What the tab is called now: the screen on top's label, or the
+  /// application's own name before any screen has set one.
+  ///
+  /// The application's title reads this, so that rebuilding it — a theme or
+  /// locale change — puts back this label rather than the bare name.
+  static String get currentLabel => _label;
+
+  /// Forgets the label set so far. For tests, which share this state.
+  @visibleForTesting
+  static void reset() => _label = suffix;
+
   @override
   Widget build(BuildContext context) {
     // Without a route — a widget pumped on its own — there is nothing above to
     // compete with.
-    if (ModalRoute.of(context)?.isCurrent ?? true) {
+    final label = '$title - $suffix';
+
+    // Told to the platform only when it changes, not on every rebuild.
+    if ((ModalRoute.of(context)?.isCurrent ?? true) && label != _label) {
+      _label = label;
       unawaited(
         SystemChrome.setApplicationSwitcherDescription(
           ApplicationSwitcherDescription(
-            label: '$title - $suffix',
+            label: label,
             primaryColor: Theme.of(context).colorScheme.primary.toARGB32(),
           ),
         ),

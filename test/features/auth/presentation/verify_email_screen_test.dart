@@ -14,6 +14,8 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verify_email_screen.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A token naming a User, which is all this screen needs to decide that a
@@ -55,6 +57,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

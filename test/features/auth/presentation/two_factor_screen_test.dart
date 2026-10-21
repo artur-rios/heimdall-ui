@@ -13,6 +13,8 @@ import 'package:heimdall_ui/features/auth/presentation/two_factor_screen.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A store whose platform refuses every write, as Linux without a keyring does.
@@ -66,6 +68,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

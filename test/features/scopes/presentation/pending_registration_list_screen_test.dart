@@ -21,6 +21,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.d
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockPendingRegistrationRepository extends Mock
     implements PendingRegistrationRepository {}
 
@@ -100,6 +102,7 @@ void main() {
         pendingRegistrationRepositoryProvider.overrideWithValue(repository),
         scopeRepositoryProvider.overrideWithValue(scopes),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

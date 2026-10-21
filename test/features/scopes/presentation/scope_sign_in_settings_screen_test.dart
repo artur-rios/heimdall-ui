@@ -19,6 +19,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
@@ -109,6 +111,7 @@ void main() {
         scopeRepositoryProvider.overrideWithValue(repository),
         googleUserRepositoryProvider.overrideWithValue(googleUsers),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

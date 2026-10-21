@@ -20,6 +20,7 @@ import 'package:heimdall_ui/shared/widgets/qr_code.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
 import '../../../support/secret_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -99,6 +100,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         secretClipboardProvider.overrideWithValue(secrets),
         fileSaverProvider.overrideWithValue(saver),
         screenSecurityProvider.overrideWithValue(security),

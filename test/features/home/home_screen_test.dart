@@ -21,6 +21,7 @@ import 'package:heimdall_ui/shared/widgets/notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';
+import '../../support/idle_expiry_timer.dart';
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
 ///
@@ -100,6 +101,7 @@ void main() {
       overrides: <Override>[
         ...(fakes ?? FakeDashboardRepositories()).overrides,
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

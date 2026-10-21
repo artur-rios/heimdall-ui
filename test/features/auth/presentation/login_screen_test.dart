@@ -16,6 +16,8 @@ import 'package:heimdall_ui/features/auth/presentation/login_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// Google's half, faked. No test reaches Google's SDK, for the same reason
@@ -75,6 +77,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(
             _FakeGoogleSignInGateway(google),
           ),

@@ -39,8 +39,8 @@ import '../features/scopes/presentation/scope_list_screen.dart';
 import '../features/scopes/presentation/scope_owners_screen.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
 import '../shared/forms/unsaved_changes.dart';
-import 'route_access.dart';
 import '../shared/widgets/page_title.dart';
+import 'route_access.dart';
 
 /// Where a link that names no record lands: one whose id is not a `PublicId`.
 const String notFoundRoute = '/not-found';

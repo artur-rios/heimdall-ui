@@ -12,6 +12,8 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 class _MockGoogle extends Mock implements GoogleSignInGateway {}
@@ -29,14 +31,14 @@ void main() {
   AuthToken tokenExpiringIn(Duration life) =>
       AuthToken(value: _jwt, expiresAt: DateTime.now().toUtc().add(life));
 
-  SessionController start() {
+  SessionController start({Timer Function(Duration, void Function())? timer}) {
     container = ProviderContainer(
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         googleSignInGatewayProvider.overrideWithValue(_MockGoogle()),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         tokenStoreProvider.overrideWithValue(store),
-        sessionExpiryTimerProvider.overrideWithValue(Timer.new),
+        sessionExpiryTimerProvider.overrideWithValue(timer ?? Timer.new),
       ],
     );
     addTearDown(container.dispose);
@@ -122,5 +124,46 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(expired(), isTrue);
+  });
+
+  testWidgets('GivenAFarExpiry_WhenTheTimerCapPasses_ThenItIsArmedAgain', (
+    tester,
+  ) async {
+    await store.write(tokenExpiringIn(const Duration(days: 60)));
+    final controller = start();
+    await controller.restore();
+
+    // A browser timer longer than 2^31-1 ms would fire at once, so none may be.
+    await tester.pump(const Duration(days: 20));
+    expect(session(), isA<Authenticated>());
+
+    await tester.pump(const Duration(days: 20));
+    expect(session(), isA<Authenticated>());
+
+    await tester.pump(const Duration(days: 21));
+    expect(expired(), isTrue);
+  });
+
+  testWidgets('GivenAStaleTimer_WhenItFires_ThenTheNewSessionStays', (
+    tester,
+  ) async {
+    final fired = <void Function()>[];
+    await store.write(tokenExpiringIn(const Duration(hours: 1)));
+    final controller = start(
+      timer: (delay, callback) {
+        fired.add(callback);
+
+        return idleExpiryTimer(delay, callback);
+      },
+    );
+    await controller.restore();
+    await store.write(tokenExpiringIn(const Duration(hours: 5)));
+    await controller.restore();
+
+    // The first token's callback arrives after the session moved on.
+    fired.first();
+    await tester.pumpAndSettle();
+
+    expect(session(), isA<Authenticated>());
   });
 }

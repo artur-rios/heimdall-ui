@@ -19,6 +19,8 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 /// A token naming the signed-in person, which AF-18e compares against.
@@ -103,6 +105,7 @@ void main() {
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

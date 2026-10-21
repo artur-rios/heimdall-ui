@@ -21,6 +21,8 @@ import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -90,6 +92,7 @@ void main() {
         scopeRepositoryProvider.overrideWithValue(repository),
         personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

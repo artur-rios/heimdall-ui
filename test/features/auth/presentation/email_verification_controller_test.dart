@@ -14,6 +14,7 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -37,6 +38,7 @@ void main() {
         // A successful verification corrects the session's own answer, so the
         // controller reaches the store even with nobody signed in.
         tokenStoreProvider.overrideWithValue(InMemoryTokenStore()),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);
@@ -124,6 +126,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         personRepositoryProvider.overrideWithValue(people),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);
@@ -215,6 +218,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

@@ -20,6 +20,8 @@ import 'package:heimdall_ui/features/profile/presentation/profile_controller.dar
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
 
@@ -87,6 +89,7 @@ void main() {
         applicationRepositoryProvider.overrideWithValue(applications),
         personRepositoryProvider.overrideWithValue(persons),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

@@ -19,6 +19,8 @@ import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.d
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_screen.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -157,6 +159,7 @@ void main() {
         dataRightsRepositoryProvider.overrideWithValue(repository),
         fileSaverProvider.overrideWithValue(saver),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(google),
       ],

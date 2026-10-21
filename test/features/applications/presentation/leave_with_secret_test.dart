@@ -15,6 +15,8 @@ import 'package:heimdall_ui/features/applications/presentation/pending_secret.da
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}
 
 /// A token naming a System Admin: payload {sub, email, role: 1}.
@@ -68,6 +70,7 @@ void main() {
       overrides: <Override>[
         applicationCredentialRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

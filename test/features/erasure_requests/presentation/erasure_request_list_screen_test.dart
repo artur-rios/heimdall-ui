@@ -17,6 +17,8 @@ import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_reque
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockErasureRequestRepository extends Mock
     implements ErasureRequestRepository {}
 
@@ -82,6 +84,7 @@ void main() {
       overrides: <Override>[
         erasureRequestRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

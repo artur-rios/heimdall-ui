@@ -17,6 +17,8 @@ import 'package:heimdall_ui/features/data_rights/presentation/restrict_processin
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -62,6 +64,7 @@ void main() {
       overrides: <Override>[
         dataRightsRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       ],
     );

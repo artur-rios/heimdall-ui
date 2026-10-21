@@ -15,6 +15,8 @@ import 'package:heimdall_ui/features/google_users/presentation/google_user_detai
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
@@ -79,6 +81,7 @@ void main() {
       overrides: <Override>[
         googleUserRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

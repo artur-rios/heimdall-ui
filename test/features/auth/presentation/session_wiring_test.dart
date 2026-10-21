@@ -19,6 +19,8 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 /// The session wired exactly as `main.dart` wires it — the real repository,
 /// the real client, and the real interceptor — with only the transport
 /// replaced. These are the flows whose behaviour depends on how the API's
@@ -35,6 +37,7 @@ void main() {
           const AppConfig(apiBaseUrl: 'https://example.invalid'),
         ),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWith(

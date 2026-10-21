@@ -21,6 +21,8 @@ import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockAuditLogRepository extends Mock implements AuditLogRepository {}
 
 String _jwt() {
@@ -103,6 +105,7 @@ void main() {
       overrides: <Override>[
         auditLogRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

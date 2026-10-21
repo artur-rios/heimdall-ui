@@ -8,7 +8,10 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/shared/layout/app_shell.dart';
+import 'package:heimdall_ui/shared/widgets/page_title.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../support/idle_expiry_timer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -23,6 +26,7 @@ void main() {
   late List<String> titles;
 
   setUp(() {
+    PageTitle.reset();
     titles = <String>[];
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(SystemChannels.platform, (call) async {
@@ -47,6 +51,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(_MockGoogle()),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

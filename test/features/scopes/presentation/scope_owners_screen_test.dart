@@ -23,6 +23,8 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_owners_screen.dar
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
 class _MockScopeInvitationRepository extends Mock
@@ -161,6 +163,7 @@ void main() {
         personRepositoryProvider.overrideWithValue(repository),
         scopeInvitationRepositoryProvider.overrideWithValue(invitations),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);

@@ -13,6 +13,7 @@ import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 
 import '../../support/dashboard_fakes.dart';
+import '../../support/idle_expiry_timer.dart';
 import '../../support/late_answer.dart';
 
 /// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
@@ -62,6 +63,7 @@ void main() {
       overrides: <Override>[
         ...fakes.overrides,
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
       ],
     );
     addTearDown(container.dispose);
@@ -386,6 +388,7 @@ void main() {
         overrides: <Override>[
           ...fakes.overrides,
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         ],
       );
       addTearDown(container.dispose);
@@ -441,6 +444,7 @@ void main() {
         overrides: <Override>[
           ...fakes.overrides,
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         ],
       );
       addTearDown(container.dispose);

@@ -15,6 +15,7 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
@@ -68,6 +69,7 @@ void main() {
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
+        sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
         unloadGuardProvider.overrideWithValue(guard),
       ],
     );
