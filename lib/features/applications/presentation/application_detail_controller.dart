@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 
@@ -251,6 +252,7 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const ApplicationDeleted();
       case FailureResult<void>(:final failure):
         // Somebody already deleted it, which is the outcome that was asked

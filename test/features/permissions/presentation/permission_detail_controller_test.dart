@@ -9,6 +9,7 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/permissions/presentation/permission_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopePermissionRepository extends Mock
@@ -38,6 +39,7 @@ void main() {
   PermissionDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopePermissionRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -369,6 +371,9 @@ void main() {
     verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
         .called(1);
     expect(currentState(), isA<PermissionDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAnOpenPermission_WhenErased_ThenTheHardEndpointIsUsed', () async {
@@ -409,6 +414,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'That permission is still granted to somebody.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test(

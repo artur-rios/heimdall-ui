@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
 import '../../auth/domain/session.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
@@ -94,6 +95,10 @@ class PersonCreateController extends Notifier<PersonCreateState>
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
       return;
+    }
+
+    if (result.isSuccess) {
+      ref.markHomeDataStale();
     }
 
     state = result.fold(

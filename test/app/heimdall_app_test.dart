@@ -1319,8 +1319,9 @@ void main() {
   });
 
   // #156 — the System Admins listing opens over Home, which is read again on
-  // the way back: its counts may have changed there.
-  testWidgets('GivenTheSystemAdminsList_WhenSystemBack_ThenHomeIsReadAgain', (
+  // the way back when its counts may have changed there (#172: a quick return
+  // with nothing changed reuses the last read, see home_screen_test).
+  testWidgets('GivenAChangedList_WhenSystemBack_ThenHomeIsReadAgain', (
     tester,
   ) async {
     // Given
@@ -1332,6 +1333,7 @@ void main() {
     final router = container.read(routerProvider)..go('/system-admins');
     await tester.pumpAndSettle();
     final reads = fakes.systemAdminsReads;
+    container.read(dashboardControllerProvider.notifier).markStale();
 
     // When
     final handled = await tester.binding.handlePopRoute();

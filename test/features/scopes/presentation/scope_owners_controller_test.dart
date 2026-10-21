@@ -14,6 +14,7 @@ import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_r
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -75,6 +76,7 @@ void main() {
   ScopeOwnersController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         personRepositoryProvider.overrideWithValue(repository),
         scopeInvitationRepositoryProvider.overrideWithValue(invitations),
       ],
@@ -208,6 +210,9 @@ void main() {
     // Then
     final state = currentState() as ScopeOwnersLoaded;
     expect(state.failure?.errors, <String>['person-9 is not a Scope Admin.']);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   // #159 — the last-owner rule counts every owner the API reports, not the
@@ -420,6 +425,9 @@ void main() {
       () =>
           repository.removeScopeOwner(scopeId: 'scope-1', personId: 'person-2'),
     ).called(1);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   // AF-14a — the API refuses to leave a scope without an owner.

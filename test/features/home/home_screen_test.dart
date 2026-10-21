@@ -12,6 +12,7 @@ import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
+import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
@@ -81,6 +82,7 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
     bool viaGoogle = false,
+    void Function(ProviderContainer container)? withContainer,
   }) async {
     tester.view.physicalSize = size;
     tester.view.devicePixelRatio = 1;
@@ -102,17 +104,29 @@ void main() {
     );
     addTearDown(container.dispose);
     await container.read(sessionControllerProvider.notifier).restore();
+    withContainer?.call(container);
 
     final router = GoRouter(
       routes: <RouteBase>[
-        GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+        GoRoute(
+          path: '/',
+          builder: (context, state) => const HomeScreen(),
+          // A child of Home, as in the application: leaving it keeps Home
+          // beneath, and coming back re-reads Home through `onReturn`.
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'system-admins',
+              builder: (context, state) =>
+                  Scaffold(body: Text('opened ${state.uri.path}')),
+            ),
+          ],
+        ),
         for (final path in <String>[
           '/scopes',
           '/scopes/:scopeId',
           '/profile',
           '/profile/security',
           '/health',
-          '/system-admins',
         ])
           GoRoute(
             path: path,
@@ -239,6 +253,66 @@ void main() {
 
     // Then
     expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  group('reuse of a recent read (#172)', () {
+    Future<void> openAndGoBack(WidgetTester tester) async {
+      await tester.tap(find.text('System Admins'));
+      await tester.pumpAndSettle();
+      expect(find.text('opened /system-admins'), findsOneWidget);
+
+      Navigator.of(tester.element(find.text('opened /system-admins'))).pop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('GivenAQuickReturn_WhenBackAtHome_ThenNothingIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      await pump(tester, fakes: fakes);
+      expect(fakes.scopeReads, 2);
+
+      // When
+      await openAndGoBack(tester);
+
+      // Then
+      expect(fakes.scopeReads, 2);
+    });
+
+    testWidgets('GivenAChangeMade_WhenBackAtHome_ThenItIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      late ProviderContainer container;
+      await pump(tester, fakes: fakes, withContainer: (c) => container = c);
+      await tester.tap(find.text('System Admins'));
+      await tester.pumpAndSettle();
+
+      // When a command that changes Home's figures succeeds
+      container.read(dashboardControllerProvider.notifier).markStale();
+      Navigator.of(tester.element(find.text('opened /system-admins'))).pop();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    testWidgets('GivenAQuickReturn_WhenRefreshIsTapped_ThenItIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      await pump(tester, fakes: fakes);
+
+      // When
+      await tester.tap(find.byTooltip('Refresh'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
   });
 
   testWidgets('GivenTheCountFails_WhenHomeOpens_ThenTheTileStillOpensTheList', (

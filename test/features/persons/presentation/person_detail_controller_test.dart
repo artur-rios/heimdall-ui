@@ -11,6 +11,7 @@ import 'package:heimdall_ui/features/persons/presentation/person_detail_controll
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -38,6 +39,7 @@ void main() {
   PersonDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         personRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -348,6 +350,9 @@ void main() {
     // Then
     verify(() => repository.delete('person-1')).called(1);
     expect(currentState(), isA<PersonDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAnOpenPerson_WhenErased_ThenTheHardEndpointIsUsed', () async {
@@ -387,6 +392,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'They are the last owner of a scope.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test('GivenAnAlreadyDeletedPerson_WhenDeleted_ThenItCountsAsDone', () async {

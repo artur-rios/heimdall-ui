@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
+import 'package:heimdall_ui/core/time/clock.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/home/domain/dashboard.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
@@ -184,7 +185,7 @@ void main() {
     await controller.load();
 
     // When
-    final refresh = controller.load();
+    final refresh = controller.load(force: true);
     final during = container.read(dashboardControllerProvider);
     await refresh;
 
@@ -197,6 +198,140 @@ void main() {
       ) as DashboardLoaded).refreshing,
       isFalse,
     );
+  });
+
+  group('reuse of a recent load (#172)', () {
+    var now = DateTime.utc(2026, 10, 21, 12);
+
+    /// A container whose clock is [now], so no test waits.
+    ProviderContainer containerFor(FakeDashboardRepositories fakes) {
+      now = DateTime.utc(2026, 10, 21, 12);
+      final container = ProviderContainer(
+        overrides: <Override>[
+          ...fakes.overrides,
+          clockProvider.overrideWithValue(() => now),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      return container;
+    }
+
+    DashboardController controllerOf(ProviderContainer container) =>
+        container.read(dashboardControllerProvider.notifier);
+
+    test(
+      'GivenTwoQuickLoads_WhenLoaded_ThenOneSetOfRequestsIsIssued',
+      () async {
+        // Given
+        final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+        final controller = controllerOf(containerFor(fakes));
+        await controller.load();
+
+        // When
+        now = now.add(const Duration(seconds: 59));
+        await controller.load();
+
+        // Then
+        expect(fakes.scopeReads, 2);
+      },
+    );
+
+    test('GivenALoadOlderThanTheWindow_WhenLoaded_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      now = now.add(DashboardController.freshFor);
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAQuickLoad_WhenForced_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      await controller.load(force: true);
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAFailedLoad_WhenLoadedAgain_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(
+        scopesFailure: const Failure(
+          kind: FailureKind.server,
+          errors: <String>['Down'],
+        ),
+      );
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAQuickLoad_WhenMarkedStale_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      controller.markStale();
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test(
+      'GivenALoadInFlight_WhenMarkedStale_ThenItDoesNotCountAsFresh',
+      () async {
+        // Given
+        final held = Completer<void>();
+        final fakes = FakeDashboardRepositories(
+          scopes: const <Scope>[_acme],
+          firstScopesReadHeldUntil: held.future,
+        );
+        final controller = controllerOf(containerFor(fakes));
+        final loading = controller.load();
+        controller.markStale();
+        held.complete();
+        await loading;
+
+        // When
+        await controller.load();
+
+        // Then
+        expect(fakes.scopeReads, 4);
+      },
+    );
+
+    test('GivenASessionReset_WhenLoaded_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final container = containerFor(fakes);
+      await controllerOf(container).load();
+
+      // When
+      container.invalidate(dashboardControllerProvider);
+      await controllerOf(container).load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
   });
 
   test('GivenASystemAdmin_WhenLoaded_ThenTheSystemAdminCountIsRead', () async {

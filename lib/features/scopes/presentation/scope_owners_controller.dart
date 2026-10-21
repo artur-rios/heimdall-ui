@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/domain/person_repository.dart';
 import '../../persons/presentation/scope_members.dart';
@@ -381,6 +382,7 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         // The owners are who an application may be given to, so the
         // selector that offers them must not keep the old list.
         ref.invalidate(scopeMembersProvider(arg));

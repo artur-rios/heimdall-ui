@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/scope_permission.dart';
 import '../domain/scope_permission_repository.dart';
 
@@ -272,6 +273,7 @@ class PermissionDetailController extends Notifier<PermissionDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const PermissionDeleted();
       case FailureResult<void>(:final failure):
         // Somebody already deleted it, which is the outcome that was asked

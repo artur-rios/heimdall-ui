@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../core/time/clock.dart';
 import '../../applications/domain/application_repository.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
@@ -51,7 +52,24 @@ dashboardControllerProvider =
 /// Nothing here is a new endpoint: every figure is the `totalItems` of a
 /// one-row page of a listing the administrator could open themselves, so the
 /// dashboard can never show a number the API would not.
+///
+/// A successful load is reused for [freshFor]: Home is re-entered from almost
+/// every screen, and each read costs about forty requests (#172). A command
+/// that changes what Home counts calls [markStale] (through
+/// `HomeDataStale.markHomeDataStale`), so Back to Home after a change still
+/// re-reads inside that window.
 class DashboardController extends Notifier<DashboardState> {
+  /// How long a successful load is reused by a plain [load].
+  static const Duration freshFor = Duration(seconds: 60);
+
+  /// When the last successful load began, or `null` when there is none worth
+  /// reusing — never loaded, reset, or marked stale since.
+  DateTime? _loadedAt;
+
+  /// Increments with every [markStale], so a load that was already in flight
+  /// when the data changed does not vouch for itself as fresh.
+  int _staleMarks = 0;
+
   /// Increments with every load, so an answer to a superseded load is dropped
   /// rather than overwriting a newer one — and with every reset, so an answer
   /// to a load of an earlier build is dropped too (see `BuildEpoch`).
@@ -60,11 +78,32 @@ class DashboardController extends Notifier<DashboardState> {
   @override
   DashboardState build() {
     ref.onDispose(() => _generation++);
+    _loadedAt = null;
 
     return const DashboardLoading();
   }
 
-  Future<void> load() async {
+  /// Forgets that the last load is recent, because something it counted has
+  /// changed: the next [load] reads again whatever its age.
+  void markStale() {
+    _staleMarks++;
+    _loadedAt = null;
+  }
+
+  /// Reads the dashboard, unless the last successful read is under [freshFor]
+  /// old; [force] — the explicit refresh — reads regardless.
+  Future<void> load({bool force = false}) async {
+    final startedAt = ref.read(clockProvider)();
+    final loadedAt = _loadedAt;
+
+    if (!force &&
+        loadedAt != null &&
+        state is DashboardLoaded &&
+        startedAt.difference(loadedAt) < freshFor) {
+      return;
+    }
+
+    final staleMarks = _staleMarks;
     final generation = ++_generation;
     final current = state;
 
@@ -111,6 +150,7 @@ class DashboardController extends Notifier<DashboardState> {
           return;
         }
 
+        _loadedAt = staleMarks == _staleMarks ? startedAt : null;
         state = DashboardLoaded(
           DashboardStats(
             activeScopes: page.totalItems,
@@ -148,4 +188,11 @@ class DashboardController extends Notifier<DashboardState> {
       googleUsers: (await googleUsers).valueOrNull,
     );
   }
+}
+
+/// What a command that changes Home's figures calls on success.
+extension HomeDataStale on Ref {
+  /// Makes the next Home load read again rather than reuse a recent one.
+  void markHomeDataStale() =>
+      read(dashboardControllerProvider.notifier).markStale();
 }

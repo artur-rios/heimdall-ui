@@ -9,6 +9,7 @@ import 'package:heimdall_ui/features/google_users/domain/google_user_repository.
 import 'package:heimdall_ui/features/google_users/presentation/google_user_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
@@ -29,6 +30,7 @@ void main() {
   GoogleUserDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         googleUserRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -117,4 +119,45 @@ void main() {
       );
     },
   );
+
+  Future<void> deleteAnswering(Result<void> answer) async {
+    when(
+      () => repository.getById(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) async => const Success<GoogleUser>(_grace));
+    when(
+      () => repository.delete(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+      ),
+    ).thenAnswer((_) async => answer);
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    await controller.delete();
+  }
+
+  test('GivenAGoogleUser_WhenDeleted_ThenHomeIsMarkedStale', () async {
+    // When
+    await deleteAnswering(const Success<void>(null));
+
+    // Then
+    expect(currentState(), isA<GoogleUserDeleted>());
+    expect(staleMarksOf(container), 1);
+  });
+
+  test('GivenARefusedDeletion_WhenDeleted_ThenHomeIsNotMarkedStale', () async {
+    // When
+    await deleteAnswering(
+      const FailureResult<void>(
+        Failure(kind: FailureKind.validation, errors: <String>['Refused']),
+      ),
+    );
+
+    // Then
+    expect(staleMarksOf(container), 0);
+  });
 }

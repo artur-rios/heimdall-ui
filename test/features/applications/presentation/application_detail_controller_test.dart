@@ -9,6 +9,7 @@ import 'package:heimdall_ui/features/applications/domain/application_repository.
 import 'package:heimdall_ui/features/applications/presentation/application_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockApplicationRepository extends Mock
@@ -38,6 +39,7 @@ void main() {
   ApplicationDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         applicationRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -313,6 +315,9 @@ void main() {
     // Then
     verify(() => repository.delete(scopeId: 'scope-1', id: 'app-1')).called(1);
     expect(currentState(), isA<ApplicationDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAnOpenApplication_WhenErased_ThenTheHardEndpointIsUsed', () async {
@@ -353,6 +358,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'That application is still in use.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test(

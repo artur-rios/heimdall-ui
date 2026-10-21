@@ -9,6 +9,7 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/permissions/presentation/permission_create_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopePermissionRepository extends Mock
@@ -28,6 +29,7 @@ void main() {
   PermissionCreateController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopePermissionRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -80,4 +82,54 @@ void main() {
       );
     },
   );
+
+  test('GivenACreatedPermission_WhenCreated_ThenHomeIsMarkedStale', () async {
+    // Given
+    when(
+      () => repository.create(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        includeAsJwtClaim: any(named: 'includeAsJwtClaim'),
+      ),
+    ).thenAnswer((_) async => const Success<ScopePermission>(_readInvoices));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.create(
+      name: 'read:invoices',
+      description: 'May read invoices',
+      includeAsJwtClaim: false,
+    );
+
+    // Then
+    expect(staleMarksOf(container), 1);
+  });
+
+  test('GivenARefusedCreate_WhenCreated_ThenHomeIsNotMarkedStale', () async {
+    // Given
+    when(
+      () => repository.create(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        includeAsJwtClaim: any(named: 'includeAsJwtClaim'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<ScopePermission>(
+        Failure(kind: FailureKind.validation, errors: <String>['Taken']),
+      ),
+    );
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.create(
+      name: 'read:invoices',
+      description: '',
+      includeAsJwtClaim: false,
+    );
+
+    // Then
+    expect(staleMarksOf(container), 0);
+  });
 }

@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
@@ -43,6 +44,7 @@ void main() {
   ScopeDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopeRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -332,6 +334,9 @@ void main() {
     // Then
     verify(() => repository.delete('scope-1')).called(1);
     expect(currentState(), isA<ScopeDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test(
@@ -374,6 +379,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'The scope still holds users.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   // AF-13d — already deleted is the outcome that was asked for.

@@ -35,7 +35,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
   }
 
-  Future<void> _refresh() async {
+  /// Reads Home's data. A plain call — entering Home, coming back to it — may
+  /// reuse a dashboard read in the last minute; [force], the explicit refresh,
+  /// never does (#172).
+  Future<void> _refresh({bool force = false}) async {
     final session = ref.read(sessionControllerProvider);
 
     if (session is! Authenticated) {
@@ -45,7 +48,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     await Future.wait(<Future<void>>[
       ref.read(profileControllerProvider.notifier).load(),
       if (session.principal.administersAnything)
-        ref.read(dashboardControllerProvider.notifier).load(),
+        ref.read(dashboardControllerProvider.notifier).load(force: force),
       if (session.principal.administersAnything)
         ref.read(scopeInvitationsControllerProvider.notifier).load(),
     ]);
@@ -78,11 +81,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
         IconButton(
           tooltip: 'Refresh',
           icon: const Icon(Icons.refresh),
-          onPressed: refreshing ? null : _refresh,
+          onPressed: refreshing ? null : () => _refresh(force: true),
         ),
       ],
       body: RefreshIndicator(
-        onRefresh: _refresh,
+        onRefresh: () => _refresh(force: true),
         child: SingleChildScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: EdgeInsets.all(
@@ -105,14 +108,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           return;
                         }
 
-                        ref.read(dashboardControllerProvider.notifier).load();
+                        ref
+                            .read(dashboardControllerProvider.notifier)
+                            .load(force: true);
                       },
                     ),
                   if (dashboard != null) ...<Widget>[
                     _AdminDashboard(
                       state: dashboard,
                       isSystemAdmin: principal.isSystemAdmin,
-                      onRetry: _refresh,
+                      onRetry: () => _refresh(force: true),
                     ),
                     const SizedBox(height: 32),
                   ],
