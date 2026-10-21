@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Flutter adds INTERNET to the debug and profile manifests only, so a
+         release build without this line cannot reach the API at all. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <!-- allowBackup is off because the session token lives in
          flutter_secure_storage, encrypted under a Keystore key that never
          leaves the device. A cloud backup carries the ciphertext to a device

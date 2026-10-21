@@ -114,6 +114,14 @@ jobs:
             echo "suffix=" >> "$GITHUB_OUTPUT"
           fi
       - run: flutter build apk --release
+      # Flutter grants INTERNET to debug and profile builds only, so a release APK
+      # can lose it unnoticed: it installs, and then every request fails.
+      - name: Check the release APK can reach the network
+        run: |
+          AAPT2=$(find "$ANDROID_HOME/build-tools" -name aapt2 | sort -V | tail -n 1)
+          "$AAPT2" dump permissions build/app/outputs/flutter-apk/app-release.apk | tee "$RUNNER_TEMP/permissions.txt"
+          grep -q 'android.permission.INTERNET' "$RUNNER_TEMP/permissions.txt" \
+            || { echo "::error title=INTERNET permission missing::The release APK does not declare android.permission.INTERNET."; exit 1; }
       - uses: actions/upload-artifact@v7
         with:
           name: heimdall-ui-android${{ steps.signing.outputs.suffix }}
