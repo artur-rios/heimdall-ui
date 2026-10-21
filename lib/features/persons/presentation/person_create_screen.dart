@@ -107,23 +107,15 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
   );
 
   /// AF-17e — leaving a modified form asks first, whichever way it is left:
-  /// Cancel, the back control, the navigation, or signing out.
-  Future<bool> _confirmLeave() async =>
-      !_isDirty ||
-      await showConfirm(
-        context: context,
-        title: 'Discard this person?',
-        message: 'What you have entered has not been saved and will be lost.',
-        confirmLabel: 'Discard',
-        destructive: true,
-        cancelLabel: 'Keep editing',
-      );
+  /// Cancel, the back control, the navigation, a system or browser Back, or
+  /// signing out (`AppShell.hasUnsavedChanges`). A created record is nothing
+  /// to lose, so the way on to it asks nothing.
+  bool get _hasUnsavedInput =>
+      _isDirty &&
+      ref.read(personCreateControllerProvider(widget.scopeId))
+          is! PersonCreated;
 
-  Future<void> _cancel() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/scopes/${widget.scopeId}/persons');
-    }
-  }
+  void _cancel() => context.go('/scopes/${widget.scopeId}/persons');
 
   @override
   Widget build(BuildContext context) {
@@ -152,8 +144,8 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New person'),
-      onBack: _cancel,
-      confirmLeave: _confirmLeave,
+      backRoute: '/scopes/${widget.scopeId}/persons',
+      hasUnsavedChanges: () => _hasUnsavedInput,
       backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

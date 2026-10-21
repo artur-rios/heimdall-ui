@@ -134,8 +134,22 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       _editing && changesEmail(person, _email.text.trim());
 
   /// AF-08i — opens the two-factor settings, where the email method is turned
-  /// off, once any unsaved edit has been let go: leaving this route asks.
-  void _openSecurity() => context.go('/profile/security');
+  /// off, once any unsaved edit has been let go.
+  ///
+  /// Security sits over this route rather than leaving it, so its `onExit`
+  /// does not ask; this does, and lets the edit go before opening it.
+  Future<void> _openSecurity() async {
+    if (!await confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit) ||
+        !mounted) {
+      return;
+    }
+
+    if (_editing) {
+      _cancelEditing();
+    }
+
+    context.go('/profile/security');
+  }
 
   Future<void> _save() async {
     // AF-08a: an empty name or a malformed address never reaches the API, and
@@ -181,6 +195,13 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
       currentRoute: '/profile',
       title: const Text('Profile'),
       hasUnsavedChanges: () => _hasUnsavedEdit,
+      // Back from Security, where the second factor may have changed. An
+      // edit in progress is not read over.
+      onReturn: () {
+        if (!_editing) {
+          ref.read(profileControllerProvider.notifier).load();
+        }
+      },
       body: switch (state) {
         ProfileLoading() => const Center(child: CircularProgressIndicator()),
         ProfileUnavailable(:final failure, :final sessionEnded) => _Unavailable(

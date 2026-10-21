@@ -884,8 +884,10 @@ User's own record
   email from your profile." beneath it while editing: changing it is done from your profile (UI-08),
   which asks for your password (AF-08g) and signs you in again.
 - **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
-  `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
-  **Back to System Admins**) returns to the System Admins list, and so does a delete.
+  `/system-admins/:personId` from UI-38; a link to the earlier address, `/persons/:personId`, is
+  redirected there. The page is the same, without a scope: its back control (tooltip **Back to System
+  Admins**), the system Back and the browser's Back return to the System Admins list, and so does a
+  delete.
 
 ---
 
@@ -1696,10 +1698,11 @@ an issue is also shown in the issue dialog.
 **Placement.** The **System Admins** tile on Home, in the **Overview** grid, shows how many System
 Admins there are, with the caption "Full access to every scope", and opens `/system-admins`. If the
 count cannot be read, the tile shows "—" and still opens the list. A Scope Admin's and a User's Home
-do not show the tile, and `/system-admins` and `/persons/:personId` are not available to them: the
-not-available-for-your-role screen is shown. The screen, titled **System Admins**, has a back control
-(tooltip **Back to Home**). There is no navigation destination of its own. Rows open
-`/persons/:personId`.
+do not show the tile, and `/system-admins` and `/system-admins/:personId` (and the earlier
+`/persons/:personId`, which redirects to it) are not available to them: the not-available-for-your-role
+screen is shown. The screen, titled **System Admins**, opens over Home and has a back control (tooltip
+**Back to Home**); the system Back returns there too. There is no navigation destination of its own.
+Rows open `/system-admins/:personId`.
 
 A line above the list says: "System Admins can administer every scope. Deleted and restricted
 accounts are not listed."
@@ -1714,10 +1717,13 @@ accounts are not listed."
 4. The admin searches by name or email (Enter in either field, or **Search**), which returns to
    page 1, or moves between pages. Overlapping requests queue the newest query, so a search typed
    during a load is not lost.
-5. The admin opens a row, and the person page opens at `/persons/:personId`, without a scope. Its
-   back control (tooltip **Back to System Admins**) goes to the list, and so does a delete.
+5. The admin opens a row, and the person page opens over the list at `/system-admins/:personId`,
+   without a scope. Its back control (tooltip **Back to System Admins**), the system Back and the
+   browser's Back go to the list, and so does a delete.
 
-The listing is forgotten when the screen is left, so a return loads it fresh.
+The listing stays under the person page while it is open, and is read again, with its filters, when
+it is back on top, so a change or delete made there shows. It is forgotten once the screen itself is
+left.
 
 **Alternative flows**
 

@@ -17,6 +17,7 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -109,21 +110,25 @@ void main() {
     router = GoRouter(
       initialLocation: '/scopes/scope-1/applications/new',
       routes: <RouteBase>[
+        // Nested and guarded as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/applications',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/new',
-          builder: (context, state) => ApplicationCreateScreen(
-            scopeId: state.pathParameters['scopeId']!,
-          ),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/:applicationId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['applicationId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => ApplicationCreateScreen(
+                scopeId: state.pathParameters['scopeId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+            GoRoute(
+              path: ':applicationId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['applicationId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
@@ -508,7 +513,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Discard this application?'), findsOneWidget);
+    expect(find.text('Discard your changes?'), findsOneWidget);
   });
 
   testWidgets('GivenAModifiedForm_WhenDiscardConfirmed_ThenTheListingOpens', (
@@ -574,5 +579,29 @@ void main() {
 
     // Then
     expect(find.text('Create an application'), findsOneWidget);
+  });
+
+  // #156 — Android's Back is a way off the form too, and asks the same
+  // question as Cancel.
+  testWidgets('GivenAModifiedForm_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Billing',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
   });
 }

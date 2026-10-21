@@ -145,16 +145,18 @@ void main() {
         ? GoRouter(
             initialLocation: '/profile',
             routes: <RouteBase>[
-              // Guarded as the app's own route is (#156).
+              // Nested and guarded as the app's own routes are (#156).
               GoRoute(
                 path: '/profile',
                 builder: (context, state) => const ProfileScreen(),
                 onExit: confirmLeaveWithUnsavedChanges,
-              ),
-              GoRoute(
-                path: '/profile/security',
-                builder: (context, state) =>
-                    const Scaffold(body: Text('security')),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'security',
+                    builder: (context, state) =>
+                        const Scaffold(body: Text('security')),
+                  ),
+                ],
               ),
             ],
           )
@@ -1327,6 +1329,69 @@ void main() {
     // Then
     expect(await handled, isFalse);
   });
+
+  // #156 — Security opens over the profile, and the second factor may have
+  // changed there, so the profile is read again on the way back.
+  testWidgets('GivenSecurityOpened_WhenSystemBackIsPressed_ThenItIsReadAgain', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    await pump(tester, routed: true);
+    await tester.tap(find.widgetWithText(ListTile, 'Security'));
+    await tester.pumpAndSettle();
+    expect(find.text('security'), findsOneWidget);
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('security'), findsNothing);
+    verify(
+      () =>
+          persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
+    ).called(2);
+  });
+
+  // AF-08i — once let go, the edit is gone, not waiting under Security.
+  testWidgets(
+    'GivenTheEmailMethodRefusal_WhenDiscardedForSecurity_ThenItEnds',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Person>(_adaWithTwoFactor));
+      answerStatusWith(
+        const TwoFactorStatus(isActive: true, emailEnabled: true),
+      );
+      answerUpdateWith(const FailureResult<Person>(_emailMethodOn));
+      await pump(tester, routed: true);
+      await changeEmailTo(tester, 'new@example.com');
+      await tester.enterText(passwordField(), 'secret');
+      await tester.enterText(codeField(), 'ABCD-EFGH-JKMN-PQRS');
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+      await tester.pumpAndSettle();
+      await tester.tap(
+        find.widgetWithText(TextButton, 'Open security settings'),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+      await tester.pumpAndSettle();
+
+      // When
+      await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Discard your changes?'), findsNothing);
+      expect(
+        find.widgetWithText(TextFormField, 'new@example.com'),
+        findsNothing,
+      );
+      expect(find.text(_emailMethodOn.errors.single), findsNothing);
+    },
+  );
 }
 
 /// The API's refusal of an own email change while the email sign-in method is

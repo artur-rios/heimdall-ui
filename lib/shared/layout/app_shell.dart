@@ -55,9 +55,11 @@ class AppShell extends ConsumerWidget {
   final String backTooltip;
 
   /// Asked before the navigation, the [backRoute] control or signing out
-  /// takes the person off this screen; `false` keeps them here. For a screen
-  /// holding something that would be lost — an unsaved form, or freshly issued
-  /// recovery codes. An [onBack] callback asks for itself.
+  /// takes the person off this screen; `false` keeps them here. Only for what
+  /// is not an edit and is not left like one: freshly issued recovery codes,
+  /// whose leaving signs the person out. An unsaved edit or form is
+  /// [hasUnsavedChanges]'s, asked by the route. An [onBack] callback asks for
+  /// itself.
   final Future<bool> Function()? confirmLeave;
 
   /// Whether this screen holds an edit that is not yet saved.

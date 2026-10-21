@@ -505,4 +505,139 @@ void main() {
       expect(currentState(), isA<ScopeDetailLoading>());
     },
   );
+
+  /// Holds every read after the first until [held] is completed.
+  Completer<Result<Scope>> holdTheNextRead() {
+    final held = Completer<Result<Scope>>();
+    when(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) => held.future);
+
+    return held;
+  }
+
+  void holdSaves(Completer<Result<Scope>> pending) {
+    when(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
+      ),
+    ).thenAnswer((_) => pending.future);
+  }
+
+  const renamed = Scope(id: 'scope-1', name: 'Acme Ltd', description: '');
+
+  // #156 — back from one of the scope's screens, the record stays on screen
+  // while it is read again, as a listing keeps its rows.
+  test(
+    'GivenAShownScope_WhenRefreshed_ThenItStaysShownUntilTheAnswer',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+
+      // When
+      final refreshing = controller.refresh();
+
+      // Then
+      expect((currentState() as ScopeDetailLoaded).scope, _acme);
+      held.complete(const Success<Scope>(renamed));
+      await refreshing;
+      expect((currentState() as ScopeDetailLoaded).scope, renamed);
+    },
+  );
+
+  test('GivenNothingShown_WhenRefreshed_ThenItIsLoaded', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.refresh();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).scope, _acme);
+  });
+
+  test('GivenASaveInFlight_WhenRefreshed_ThenNothingIsRead', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<Scope>>();
+    holdSaves(pending);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(name: 'Acme 2', description: '');
+
+    // When
+    await controller.refresh();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<Scope>(_acme));
+    await saving;
+  });
+
+  // A save started while the reread was out owns the state when it lands.
+  test(
+    'GivenASaveStartedMidRefresh_WhenTheReadAnswers_ThenItIsDropped',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final pending = Completer<Result<Scope>>();
+      holdSaves(pending);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+      final refreshing = controller.refresh();
+      final saving = controller.save(name: 'Acme 2', description: '');
+
+      // When
+      held.complete(const Success<Scope>(renamed));
+      await refreshing;
+
+      // Then
+      final state = currentState() as ScopeDetailLoaded;
+      expect(state.saving, isTrue);
+      expect(state.scope, _acme);
+      pending.complete(const Success<Scope>(_acme));
+      await saving;
+    },
+  );
+
+  test(
+    'GivenARefreshInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeDetailControllerProvider('scope-1'),
+        reset: scopeDetailControllerProvider,
+        start: controller.refresh,
+        answer: () => held.complete(const Success<Scope>(renamed)),
+      );
+
+      // Then
+      expect(currentState(), isA<ScopeDetailLoading>());
+    },
+  );
 }

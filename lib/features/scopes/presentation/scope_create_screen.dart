@@ -120,42 +120,13 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
   }
 
   /// AF-11d — leaving a modified form asks first, whichever way it is left:
-  /// Cancel, the back control, the navigation, or signing out.
-  Future<bool> _confirmLeave() async {
-    if (!_isDirty) {
-      return true;
-    }
+  /// Cancel, the back control, the navigation, a system or browser Back, or
+  /// signing out (`AppShell.hasUnsavedChanges`). A created record is nothing
+  /// to lose, so the way on to it asks nothing.
+  bool get _hasUnsavedInput =>
+      _isDirty && ref.read(scopeCreateControllerProvider) is! ScopeCreated;
 
-    final leave = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        // Scrolls rather than overflowing when a phone's keyboard is open.
-        scrollable: true,
-        title: const Text('Discard this scope?'),
-        content: const Text(
-          'What you have entered has not been saved and will be lost.',
-        ),
-        actions: <Widget>[
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('Keep editing'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Discard'),
-          ),
-        ],
-      ),
-    );
-
-    return leave ?? false;
-  }
-
-  Future<void> _cancel() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/scopes');
-    }
-  }
+  void _cancel() => context.go('/scopes');
 
   @override
   Widget build(BuildContext context) {
@@ -180,8 +151,8 @@ class _ScopeCreateScreenState extends ConsumerState<ScopeCreateScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New scope'),
-      onBack: _cancel,
-      confirmLeave: _confirmLeave,
+      backRoute: '/scopes',
+      hasUnsavedChanges: () => _hasUnsavedInput,
       backTooltip: 'Back to scopes',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

@@ -72,6 +72,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     return AppShell(
       currentRoute: '/',
       title: const Text('Home'),
+      // Back from the System Admins listing, which may have changed a count.
+      onReturn: _refresh,
       actions: <Widget>[
         IconButton(
           tooltip: 'Refresh',

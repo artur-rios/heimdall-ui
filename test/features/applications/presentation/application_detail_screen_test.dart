@@ -1212,6 +1212,35 @@ void main() {
     expect(find.text('Discard your changes?'), findsOneWidget);
   });
 
+  // The secret is asked about first, then the edit; keeping the edit keeps
+  // the person on the application.
+  testWidgets(
+    'GivenASecretAndAnEdit_WhenTheRealRouterLeaves_ThenBothAreAsked',
+    (tester) async {
+      // Given
+      answerGetWith(const Success<Application>(_billing));
+      await pump(tester, realRouter: true);
+      await editTheName(tester);
+      container.read(pendingSecretProvider.notifier).set();
+
+      // When
+      router.go('/scopes');
+      await tester.pumpAndSettle();
+      expect(find.text('Leave without the secret?'), findsOneWidget);
+      expect(find.text('Discard your changes?'), findsNothing);
+      await tester.tap(find.widgetWithText(FilledButton, 'Leave'));
+      await tester.pumpAndSettle();
+      expect(find.text('Discard your changes?'), findsOneWidget);
+      await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(router.state.uri.path, '/scopes/$_scopeId/applications/$_appId');
+      expect(find.widgetWithText(TextFormField, 'Invoicing'), findsOneWidget);
+    },
+  );
+
   // The edit went with the application, so the way back asks nothing.
   testWidgets('GivenAnUnsavedEdit_WhenItIsDeleted_ThenItLeavesAtOnce', (
     tester,

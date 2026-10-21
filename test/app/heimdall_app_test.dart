@@ -1143,6 +1143,9 @@ void main() {
     const r = '6f1d3a00-0000-0000-0000-000000000002';
     final expected = <String, List<String>>{
       '/': <String>['/'],
+      '/profile': <String>['/profile'],
+      '/profile/security': <String>['/profile', '/profile/security'],
+      '/system-admins': <String>['/', '/system-admins'],
       '/scopes': <String>['/scopes'],
       '/scopes/new': <String>['/scopes', '/scopes/new'],
       '/scopes/$s': <String>['/scopes', '/scopes/$s'],
@@ -1174,7 +1177,7 @@ void main() {
         '/scopes/$s/google-users',
         '/scopes/$s/google-users/$r',
       ],
-      '/system-admins/$r': <String>['/system-admins', '/system-admins/$r'],
+      '/system-admins/$r': <String>['/', '/system-admins', '/system-admins/$r'],
     };
 
     // When
@@ -1208,6 +1211,10 @@ void main() {
     // When / Then
     for (final location in <String>[
       '/profile',
+      '/scopes/new',
+      '/scopes/$s/persons/new',
+      '/scopes/$s/applications/new',
+      '/scopes/$s/permissions/new',
       '/scopes/$s',
       '/scopes/$s/sign-in-settings',
       '/scopes/$s/persons/$r',
@@ -1310,6 +1317,87 @@ void main() {
     expect(router.state.uri.path, '/system-admins');
     expect(find.widgetWithText(AppBar, 'System Admins'), findsOneWidget);
   });
+
+  // #156 — the System Admins listing opens over Home, which is read again on
+  // the way back: its counts may have changed there.
+  testWidgets('GivenTheSystemAdminsList_WhenSystemBack_ThenHomeIsReadAgain', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final fakes = FakeDashboardRepositories();
+    final container = await pumpApp(tester, fakes: fakes);
+    final router = container.read(routerProvider)..go('/system-admins');
+    await tester.pumpAndSettle();
+    final reads = fakes.systemAdminsReads;
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(router.state.uri.path, '/');
+    expect(fakes.systemAdminsReads, reads + 1);
+  });
+
+  /// Opens the profile and changes the name, which is an unsaved edit.
+  Future<ProviderContainer> editTheProfile(WidgetTester tester) async {
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpApp(tester);
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Me'), 'Me Too');
+    await tester.pumpAndSettle();
+
+    return container;
+  }
+
+  // #156 — signing out asks once; the route the redirect then leaves does
+  // not ask again.
+  testWidgets('GivenAnUnsavedEdit_WhenSignOutIsDiscarded_ThenItAsksOnlyOnce', (
+    tester,
+  ) async {
+    // Given
+    final container = await editTheProfile(tester);
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard your changes?'), findsOneWidget);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(container.read(routerProvider).state.uri.path, '/login');
+  });
+
+  // #156 — a session that ends is no question for the person: the redirect
+  // goes on without a dialog.
+  testWidgets(
+    'GivenAnUnsavedEdit_WhenTheSessionEnds_ThenItLeavesWithoutAsking',
+    (tester) async {
+      // Given
+      final container = await editTheProfile(tester);
+
+      // When
+      await container
+          .read(sessionControllerProvider.notifier)
+          .signOut(expired: true);
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(routerProvider).state.uri.path, '/login');
+    },
+  );
 }
 
 /// A token naming a User, which is the role the matrix hides the most from.

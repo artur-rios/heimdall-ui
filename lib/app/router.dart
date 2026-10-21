@@ -166,7 +166,27 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       pathParameters: state.pathParameters,
     ),
     routes: <RouteBase>[
-      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomeScreen(),
+        // The System Admins listing is opened from Home, so Back returns
+        // there; its person pages sit under it.
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'system-admins',
+            builder: (context, state) => const SystemAdminListScreen(),
+            routes: <RouteBase>[
+              GoRoute(
+                path: ':personId',
+                builder: (context, state) => PersonDetailScreen(
+                  personId: state.pathParameters['personId']!,
+                ),
+                onExit: confirmLeaveWithUnsavedChanges,
+              ),
+            ],
+          ),
+        ],
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/login/two-factor',
@@ -205,13 +225,17 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
         onExit: confirmLeaveWithUnsavedChanges,
-      ),
-      GoRoute(
-        path: '/profile/security',
-        builder: (context, state) => const SecurityScreen(),
-        // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
-        // leaving, and leaving them signs the person out.
-        onExit: (context, state) => confirmLeaveWithRecoveryCodes(context, ref),
+        // Security is opened from the profile, so Back returns there.
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'security',
+            builder: (context, state) => const SecurityScreen(),
+            // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
+            // leaving, and leaving them signs the person out.
+            onExit: (context, state) =>
+                confirmLeaveWithRecoveryCodes(context, ref),
+          ),
+        ],
       ),
       // A record's route is nested under its listing's, and a scope's own
       // screens under the scope's, so the pages below a screen are the ones it
@@ -224,6 +248,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: 'new',
             builder: (context, state) => const ScopeCreateScreen(),
+            onExit: confirmLeaveWithUnsavedChanges,
           ),
           GoRoute(
             path: ':scopeId',
@@ -242,6 +267,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => ApplicationCreateScreen(
                       scopeId: state.pathParameters['scopeId']!,
                     ),
+                    onExit: confirmLeaveWithUnsavedChanges,
                   ),
                   GoRoute(
                     path: ':applicationId',
@@ -269,6 +295,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => PermissionCreateScreen(
                       scopeId: state.pathParameters['scopeId']!,
                     ),
+                    onExit: confirmLeaveWithUnsavedChanges,
                   ),
                   GoRoute(
                     path: ':permissionId',
@@ -324,6 +351,7 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
                     builder: (context, state) => PersonCreateScreen(
                       scopeId: state.pathParameters['scopeId']!,
                     ),
+                    onExit: confirmLeaveWithUnsavedChanges,
                   ),
                   GoRoute(
                     path: ':personId',
@@ -345,18 +373,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
         path: '/persons/:personId',
         redirect: (context, state) =>
             '/system-admins/${state.pathParameters['personId']}',
-      ),
-      GoRoute(
-        path: '/system-admins',
-        builder: (context, state) => const SystemAdminListScreen(),
-        routes: <RouteBase>[
-          GoRoute(
-            path: ':personId',
-            builder: (context, state) =>
-                PersonDetailScreen(personId: state.pathParameters['personId']!),
-            onExit: confirmLeaveWithUnsavedChanges,
-          ),
-        ],
       ),
       GoRoute(
         path: '/erasure-requests',

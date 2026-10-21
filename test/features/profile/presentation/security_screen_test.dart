@@ -113,15 +113,18 @@ void main() {
             path: '/login',
             builder: (context, state) => const Scaffold(body: Text('sign-in')),
           ),
+          // Nested as the app's own routes are (#156).
           GoRoute(
             path: '/profile',
             builder: (context, state) => const Scaffold(body: Text('profile')),
-          ),
-          GoRoute(
-            path: '/profile/security',
-            builder: (context, state) => const SecurityScreen(),
-            onExit: (context, state) =>
-                confirmLeaveWithRecoveryCodes(context, ref),
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'security',
+                builder: (context, state) => const SecurityScreen(),
+                onExit: (context, state) =>
+                    confirmLeaveWithRecoveryCodes(context, ref),
+              ),
+            ],
           ),
         ],
       ),
@@ -1185,6 +1188,23 @@ void main() {
 
     // Then
     expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
+  });
+
+  // #156 — Security opens over the profile, so Android's Back returns there
+  // instead of leaving the app.
+  testWidgets('GivenNothingPending_WhenSystemBackIsPressed_ThenProfileShows', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('profile'), findsOneWidget);
   });
 
   testWidgets('GivenNothingPending_WhenLeaving_ThenTheProfileOpens', (

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -1331,6 +1332,38 @@ void main() {
         includeDeleted: any(named: 'includeDeleted'),
       ),
     ).called(2);
+  });
+
+  // The record stays on screen while it is read again, so neither the
+  // placeholder flashes nor the scroll position is lost.
+  testWidgets('GivenOneOfTheScopesScreens_WhenLeft_ThenTheScopeStaysShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Persons'));
+    await tester.pumpAndSettle();
+    final held = Completer<Result<Scope>>();
+    when(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) => held.future);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    // Then
+    expect(router.state.uri.path, '/scopes/scope-1');
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(nameField(tester).controller!.text, 'Acme');
+    held.complete(const Success<Scope>(_acme));
+    await tester.pumpAndSettle();
   });
 
   // An edit waiting underneath is not read over.

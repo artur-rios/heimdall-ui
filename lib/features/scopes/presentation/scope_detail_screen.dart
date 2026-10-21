@@ -192,7 +192,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
       // this one shows. An edit in progress is not read over.
       onReturn: () {
         if (!_editing) {
-          controller.load();
+          controller.refresh();
         }
       },
       body: switch (state) {

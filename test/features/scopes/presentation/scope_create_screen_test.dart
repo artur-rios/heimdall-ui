@@ -17,6 +17,7 @@ import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_create_screen.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -97,18 +98,22 @@ void main() {
     router = GoRouter(
       initialLocation: '/scopes/new',
       routes: <RouteBase>[
+        // Nested and guarded as the app's own router is (#156).
         GoRoute(
           path: '/scopes',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/new',
-          builder: (context, state) => const ScopeCreateScreen(),
-        ),
-        GoRoute(
-          path: '/scopes/:id',
-          builder: (context, state) =>
-              Scaffold(body: Text('detail ${state.pathParameters['id']}')),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => const ScopeCreateScreen(),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+            GoRoute(
+              path: ':id',
+              builder: (context, state) =>
+                  Scaffold(body: Text('detail ${state.pathParameters['id']}')),
+            ),
+          ],
         ),
       ],
     );
@@ -554,7 +559,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Discard this scope?'), findsOneWidget);
+    expect(find.text('Discard your changes?'), findsOneWidget);
   });
 
   testWidgets('GivenAModifiedForm_WhenDiscardConfirmed_ThenTheListingOpens', (
@@ -627,5 +632,26 @@ void main() {
 
     // Then
     expect(find.text('Create a scope'), findsOneWidget);
+  });
+
+  // #156 — Android's Back is a way off the form too, and asks the same
+  // question as Cancel.
+  testWidgets('GivenAModifiedForm_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerCreateWith(const Success<Scope>(_created));
+    await pump(tester);
+    await fillIn(tester);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
   });
 }

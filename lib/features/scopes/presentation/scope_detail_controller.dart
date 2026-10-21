@@ -138,6 +138,40 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
     );
   }
 
+  /// Reads the scope again while the one on screen stays, as a listing keeps
+  /// its rows while it re-reads, so returning from one of the scope's own
+  /// screens does not flash the placeholder or lose the scroll position.
+  /// With nothing on screen yet it is [load].
+  Future<void> refresh() async {
+    final current = state;
+
+    if (current is! ScopeDetailLoaded) {
+      return load();
+    }
+
+    // As in [load]: a save or delete in flight owns the state.
+    if (current.saving || current.deleting) {
+      return;
+    }
+
+    final epoch = this.epoch;
+    final result = await ref.read(scopeRepositoryProvider).getById(arg);
+
+    // Reset since it was asked, or a save or delete started meanwhile and
+    // now owns the state.
+    final now = state;
+
+    if (!isCurrent(epoch) ||
+        (now is ScopeDetailLoaded && (now.saving || now.deleting))) {
+      return;
+    }
+
+    state = result.fold(
+      onSuccess: ScopeDetailLoaded.new,
+      onFailure: ScopeDetailUnavailable.new,
+    );
+  }
+
   /// Saves [name] and [description].
   ///
   /// AF-12e is enforced by the screen, which keeps the control disabled until
