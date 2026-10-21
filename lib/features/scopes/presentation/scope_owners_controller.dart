@@ -94,6 +94,30 @@ final class ScopeOwnersLoaded extends ScopeOwnersState {
   );
 }
 
+/// What a command did, so a command that was ignored is told apart from one
+/// the API accepted.
+sealed class OwnerCommandResult {
+  const OwnerCommandResult();
+}
+
+/// The API accepted the command.
+final class OwnerCommandDone extends OwnerCommandResult {
+  const OwnerCommandDone();
+}
+
+/// The API refused the command, in its own words.
+final class OwnerCommandRefused extends OwnerCommandResult {
+  const OwnerCommandRefused(this.failure);
+
+  final Failure failure;
+}
+
+/// The command never left the app: the owners were still loading, or another
+/// command was on its way. Nothing was created, changed, or removed.
+final class OwnerCommandNotSent extends OwnerCommandResult {
+  const OwnerCommandNotSent();
+}
+
 final NotifierProviderFamily<ScopeOwnersController, ScopeOwnersState, String>
 scopeOwnersControllerProvider =
     NotifierProvider.family<ScopeOwnersController, ScopeOwnersState, String>(
@@ -199,13 +223,17 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   /// so it disappears, and the API's words say why.
   Future<void> withdraw(OwnerInvitation invitation) async {
     final epoch = this.epoch;
-    final failure = await _command(
+    final outcome = await _command(
       () => _invitations.withdraw(arg, invitation.id),
     );
 
-    if (failure?.kind != FailureKind.notFound || !isCurrent(epoch)) {
+    if (outcome is! OwnerCommandRefused ||
+        outcome.failure.kind != FailureKind.notFound ||
+        !isCurrent(epoch)) {
       return;
     }
+
+    final failure = outcome.failure;
 
     await load();
 
@@ -234,10 +262,11 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
 
   /// Creates a brand-new Scope Admin directly as a co-owner.
   ///
-  /// Answers with the API's refusal, or `null` once the owner exists. The
-  /// refusal is the dialog's to show, beside what was typed, so it is not also
-  /// put on the screen behind it.
-  Future<Failure?> createOwner({
+  /// Answers with what became of the draft: created, refused by the API, or
+  /// never sent because the screen was not ready for a command. The refusal is
+  /// the dialog's to show, beside what was typed, so it is not also put on the
+  /// screen behind it.
+  Future<OwnerCommandResult> createOwner({
     required String name,
     required String email,
     required String password,
@@ -258,16 +287,16 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   /// Runs one command and reloads, so what is on screen is always what the API
   /// last confirmed rather than a guess about what the command did.
   ///
-  /// Answers with the refusal, if there was one. [reportFailure] decides
-  /// whether the screen shows it too.
-  Future<Failure?> _command(
+  /// Answers with the refusal, if there was one, or that nothing was sent.
+  /// [reportFailure] decides whether the screen shows a refusal too.
+  Future<OwnerCommandResult> _command(
     Future<Result<void>> Function() send, {
     bool reportFailure = true,
   }) async {
     final current = state;
 
     if (current is! ScopeOwnersLoaded || current.busy) {
-      return null;
+      return const OwnerCommandNotSent();
     }
 
     state = current.copyWith(busy: true, clearFailure: true, clearNotice: true);
@@ -277,7 +306,7 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
 
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
-      return result.failureOrNull;
+      return _outcome(result);
     }
 
     switch (result) {
@@ -287,13 +316,18 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
         ref.invalidate(scopeMembersProvider(arg));
         await load();
 
-        return null;
+        return const OwnerCommandDone();
       case FailureResult<void>(:final failure):
         state = reportFailure
             ? current.copyWith(busy: false, failure: failure, clearNotice: true)
             : current.copyWith(busy: false, clearNotice: true);
 
-        return failure;
+        return OwnerCommandRefused(failure);
     }
   }
+
+  OwnerCommandResult _outcome(Result<void> result) => switch (result) {
+    FailureResult<void>(:final failure) => OwnerCommandRefused(failure),
+    Success<void>() => const OwnerCommandDone(),
+  };
 }

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -16,6 +17,7 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -776,6 +778,56 @@ void main() {
 
     // Then
     expect(find.text('Create a co-owner'), findsNothing);
+  });
+
+  // The screen can go busy behind the open dialog (a reload, another command).
+  // Closing then would read as "owner created" when nothing was sent.
+  testWidgets('GivenABusyScreen_WhenCreated_ThenTheDialogStaysAndSaysSo', (
+    tester,
+  ) async {
+    // Given
+    final release = Completer<Result<void>>();
+    when(
+      () => repository.removeScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) => release.future);
+    await pump(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Create owner'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Name'), 'Grace');
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Email'),
+      'grace@example.com',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Password'),
+      'secret-pass',
+    );
+    final removing = container
+        .read(scopeOwnersControllerProvider('scope-1').notifier)
+        .removeOwner('person-2');
+    await tester.pump();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Create'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Create a co-owner'), findsOneWidget);
+    expect(find.byKey(const Key('owner-not-sent')), findsOneWidget);
+    expect(find.widgetWithText(TextFormField, 'Grace'), findsOneWidget);
+    verifyNever(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
+    release.complete(const Success<void>(null));
+    await removing;
   });
 
   testWidgets('GivenAFailedListing_WhenOpened_ThenARetryIsOffered', (

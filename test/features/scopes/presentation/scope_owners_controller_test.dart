@@ -415,10 +415,95 @@ void main() {
     );
 
     // Then
-    expect(refusal?.errors, <String>['That email address is already taken.']);
+    expect((refusal as OwnerCommandRefused).failure.errors, <String>[
+      'That email address is already taken.',
+    ]);
     final state = currentState() as ScopeOwnersLoaded;
     expect(state.failure, isNull);
     expect(state.busy, isFalse);
+  });
+
+  // The dialog must not close as if the owner existed when the command was
+  // ignored.
+  test('GivenOwnersStillLoading_WhenCreated_ThenNothingIsSent', () async {
+    // Given
+    final controller = controllerUnderTest();
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandNotSent>());
+    verifyNever(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
+  });
+
+  test('GivenACommandInFlight_WhenCreated_ThenNothingIsSent', () async {
+    // Given
+    final release = Completer<Result<void>>();
+    when(
+      () => repository.removeScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) => release.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final removing = controller.removeOwner('person-2');
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandNotSent>());
+    verifyNever(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
+    release.complete(const Success<void>(null));
+    await removing;
+  });
+
+  test('GivenAnAcceptedDraft_WhenCreated_ThenItIsDone', () async {
+    // Given
+    when(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async => const Success<Person>(_grace));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandDone>());
   });
 
   // What is on screen after a command is what the API last confirmed, not a

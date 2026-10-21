@@ -26,6 +26,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Signing in or confirming an erasure with Google now runs one flow at a time: a second token event, a click on
   Google's own web button while the password form submits, or a double tap on the erasure button no longer starts a
   second exchange or a second Google flow (#168).
+- Submitting the create-owner dialog while the owners are still loading or another change is on its way now keeps
+  the dialog open with what was typed and says nothing was sent, instead of closing as if the owner had been
+  created (#165).
 
 ### Changed
 

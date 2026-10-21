@@ -322,9 +322,8 @@ class _OwnerDraft {
 class _CreateOwnerDialog extends StatefulWidget {
   const _CreateOwnerDialog({required this.onSubmit});
 
-  /// Sends the draft, answering with the API's refusal or `null` once the
-  /// owner exists.
-  final Future<Failure?> Function(_OwnerDraft draft) onSubmit;
+  /// Sends the draft, answering with what became of it.
+  final Future<OwnerCommandResult> Function(_OwnerDraft draft) onSubmit;
 
   @override
   State<_CreateOwnerDialog> createState() => _CreateOwnerDialogState();
@@ -337,6 +336,7 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
   final _password = TextEditingController();
   bool _sending = false;
   Failure? _refusal;
+  bool _notSent = false;
 
   @override
   void dispose() {
@@ -356,9 +356,10 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
     setState(() {
       _sending = true;
       _refusal = null;
+      _notSent = false;
     });
 
-    final refusal = await widget.onSubmit(
+    final result = await widget.onSubmit(
       _OwnerDraft(
         name: _name.text.trim(),
         email: _email.text.trim(),
@@ -370,13 +371,21 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
       return;
     }
 
-    if (refusal == null) {
-      Navigator.of(context).pop();
-    } else {
-      setState(() {
-        _sending = false;
-        _refusal = refusal;
-      });
+    switch (result) {
+      case OwnerCommandDone():
+        Navigator.of(context).pop();
+      case OwnerCommandRefused(:final failure):
+        setState(() {
+          _sending = false;
+          _refusal = failure;
+        });
+      case OwnerCommandNotSent():
+        // The owners were loading or busy: keep what was typed and say so,
+        // rather than closing as if the owner had been created.
+        setState(() {
+          _sending = false;
+          _notSent = true;
+        });
     }
   }
 
@@ -394,6 +403,14 @@ class _CreateOwnerDialogState extends State<_CreateOwnerDialog> {
           // The API's own words, with everything typed still in place.
           if (_refusal case final refusal?) ...<Widget>[
             ErrorBanner(failure: refusal),
+            const SizedBox(height: 12),
+          ],
+          if (_notSent) ...<Widget>[
+            const Text(
+              'Nothing was sent: the owners are still loading or busy. '
+              'Wait a moment and try again.',
+              key: Key('owner-not-sent'),
+            ),
             const SizedBox(height: 12),
           ],
           TextFormField(
