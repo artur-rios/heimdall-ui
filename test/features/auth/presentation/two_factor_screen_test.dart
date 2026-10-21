@@ -15,6 +15,12 @@ import 'package:mocktail/mocktail.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+/// A store whose platform refuses every write, as Linux without a keyring does.
+class _RefusingTokenStore extends InMemoryTokenStore {
+  @override
+  Future<void> write(AuthToken token) async => throw StateError('no keyring');
+}
+
 /// A token whose payload names a User, which is all the screen's flows need.
 const String _jwt =
     'header.'
@@ -217,6 +223,24 @@ void main() {
       find.text('That sign-in attempt expired. Please sign in again.'),
       findsOneWidget,
     );
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
+
+  // A session the device cannot keep is not an expired challenge.
+  testWidgets('GivenStoreRefusesWrite_WhenVerified_ThenStoreFailureIsShown', (
+    tester,
+  ) async {
+    // Given
+    store = _RefusingTokenStore();
+    answerVerifyWith(Success<AuthToken>(tokenFor(_jwt)));
+    await pump(tester);
+
+    // When
+    await enterAndVerify(tester, '123456');
+
+    // Then
+    expect(find.textContaining('could not store your session'), findsOneWidget);
+    expect(find.textContaining('expired'), findsNothing);
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
   });
 

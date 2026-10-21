@@ -19,6 +19,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   of showing the previous link's result, which hid the reset form (#158).
 - Verifying an email address no longer hides the signed-in administrator's own "verify your email" prompt unless
   their own address is now verified, as the API reports it; a link mailed to somebody else leaves the prompt (#170).
+- Completing a second factor on a device whose secure storage refuses the session token now says the device could not
+  store the session, instead of reporting an expired sign-in (#163).
 
 ### Changed
 

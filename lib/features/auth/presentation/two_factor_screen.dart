@@ -189,9 +189,24 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
 
     // AF-02b: the challenge is gone, so there is nothing left to correct here.
     if (!challengeSurvived) {
+      // The API ending the challenge is an expiry. Any other failure that
+      // ends it — the device refusing to store the session — has its own text.
+      final failure = result.failureOrNull;
+      final expired = switch (failure?.kind) {
+        null ||
+        FailureKind.unauthorized ||
+        FailureKind.forbidden ||
+        FailureKind.notFound => true,
+        _ => false,
+      };
+
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('That sign-in attempt expired. Please sign in again.'),
+        SnackBar(
+          content: Text(
+            expired
+                ? 'That sign-in attempt expired. Please sign in again.'
+                : failure!.displayMessage,
+          ),
         ),
       );
 
