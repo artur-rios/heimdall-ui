@@ -830,6 +830,43 @@ void main() {
     await removing;
   });
 
+  // The picker can stay open while the screen goes busy behind it. Choosing
+  // then sends nothing, and the admin must not be left thinking it did.
+  testWidgets('GivenABusyScreen_WhenAnOwnerIsChosen_ThenNothingSentIsSaid', (
+    tester,
+  ) async {
+    // Given
+    final release = Completer<Result<void>>();
+    when(
+      () => repository.removeScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) => release.future);
+    await pump(tester);
+    await tester.tap(find.widgetWithText(TextButton, 'Add existing'));
+    await tester.pumpAndSettle();
+    final removing = container
+        .read(scopeOwnersControllerProvider('scope-1').notifier)
+        .removeOwner('person-2');
+    await tester.pump();
+
+    // When
+    await tester.tap(find.widgetWithText(ListTile, 'Hedy'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.byKey(const Key('owner-add-not-sent')), findsOneWidget);
+    verifyNever(
+      () => repository.addScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    );
+    release.complete(const Success<void>(null));
+    await removing;
+  });
+
   testWidgets('GivenAFailedListing_WhenOpened_ThenARetryIsOffered', (
     tester,
   ) async {

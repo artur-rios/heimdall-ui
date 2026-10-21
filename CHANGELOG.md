@@ -29,6 +29,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Submitting the create-owner dialog while the owners are still loading or another change is on its way now keeps
   the dialog open with what was typed and says nothing was sent, instead of closing as if the owner had been
   created (#165).
+- Choosing an owner in the picker while the owners are still loading or another change is on its way now says nothing
+  was sent, instead of closing silently as if the owner had been added (#165).
 - The owner picker now opens on its loading state instead of the list it showed last time, which still held the
   owner just added and led to the API's "already an owner" refusal, and only the latest of overlapping searches
   writes its result (#166).

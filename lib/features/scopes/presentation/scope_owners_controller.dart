@@ -190,11 +190,14 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
   /// Adds a person who is already a Scope Admin as a co-owner — or, when the
   /// caller is a Scope Admin, invites them (FR-SC-14) and says so: they are then
   /// listed under the pending invitations, not among the owners (AF-14h).
-  Future<void> addOwner(String personId) async {
+  ///
+  /// Answers with what became of the add, so the screen can say when it was
+  /// never sent (#165).
+  Future<OwnerCommandResult> addOwner(String personId) async {
     final epoch = this.epoch;
     AddOwnerOutcome? outcome;
 
-    await _command(() async {
+    final result = await _command(() async {
       final result = await _repository.addScopeOwner(
         scopeId: arg,
         personId: personId,
@@ -208,12 +211,14 @@ class ScopeOwnersController extends Notifier<ScopeOwnersState>
     });
 
     if (!isCurrent(epoch) || outcome != AddOwnerOutcome.invited) {
-      return;
+      return result;
     }
 
     if (state case final ScopeOwnersLoaded loaded) {
       state = loaded.copyWith(notice: 'Invitation sent');
     }
+
+    return result;
   }
 
   /// Withdraws an open invitation (UC-58).

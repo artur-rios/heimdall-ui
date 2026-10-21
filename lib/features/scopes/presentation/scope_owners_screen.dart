@@ -59,8 +59,24 @@ class _ScopeOwnersScreenState extends ConsumerState<ScopeOwnersScreen> {
       excludeOwnersOfScopeId: widget.scopeId,
     );
 
-    if (chosen != null && mounted) {
-      await _controller.addOwner(chosen.id);
+    if (chosen == null || !mounted) {
+      return;
+    }
+
+    final result = await _controller.addOwner(chosen.id);
+
+    // The picker can stay open while the owners reload or another command is
+    // on its way; the add is then never sent, and silence would read as done.
+    if (result is OwnerCommandNotSent && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          key: Key('owner-add-not-sent'),
+          content: Text(
+            'Nothing was sent: the owners are still loading or busy. '
+            'Wait a moment and try again.',
+          ),
+        ),
+      );
     }
   }
 
