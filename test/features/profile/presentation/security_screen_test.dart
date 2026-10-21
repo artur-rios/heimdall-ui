@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
+import 'package:heimdall_ui/core/files/file_saver.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/secrets/screen_security.dart';
 import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
@@ -37,6 +38,25 @@ String _jwt() {
   return 'header.$payload.signature';
 }
 
+class _FakeFileSaver implements FileSaver {
+  final Map<String, String> saved = <String, String>{};
+  Object? failWith;
+
+  @override
+  Future<String?> saveText({
+    required String fileName,
+    required String contents,
+    String mimeType = 'application/json',
+  }) async {
+    if (failWith case final error?) {
+      throw error;
+    }
+    saved[fileName] = '$mimeType|$contents';
+
+    return null;
+  }
+}
+
 const _off = TwoFactorStatus();
 const _on = TwoFactorStatus(
   isActive: true,
@@ -59,6 +79,7 @@ void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
   late RecordingSecretClipboard secrets;
+  late _FakeFileSaver saver;
   late RecordingScreenSecurity security;
   late ProviderContainer container;
   late GoRouter router;
@@ -79,6 +100,7 @@ void main() {
         authRepositoryProvider.overrideWithValue(repository),
         tokenStoreProvider.overrideWithValue(store),
         secretClipboardProvider.overrideWithValue(secrets),
+        fileSaverProvider.overrideWithValue(saver),
         screenSecurityProvider.overrideWithValue(security),
       ],
     );
@@ -211,6 +233,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockAuthRepository();
     secrets = RecordingSecretClipboard();
+    saver = _FakeFileSaver();
     security = RecordingScreenSecurity();
     store = InMemoryTokenStore();
     answerStatusWith(const Success<TwoFactorStatus>(_off));
@@ -1344,6 +1367,36 @@ void main() {
       expect(secrets.copied, <String>['aaa\nbbb']);
     },
   );
+
+  testWidgets('GivenRecoveryCodes_WhenDownloaded_ThenTheyAreSavedOnePerLine', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saved, <String, String>{
+      'heimdall-recovery-codes.txt': 'text/plain|aaa\nbbb',
+    });
+    expect(find.text('Recovery codes saved.'), findsOneWidget);
+  });
+
+  testWidgets('GivenRecoveryCodes_WhenTheDownloadFails_ThenItIsSaid', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+    saver.failWith = StateError('disk full');
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saved, isEmpty);
+    expect(
+      find.text('The codes could not be saved. Copy them instead.'),
+      findsOneWidget,
+    );
+  });
 
   // AF-09c — on the web a browser Back, Forward or typed address is a route
   // change that PopScope and the shell never see, so the route itself asks.

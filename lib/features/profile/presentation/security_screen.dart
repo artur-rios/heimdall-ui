@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/files/file_saver.dart';
 import '../../../core/result/result.dart';
 import '../../../core/secrets/screen_security.dart';
 import '../../../core/secrets/secret_clipboard.dart';
@@ -592,6 +593,36 @@ class _RecoveryCodes extends ConsumerWidget {
   final bool regenerated;
   final VoidCallback onAcknowledge;
 
+  /// FR-AU-19: saves the codes as a plain text file, one per line, through the
+  /// same saver as the data export. Says so either way, since a browser
+  /// download shows nothing of its own on some targets.
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    String asText,
+  ) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    try {
+      await ref
+          .read(fileSaverProvider)
+          .saveText(
+            fileName: 'heimdall-recovery-codes.txt',
+            contents: asText,
+            mimeType: 'text/plain',
+          );
+      messenger?.showSnackBar(
+        const SnackBar(content: Text('Recovery codes saved.')),
+      );
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('The codes could not be saved. Copy them instead.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -633,6 +664,11 @@ class _RecoveryCodes extends ConsumerWidget {
                 onPressed: () => ref.read(secretClipboardProvider).copy(asText),
                 icon: const Icon(Icons.copy_outlined),
                 label: const Text('Copy codes'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _download(context, ref, asText),
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download codes'),
               ),
             ],
           ),

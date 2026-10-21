@@ -61,6 +61,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   Leaving an unsaved edit on a scope, person, application, permission, the profile, a scope's sign-in settings or
   a new scope, person, application or permission form now asks "Discard your changes?" whichever way it is left,
   and signing out asks about an edit left open on a page underneath (#156).
+- The recovery codes shown after enabling or regenerating two-factor authentication can now be downloaded as
+  `heimdall-recovery-codes.txt`, one code per line, as FR-AU-19 asks; closing or reloading the tab while they are
+  shown was already confirmed with the browser (#181).
 
 ### Changed
 
