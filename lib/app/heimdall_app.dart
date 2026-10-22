@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/session_controller.dart';
+import '../shared/widgets/page_title.dart';
 import 'app_version.dart';
 import 'router.dart';
 import 'session_scoped_state.dart';
@@ -30,7 +31,9 @@ class HeimdallApp extends ConsumerWidget {
     });
 
     return MaterialApp.router(
-      title: 'Heimdall',
+      // The screen on top names the tab; the application's own title would
+      // put the bare name back whenever the application rebuilds.
+      onGenerateTitle: (_) => PageTitle.currentLabel,
       debugShowCheckedModeBanner: false,
       theme: buildLightTheme(),
       darkTheme: buildDarkTheme(),

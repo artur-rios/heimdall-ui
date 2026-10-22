@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -9,29 +6,18 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission_repository.dart';
 import 'package:heimdall_ui/features/permissions/presentation/permission_create_screen.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockScopePermissionRepository extends Mock
     implements ScopePermissionRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': 1,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _created = ScopePermission(
   id: 'permission-9',
@@ -46,7 +32,6 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockScopePermissionRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -54,53 +39,43 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        scopePermissionRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/permissions/new',
       routes: <RouteBase>[
+        // Nested and guarded as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/permissions',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/permissions/new',
-          builder: (context, state) =>
-              PermissionCreateScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/permissions/:permissionId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['permissionId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => PermissionCreateScreen(
+                scopeId: state.pathParameters['scopeId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+            GoRoute(
+              path: ':permissionId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['permissionId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9')),
+      overrides: <Override>[
+        scopePermissionRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerCreateWith(Result<ScopePermission> result) {
@@ -311,7 +286,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Discard this permission?'), findsOneWidget);
+    expect(find.text('Discard your changes?'), findsOneWidget);
   });
 
   testWidgets('GivenAModifiedForm_WhenDiscardConfirmed_ThenTheListingOpens', (
@@ -377,5 +352,29 @@ void main() {
 
     // Then
     expect(find.text('Create a permission'), findsOneWidget);
+  });
+
+  // #156 — Android's Back is a way off the form too, and asks the same
+  // question as Cancel.
+  testWidgets('GivenAModifiedForm_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'read:invoices',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
   });
 }

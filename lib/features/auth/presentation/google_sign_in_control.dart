@@ -80,6 +80,14 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
 
   /// Exchanges a token that arrived from Google's own button.
   Future<void> _exchange(String idToken) async {
+    // Google may send a token again while the first is being exchanged; the
+    // second would be a second sign-in for the same click. Nor may one be
+    // taken while the credentials form submits: on the web, Google's button is
+    // an iframe that pointer-ignoring in Flutter cannot reach.
+    if (_exchanging || !widget.enabled) {
+      return;
+    }
+
     setState(() {
       _exchanging = true;
       _failure = null;
@@ -143,8 +151,12 @@ class _GoogleSignInControlState extends ConsumerState<GoogleSignInControl> {
               icon: const Icon(Icons.account_circle_outlined),
               label: const Text('Continue with Google'),
             ),
-            GoogleSignInAvailability.platformControl =>
-              buildPlatformGoogleButton(),
+            // Google's button cannot be greyed out, so while the credentials
+            // form submits it is made unreachable instead.
+            GoogleSignInAvailability.platformControl => IgnorePointer(
+              ignoring: !widget.enabled,
+              child: buildPlatformGoogleButton(),
+            ),
             // AF-06e: the screen already withholds this control, so reaching
             // here would be a bug rather than a state to render.
             GoogleSignInAvailability.unsupported => const SizedBox.shrink(),

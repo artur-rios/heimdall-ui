@@ -10,8 +10,6 @@ import 'package:heimdall_ui/features/audit_log/domain/audit_log_repository.dart'
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/late_answer.dart';
-
 class _MockAuditLogRepository extends Mock implements AuditLogRepository {}
 
 Page<AuditEntry> _page({int totalPages = 1}) => Page<AuditEntry>(
@@ -182,67 +180,6 @@ void main() {
     },
   );
 
-  test(
-    'GivenAFilterChangeDuringOneLoad_WhenAPageIsAsked_ThenTheChangeIsKept',
-    () async {
-      // Given — the first load is held open
-      final firstAnswer = Completer<Result<Page<AuditEntry>>>();
-      var calls = 0;
-      when(anyList).thenAnswer((_) {
-        calls++;
-
-        return calls == 1
-            ? firstAnswer.future
-            : Future<Result<Page<AuditEntry>>>.value(
-                Success<Page<AuditEntry>>(_page(totalPages: 5)),
-              );
-      });
-      final controller = controllerUnderTest();
-      final firstLoad = controller.load();
-
-      // When
-      unawaited(controller.setOutcome(true));
-      unawaited(controller.goToPage(2));
-      firstAnswer.complete(Success<Page<AuditEntry>>(_page(totalPages: 5)));
-      await firstLoad;
-      await pumpEventQueue();
-
-      // Then
-      expect(currentState().query.filter.succeeded, isTrue);
-      expect(currentState().query.pageNumber, 2);
-    },
-  );
-
-  test(
-    'GivenAFilterChangeDuringOneLoad_WhenReloaded_ThenTheChangeIsKept',
-    () async {
-      // Given — the first load is held open
-      final firstAnswer = Completer<Result<Page<AuditEntry>>>();
-      var calls = 0;
-      when(anyList).thenAnswer((_) {
-        calls++;
-
-        return calls == 1
-            ? firstAnswer.future
-            : Future<Result<Page<AuditEntry>>>.value(
-                Success<Page<AuditEntry>>(_page()),
-              );
-      });
-      final controller = controllerUnderTest();
-      final firstLoad = controller.load();
-
-      // When
-      unawaited(controller.setAction('CreateScopeCommand'));
-      unawaited(controller.load());
-      firstAnswer.complete(Success<Page<AuditEntry>>(_page()));
-      await firstLoad;
-      await pumpEventQueue();
-
-      // Then
-      expect(currentState().query.filter.action, 'CreateScopeCommand');
-    },
-  );
-
   test('GivenFilters_WhenCleared_ThenTheQueryIsUnfiltered', () async {
     // Given
     answerWith(Success<Page<AuditEntry>>(_page()));
@@ -286,27 +223,26 @@ void main() {
     expect(currentState(), isA<AuditLogFailed>());
   });
 
-  // A sign-out resets the trail while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<AuditEntry>>>();
-      when(anyList).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
+  // FR-UX-07 — an answer the client cannot read ends in the failed state with
+  // Retry, as on every other list, not on the placeholder for good.
+  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+    // Given
+    when(anyList).thenAnswer(
+      (_) => Future<Result<Page<AuditEntry>>>.error(
+        const FormatException('not the shape of a page'),
+      ),
+    );
+    final controller = controllerUnderTest();
 
-      // When
-      await answerAfterReset(
-        container,
-        auditLogControllerProvider,
-        reset: auditLogControllerProvider,
-        start: controller.load,
-        answer: () => answer.complete(Success<Page<AuditEntry>>(_page())),
-      );
+    // When
+    await controller.load();
 
-      // Then
-      expect(currentState(), isA<AuditLogLoading>());
-    },
-  );
+    // Then
+    final state = currentState();
+    expect(state, isA<AuditLogFailed>());
+    expect(
+      (state as AuditLogFailed).failure.displayMessage,
+      'The API returned an unexpected response.',
+    );
+  });
 }

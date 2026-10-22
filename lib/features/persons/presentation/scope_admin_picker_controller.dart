@@ -91,6 +91,11 @@ class ScopeAdminPickerController extends Notifier<ScopeAdminsState>
           )
         : const ScopeAdminsLoading();
 
+    // Only the latest search may write: two overlapping ones (Enter, then the
+    // arrow button) can be answered in either order, and the earlier question
+    // answered last would put its list under the later one's query.
+    advanceEpoch();
+
     final epoch = this.epoch;
     final result = await ref
         .read(personRepositoryProvider)
@@ -101,7 +106,7 @@ class ScopeAdminPickerController extends Notifier<ScopeAdminsState>
           pageSize: 50,
         );
 
-    // Reset since it was asked: the answer is an earlier build's.
+    // Reset or superseded since it was asked: the answer is stale.
     if (!isCurrent(epoch)) {
       return;
     }

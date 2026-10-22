@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/google_user.dart';
 import '../domain/google_user_repository.dart';
 
@@ -109,6 +110,14 @@ class GoogleUserDetailController extends Notifier<GoogleUserDetailState>
   }
 
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is GoogleUserDetailLoaded && (current.deleting)) {
+      return;
+    }
+
     state = const GoogleUserDetailLoading();
 
     final epoch = this.epoch;
@@ -127,8 +136,10 @@ class GoogleUserDetailController extends Notifier<GoogleUserDetailState>
     );
   }
 
-  /// Logically deletes the Google User. The record is kept and the API can
-  /// restore it, which is what the confirmation says before this is called.
+  /// Logically deletes the Google User. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window. The confirmation says so
+  /// before this is called.
   Future<void> delete() => _delete(
     (repository) =>
         repository.delete(scopeId: arg.scopeId, id: arg.googleUserId),
@@ -161,6 +172,7 @@ class GoogleUserDetailController extends Notifier<GoogleUserDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const GoogleUserDeleted();
       case FailureResult<void>(:final failure):
         // Somebody already deleted them, which is the outcome that was asked

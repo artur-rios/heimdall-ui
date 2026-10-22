@@ -1,17 +1,16 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/health/data/health_repository_impl.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
 
-  ApiHealthRepository repositoryAnswering(_Answer answer) {
-    dio.httpClientAdapter = _StubAdapter(answer);
+  ApiHealthRepository repositoryAnswering(StubAnswer answer) {
+    dio.httpClientAdapter = StubAdapter(answer);
 
     return ApiHealthRepository(HealthCheckClient(dio));
   }
@@ -23,7 +22,7 @@ void main() {
   test('GivenAReachableApi_WhenPinged_ThenItsAnswerIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -42,7 +41,7 @@ void main() {
 
   test('GivenNoConnection_WhenPinged_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.ping();
@@ -54,7 +53,7 @@ void main() {
   test('GivenAHealthyApi_WhenDetailed_ThenEveryServiceIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -84,7 +83,7 @@ void main() {
   test('GivenAnUnhealthyApi_WhenDetailed_ThenTheReportIsStillRead', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 503,
         body: <String, dynamic>{
           'success': false,
@@ -113,7 +112,7 @@ void main() {
   test('GivenAScopeAdmin_WhenDetailed_ThenForbiddenIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{'success': false, 'errors': <String>[]},
       ),
@@ -128,7 +127,7 @@ void main() {
 
   test('GivenNoConnection_WhenDetailed_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.detailed();
@@ -140,7 +139,7 @@ void main() {
   test('GivenAnUnnamedService_WhenDetailed_ThenItStillHasALabel', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -160,43 +159,4 @@ void main() {
     expect(result.valueOrNull?.services.single.name, 'Unnamed service');
     expect(result.valueOrNull?.services.single.status, 'Unknown');
   });
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

@@ -1,37 +1,20 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/google_users/presentation/google_user_detail_screen.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
-String _jwt({int role = 1}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = GoogleUser(
   id: 'google-1',
@@ -56,7 +39,6 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockGoogleUserRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -65,26 +47,6 @@ void main() {
     ThemeData? theme,
     int role = 1,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role),
-        expiresAt: DateTime.utc(2030),
-      ),
-    );
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        googleUserRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/google-users/google-1',
       routes: <RouteBase>[
@@ -101,18 +63,18 @@ void main() {
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9', role: role)),
+      overrides: <Override>[
+        googleUserRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<GoogleUser> result) {
@@ -150,25 +112,6 @@ void main() {
         id: any(named: 'id'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => repository.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        email: any(named: 'email'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<GoogleUser>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   setUp(() {
@@ -425,10 +368,7 @@ void main() {
     await pump(tester);
 
     // Then
-    expect(
-      find.textContaining('Neither stops them signing in again'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('they can sign in again'), findsOneWidget);
   });
 
   testWidgets('GivenTheDeleteControl_WhenTapped_ThenConfirmationIsAsked', (
@@ -463,7 +403,36 @@ void main() {
     );
 
     // Then
-    expect(find.textContaining('they can sign in again'), findsOneWidget);
+    expect(
+      find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.textContaining('they can sign in again'),
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenTheDeleteDialog_WhenOpened_ThenItSaysTheDataIsAnonymised', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<GoogleUser>(_ada));
+    await pump(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete Google user'),
+    );
+
+    // Then
+    expect(
+      find.textContaining(
+        'After 90 days, their personal data is anonymised and cannot be '
+        'restored.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheyAreDeleted', (
@@ -472,7 +441,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -494,7 +462,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -620,7 +587,6 @@ void main() {
     // Given
     answerGetWith(const Success<GoogleUser>(_ada));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,

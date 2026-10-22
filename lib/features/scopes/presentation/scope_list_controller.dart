@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/state/build_epoch.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
 
@@ -44,30 +45,38 @@ class ScopeQuery {
 
 /// How far the listing has got. The query travels with every state, so the
 /// filters survive a failure and a retry.
-sealed class ScopeListState {
+sealed class ScopeListState implements ListState<ScopeQuery, Scope> {
   const ScopeListState(this.query);
 
+  @override
   final ScopeQuery query;
 }
 
 /// AF-10e — the first page is on its way and the list shows a placeholder.
-final class ScopeListLoading extends ScopeListState {
+final class ScopeListLoading extends ScopeListState
+    implements ListLoading<ScopeQuery, Scope> {
   const ScopeListLoading(super.query);
 }
 
 /// A page arrived. [busy] marks a further page or filter in flight, which keeps
 /// the current rows on screen instead of flashing the placeholder again.
-final class ScopeListLoaded extends ScopeListState {
+final class ScopeListLoaded extends ScopeListState
+    implements ListLoaded<ScopeQuery, Scope> {
   const ScopeListLoaded(super.query, this.page, {this.busy = false});
 
+  @override
   final Page<Scope> page;
+
+  @override
   final bool busy;
 }
 
 /// AF-10b — the request failed, and the query that failed is kept.
-final class ScopeListFailed extends ScopeListState {
+final class ScopeListFailed extends ScopeListState
+    implements ListFailed<ScopeQuery, Scope> {
   const ScopeListFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
 }
 
@@ -78,110 +87,51 @@ scopeListControllerProvider =
     );
 
 /// Owns the scope listing: the filters, the page, and the request in flight.
-class ScopeListController extends Notifier<ScopeListState>
-    with BuildEpoch<ScopeListState> {
-  /// Whether a request is already on its way.
-  ///
-  /// A field rather than a read of [state], because the first load and a later
-  /// page are in different states while being equally in flight, and a second
-  /// request either way would race the first to set the result.
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight. It is asked as
-  /// soon as that one is answered, so a search typed during a load is not lost.
-  ScopeQuery? _queued;
-
-  @override
-  ScopeListState build() {
-    startEpoch();
-    // A request of an earlier build may still be in flight; it is not this
-    // build's, which has asked for nothing yet.
-    _inFlight = false;
-    _queued = null;
-
-    return const ScopeListLoading(ScopeQuery());
-  }
-
-  /// Reads the page the current query names.
-  Future<void> load() => _fetch(state.query);
-
+class ScopeListController
+    extends PagedListController<ScopeQuery, Scope, ScopeListState> {
   /// AF-10d — a new search starts at the first page. Leaving the user on page
   /// four of a listing they just narrowed would show them an empty page that is
   /// not actually empty.
   Future<void> search(String name) =>
-      _fetch(state.query.copyWith(name: name, pageNumber: 1));
+      request(latest.copyWith(name: name, pageNumber: 1));
 
   /// AF-10d — as with the search, changing what is included starts over.
-  Future<void> setIncludeDeleted(bool includeDeleted) => _fetch(
-    state.query.copyWith(includeDeleted: includeDeleted, pageNumber: 1),
-  );
-
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(state.query.copyWith(pageNumber: pageNumber));
+  Future<void> setIncludeDeleted(bool includeDeleted) =>
+      request(latest.copyWith(includeDeleted: includeDeleted, pageNumber: 1));
 
   /// AF-10a — returns to the unfiltered listing from the empty-result panel.
-  Future<void> clearFilters() => _fetch(const ScopeQuery());
+  Future<void> clearFilters() => request(const ScopeQuery());
 
-  Future<void> _fetch(ScopeQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  ScopeQuery get initialQuery => const ScopeQuery();
 
-      return;
-    }
+  @override
+  int pageNumberOf(ScopeQuery query) => query.pageNumber;
 
-    final epoch = this.epoch;
-    final current = state;
-    _inFlight = true;
+  @override
+  ScopeQuery withPageNumber(ScopeQuery query, int pageNumber) =>
+      query.copyWith(pageNumber: pageNumber);
 
-    // The rows already on screen stay while the next page loads; only a
-    // listing with nothing to show falls back to the placeholder.
-    state = current is ScopeListLoaded
-        ? ScopeListLoaded(query, current.page, busy: true)
-        : ScopeListLoading(query);
-
-    try {
-      final result = await guardUnexpected(
-        () => ref
-            .read(scopeRepositoryProvider)
-            .list(
-              name: query.name,
-              includeDeleted: query.includeDeleted,
-              pageNumber: query.pageNumber,
-            ),
+  @override
+  Future<Result<Page<Scope>>> fetch(ScopeQuery query) => ref
+      .read(scopeRepositoryProvider)
+      .list(
+        name: query.name,
+        includeDeleted: query.includeDeleted,
+        pageNumber: query.pageNumber,
       );
 
-      // Reset since it was asked: the answer is an earlier build's.
-      if (!isCurrent(epoch)) {
-        return;
-      }
+  @override
+  ScopeListState loadingState(ScopeQuery query) => ScopeListLoading(query);
 
-      state = result.fold(
-        onSuccess: (page) => ScopeListLoaded(query, page),
-        onFailure: (failure) => ScopeListFailed(query, failure),
-      );
-    } finally {
-      if (isCurrent(epoch)) {
-        _inFlight = false;
-      }
-    }
+  @override
+  ScopeListState loadedState(
+    ScopeQuery query,
+    Page<Scope> page, {
+    bool busy = false,
+  }) => ScopeListLoaded(query, page, busy: busy);
 
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the last row of the last page was deleted, say —
-    // would show "nothing here" with no pager to go back with. The last page
-    // that still exists is asked for instead.
-    if (state case ScopeListLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
-      );
-    }
-  }
+  @override
+  ScopeListState failedState(ScopeQuery query, Failure failure) =>
+      ScopeListFailed(query, failure);
 }

@@ -45,8 +45,9 @@ abstract interface class ApplicationRepository {
     required String ownerId,
   });
 
-  /// Logically deletes an application. The record is kept and the API can
-  /// restore it.
+  /// Logically deletes an application. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window.
   Future<Result<void>> delete({required String scopeId, required String id});
 
   /// Permanently deletes an application. Only a System Admin may, which is why

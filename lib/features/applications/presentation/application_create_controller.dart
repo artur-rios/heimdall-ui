@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 
@@ -77,6 +78,10 @@ class ApplicationCreateController extends Notifier<ApplicationCreateState>
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
       return;
+    }
+
+    if (result.isSuccess) {
+      ref.markHomeDataStale();
     }
 
     state = result.fold(

@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../profile/presentation/profile_controller.dart'
+    show personRepositoryProvider;
+import '../domain/session.dart';
 import 'session_controller.dart';
 
 /// How far the verification of a token has got.
@@ -154,6 +157,41 @@ class EmailVerificationController extends Notifier<EmailVerificationState>
     // The session's answer came with a token the API will not reissue for this,
     // so it is corrected here instead.
     if (result.isSuccess) {
+      await _correctSession(epoch);
+    }
+  }
+
+  /// Ends the signed-in person's prompt, but only if it was their own address
+  /// that got verified.
+  ///
+  /// The link may have been mailed to somebody else, and the API's answer does
+  /// not say whose address it verified, so the person's own record is read
+  /// instead of assuming (#170). A record that cannot be read leaves the
+  /// prompt: it only hides a reminder, and the next sign-in corrects it.
+  /// A Google session has nothing to correct — Google vouches for its address.
+  Future<void> _correctSession(int epoch) async {
+    final session = ref.read(sessionControllerProvider);
+
+    if (session is! Authenticated ||
+        session.principal.emailVerified ||
+        session.token.viaGoogle) {
+      return;
+    }
+
+    final record = await ref
+        .read(personRepositoryProvider)
+        .getById(session.principal.id);
+
+    // Reset since it was asked, or a different session by now: the answer is
+    // not about the person who is signed in.
+    final current = ref.read(sessionControllerProvider);
+    if (!isCurrent(epoch) ||
+        current is! Authenticated ||
+        current.principal.id != session.principal.id) {
+      return;
+    }
+
+    if (record.valueOrNull?.emailVerified ?? false) {
       await ref.read(sessionControllerProvider.notifier).markEmailVerified();
     }
   }

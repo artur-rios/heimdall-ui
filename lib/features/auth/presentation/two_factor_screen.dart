@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/session.dart';
 import 'session_controller.dart';
 
@@ -189,9 +190,24 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
 
     // AF-02b: the challenge is gone, so there is nothing left to correct here.
     if (!challengeSurvived) {
+      // The API ending the challenge is an expiry. Any other failure that
+      // ends it — the device refusing to store the session — has its own text.
+      final failure = result.failureOrNull;
+      final expired = switch (failure?.kind) {
+        null ||
+        FailureKind.unauthorized ||
+        FailureKind.forbidden ||
+        FailureKind.notFound => true,
+        _ => false,
+      };
+
       messenger.showSnackBar(
-        const SnackBar(
-          content: Text('That sign-in attempt expired. Please sign in again.'),
+        SnackBar(
+          content: Text(
+            expired
+                ? 'That sign-in attempt expired. Please sign in again.'
+                : failure!.displayMessage,
+          ),
         ),
       );
 
@@ -231,167 +247,174 @@ class _TwoFactorScreenState extends ConsumerState<TwoFactorScreen> {
           _abandon();
         }
       },
-      child: Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(24),
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 420),
-                child: Form(
-                  key: _formKey,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: <Widget>[
-                      Text(
-                        'Two-step verification',
-                        style: theme.textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        _useRecoveryCode
-                            ? 'Enter one of your recovery codes.'
-                            : _promptFor(method),
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                      const SizedBox(height: 24),
-                      if (_failure case final Failure failure) ...<Widget>[
-                        if (failure.kind == FailureKind.network)
-                          RetryBanner(onRetry: _submitting ? null : _submit)
-                        else
-                          ErrorBanner(failure: failure),
-                        const SizedBox(height: 16),
-                      ],
-                      // AF-02c: only worth showing when there is a choice to
-                      // make. A recovery code answers any of them.
-                      if (session.availableMethods.length > 1 &&
-                          !_useRecoveryCode) ...<Widget>[
-                        SegmentedButton<String>(
-                          segments: <ButtonSegment<String>>[
-                            for (final available in session.availableMethods)
-                              ButtonSegment<String>(
-                                value: available,
-                                label: Text(_labelFor(available)),
-                              ),
-                          ],
-                          selected: <String>{?method},
-                          emptySelectionAllowed: true,
-                          onSelectionChanged: _submitting
-                              ? null
-                              : (selection) {
-                                  ref
-                                      .read(sessionControllerProvider.notifier)
-                                      .chooseMethod(selection.first);
-                                },
+      child: PageTitle(
+        title: 'Verify your sign-in',
+        child: Scaffold(
+          body: SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(24),
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 420),
+                  child: Form(
+                    key: _formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: <Widget>[
+                        Text(
+                          'Two-step verification',
+                          style: theme.textTheme.headlineMedium,
                         ),
-                        const SizedBox(height: 16),
-                      ],
-                      // A recovery code is sixteen characters, written
-                      // XXXX-XXXX-XXXX-XXXX (older ones XXXX-XXXX). It is sent
-                      // as typed, with no limit on its length: the API reads
-                      // it in any case and with or without hyphens or spaces.
-                      // Nothing on the keyboard may correct or complete it.
-                      TextFormField(
-                        controller: _code,
-                        keyboardType: _useRecoveryCode
-                            ? TextInputType.text
-                            : TextInputType.number,
-                        autocorrect: false,
-                        enableSuggestions: false,
-                        textCapitalization: _useRecoveryCode
-                            ? TextCapitalization.characters
-                            : TextCapitalization.none,
-                        autofillHints: const <String>[
-                          AutofillHints.oneTimeCode,
-                        ],
-                        decoration: InputDecoration(
-                          labelText: _useRecoveryCode
-                              ? 'Recovery code'
-                              : 'Verification code',
-                        ),
-                        onFieldSubmitted: (_) => _submit(),
-                        validator: (value) {
-                          if ((value ?? '').trim().isNotEmpty) {
-                            return null;
-                          }
-
-                          return _useRecoveryCode
-                              ? 'Enter a recovery code.'
-                              : 'Enter your verification code.';
-                        },
-                      ),
-                      const SizedBox(height: 24),
-                      if (_isEmail(method) && !_useRecoveryCode) ...<Widget>[
-                        if (_resent) ...<Widget>[
-                          Text(
-                            'If your sign-in is still open, a new code is on '
-                            'its way. Codes sent before it no longer work.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 8),
-                        ],
-                        if (_resendFailure
-                            case final Failure failure) ...<Widget>[
-                          ErrorBanner(failure: failure),
-                          const SizedBox(height: 8),
-                        ],
-                        // AF-02g: past the API's cap a send would do nothing,
-                        // so the way to a new code is a new sign-in.
-                        if (_sends >= maxCodeResends) ...<Widget>[
-                          Text(
-                            'For another code, sign in again.',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                          const SizedBox(height: 8),
-                          OutlinedButton(
-                            onPressed: _submitting ? null : _abandon,
-                            child: const Text('Start over'),
-                          ),
-                        ] else
-                          TextButton(
-                            onPressed:
-                                (_submitting || _resending || _cooldownLeft > 0)
-                                ? null
-                                : _resend,
-                            child: Text(_resendLabel(_cooldownLeft)),
-                          ),
-                        const SizedBox(height: 16),
-                      ],
-                      FilledButton(
-                        onPressed: _submitting ? null : _submit,
-                        child: _submitting
-                            ? const SizedBox.square(
-                                dimension: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Text('Verify'),
-                      ),
-                      const SizedBox(height: 8),
-                      // AF-02d: available whatever the API offered, since a
-                      // recovery code exists precisely for when the others
-                      // cannot be reached.
-                      TextButton(
-                        onPressed: _submitting
-                            ? null
-                            : () => setState(() {
-                                _useRecoveryCode = !_useRecoveryCode;
-                                _code.clear();
-                                _failure = null;
-                              }),
-                        child: Text(
+                        const SizedBox(height: 8),
+                        Text(
                           _useRecoveryCode
-                              ? 'Use a verification code instead'
-                              : 'Use a recovery code instead',
+                              ? 'Enter one of your recovery codes.'
+                              : _promptFor(method),
+                          style: theme.textTheme.bodyMedium,
                         ),
-                      ),
-                      TextButton(
-                        onPressed: _submitting ? null : _abandon,
-                        child: const Text('Back to sign in'),
-                      ),
-                    ],
+                        const SizedBox(height: 24),
+                        if (_failure case final Failure failure) ...<Widget>[
+                          if (failure.kind == FailureKind.network)
+                            RetryBanner(onRetry: _submitting ? null : _submit)
+                          else
+                            ErrorBanner(failure: failure),
+                          const SizedBox(height: 16),
+                        ],
+                        // AF-02c: only worth showing when there is a choice to
+                        // make. A recovery code answers any of them.
+                        if (session.availableMethods.length > 1 &&
+                            !_useRecoveryCode) ...<Widget>[
+                          SegmentedButton<String>(
+                            segments: <ButtonSegment<String>>[
+                              for (final available in session.availableMethods)
+                                ButtonSegment<String>(
+                                  value: available,
+                                  label: Text(_labelFor(available)),
+                                ),
+                            ],
+                            selected: <String>{?method},
+                            emptySelectionAllowed: true,
+                            onSelectionChanged: _submitting
+                                ? null
+                                : (selection) {
+                                    ref
+                                        .read(
+                                          sessionControllerProvider.notifier,
+                                        )
+                                        .chooseMethod(selection.first);
+                                  },
+                          ),
+                          const SizedBox(height: 16),
+                        ],
+                        // A recovery code is sixteen characters, written
+                        // XXXX-XXXX-XXXX-XXXX (older ones XXXX-XXXX). It is sent
+                        // as typed, with no limit on its length: the API reads
+                        // it in any case and with or without hyphens or spaces.
+                        // Nothing on the keyboard may correct or complete it.
+                        TextFormField(
+                          controller: _code,
+                          keyboardType: _useRecoveryCode
+                              ? TextInputType.text
+                              : TextInputType.number,
+                          autocorrect: false,
+                          enableSuggestions: false,
+                          textCapitalization: _useRecoveryCode
+                              ? TextCapitalization.characters
+                              : TextCapitalization.none,
+                          autofillHints: const <String>[
+                            AutofillHints.oneTimeCode,
+                          ],
+                          decoration: InputDecoration(
+                            labelText: _useRecoveryCode
+                                ? 'Recovery code'
+                                : 'Verification code',
+                          ),
+                          onFieldSubmitted: (_) => _submit(),
+                          validator: (value) {
+                            if ((value ?? '').trim().isNotEmpty) {
+                              return null;
+                            }
+
+                            return _useRecoveryCode
+                                ? 'Enter a recovery code.'
+                                : 'Enter your verification code.';
+                          },
+                        ),
+                        const SizedBox(height: 24),
+                        if (_isEmail(method) && !_useRecoveryCode) ...<Widget>[
+                          if (_resent) ...<Widget>[
+                            Text(
+                              'If your sign-in is still open, a new code is on '
+                              'its way. Codes sent before it no longer work.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 8),
+                          ],
+                          if (_resendFailure
+                              case final Failure failure) ...<Widget>[
+                            ErrorBanner(failure: failure),
+                            const SizedBox(height: 8),
+                          ],
+                          // AF-02g: past the API's cap a send would do nothing,
+                          // so the way to a new code is a new sign-in.
+                          if (_sends >= maxCodeResends) ...<Widget>[
+                            Text(
+                              'For another code, sign in again.',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                            const SizedBox(height: 8),
+                            OutlinedButton(
+                              onPressed: _submitting ? null : _abandon,
+                              child: const Text('Start over'),
+                            ),
+                          ] else
+                            TextButton(
+                              onPressed:
+                                  (_submitting ||
+                                      _resending ||
+                                      _cooldownLeft > 0)
+                                  ? null
+                                  : _resend,
+                              child: Text(_resendLabel(_cooldownLeft)),
+                            ),
+                          const SizedBox(height: 16),
+                        ],
+                        FilledButton(
+                          onPressed: _submitting ? null : _submit,
+                          child: _submitting
+                              ? const SizedBox.square(
+                                  dimension: 20,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Text('Verify'),
+                        ),
+                        const SizedBox(height: 8),
+                        // AF-02d: available whatever the API offered, since a
+                        // recovery code exists precisely for when the others
+                        // cannot be reached.
+                        TextButton(
+                          onPressed: _submitting
+                              ? null
+                              : () => setState(() {
+                                  _useRecoveryCode = !_useRecoveryCode;
+                                  _code.clear();
+                                  _failure = null;
+                                }),
+                          child: Text(
+                            _useRecoveryCode
+                                ? 'Use a verification code instead'
+                                : 'Use a recovery code instead',
+                          ),
+                        ),
+                        TextButton(
+                          onPressed: _submitting ? null : _abandon,
+                          child: const Text('Back to sign in'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

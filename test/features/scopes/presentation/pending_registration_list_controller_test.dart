@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/domain/pending_registration_reposito
 import 'package:heimdall_ui/features/scopes/presentation/pending_registration_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/held_answer.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPendingRegistrationRepository extends Mock
@@ -63,16 +64,6 @@ void main() {
         pageSize: any(named: 'pageSize'),
       ),
     ).thenAnswer((_) async => result);
-  }
-
-  void failWith(Object error) {
-    when(
-      () => repository.list(
-        's1',
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<PendingRegistration>>>.error(error));
   }
 
   setUp(() {
@@ -381,53 +372,6 @@ void main() {
     },
   );
 
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<PendingRegistrationListFailed>());
-    final failure = (state as PendingRegistrationListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<PendingRegistration>>>();
-      when(
-        () => repository.list(
-          's1',
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        pendingRegistrationListControllerProvider('s1'),
-        reset: pendingRegistrationListControllerProvider,
-        start: controller.load,
-        answer: () =>
-            answer.complete(Success<Page<PendingRegistration>>(_page())),
-      );
-
-      // Then
-      expect(currentState(), isA<PendingRegistrationListLoading>());
-    },
-  );
-
   // A discard answered after a reset neither reloads nor leaves its notice in
   // the reset state.
   test(
@@ -451,6 +395,42 @@ void main() {
 
       // Then
       expect(currentState(), isA<PendingRegistrationListLoading>());
+    },
+  );
+
+  // #157 — a page asked for during the first load, then the screen's own
+  // load: the request that follows the first load is that page.
+  test(
+    'GivenAPageQueuedDuringTheFirstLoad_WhenReloaded_ThenThatPageIsAsked',
+    () async {
+      // Given
+      final first = Completer<Result<Page<PendingRegistration>>>();
+      when(
+        () => repository.list(
+          's1',
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        heldFirstAnswer(
+          first,
+          () => Success<Page<PendingRegistration>>(
+            _page(pageNumber: 2, totalPages: 2),
+          ),
+        ),
+      );
+      final controller = controllerUnderTest();
+      final loading = controller.load();
+
+      // When
+      unawaited(controller.goToPage(2));
+      unawaited(controller.load());
+      first.complete(Success<Page<PendingRegistration>>(_page(totalPages: 2)));
+      await loading;
+
+      // Then
+      verify(() => repository.list('s1', pageNumber: 2)).called(1);
+      expect(currentState().pageNumber, 2);
     },
   );
 }

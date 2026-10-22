@@ -46,6 +46,7 @@ Future<bool> confirmDiscardChanges(
       title: 'Discard your changes?',
       message: 'What you have changed has not been saved and will be lost.',
       confirmLabel: 'Discard',
+      destructive: true,
       cancelLabel: 'Keep editing',
     );
 

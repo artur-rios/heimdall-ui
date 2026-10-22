@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_filters.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../../home/presentation/home_screen.dart';
 import '../domain/person.dart';
 import 'person_list_controller.dart';
@@ -53,7 +57,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
   void _clearFilters() {
     _name.clear();
     _email.clear();
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   @override
@@ -63,6 +67,8 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Persons'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: _controller.load,
       backRoute: '/scopes/${widget.scopeId}',
       backTooltip: 'Back to the scope',
       floatingActionButton: FloatingActionButton.extended(
@@ -72,36 +78,30 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
       ),
       body: Column(
         children: <Widget>[
-          _Filters(
-            name: _name,
-            email: _email,
+          ListFilters(
+            fields: <ListSearchField>[
+              ListSearchField(controller: _name, label: 'Search by name'),
+              ListSearchField(
+                controller: _email,
+                label: 'Search by email',
+                icon: Icons.alternate_email,
+              ),
+            ],
             includeDeleted: state.query.includeDeleted,
             onSearch: _search,
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
-            child: switch (state) {
-              PersonListLoading() => const CollectionLoading(),
-              // AF-16c — the scope is not one this admin owns.
-              PersonListFailed(isForbidden: true) => CollectionEmpty(
-                title: 'Not available for your role',
-                message:
-                    'This scope is not one you administer. Nothing is '
-                    'wrong with your session.',
-                icon: Icons.lock_person_outlined,
-                actionLabel: 'Back to scopes',
+            // AF-16c — the scope is not one this admin owns. AF-16b — the
+            // returned errors, with a retry that keeps the filters.
+            child: ListScaffold(
+              state: state,
+              onRetry: _controller.load,
+              forbidden: ListForbidden.scope(
                 onAction: () => context.go('/scopes'),
               ),
-              // AF-16b — the returned errors, with a retry that keeps the
-              // filters.
-              PersonListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
-              ),
-              PersonListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query),
-              final PersonListLoaded loaded => AdaptiveCollection<Person>(
+              empty: _empty,
+              loaded: (PersonListLoaded loaded) => AdaptiveCollection<Person>(
                 items: loaded.page.items,
                 busy: loaded.busy,
                 reservesFloatingAction: true,
@@ -130,7 +130,7 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
                   ),
                 ],
               ),
-            },
+            ),
           ),
         ],
       ),
@@ -158,68 +158,4 @@ class _PersonListScreenState extends ConsumerState<PersonListScreen> {
           actionLabel: 'New person',
           onAction: () => context.go('/scopes/${widget.scopeId}/persons/new'),
         );
-}
-
-/// The two search fields and the include-deleted switch.
-///
-/// Two fields rather than one: the API filters by name and by email
-/// separately, and collapsing them here would mean guessing which one the user
-/// meant.
-class _Filters extends StatelessWidget {
-  const _Filters({
-    required this.name,
-    required this.email,
-    required this.includeDeleted,
-    required this.onSearch,
-    required this.onIncludeDeletedChanged,
-  });
-
-  final TextEditingController name;
-  final TextEditingController email;
-  final bool includeDeleted;
-  final VoidCallback onSearch;
-  final ValueChanged<bool> onIncludeDeletedChanged;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    child: Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: name,
-            decoration: const InputDecoration(
-              labelText: 'Search by name',
-              prefixIcon: Icon(Icons.search),
-            ),
-            onSubmitted: (_) => onSearch(),
-          ),
-        ),
-        SizedBox(
-          width: 260,
-          child: TextField(
-            controller: email,
-            decoration: const InputDecoration(
-              labelText: 'Search by email',
-              prefixIcon: Icon(Icons.alternate_email),
-            ),
-            onSubmitted: (_) => onSearch(),
-          ),
-        ),
-        FilledButton.tonal(onPressed: onSearch, child: const Text('Search')),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Switch(value: includeDeleted, onChanged: onIncludeDeletedChanged),
-            const SizedBox(width: 8),
-            const Text('Include deleted'),
-          ],
-        ),
-      ],
-    ),
-  );
 }

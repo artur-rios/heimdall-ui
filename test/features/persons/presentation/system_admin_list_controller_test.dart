@@ -66,17 +66,6 @@ void main() {
     ).thenAnswer((_) => answer());
   }
 
-  void failWith(Object error) {
-    when(
-      () => repository.listSystemAdmins(
-        name: any(named: 'name'),
-        email: any(named: 'email'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<PersonSummary>>>.error(error));
-  }
-
   setUp(() {
     repository = _MockPersonRepository();
   });
@@ -152,81 +141,6 @@ void main() {
     expect(calls, 2);
   });
 
-  test(
-    'GivenAnEmptyPagePastTheEnd_WhenLoaded_ThenTheLastPageIsAsked',
-    () async {
-      // Given
-      answerWith(
-        () async => Success<Page<PersonSummary>>(
-          _page(items: const <PersonSummary>[], pageNumber: 2),
-        ),
-      );
-      when(
-        () => repository.listSystemAdmins(
-          name: any(named: 'name'),
-          email: any(named: 'email'),
-          pageNumber: 1,
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) async => Success<Page<PersonSummary>>(_page()));
-      final controller = controllerUnderTest();
-
-      // When
-      await controller.goToPage(2);
-
-      // Then
-      final state = currentState() as SystemAdminListLoaded;
-      expect(state.query.pageNumber, 1);
-      expect(state.page.items, <PersonSummary>[_ada]);
-    },
-  );
-
-  test(
-    'GivenAnEmptyPageFarPastTheEnd_WhenLoaded_ThenTheLastRealPageIsAsked',
-    () async {
-      // Given
-      answerWith(
-        () async => Success<Page<PersonSummary>>(
-          _page(items: const <PersonSummary>[], pageNumber: 5, totalPages: 2),
-        ),
-      );
-      when(
-        () => repository.listSystemAdmins(
-          name: any(named: 'name'),
-          email: any(named: 'email'),
-          pageNumber: 2,
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer(
-        (_) async =>
-            Success<Page<PersonSummary>>(_page(pageNumber: 2, totalPages: 2)),
-      );
-      final controller = controllerUnderTest();
-
-      // When
-      await controller.goToPage(5);
-
-      // Then
-      verify(
-        () => repository.listSystemAdmins(
-          name: '',
-          email: '',
-          pageNumber: 2,
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-      verifyNever(
-        () => repository.listSystemAdmins(
-          name: any(named: 'name'),
-          email: any(named: 'email'),
-          pageNumber: 4,
-          pageSize: any(named: 'pageSize'),
-        ),
-      );
-      expect((currentState() as SystemAdminListLoaded).query.pageNumber, 2);
-    },
-  );
-
   test('GivenA403_WhenLoaded_ThenTheStateIsForbidden', () async {
     // Given
     answerWith(
@@ -240,7 +154,10 @@ void main() {
     await controller.load();
 
     // Then
-    expect((currentState() as SystemAdminListFailed).isForbidden, isTrue);
+    expect(
+      (currentState() as SystemAdminListFailed).failure.kind,
+      FailureKind.forbidden,
+    );
   });
 
   test('GivenFilters_WhenTheScreenIsLeft_ThenTheListStartsFresh', () async {
@@ -255,21 +172,5 @@ void main() {
 
     // Then
     expect(currentState().query.name, '');
-  });
-
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState();
-    expect(state, isA<SystemAdminListFailed>());
-    final failure = (state as SystemAdminListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
   });
 }

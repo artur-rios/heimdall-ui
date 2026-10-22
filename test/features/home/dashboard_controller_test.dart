@@ -1,33 +1,19 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:heimdall_ui/core/time/clock.dart';
 import 'package:heimdall_ui/features/home/domain/dashboard.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 
 import '../../support/dashboard_fakes.dart';
+import '../../support/jwt.dart';
 import '../../support/late_answer.dart';
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
-String _jwt(int role) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'name': 'Ada',
-        'role': role,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
+import '../../support/pump_app.dart';
 
 const _acme = Scope(
   id: 'scope-1',
@@ -55,16 +41,15 @@ void main() {
   ) async {
     final store = InMemoryTokenStore();
     await store.write(
-      AuthToken(value: _jwt(role), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testJwt(role: role, email: null, name: 'Ada'),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
-    final container = ProviderContainer(
-      overrides: <Override>[
-        ...fakes.overrides,
-        tokenStoreProvider.overrideWithValue(store),
-      ],
+    final container = await sessionContainer(
+      store: store,
+      overrides: <Override>[...fakes.overrides],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     await container.read(dashboardControllerProvider.notifier).load();
 
@@ -184,7 +169,7 @@ void main() {
     await controller.load();
 
     // When
-    final refresh = controller.load();
+    final refresh = controller.load(force: true);
     final during = container.read(dashboardControllerProvider);
     await refresh;
 
@@ -197,6 +182,140 @@ void main() {
       ) as DashboardLoaded).refreshing,
       isFalse,
     );
+  });
+
+  group('reuse of a recent load (#172)', () {
+    var now = DateTime.utc(2026, 10, 21, 12);
+
+    /// A container whose clock is [now], so no test waits.
+    ProviderContainer containerFor(FakeDashboardRepositories fakes) {
+      now = DateTime.utc(2026, 10, 21, 12);
+      final container = ProviderContainer(
+        overrides: <Override>[
+          ...fakes.overrides,
+          clockProvider.overrideWithValue(() => now),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      return container;
+    }
+
+    DashboardController controllerOf(ProviderContainer container) =>
+        container.read(dashboardControllerProvider.notifier);
+
+    test(
+      'GivenTwoQuickLoads_WhenLoaded_ThenOneSetOfRequestsIsIssued',
+      () async {
+        // Given
+        final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+        final controller = controllerOf(containerFor(fakes));
+        await controller.load();
+
+        // When
+        now = now.add(const Duration(seconds: 59));
+        await controller.load();
+
+        // Then
+        expect(fakes.scopeReads, 2);
+      },
+    );
+
+    test('GivenALoadOlderThanTheWindow_WhenLoaded_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      now = now.add(DashboardController.freshFor);
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAQuickLoad_WhenForced_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      await controller.load(force: true);
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAFailedLoad_WhenLoadedAgain_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(
+        scopesFailure: const Failure(
+          kind: FailureKind.server,
+          errors: <String>['Down'],
+        ),
+      );
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test('GivenAQuickLoad_WhenMarkedStale_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final controller = controllerOf(containerFor(fakes));
+      await controller.load();
+
+      // When
+      controller.markStale();
+      await controller.load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    test(
+      'GivenALoadInFlight_WhenMarkedStale_ThenItDoesNotCountAsFresh',
+      () async {
+        // Given
+        final held = Completer<void>();
+        final fakes = FakeDashboardRepositories(
+          scopes: const <Scope>[_acme],
+          firstScopesReadHeldUntil: held.future,
+        );
+        final controller = controllerOf(containerFor(fakes));
+        final loading = controller.load();
+        controller.markStale();
+        held.complete();
+        await loading;
+
+        // When
+        await controller.load();
+
+        // Then
+        expect(fakes.scopeReads, 4);
+      },
+    );
+
+    test('GivenASessionReset_WhenLoaded_ThenItIsReadAgain', () async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      final container = containerFor(fakes);
+      await controllerOf(container).load();
+
+      // When
+      container.invalidate(dashboardControllerProvider);
+      await controllerOf(container).load();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
   });
 
   test('GivenASystemAdmin_WhenLoaded_ThenTheSystemAdminCountIsRead', () async {
@@ -245,16 +364,15 @@ void main() {
       );
       final store = InMemoryTokenStore();
       await store.write(
-        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+        AuthToken(
+          value: testJwt(role: 1, email: null, name: 'Ada'),
+          expiresAt: DateTime.utc(2030),
+        ),
       );
-      final container = ProviderContainer(
-        overrides: <Override>[
-          ...fakes.overrides,
-          tokenStoreProvider.overrideWithValue(store),
-        ],
+      final container = await sessionContainer(
+        store: store,
+        overrides: <Override>[...fakes.overrides],
       );
-      addTearDown(container.dispose);
-      await container.read(sessionControllerProvider.notifier).restore();
       final notifier = container.read(dashboardControllerProvider.notifier);
       final first = notifier.load();
       await Future<void>.delayed(Duration.zero);
@@ -300,16 +418,15 @@ void main() {
       );
       final store = InMemoryTokenStore();
       await store.write(
-        AuthToken(value: _jwt(1), expiresAt: DateTime.utc(2030)),
+        AuthToken(
+          value: testJwt(role: 1, email: null, name: 'Ada'),
+          expiresAt: DateTime.utc(2030),
+        ),
       );
-      final container = ProviderContainer(
-        overrides: <Override>[
-          ...fakes.overrides,
-          tokenStoreProvider.overrideWithValue(store),
-        ],
+      final container = await sessionContainer(
+        store: store,
+        overrides: <Override>[...fakes.overrides],
       );
-      addTearDown(container.dispose);
-      await container.read(sessionControllerProvider.notifier).restore();
       final notifier = container.read(dashboardControllerProvider.notifier);
 
       // When

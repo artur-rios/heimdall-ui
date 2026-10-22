@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/state/build_epoch.dart';
-import '../../profile/presentation/profile_controller.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 import 'owner_names.dart';
@@ -38,19 +38,23 @@ class ApplicationQuery {
 
 /// How far the listing has got. The query travels with every state, so the
 /// filters survive a failure and a retry.
-sealed class ApplicationListState {
+sealed class ApplicationListState
+    implements ListState<ApplicationQuery, Application> {
   const ApplicationListState(this.query);
 
+  @override
   final ApplicationQuery query;
 }
 
 /// The first page is on its way and the list shows a placeholder.
-final class ApplicationListLoading extends ApplicationListState {
+final class ApplicationListLoading extends ApplicationListState
+    implements ListLoading<ApplicationQuery, Application> {
   const ApplicationListLoading(super.query);
 }
 
 /// A page arrived, with its owners resolved as far as they could be.
-final class ApplicationListLoaded extends ApplicationListState {
+final class ApplicationListLoaded extends ApplicationListState
+    implements ListLoaded<ApplicationQuery, Application> {
   const ApplicationListLoaded(
     super.query,
     this.page, {
@@ -58,7 +62,10 @@ final class ApplicationListLoaded extends ApplicationListState {
     this.busy = false,
   });
 
+  @override
   final Page<Application> page;
+
+  @override
   final bool busy;
 
   /// FR-AP-08 and AF-20d — the owner's name, or their identifier when the API
@@ -67,9 +74,11 @@ final class ApplicationListLoaded extends ApplicationListState {
 }
 
 /// AF-20b and AF-20c — the request failed, and the query that failed is kept.
-final class ApplicationListFailed extends ApplicationListState {
+final class ApplicationListFailed extends ApplicationListState
+    implements ListFailed<ApplicationQuery, Application> {
   const ApplicationListFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
 
   /// AF-20c — a scope this admin does not own.
@@ -89,144 +98,93 @@ applicationListControllerProvider =
     >(ApplicationListController.new);
 
 /// Owns one scope's application listing.
-class ApplicationListController extends Notifier<ApplicationListState>
-    with BuildEpoch<ApplicationListState> {
+class ApplicationListController
+    extends
+        PagedListController<
+          ApplicationQuery,
+          Application,
+          ApplicationListState
+        > {
   ApplicationListController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight. It is asked as
-  /// soon as that one is answered, so a search typed during a load is not lost.
-  ApplicationQuery? _queued;
-
-  /// The owners' names learned under this build. A reset starts afresh, and a
+  /// The owners' names learned this session. A reset starts afresh, and a
   /// request of an earlier build keeps teaching only the names it began with.
-  OwnerNames? _ownersOfBuild;
+  OwnerNames get _owners => ref.read(ownerNamesProvider);
 
-  OwnerNames get _owners =>
-      _ownersOfBuild ??= OwnerNames(ref.read(personRepositoryProvider));
-
-  @override
-  ApplicationListState build() {
-    startEpoch();
-    // A request of an earlier build may still be in flight; it is not this
-    // build's, which has asked for nothing yet.
-    _inFlight = false;
-    _queued = null;
-    _ownersOfBuild = null;
-
-    return const ApplicationListLoading(ApplicationQuery());
-  }
-
-  /// Reads the page the current query names, with the owners' names read
-  /// afresh: a reload is where a renamed owner should show their new name.
-  /// Moving between pages and filters keeps what was learned.
-  Future<void> load() {
+  /// Reads the page again, and forgets every owner's name first: an explicit
+  /// refresh is where a renamed owner should show their new name at once. A
+  /// plain [load] keeps the names learned in the last five minutes (#179).
+  Future<void> refresh() {
     _owners.forget();
 
-    return _fetch(state.query);
+    return load();
   }
 
   /// A new search starts at the first page.
   Future<void> search(String name) =>
-      _fetch(state.query.copyWith(name: name, pageNumber: 1));
+      request(latest.copyWith(name: name, pageNumber: 1));
 
-  Future<void> setIncludeDeleted(bool includeDeleted) => _fetch(
-    state.query.copyWith(includeDeleted: includeDeleted, pageNumber: 1),
-  );
-
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(state.query.copyWith(pageNumber: pageNumber));
+  Future<void> setIncludeDeleted(bool includeDeleted) =>
+      request(latest.copyWith(includeDeleted: includeDeleted, pageNumber: 1));
 
   /// AF-20a — returns to the unfiltered listing from the empty-result panel.
-  Future<void> clearFilters() => _fetch(const ApplicationQuery());
+  Future<void> clearFilters() => request(const ApplicationQuery());
 
-  Future<void> _fetch(ApplicationQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  ApplicationQuery get initialQuery => const ApplicationQuery();
 
-      return;
-    }
+  @override
+  int pageNumberOf(ApplicationQuery query) => query.pageNumber;
 
-    final epoch = this.epoch;
+  @override
+  ApplicationQuery withPageNumber(ApplicationQuery query, int pageNumber) =>
+      query.copyWith(pageNumber: pageNumber);
+
+  /// The owners are resolved here, inside the engine's guard too: a read of
+  /// theirs that throws must end in the failed state, not strand the list.
+  @override
+  Future<Result<Page<Application>>> fetch(ApplicationQuery query) async {
     final owners = _owners;
-    final current = state;
-    _inFlight = true;
+    final listed = await ref
+        .read(applicationRepositoryProvider)
+        .list(
+          scopeId: arg,
+          name: query.name,
+          includeDeleted: query.includeDeleted,
+          pageNumber: query.pageNumber,
+        );
 
-    state = current is ApplicationListLoaded
-        ? ApplicationListLoaded(
-            query,
-            current.page,
-            ownerLabel: current.ownerLabel,
-            busy: true,
-          )
-        : ApplicationListLoading(query);
-
-    try {
-      // The owners are resolved inside the guard too: a read of theirs that
-      // throws must end in the failed state, not strand the list.
-      final result = await guardUnexpected(() async {
-        final listed = await ref
-            .read(applicationRepositoryProvider)
-            .list(
-              scopeId: arg,
-              name: query.name,
-              includeDeleted: query.includeDeleted,
-              pageNumber: query.pageNumber,
-            );
-
-        if (listed case Success<Page<Application>>(:final value)) {
-          // The owners are resolved before the page is shown, so a row never
-          // flickers from an identifier to a name under the reader's eye.
-          await owners.resolve(
-            value.items.map((application) => application.ownerId),
-          );
-        }
-
-        return listed;
-      });
-
-      // Reset since it was asked: the answer is an earlier build's.
-      if (!isCurrent(epoch)) {
-        return;
-      }
-
-      switch (result) {
-        case Success<Page<Application>>(:final value):
-          state = ApplicationListLoaded(
-            query,
-            value,
-            ownerLabel: owners.labelFor,
-          );
-        case FailureResult<Page<Application>>(:final failure):
-          state = ApplicationListFailed(query, failure);
-      }
-    } finally {
-      if (isCurrent(epoch)) {
-        _inFlight = false;
-      }
-    }
-
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the last row of the last page was deleted, say —
-    // would show "nothing here" with no pager to go back with. The last page
-    // that still exists is asked for instead.
-    if (state case ApplicationListLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
+    if (listed case Success<Page<Application>>(:final value)) {
+      // The owners are resolved before the page is shown, so a row never
+      // flickers from an identifier to a name under the reader's eye.
+      await owners.resolve(
+        value.items.map((application) => application.ownerId),
       );
     }
+
+    return listed;
   }
+
+  @override
+  ApplicationListState loadingState(ApplicationQuery query) =>
+      ApplicationListLoading(query);
+
+  @override
+  ApplicationListState loadedState(
+    ApplicationQuery query,
+    Page<Application> page, {
+    bool busy = false,
+  }) => ApplicationListLoaded(
+    query,
+    page,
+    ownerLabel: _owners.labelFor,
+    busy: busy,
+  );
+
+  @override
+  ApplicationListState failedState(ApplicationQuery query, Failure failure) =>
+      ApplicationListFailed(query, failure);
 }

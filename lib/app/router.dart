@@ -8,6 +8,7 @@ import '../features/applications/presentation/application_create_screen.dart';
 import '../features/applications/presentation/application_detail_screen.dart';
 import '../features/applications/presentation/application_list_screen.dart';
 import '../features/applications/presentation/pending_secret.dart';
+import '../features/audit_log/presentation/audit_log_screen.dart';
 import '../features/auth/domain/session.dart';
 import '../features/auth/presentation/login_screen.dart';
 import '../features/auth/presentation/password_recovery_screen.dart';
@@ -16,12 +17,11 @@ import '../features/auth/presentation/session_controller.dart';
 import '../features/auth/presentation/two_factor_screen.dart';
 import '../features/auth/presentation/verify_email_screen.dart';
 import '../features/data_rights/presentation/restricted_session_screen.dart';
-import '../features/audit_log/presentation/audit_log_screen.dart';
 import '../features/erasure_requests/presentation/erasure_request_list_screen.dart';
-import '../features/health/presentation/health_screen.dart';
-import '../features/home/presentation/home_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
 import '../features/google_users/presentation/google_user_list_screen.dart';
+import '../features/health/presentation/health_screen.dart';
+import '../features/home/presentation/home_screen.dart';
 import '../features/permissions/presentation/permission_create_screen.dart';
 import '../features/permissions/presentation/permission_detail_screen.dart';
 import '../features/permissions/presentation/permission_list_screen.dart';
@@ -38,6 +38,8 @@ import '../features/scopes/presentation/scope_detail_screen.dart';
 import '../features/scopes/presentation/scope_list_screen.dart';
 import '../features/scopes/presentation/scope_owners_screen.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_screen.dart';
+import '../shared/forms/unsaved_changes.dart';
+import '../shared/widgets/page_title.dart';
 import 'route_access.dart';
 
 /// Where a link that names no record lands: one whose id is not a `PublicId`.
@@ -98,7 +100,14 @@ String? redirectFor({
     // Say nothing until the stored token has been read, so a slow read cannot
     // bounce a returning user to sign-in.
     SessionRestoring() => null,
-    Challenged() => path == '/login/two-factor' ? null : '/login/two-factor',
+    // The deep link rides along, since the second factor is a detour on the
+    // way to it (AF-07a), not the end of the sign-in.
+    Challenged() when path == '/login/two-factor' => null,
+    Challenged() => switch (uri.queryParameters['from']) {
+      final String from when path == '/login' =>
+        '/login/two-factor?from=${Uri.encodeComponent(from)}',
+      _ => '/login/two-factor',
+    },
     // AF-02b and AF-02e: a challenge screen without a challenge is a dead end.
     // The token is gone and cannot be recovered, so sign-in restarts.
     Unauthenticated() when path == '/login/two-factor' => '/login',
@@ -158,7 +167,27 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       pathParameters: state.pathParameters,
     ),
     routes: <RouteBase>[
-      GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
+      GoRoute(
+        path: '/',
+        builder: (context, state) => const HomeScreen(),
+        // The System Admins listing is opened from Home, so Back returns
+        // there; its person pages sit under it.
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'system-admins',
+            builder: (context, state) => const SystemAdminListScreen(),
+            routes: <RouteBase>[
+              GoRoute(
+                path: ':personId',
+                builder: (context, state) => PersonDetailScreen(
+                  personId: state.pathParameters['personId']!,
+                ),
+                onExit: confirmLeaveWithUnsavedChanges,
+              ),
+            ],
+          ),
+        ],
+      ),
       GoRoute(path: '/login', builder: (context, state) => const LoginScreen()),
       GoRoute(
         path: '/login/two-factor',
@@ -196,117 +225,155 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/profile',
         builder: (context, state) => const ProfileScreen(),
+        onExit: confirmLeaveWithUnsavedChanges,
+        // Security is opened from the profile, so Back returns there.
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'security',
+            builder: (context, state) => const SecurityScreen(),
+            // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
+            // leaving, and leaving them signs the person out.
+            onExit: (context, state) =>
+                confirmLeaveWithRecoveryCodes(context, ref),
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/profile/security',
-        builder: (context, state) => const SecurityScreen(),
-        // UI-09 AF-09c — recovery codes not yet acknowledged are lost by
-        // leaving, and leaving them signs the person out.
-        onExit: (context, state) => confirmLeaveWithRecoveryCodes(context, ref),
-      ),
+      // A record's route is nested under its listing's, and a scope's own
+      // screens under the scope's, so the pages below a screen are the ones it
+      // was opened from. A system or browser Back then returns to them, and a
+      // deep link arrives with them already underneath.
       GoRoute(
         path: '/scopes',
         builder: (context, state) => const ScopeListScreen(),
+        routes: <RouteBase>[
+          GoRoute(
+            path: 'new',
+            builder: (context, state) => const ScopeCreateScreen(),
+            onExit: confirmLeaveWithUnsavedChanges,
+          ),
+          GoRoute(
+            path: ':scopeId',
+            builder: (context, state) =>
+                ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
+            onExit: confirmLeaveWithUnsavedChanges,
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'applications',
+                builder: (context, state) => ApplicationListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => ApplicationCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                  GoRoute(
+                    path: ':applicationId',
+                    builder: (context, state) => ApplicationDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      applicationId: state.pathParameters['applicationId']!,
+                    ),
+                    // UI-37 — a one-time secret not yet stored is lost by
+                    // leaving, and so is an unsaved edit.
+                    onExit: (context, state) async =>
+                        await confirmLeaveWithPendingSecret(context, ref) &&
+                        context.mounted &&
+                        await confirmLeaveWithUnsavedChanges(context, state),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'permissions',
+                builder: (context, state) => PermissionListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => PermissionCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                  GoRoute(
+                    path: ':permissionId',
+                    builder: (context, state) => PermissionDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      permissionId: state.pathParameters['permissionId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'google-users',
+                builder: (context, state) => GoogleUserListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: ':googleUserId',
+                    builder: (context, state) => GoogleUserDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      googleUserId: state.pathParameters['googleUserId']!,
+                    ),
+                  ),
+                ],
+              ),
+              GoRoute(
+                path: 'owners',
+                builder: (context, state) => ScopeOwnersScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+              ),
+              GoRoute(
+                path: 'sign-in-settings',
+                builder: (context, state) => ScopeSignInSettingsScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+                onExit: confirmLeaveWithUnsavedChanges,
+              ),
+              GoRoute(
+                path: 'pending-registrations',
+                builder: (context, state) => PendingRegistrationListScreen(
+                  scopeId: state.pathParameters['scopeId']!,
+                ),
+              ),
+              GoRoute(
+                path: 'persons',
+                builder: (context, state) =>
+                    PersonListScreen(scopeId: state.pathParameters['scopeId']!),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'new',
+                    builder: (context, state) => PersonCreateScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                  GoRoute(
+                    path: ':personId',
+                    builder: (context, state) => PersonDetailScreen(
+                      scopeId: state.pathParameters['scopeId']!,
+                      personId: state.pathParameters['personId']!,
+                    ),
+                    onExit: confirmLeaveWithUnsavedChanges,
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
-      GoRoute(
-        path: '/scopes/new',
-        builder: (context, state) => const ScopeCreateScreen(),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId',
-        builder: (context, state) =>
-            ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications',
-        builder: (context, state) =>
-            ApplicationListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications/new',
-        builder: (context, state) =>
-            ApplicationCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/applications/:applicationId',
-        builder: (context, state) => ApplicationDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          applicationId: state.pathParameters['applicationId']!,
-        ),
-        // UI-37 — a one-time secret not yet stored is lost by leaving.
-        onExit: (context, state) => confirmLeaveWithPendingSecret(context, ref),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions',
-        builder: (context, state) =>
-            PermissionListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions/new',
-        builder: (context, state) =>
-            PermissionCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/permissions/:permissionId',
-        builder: (context, state) => PermissionDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          permissionId: state.pathParameters['permissionId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/google-users',
-        builder: (context, state) =>
-            GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/google-users/:googleUserId',
-        builder: (context, state) => GoogleUserDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          googleUserId: state.pathParameters['googleUserId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/owners',
-        builder: (context, state) =>
-            ScopeOwnersScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/sign-in-settings',
-        builder: (context, state) => ScopeSignInSettingsScreen(
-          scopeId: state.pathParameters['scopeId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/pending-registrations',
-        builder: (context, state) => PendingRegistrationListScreen(
-          scopeId: state.pathParameters['scopeId']!,
-        ),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons',
-        builder: (context, state) =>
-            PersonListScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons/new',
-        builder: (context, state) =>
-            PersonCreateScreen(scopeId: state.pathParameters['scopeId']!),
-      ),
-      GoRoute(
-        path: '/scopes/:scopeId/persons/:personId',
-        builder: (context, state) => PersonDetailScreen(
-          scopeId: state.pathParameters['scopeId']!,
-          personId: state.pathParameters['personId']!,
-        ),
-      ),
+      // The person page without a scope moved under the listing it is opened
+      // from; a link to its earlier address still arrives there.
       GoRoute(
         path: '/persons/:personId',
-        builder: (context, state) =>
-            PersonDetailScreen(personId: state.pathParameters['personId']!),
-      ),
-      GoRoute(
-        path: '/system-admins',
-        builder: (context, state) => const SystemAdminListScreen(),
+        redirect: (context, state) =>
+            '/system-admins/${state.pathParameters['personId']}',
       ),
       GoRoute(
         path: '/erasure-requests',
@@ -351,40 +418,43 @@ class _NotForYourRoleScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Not available')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(
-                  Icons.lock_person_outlined,
-                  size: 48,
-                  color: theme.colorScheme.error,
-                ),
-                const SizedBox(height: 16),
-                Text(
-                  'Not available for your role',
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your account is signed in, but this screen is not part of '
-                  'what your role does. Nothing is wrong with your session.',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Back to home'),
-                ),
-              ],
+    return PageTitle(
+      title: 'Not available',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Not available')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.lock_person_outlined,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Not available for your role',
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Your account is signed in, but this screen is not part of '
+                    'what your role does. Nothing is wrong with your session.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Back to home'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -404,36 +474,43 @@ class _NotFoundScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Not found')),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(Icons.link_off, size: 48, color: theme.colorScheme.error),
-                const SizedBox(height: 16),
-                Text(
-                  'Nothing at this address',
-                  style: theme.textTheme.headlineMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'The link is incomplete or was changed, so it names no '
-                  'record. Nothing was opened.',
-                  style: theme.textTheme.bodyMedium,
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 24),
-                FilledButton(
-                  onPressed: () => context.go('/'),
-                  child: const Text('Back to home'),
-                ),
-              ],
+    return PageTitle(
+      title: 'Not found',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Not found')),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: <Widget>[
+                  Icon(
+                    Icons.link_off,
+                    size: 48,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Nothing at this address',
+                    style: theme.textTheme.headlineMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'The link is incomplete or was changed, so it names no '
+                    'record. Nothing was opened.',
+                    style: theme.textTheme.bodyMedium,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 24),
+                  FilledButton(
+                    onPressed: () => context.go('/'),
+                    child: const Text('Back to home'),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -448,22 +525,25 @@ class _RouteNotReadyScreen extends StatelessWidget {
   final String path;
 
   @override
-  Widget build(BuildContext context) => Scaffold(
-    appBar: AppBar(
-      leading: IconButton(
-        tooltip: 'Back to home',
-        icon: const Icon(Icons.arrow_back),
-        onPressed: () => context.go('/'),
+  Widget build(BuildContext context) => PageTitle(
+    title: 'Not available yet',
+    child: Scaffold(
+      appBar: AppBar(
+        leading: IconButton(
+          tooltip: 'Back to home',
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.go('/'),
+        ),
+        title: const Text('Not available yet'),
       ),
-      title: const Text('Not available yet'),
-    ),
-    body: Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Text(
-          '$path has not been built yet.',
-          style: Theme.of(context).textTheme.bodyLarge,
-          textAlign: TextAlign.center,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            '$path has not been built yet.',
+            style: Theme.of(context).textTheme.bodyLarge,
+            textAlign: TextAlign.center,
+          ),
         ),
       ),
     ),

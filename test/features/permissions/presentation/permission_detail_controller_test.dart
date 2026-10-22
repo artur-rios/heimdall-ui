@@ -9,6 +9,7 @@ import 'package:heimdall_ui/features/permissions/domain/scope_permission_reposit
 import 'package:heimdall_ui/features/permissions/presentation/permission_detail_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopePermissionRepository extends Mock
@@ -38,6 +39,7 @@ void main() {
   PermissionDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopePermissionRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -369,6 +371,9 @@ void main() {
     verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
         .called(1);
     expect(currentState(), isA<PermissionDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAnOpenPermission_WhenErased_ThenTheHardEndpointIsUsed', () async {
@@ -409,6 +414,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'That permission is still granted to somebody.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test(
@@ -454,6 +462,78 @@ void main() {
     // Then
     verify(() => repository.delete(scopeId: 'scope-1', id: 'permission-1'))
         .called(1);
+  });
+
+  // A reread must not replace a command that is still on its way: its
+  // `deleting` guard would be lost and its answer would overwrite the reread.
+  test(
+    'GivenADeletionInFlight_WhenLoaded_ThenTheDeletionIsLeftAlone',
+    () async {
+      // Given
+      answerGetWith(const Success<ScopePermission>(_readInvoices));
+      final pending = Completer<Result<void>>();
+      when(
+        () => repository.delete(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+        ),
+      ).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final deleting = controller.delete();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect((currentState() as PermissionDetailLoaded).deleting, isTrue);
+      verify(
+        () => repository.getById(
+          scopeId: any(named: 'scopeId'),
+          id: any(named: 'id'),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+      pending.complete(const Success<void>(null));
+      await deleting;
+    },
+  );
+
+  test('GivenASaveInFlight_WhenLoaded_ThenTheSaveIsLeftAlone', () async {
+    // Given
+    answerGetWith(const Success<ScopePermission>(_readInvoices));
+    final pending = Completer<Result<ScopePermission>>();
+    when(
+      () => repository.update(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        includeAsJwtClaim: any(named: 'includeAsJwtClaim'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(
+      name: 'read:invoices',
+      description: 'Changed',
+      includeAsJwtClaim: false,
+    );
+
+    // When
+    await controller.load();
+
+    // Then
+    expect((currentState() as PermissionDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        scopeId: any(named: 'scopeId'),
+        id: any(named: 'id'),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<ScopePermission>(_readInvoices));
+    await saving;
   });
 
   // A sign-out resets the page while its read is in flight, and the late

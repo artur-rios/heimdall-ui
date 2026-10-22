@@ -32,6 +32,12 @@ final Provider<GoogleSignInGateway> googleSignInGatewayProvider =
       ),
     );
 
+/// How the session's expiry timer is made. A seam for tests, which run it on
+/// a fake clock.
+final Provider<Timer Function(Duration, void Function())>
+sessionExpiryTimerProvider =
+    Provider<Timer Function(Duration, void Function())>((ref) => Timer.new);
+
 final NotifierProvider<SessionController, SessionState>
 sessionControllerProvider = NotifierProvider<SessionController, SessionState>(
   SessionController.new,
@@ -131,9 +137,58 @@ List<String> _idsFrom(Object? claim) => switch (claim) {
 class SessionController extends Notifier<SessionState> {
   @override
   SessionState build() {
+    // #182: the session ends at its token's expiry rather than at the next
+    // request that finds it refused. Following the state here, beside it,
+    // means every way a session begins, is replaced or ends — sign-in,
+    // restore, a verified address, sign-out — moves the timer with it.
+    listenSelf((previous, next) {
+      _expiry?.cancel();
+      _expiry = null;
+
+      if (next is Authenticated) {
+        _armExpiry(next.token);
+      }
+    });
+    ref.onDispose(() => _expiry?.cancel());
+
     unawaited(restore());
 
     return const SessionRestoring();
+  }
+
+  Timer? _expiry;
+
+  /// The longest a single timer is armed for. Browsers keep a timer's delay
+  /// in 32 bits and fire at once past 2^31-1 ms (about 24 days), so a token
+  /// that lives longer is waited for in steps.
+  static const Duration _longestWait = Duration(days: 7);
+
+  /// Ends the session as expired when [token] runs out; at once if it already
+  /// has, which a token handed over just as it lapsed can be.
+  void _armExpiry(AuthToken token) => _armFor(
+    token,
+    token.expiresAt.toUtc().difference(DateTime.now().toUtc()),
+  );
+
+  void _armFor(AuthToken token, Duration remaining) {
+    final wait = remaining <= Duration.zero
+        ? Duration.zero
+        : (remaining > _longestWait ? _longestWait : remaining);
+
+    // An expiry already past is not acted on inside the state change that
+    // announced it.
+    _expiry = ref.read(sessionExpiryTimerProvider)(wait, () {
+      // Only for the token it was armed for: a session replaced meanwhile has
+      // a timer of its own.
+      if (state case Authenticated(token: final current)
+          when identical(current, token)) {
+        if (remaining > _longestWait) {
+          _armFor(token, remaining - _longestWait);
+        } else {
+          unawaited(signOut(expired: true));
+        }
+      }
+    });
   }
 
   TokenStore get _store => ref.read(tokenStoreProvider);

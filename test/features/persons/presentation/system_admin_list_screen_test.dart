@@ -1,15 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/persons/presentation/system_admin_list_screen.dart';
@@ -17,21 +12,10 @@ import 'package:heimdall_ui/features/profile/presentation/profile_controller.dar
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockPersonRepository extends Mock implements PersonRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'admin-9',
-        'email': 'admin@example.com',
-        'role': 1,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = PersonSummary(
   id: 'admin-1',
@@ -56,7 +40,6 @@ const Size _expanded = Size(1400, 900);
 void main() {
   late _MockPersonRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -64,21 +47,6 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        personRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/system-admins',
       routes: <RouteBase>[
@@ -86,30 +54,33 @@ void main() {
           path: '/',
           builder: (context, state) => const Scaffold(body: Text('home')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/system-admins',
           builder: (context, state) => const SystemAdminListScreen(),
-        ),
-        GoRoute(
-          path: '/persons/:personId',
-          builder: (context, state) => Scaffold(
-            body: Text('person ${state.pathParameters['personId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':personId',
+              builder: (context, state) => Scaffold(
+                body: Text('person ${state.pathParameters['personId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'admin-9')),
+      overrides: <Override>[
+        personRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<envelope.Page<PersonSummary>> result) {
@@ -185,6 +156,36 @@ void main() {
 
     // Then
     expect(find.text('person admin-1'), findsOneWidget);
+    expect(router.state.uri.path, '/system-admins/admin-1');
+  });
+
+  // #156 — Back from a person page returns to the listing, read again in case
+  // the person was changed or deleted there.
+  testWidgets('GivenAPersonOpened_WhenSystemBackIsPressed_ThenTheListShows', (
+    tester,
+  ) async {
+    // Given
+    answerWith(Success<envelope.Page<PersonSummary>>(_page()));
+    await pump(tester);
+    await tester.tap(find.text('Ada'));
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('person admin-1'), findsNothing);
+    expect(find.text('Ada'), findsOneWidget);
+    verify(
+      () => repository.listSystemAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).called(2);
   });
 
   testWidgets('GivenANameTyped_WhenSearchIsPressed_ThenItIsSent', (

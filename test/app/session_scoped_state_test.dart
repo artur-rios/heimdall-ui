@@ -6,6 +6,7 @@ import 'package:heimdall_ui/app/session_scoped_state.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_create_controller.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_detail_controller.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_list_controller.dart';
+import 'package:heimdall_ui/features/applications/presentation/owner_names.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/email_verification_controller.dart';
@@ -33,6 +34,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_controller.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_users_controller.dart';
 
 /// Every stateful provider the application declares that holds something of
 /// the person signed in, by the name it is declared under.
@@ -47,6 +49,7 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
   'scopeCreateControllerProvider': scopeCreateControllerProvider,
   'scopeDetailControllerProvider': scopeDetailControllerProvider,
   'scopeOwnersControllerProvider': scopeOwnersControllerProvider,
+  'scopeUsersControllerProvider': scopeUsersControllerProvider,
   'scopeSignInSettingsControllerProvider':
       scopeSignInSettingsControllerProvider,
   'pendingRegistrationListControllerProvider':
@@ -58,6 +61,7 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
   'personCreateControllerProvider': personCreateControllerProvider,
   'personDetailControllerProvider': personDetailControllerProvider,
   'applicationListControllerProvider': applicationListControllerProvider,
+  'ownerNamesProvider': ownerNamesProvider,
   'applicationCreateControllerProvider': applicationCreateControllerProvider,
   'applicationDetailControllerProvider': applicationDetailControllerProvider,
   'permissionListControllerProvider': permissionListControllerProvider,
@@ -87,8 +91,13 @@ const Map<String, String> _exempt = <String, String>{
   'systemAdminListControllerProvider': 'autoDispose: goes with its screen',
 };
 
+/// Plain `Provider`s that nevertheless hold state: a cache the object they
+/// build fills. The scan below cannot tell them from wiring, so they are named.
+const Set<String> _statefulPlainProviders = <String>{'ownerNamesProvider'};
+
 /// The name of every top-level provider under `lib` that holds state — every
-/// kind but a plain `Provider`, which here only wires a dependency in.
+/// kind but a plain `Provider`, which here only wires a dependency in, and the
+/// plain ones named in [_statefulPlainProviders].
 Set<String> _declaredStatefulProviders() {
   final declaration = RegExp(
     r'^final\b[^;=]*?\b(\w+Provider)\s*=\s*(\w+)\b',
@@ -96,6 +105,7 @@ Set<String> _declaredStatefulProviders() {
   );
 
   return <String>{
+    ..._statefulPlainProviders,
     for (final file in Directory('lib').listSync(recursive: true))
       if (file is File && file.path.endsWith('.dart'))
         for (final match in declaration.allMatches(file.readAsStringSync()))

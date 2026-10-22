@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,6 +8,7 @@ import '../../../shared/formatting/date_time_format.dart';
 import '../../../shared/layout/breakpoints.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../domain/application_credential.dart';
 import 'application_credentials_controller.dart';
 import 'issue_credential_dialog.dart';
@@ -41,7 +44,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
     _pending = ref.read(pendingSecretProvider.notifier);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _controller.load();
+        unawaited(_controller.load());
       }
     });
   }
@@ -80,6 +83,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
       title: 'Revoke this credential?',
       message: 'Tokens issued from it stop working at the next check.',
       confirmLabel: 'Revoke',
+      destructive: true,
     );
 
     if (confirmed && mounted) {
@@ -115,7 +119,7 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
             ),
             if (state.notice case final notice?) ...<Widget>[
               const SizedBox(height: 16),
-              _Notice(message: notice),
+              Notice(notice),
             ],
             if (state.actionFailure case final failure?) ...<Widget>[
               const SizedBox(height: 16),
@@ -249,45 +253,6 @@ class _CredentialsCardState extends ConsumerState<CredentialsCard> {
           if (compact)
             Align(alignment: AlignmentDirectional.centerEnd, child: actions),
         ],
-      ),
-    );
-  }
-}
-
-/// A one-line confirmation of what the last action did.
-class _Notice extends StatelessWidget {
-  const _Notice({required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Semantics(
-      liveRegion: true,
-      container: true,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: scheme.secondaryContainer,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Row(
-          children: <Widget>[
-            Icon(
-              Icons.check_circle_outline,
-              color: scheme.onSecondaryContainer,
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                message,
-                style: TextStyle(color: scheme.onSecondaryContainer),
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

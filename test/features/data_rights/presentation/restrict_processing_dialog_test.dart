@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,19 +16,12 @@ import 'package:heimdall_ui/features/data_rights/presentation/restrict_processin
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
-
-/// A full session's token, shaped as the API mints one.
-String _userJwt() {
-  String segment(Map<String, Object> json) =>
-      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
-
-  return '${segment(<String, Object>{'alg': 'HS256'})}.'
-      '${segment(<String, Object>{'id': 'person-1', 'role': '3'})}.'
-      'signature';
-}
 
 /// The three window classes the shell lays out differently.
 const Size _compact = Size(400, 900);
@@ -51,35 +43,24 @@ void main() {
     ThemeData? theme,
     Size size = _medium,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(value: _userJwt(), expiresAt: DateTime.utc(2030)),
-    );
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(
+        testApiJwt(<String, Object?>{'id': 'person-1', 'role': '3'}),
+      ),
       overrides: <Override>[
         dataRightsRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: Builder(
-            builder: (context) => Scaffold(
-              body: TextButton(
-                onPressed: () => showRestrictProcessingDialog(context),
-                child: const Text('Open'),
-              ),
-            ),
+      settle: false,
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: TextButton(
+            onPressed: () => showRestrictProcessingDialog(context),
+            child: const Text('Open'),
           ),
         ),
       ),

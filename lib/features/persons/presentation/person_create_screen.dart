@@ -12,7 +12,6 @@ import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
 import 'person_create_controller.dart';
-import 'person_list_controller.dart';
 
 /// UI-17 — the create-person form.
 class PersonCreateScreen extends ConsumerStatefulWidget {
@@ -108,22 +107,15 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
   );
 
   /// AF-17e — leaving a modified form asks first, whichever way it is left:
-  /// Cancel, the back control, the navigation, or signing out.
-  Future<bool> _confirmLeave() async =>
-      !_isDirty ||
-      await showConfirm(
-        context: context,
-        title: 'Discard this person?',
-        message: 'What you have entered has not been saved and will be lost.',
-        confirmLabel: 'Discard',
-        cancelLabel: 'Keep editing',
-      );
+  /// Cancel, the back control, the navigation, a system or browser Back, or
+  /// signing out (`AppShell.hasUnsavedChanges`). A created record is nothing
+  /// to lose, so the way on to it asks nothing.
+  bool get _hasUnsavedInput =>
+      _isDirty &&
+      ref.read(personCreateControllerProvider(widget.scopeId))
+          is! PersonCreated;
 
-  Future<void> _cancel() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/scopes/${widget.scopeId}/persons');
-    }
-  }
+  void _cancel() => context.go('/scopes/${widget.scopeId}/persons');
 
   @override
   Widget build(BuildContext context) {
@@ -142,10 +134,8 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
       personCreateControllerProvider(widget.scopeId),
       (previous, next) {
         if (next case PersonCreated(:final person)) {
-          // The listing behind this form is now stale.
-          ref
-              .read(personListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The listing behind this form reads itself again once it is back
+          // on top (`AppShell.onReturn`).
           context.go('/scopes/${widget.scopeId}/persons/${person.id}');
         }
       },
@@ -154,8 +144,8 @@ class _PersonCreateScreenState extends ConsumerState<PersonCreateScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New person'),
-      onBack: _cancel,
-      confirmLeave: _confirmLeave,
+      backRoute: '/scopes/${widget.scopeId}/persons',
+      hasUnsavedChanges: () => _hasUnsavedInput,
       backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

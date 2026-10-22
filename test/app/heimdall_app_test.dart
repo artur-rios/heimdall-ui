@@ -1,18 +1,18 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/app_version.dart';
 import 'package:heimdall_ui/app/heimdall_app.dart';
 import 'package:heimdall_ui/app/router.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
 import 'package:heimdall_ui/core/entry/entry_link.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/network/dio_client.dart';
+import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/scope/scope_source.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
@@ -31,10 +31,13 @@ import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_reque
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../support/dashboard_fakes.dart';
+import '../support/jwt.dart';
+import '../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -45,11 +48,9 @@ class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
 class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
-const String _systemAdminJwt =
-    'header.'
-    'eyJzdWIiOiI2ZjFkM2EwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJlbWFpbCI6'
-    'ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6MX0.'
-    'signature';
+final String _systemAdminJwt = testJwt(
+  sub: '6f1d3a00-0000-0000-0000-000000000001',
+);
 
 void main() {
   late InMemoryTokenStore store;
@@ -64,12 +65,13 @@ void main() {
     rootBundle.clear();
   });
 
-  Future<ProviderContainer> pumpApp(
+  Future<ProviderContainer> pumpHeimdall(
     WidgetTester tester, {
     List<Override> overrides = const <Override>[],
     FakeDashboardRepositories? fakes,
   }) async {
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...(fakes ?? FakeDashboardRepositories()).overrides,
         // The sign-in screen asks the configuration whether to offer the
@@ -77,13 +79,11 @@ void main() {
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
         ...overrides,
       ],
     );
-    addTearDown(container.dispose);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -102,7 +102,7 @@ void main() {
     // Given no stored token
 
     // When
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
 
     // Then
     expect(find.byType(MaterialApp), findsOneWidget);
@@ -118,7 +118,7 @@ void main() {
     );
 
     // When
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
 
     // Then
     expect(find.text('Welcome back, admin@example.com'), findsOneWidget);
@@ -131,26 +131,18 @@ void main() {
     tester,
   ) async {
     // Given
-    final payload = base64Url
-        .encode(
-          utf8.encode(
-            jsonEncode(<String, String>{
-              'id': '6f1d3a00-0000-0000-0000-000000000003',
-              'role': '3',
-              'name': 'Ada Lovelace',
-            }),
-          ),
-        )
-        .replaceAll('=', '');
     await store.write(
-      AuthToken(
-        value: 'header.$payload.signature',
-        expiresAt: DateTime.utc(2030),
+      testToken(
+        testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+          'name': 'Ada Lovelace',
+        }),
       ),
     );
 
     // When
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
 
     // Then
     expect(find.text('Welcome back, Ada Lovelace'), findsOneWidget);
@@ -164,22 +156,14 @@ void main() {
     tester,
   ) async {
     // Given
-    final payload = base64Url
-        .encode(
-          utf8.encode(
-            jsonEncode(<String, String>{
-              'id': '6f1d3a00-0000-0000-0000-000000000004',
-              'role': '3',
-              'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
-              'name': 'Grace Hopper',
-            }),
-          ),
-        )
-        .replaceAll('=', '');
     await store.write(
-      AuthToken(
-        value: 'header.$payload.signature',
-        expiresAt: DateTime.utc(2030),
+      testToken(
+        testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000004',
+          'role': '3',
+          'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
+          'name': 'Grace Hopper',
+        }),
         viaGoogle: true,
       ),
     );
@@ -196,7 +180,7 @@ void main() {
     when(google.signOut).thenAnswer((_) async {});
 
     // When
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       fakes: fakes,
       overrides: <Override>[
@@ -219,7 +203,7 @@ void main() {
     tester,
   ) async {
     // Given
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email'),
       'a@b.c',
@@ -251,7 +235,7 @@ void main() {
         ),
       ),
     );
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email'),
       'a@b.c',
@@ -280,7 +264,7 @@ void main() {
         ),
       ),
     );
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email'),
       'a@b.c',
@@ -307,18 +291,17 @@ void main() {
     final slow = _SlowTokenStore(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: slow,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(slow),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
 
     // When
     await tester.pumpWidget(
@@ -343,18 +326,17 @@ void main() {
     final slow = _SlowTokenStore(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: slow,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(slow),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -378,20 +360,22 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _userJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testJwt(sub: 'id', email: 'user@example.com', role: 3),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -414,7 +398,7 @@ void main() {
     'GivenNoSession_WhenThePrivacyLinkIsTapped_ThenTheNoticeIsShown',
     (tester) async {
       // Given
-      await pumpApp(tester);
+      await pumpHeimdall(tester);
 
       // When
       await tester.tap(find.widgetWithText(TextButton, 'Privacy notice'));
@@ -434,7 +418,7 @@ void main() {
     'GivenNoSession_WhenPrivacyIsOpenedDirectly_ThenTheNoticeIsShown',
     (tester) async {
       // Given
-      final container = await pumpApp(tester);
+      final container = await pumpHeimdall(tester);
 
       // When
       container.read(routerProvider).go('/privacy');
@@ -453,7 +437,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
 
     // When
     container.read(routerProvider).go('/privacy');
@@ -471,18 +455,17 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -504,6 +487,19 @@ void main() {
       ),
       findsOneWidget,
     );
+    // And a screen reader announces it, which the sign-in banner did not do
+    expect(
+      find.ancestor(
+        of: find.text(
+          'Your session ended. Sign in again to pick up where you left off.',
+        ),
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics && widget.properties.liveRegion == true,
+        ),
+      ),
+      findsOneWidget,
+    );
   });
 
   // Signing out deliberately is not a session that ended under the caller.
@@ -514,18 +510,17 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         ...FakeDashboardRepositories().overrides,
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'http://localhost:8080'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         authRepositoryProvider.overrideWithValue(repository),
       ],
     );
-    addTearDown(container.dispose);
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: container,
@@ -565,7 +560,7 @@ void main() {
         ),
       ),
     );
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
     await tester.enterText(
       find.widgetWithText(TextFormField, 'Email'),
       'a@b.c',
@@ -593,11 +588,18 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
 
     // When
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
     container.read(routerProvider).go('/scopes');
     await tester.pumpAndSettle();
 
@@ -614,9 +616,16 @@ void main() {
   ) async {
     // Given
     await store.write(
-      AuthToken(value: _restrictedJwt(), expiresAt: DateTime.utc(2030)),
+      AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
+        expiresAt: DateTime.utc(2030),
+      ),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
 
     // When
     await container
@@ -643,7 +652,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
 
     // When
     await container
@@ -668,7 +677,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
     container.read(routerProvider).go('/profile');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Edit'));
@@ -728,7 +737,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
     final router = container.read(routerProvider)..go('/profile/security');
     await tester.pumpAndSettle();
     await tester.tap(find.text('Emailed code'));
@@ -774,7 +783,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       overrides: <Override>[
         dataRightsRepositoryProvider.overrideWithValue(dataRights),
@@ -821,7 +830,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
     expect(container.read(dashboardControllerProvider), isA<DashboardLoaded>());
     expect(container.read(profileControllerProvider), isA<ProfileLoaded>());
 
@@ -862,7 +871,7 @@ void main() {
       await store.write(
         AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
       );
-      final container = await pumpApp(
+      final container = await pumpHeimdall(
         tester,
         overrides: <Override>[
           erasureRequestRepositoryProvider.overrideWithValue(erasures),
@@ -896,7 +905,7 @@ void main() {
     await store.write(
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
-    final container = await pumpApp(tester);
+    final container = await pumpHeimdall(tester);
     const guid = '6f1d3a00-0000-0000-0000-000000000001';
 
     // When
@@ -916,7 +925,7 @@ void main() {
     tester,
   ) async {
     // Given
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       overrides: <Override>[
         entryLinkProvider.overrideWith(
@@ -942,7 +951,7 @@ void main() {
     // Given
     when(() => repository.verifyEmail(token: any(named: 'token')))
         .thenAnswer((_) => Completer<Result<List<String>>>().future);
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       overrides: <Override>[
         entryLinkProvider.overrideWith(
@@ -976,7 +985,7 @@ void main() {
         newPassword: any(named: 'newPassword'),
       ),
     ).thenAnswer((_) async => const Success<void>(null));
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       overrides: <Override>[
         entryLinkProvider.overrideWith(
@@ -1023,7 +1032,7 @@ void main() {
       // Given
       when(() => repository.verifyEmail(token: any(named: 'token')))
           .thenAnswer((_) async => const Success<List<String>>(<String>[]));
-      final container = await pumpApp(
+      final container = await pumpHeimdall(
         tester,
         overrides: <Override>[
           entryLinkProvider.overrideWith(
@@ -1062,7 +1071,7 @@ void main() {
         Failure(kind: FailureKind.network, errors: <String>[]),
       ),
     );
-    final container = await pumpApp(
+    final container = await pumpHeimdall(
       tester,
       overrides: <Override>[
         entryLinkProvider.overrideWith(
@@ -1092,7 +1101,7 @@ void main() {
     // Given no stored token
 
     // When
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
 
     // Then
     expect(find.text('Heimdall UI v$appVersion'), findsOneWidget);
@@ -1107,28 +1116,284 @@ void main() {
     );
 
     // When
-    await pumpApp(tester);
+    await pumpHeimdall(tester);
 
     // Then
     final rail = tester.widget<NavigationRail>(find.byType(NavigationRail));
     expect(rail.selectedIndex, 0);
     expect(find.text('Home'), findsWidgets);
   });
-}
 
-/// A token naming a User, which is the role the matrix hides the most from.
-String _userJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'id',
-        'email': 'user@example.com',
-        'role': 3,
-      }),
-    ),
+  // #156 — a record's route is nested under its listing's, and a scope's own
+  // screens under the scope's, so a system or browser Back returns to the
+  // screen a record was opened from, and a deep link arrives with it beneath.
+  testWidgets('GivenTheRouter_WhenAScreenIsMatched_ThenItsParentsAreUnderIt', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpHeimdall(tester);
+    final configuration = container.read(routerProvider).configuration;
+    const s = '6f1d3a00-0000-0000-0000-000000000001';
+    const r = '6f1d3a00-0000-0000-0000-000000000002';
+    final expected = <String, List<String>>{
+      '/': <String>['/'],
+      '/profile': <String>['/profile'],
+      '/profile/security': <String>['/profile', '/profile/security'],
+      '/system-admins': <String>['/', '/system-admins'],
+      '/scopes': <String>['/scopes'],
+      '/scopes/new': <String>['/scopes', '/scopes/new'],
+      '/scopes/$s': <String>['/scopes', '/scopes/$s'],
+      for (final screen in <String>[
+        'owners',
+        'sign-in-settings',
+        'pending-registrations',
+        'persons',
+        'applications',
+        'permissions',
+        'google-users',
+      ])
+        '/scopes/$s/$screen': <String>[
+          '/scopes',
+          '/scopes/$s',
+          '/scopes/$s/$screen',
+        ],
+      for (final listing in <String>['persons', 'applications', 'permissions'])
+        for (final record in <String>['new', r])
+          '/scopes/$s/$listing/$record': <String>[
+            '/scopes',
+            '/scopes/$s',
+            '/scopes/$s/$listing',
+            '/scopes/$s/$listing/$record',
+          ],
+      '/scopes/$s/google-users/$r': <String>[
+        '/scopes',
+        '/scopes/$s',
+        '/scopes/$s/google-users',
+        '/scopes/$s/google-users/$r',
+      ],
+      '/system-admins/$r': <String>['/', '/system-admins', '/system-admins/$r'],
+    };
+
+    // When
+    final stacks = <String, List<String>>{
+      for (final location in expected.keys)
+        location: <String>[
+          for (final match
+              in configuration.findMatch(Uri.parse(location)).matches)
+            match.matchedLocation,
+        ],
+    };
+
+    // Then
+    expect(stacks, expected);
+  });
+
+  // #156 — every route whose screen can hold an unsaved edit asks before it
+  // is left, whichever way it is left.
+  testWidgets('GivenAnEditableRoute_WhenMatched_ThenItGuardsUnsavedChanges', (
+    tester,
+  ) async {
+    // Given
+    final container = await pumpHeimdall(tester);
+    final configuration = container.read(routerProvider).configuration;
+    const s = '6f1d3a00-0000-0000-0000-000000000001';
+    const r = '6f1d3a00-0000-0000-0000-000000000002';
+
+    GoRoute routeOf(String location) =>
+        configuration.findMatch(Uri.parse(location)).last.route;
+
+    // When / Then
+    for (final location in <String>[
+      '/profile',
+      '/scopes/new',
+      '/scopes/$s/persons/new',
+      '/scopes/$s/applications/new',
+      '/scopes/$s/permissions/new',
+      '/scopes/$s',
+      '/scopes/$s/sign-in-settings',
+      '/scopes/$s/persons/$r',
+      '/scopes/$s/permissions/$r',
+      '/system-admins/$r',
+    ]) {
+      expect(
+        routeOf(location).onExit,
+        same(confirmLeaveWithUnsavedChanges),
+        reason: location,
+      );
+    }
+    // The application route asks about its pending secret as well; its test
+    // drives the combination through this router.
+    expect(routeOf('/scopes/$s/applications/$r').onExit, isNotNull);
+  });
+
+  // #156 — on a screen at the root of the navigation, Android's Back leaves
+  // the app as it always did, rather than going nowhere.
+  for (final location in <String>['/', '/scopes']) {
+    testWidgets(
+      'GivenTheRootScreen${location}_WhenSystemBack_ThenTheAppExits',
+      (tester) async {
+        // Given
+        await store.write(
+          AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+        );
+        final container = await pumpHeimdall(tester);
+        container.read(routerProvider).go(location);
+        await tester.pumpAndSettle();
+        final calls = <String>[];
+        tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+          SystemChannels.platform,
+          (call) async {
+            calls.add(call.method);
+
+            return null;
+          },
+        );
+        addTearDown(
+          () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+            SystemChannels.platform,
+            null,
+          ),
+        );
+
+        // When
+        final handled = await tester.binding.handlePopRoute();
+        await tester.pumpAndSettle();
+
+        // Then
+        expect(handled, isFalse);
+        expect(calls, contains('SystemNavigator.pop'));
+        expect(container.read(routerProvider).state.uri.path, location);
+      },
+    );
+  }
+
+  // #156 — the person page without a scope sits under the System Admins
+  // listing; a link to its earlier address still opens it, there.
+  testWidgets('GivenThePersonPagesEarlierAddress_WhenOpened_ThenItRedirects', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpHeimdall(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000002';
+    final router = container.read(routerProvider);
+
+    // When
+    router.go('/persons/$guid');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(router.state.uri.path, '/system-admins/$guid');
+    expect(find.widgetWithText(AppBar, 'Me'), findsOneWidget);
+  });
+
+  // #156 — Back from a person page returns to the listing it sits under.
+  testWidgets('GivenAListedPersonPage_WhenSystemBack_ThenTheListingShows', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpHeimdall(tester);
+    const guid = '6f1d3a00-0000-0000-0000-000000000002';
+    final router = container.read(routerProvider)..go('/system-admins/$guid');
+    await tester.pumpAndSettle();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(router.state.uri.path, '/system-admins');
+    expect(find.widgetWithText(AppBar, 'System Admins'), findsOneWidget);
+  });
+
+  // #156 — the System Admins listing opens over Home, which is read again on
+  // the way back when its counts may have changed there (#172: a quick return
+  // with nothing changed reuses the last read, see home_screen_test).
+  testWidgets('GivenAChangedList_WhenSystemBack_ThenHomeIsReadAgain', (
+    tester,
+  ) async {
+    // Given
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final fakes = FakeDashboardRepositories();
+    final container = await pumpHeimdall(tester, fakes: fakes);
+    final router = container.read(routerProvider)..go('/system-admins');
+    await tester.pumpAndSettle();
+    final reads = fakes.systemAdminsReads;
+    container.read(dashboardControllerProvider.notifier).markStale();
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(router.state.uri.path, '/');
+    expect(fakes.systemAdminsReads, reads + 1);
+  });
+
+  /// Opens the profile and changes the name, which is an unsaved edit.
+  Future<ProviderContainer> editTheProfile(WidgetTester tester) async {
+    await store.write(
+      AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
+    );
+    final container = await pumpHeimdall(tester);
+    container.read(routerProvider).go('/profile');
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.widgetWithText(TextFormField, 'Me'), 'Me Too');
+    await tester.pumpAndSettle();
+
+    return container;
+  }
+
+  // #156 — signing out asks once; the route the redirect then leaves does
+  // not ask again.
+  testWidgets('GivenAnUnsavedEdit_WhenSignOutIsDiscarded_ThenItAsksOnlyOnce', (
+    tester,
+  ) async {
+    // Given
+    final container = await editTheProfile(tester);
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+    expect(find.text('Discard your changes?'), findsOneWidget);
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.byType(AlertDialog), findsNothing);
+    expect(container.read(routerProvider).state.uri.path, '/login');
+  });
+
+  // #156 — a session that ends is no question for the person: the redirect
+  // goes on without a dialog.
+  testWidgets(
+    'GivenAnUnsavedEdit_WhenTheSessionEnds_ThenItLeavesWithoutAsking',
+    (tester) async {
+      // Given
+      final container = await editTheProfile(tester);
+
+      // When
+      await container
+          .read(sessionControllerProvider.notifier)
+          .signOut(expired: true);
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.byType(AlertDialog), findsNothing);
+      expect(container.read(routerProvider).state.uri.path, '/login');
+    },
   );
-
-  return 'header.$payload.signature';
 }
 
 /// A store whose read does not complete until it is told to, so AF-07c's slow
@@ -1149,19 +1414,4 @@ class _SlowTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async {}
-}
-
-/// A subject-rights-only token, as UI-30 restores one from storage.
-String _restrictedJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'id': 'person-1',
-        'role': '3',
-        'subjectRightsOnly': 'true',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
 }

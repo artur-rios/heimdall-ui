@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -11,38 +10,27 @@ import 'package:heimdall_ui/features/auth/presentation/password_recovery_screen.
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
   late _MockAuthRepository repository;
-  late ProviderContainer container;
 
   Future<void> pump(
     WidgetTester tester, {
     Size size = const Size(400, 900),
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    container = ProviderContainer(
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
       ],
+      home: const PasswordRecoveryScreen(),
     );
-    addTearDown(container.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const PasswordRecoveryScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<void> result) {

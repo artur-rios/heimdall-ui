@@ -10,6 +10,7 @@ import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../google_users/domain/google_user_repository.dart';
 import '../domain/email_link.dart';
 import '../domain/scope.dart';
@@ -113,10 +114,7 @@ class _ScopeSignInSettingsScreenState
     });
   }
 
-  /// Leaving with unsaved changes asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -165,6 +163,7 @@ class _ScopeSignInSettingsScreenState
               : 'The $present Google accounts already in this scope will no '
                     'longer be able to sign in.',
           confirmLabel: 'Turn off',
+          destructive: true,
         );
 
         if (!confirmed || !mounted) {
@@ -237,7 +236,7 @@ class _ScopeSignInSettingsScreenState
       backRoute: '/scopes/${widget.scopeId}',
       backTooltip: 'Back to the scope',
       title: const Text('Sign-in & sign-up'),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       body: switch (state) {
         SignInSettingsLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -288,7 +287,12 @@ class _ScopeSignInSettingsScreenState
             children: <Widget>[
               // AF-31b — everything below is read-only because of it.
               if (state.isReadOnly) ...<Widget>[
-                const _DeletedNotice(),
+                const Notice(
+                  'This scope is deleted. Its settings are shown for reference '
+                  'and cannot be changed.',
+                  icon: Icons.delete_outline,
+                  isError: true,
+                ),
                 const SizedBox(height: 16),
               ],
               Card(
@@ -365,7 +369,7 @@ class _ScopeSignInSettingsScreenState
                       const SizedBox(height: 16),
                     ],
                     if (state.linksSaved) ...<Widget>[
-                      const _SavedNotice(),
+                      const Notice('Saved.'),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -423,58 +427,6 @@ class _ScopeSignInSettingsScreenState
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// AF-31b — what a logically deleted scope says about its settings.
-class _DeletedNotice extends StatelessWidget {
-  const _DeletedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.delete_outline, color: scheme.onErrorContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'This scope is deleted. Its settings are shown for reference '
-              'and cannot be changed.',
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SavedNotice extends StatelessWidget {
-  const _SavedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Saved.',
-        style: TextStyle(color: scheme.onSecondaryContainer),
       ),
     );
   }

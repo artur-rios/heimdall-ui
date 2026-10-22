@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -19,7 +17,9 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
 import '../../../support/late_answer.dart';
+import '../../../support/pump_app.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -28,38 +28,6 @@ class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 class _MockGoogleSignInGateway extends Mock implements GoogleSignInGateway {}
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
-
-/// A token naming the signed-in person, which is where the controller reads the
-/// identifier it asks the API for.
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'ada@example.com',
-        'role': 3,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
-
-/// A Google sign-in's token: its subject is the Google User, not a person, and
-/// it names the scope the Google User belongs to.
-String _googleJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'google-1',
-        'role': 3,
-        'scopeId': 'scope-1',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _grace = GoogleUser(
   id: 'google-1',
@@ -112,23 +80,23 @@ void main() {
   }) async {
     await store.write(
       AuthToken(
-        value: viaGoogle ? _googleJwt() : _jwt(),
+        value: viaGoogle
+            ? testJwt(sub: 'google-1', role: 3, scopeId: 'scope-1', email: null)
+            : testJwt(email: 'ada@example.com', role: 3),
         expiresAt: DateTime.utc(2030),
         viaGoogle: viaGoogle,
       ),
     );
 
-    container = ProviderContainer(
+    container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         personRepositoryProvider.overrideWithValue(repository),
         googleUserRepositoryProvider.overrideWithValue(googleUsers),
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWithValue(auth),
-        tokenStoreProvider.overrideWithValue(store),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     return container.read(profileControllerProvider.notifier);
   }

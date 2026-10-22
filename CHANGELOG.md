@@ -7,12 +7,115 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Fixed
+
+- The Android release build now declares the `INTERNET` permission, which Flutter adds to debug and profile builds
+  only, so an installed release APK can reach the API. The Android CI job fails if the built APK lacks it (#155).
+- A request that fails without any answer, whatever Dio calls it (an unknown error or a bad certificate as well as
+  a timeout), now offers **Retry** instead of a bare error (#169).
+- Typing a name to confirm a permanent deletion no longer depends on leading or trailing whitespace in the stored
+  name or in what was typed (#184).
+- Opening a second password reset or email verification link in the same app run starts from a clean state instead
+  of showing the previous link's result, which hid the reset form (#158).
+- Verifying an email address no longer hides the signed-in administrator's own "verify your email" prompt unless
+  their own address is now verified, as the API reports it; a link mailed to somebody else leaves the prompt (#170).
+- Completing a second factor on a device whose secure storage refuses the session token now says the device could not
+  store the session, instead of reporting an expired sign-in (#163).
+- A user whose account needs a second factor now lands on the page they originally asked for after completing it,
+  instead of on Home (#164).
+- Signing in or confirming an erasure with Google now runs one flow at a time: a second token event, a click on
+  Google's own web button while the password form submits, or a double tap on the erasure button no longer starts a
+  second exchange or a second Google flow (#168).
+- Submitting the create-owner dialog while the owners are still loading or another change is on its way now keeps
+  the dialog open with what was typed and says nothing was sent, instead of closing as if the owner had been
+  created (#165).
+- Choosing an owner in the picker while the owners are still loading or another change is on its way now says nothing
+  was sent, instead of closing silently as if the owner had been added (#165).
+- The scope owners screen now pages its owners and its promotion list, and the promotion list can be searched by
+  name or address, so a scope with more than twenty people no longer leaves the twenty-first unreachable. The rule
+  that a scope must keep at least one owner now counts every owner the API reports, not the ones on the page (#159).
+- The owner picker now opens on its loading state instead of the list it showed last time, which still held the
+  owner just added and led to the API's "already an owner" refusal, and only the latest of overlapping searches
+  writes its result (#166).
+- The owner selector on an application's detail page now offers **Retry** after a failed read of the scope's
+  people, and always shows the application's current owner, as a disabled entry when the loaded list does not
+  contain them, instead of looking empty while Save would send the old owner (#167).
+- Reloading an application, scope, person, permission or Google user while a save or delete is in flight now
+  leaves that request alone, so its progress guard is no longer lost to the reload (#183).
+- A change made to a list while it was still loading is no longer lost when a second change follows before the
+  answer arrives: a search typed and then **Include deleted** flipped, or a filter and then another page, now both
+  reach the request that follows. This applies to the scopes, people, applications, permissions, Google users,
+  and erasure requests lists, as it already did to the audit trail and System Admins (#157).
+- The audit trail now shows "The API returned an unexpected response." with **Retry** when the API answers with a
+  body the app cannot read, as the other lists do, instead of staying on its loading placeholder (#160).
+- The **Include deleted** switch on the scopes, people, applications, permissions and Google users lists is now
+  announced by a screen reader as "Include deleted", and tapping its label turns it on or off, instead of the
+  switch being unnamed with its label a separate stop that did nothing (#161).
+- The delete confirmations no longer say the API can restore a deleted record, which it cannot: they now say the
+  record is hidden and only an operator can restore it, from the database, within the retention window, and, for a
+  person or a Google user, that after 90 days their personal data is anonymised and cannot be restored (#162).
+- Android's back button and gesture, and the browser's Back, now return from a record to the list it was opened
+  from, from a scope's own pages to the scope, from Security to the profile and from the System Admins list to
+  Home, instead of closing the app; a link straight to a record arrives with its list underneath, and the page
+  returned to shows the record as it now is. On Home and the main lists the back button still closes the app.
+  Leaving an unsaved edit on a scope, person, application, permission, the profile, a scope's sign-in settings or
+  a new scope, person, application or permission form now asks "Discard your changes?" whichever way it is left,
+  and signing out asks about an edit left open on a page underneath (#156).
+- The recovery codes shown after enabling or regenerating two-factor authentication can now be downloaded as
+  `heimdall-recovery-codes.txt`, one code per line, as FR-AU-19 asks; closing or reloading the tab while they are
+  shown was already confirmed with the browser (#181).
+- A signed-in session now ends when its token expires, with the "session ended" notice on the sign-in screen,
+  instead of leaving the expired session's data on screen until the next request is refused (#182).
+- The browser tab and history entry now name the screen ("Permissions - Heimdall") on every screen, and follow the
+  screen on top when a record is opened over its list (#178).
+- At a large text size, a record on a phone-sized list no longer runs its labelled values (such as Google Sign-In
+  or Owners) off the edge of the card: the value drops under its label. The navigation rail's destinations on a
+  tablet or desktop are now the 48-pixel tap target the platform guidelines ask for (#176).
+
 ### Changed
 
+- The setup and contributor documents now match the repository (#174). The Testing Specification no longer lists an
+  `integration_test/` level that does not exist and says what CI does with coverage, the README and the Technology
+  Stack ask for Dart 3.13.5+ (Flutter 3.47.7+), and CONTRIBUTING.md explains how to add a list screen, a detail
+  screen and a test, and where a shared widget lives.
 - The operations document and the comment in the web image's `nginx.conf` now say that yggdrasil's edge, from
   0.7.4, leaves the image's Referrer-Policy in place, so `/password-reset` and `/verify-email` send `no-referrer`
   in deployed environments too. Behind a proxy that replaces the header, the token removed from the address at
   start-up remains the protection. The `curl -sI` check in the document now shows the headers production returns.
+- The search boxes and **Include deleted** switch of the scopes, people, applications, permissions and Google users
+  lists, and the loading, failure, empty and rows choice of those lists and the erasure requests list, are now one
+  shared widget each, so the lists look and behave alike (#160).
+- Confirmation dialogs for destructive actions (deleting, revoking, discarding, turning Google Sign-In or two-factor
+  authentication off, generating new recovery codes, removing an owner, leaving without a one-time secret or recovery
+  codes, lifting a processing restriction, requesting erasure, and re-applying erasures) now show their confirm
+  button in the error colours, and **Cancel** takes the keyboard focus, so pressing Enter by reflex does not confirm
+  them (#173).
+- The delete and permanent-delete panel, its confirmations and their wording are now one shared widget on the
+  person, Google user, scope, application and permission pages, so they say the same thing everywhere (#180).
+- The confirmations, warnings and "saved" messages across the application, and the "session ended" message on the
+  sign-in page, are now one shared notice. The sign-in page's messages are announced by a screen reader when they
+  appear, as the others already were. The scope owners screen and the invitations card, which had their own banner,
+  now use the same look, and the notices on the scope pages and the profile page no longer have private copies
+  (#171).
+- The person page opened from the System Admins list now lives at `/system-admins/<id>`, under the list, so Back
+  returns to it; a link to its earlier address, `/persons/<id>`, still opens the page there (#156).
+- Home now reuses a dashboard read in the last minute instead of issuing about forty requests every time it is
+  shown, so going back to it from another screen settles at once. Creating or deleting a scope, person,
+  application, permission or Google user, renaming or updating a scope, changing a scope's sign-in settings, or
+  changing a scope's owners, makes the next visit read again, and **Refresh** always does (#172).
+- The applications list now remembers an owner's name for five minutes instead of reading every owner again on each
+  visit; a name older than that is read again, and **Retry** forgets every name at once. Saving a person's changes
+  also forgets them, so a renamed owner is shown by their new name (#179).
+- The analyzer now enforces `strict-inference`, `discarded_futures`, `unnecessary_lambdas`, `directives_ordering` and
+  `close_sinks`, so a future dropped by accident, a closure that should be a tear-off, an unsorted import or an
+  unclosed stream controller fails `flutter analyze`. The fire-and-forget calls the app makes on purpose are now
+  written as `unawaited(...)` (#177).
+- Pull requests now build the web release, so a change that breaks it is seen before the release merge, and the CI test
+  run produces `coverage/lcov.info` and uploads it as an artifact, with no threshold. The Windows and Android builds
+  also run weekly, every job has a timeout, and the operations document lists the new triggers (#177).
+- `go_router` is now 18.1.1, `build_runner` 2.17.1 and `retrofit_generator` 10.3.2, with the transitive packages that
+  were behind (`material_ui`, `cupertino_ui`, `google_sign_in_android`, `google_sign_in_ios` and others) brought up
+  to date. The generated API client is unchanged by the newer generator (#185).
 
 ## [1.9.0] - 2026-10-19
 
@@ -147,8 +250,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A list screen stayed on its loading placeholder for good, with no error and no Retry, when the API answered with a
-  body the app could not read. The eight lists (people, scopes, applications, permissions, Google users, erasure
-  requests, pending registrations and System Admins) now show "The API returned an unexpected response." with Retry.
+  body the app could not read. The ten paged lists (people, scopes, applications, permissions, Google users, erasure
+  requests, pending registrations, System Admins, a scope's users and the audit log) now show "The API returned an
+  unexpected response." with Retry.
 - The System Admins list could be left on an empty page with no pager when the last admin of the last page went
   away. It now steps back to the last page that still exists, as the other lists do.
 - On a short window, or with a soft keyboard open, a System Admin's navigation rail ran off the bottom and its

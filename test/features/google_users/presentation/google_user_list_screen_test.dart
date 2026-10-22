@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -9,7 +6,6 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user_repository.dart';
 import 'package:heimdall_ui/features/google_users/presentation/google_user_list_screen.dart';
@@ -19,23 +15,12 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.d
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockGoogleUserRepository extends Mock implements GoogleUserRepository {}
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': 1,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = GoogleUser(
   id: 'google-1',
@@ -77,7 +62,6 @@ void main() {
   late _MockGoogleUserRepository googleUsers;
   late _MockScopeRepository scopes;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -85,22 +69,6 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        googleUserRepositoryProvider.overrideWithValue(googleUsers),
-        scopeRepositoryProvider.overrideWithValue(scopes),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/google-users',
       routes: <RouteBase>[
@@ -117,31 +85,35 @@ void main() {
           builder: (context, state) =>
               const Scaffold(body: Text('sign-in settings')),
         ),
+        // Nested as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/google-users',
           builder: (context, state) =>
               GoogleUserListScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/google-users/:googleUserId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['googleUserId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':googleUserId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['googleUserId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9')),
+      overrides: <Override>[
+        googleUserRepositoryProvider.overrideWithValue(googleUsers),
+        scopeRepositoryProvider.overrideWithValue(scopes),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerListWith(Result<envelope.Page<GoogleUser>> result) {
@@ -434,6 +406,43 @@ void main() {
     ).called(1);
   });
 
+  testWidgets('GivenTheIncludeDeletedLabel_WhenTapped_ThenTheFlagIsSent', (
+    tester,
+  ) async {
+    // Given
+    answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Include deleted'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => googleUsers.list(
+        scopeId: 'scope-1',
+        name: '',
+        email: '',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+  });
+
+  testWidgets(
+    'GivenARenderedListing_WhenChecked_ThenEveryTapTargetIsLabelled',
+    (tester) async {
+      // Given
+      final handle = tester.ensureSemantics();
+      answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+      await pump(tester);
+
+      // Then
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      handle.dispose();
+    },
+  );
+
   // AF-28e — there is nothing to create here, so nothing offers to.
   testWidgets('GivenTheListing_WhenRendered_ThenNoCreateControlIsShown', (
     tester,
@@ -460,4 +469,36 @@ void main() {
     // Then
     expect(find.text('Ada Lovelace'), findsOneWidget);
   });
+
+  // #156 — Back from a record returns to the listing, read again in case the
+  // record was changed or deleted there.
+  testWidgets(
+    'GivenAGoogleUserOpened_WhenSystemBackIsPressed_ThenTheListShows',
+    (tester) async {
+      // Given
+      answerListWith(Success<envelope.Page<GoogleUser>>(_page()));
+      await pump(tester, size: _compact);
+      await tester.tap(find.text('Ada Lovelace'));
+      await tester.pumpAndSettle();
+
+      // When
+      final handled = await tester.binding.handlePopRoute();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(handled, isTrue);
+      expect(find.text('detail google-1'), findsNothing);
+      expect(find.text('Ada Lovelace'), findsOneWidget);
+      verify(
+        () => googleUsers.list(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: any(named: 'pageNumber'),
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).called(2);
+    },
+  );
 }

@@ -57,15 +57,10 @@ dart run tool/refresh_privacy_notice.dart "https://raw.githubusercontent.com/art
 flutter test
 ```
 
-```bash
-flutter test integration_test
-```
+CI runs `flutter test --coverage` and uploads `coverage/lcov.info` as an artifact; there is no coverage threshold.
+There is no `integration_test/` directory: every test, including those that drive the router, is a `flutter test`.
 
-```bash
-flutter test --coverage
-```
-
-The gate before every pull request is all three of these, passing:
+The gate before every pull request is these three, passing:
 
 ```bash
 dart format --set-exit-if-changed . && flutter analyze && flutter test
@@ -75,6 +70,54 @@ Tests are named `GivenSomeCondition_WhenSomeAction_ThenSomeOutput`, and each bod
 `// Given`, `// When`, and `// Then` comments. No test reaches the network: HTTP is stubbed through a
 local Dio adapter, and controllers are tested against fake repositories. See the
 [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md).
+
+## Adding to the app
+
+Copy the example named in each step and change what differs.
+
+### A list screen
+
+Example: scopes, `lib/features/scopes/presentation/scope_list_controller.dart` and `scope_list_screen.dart`.
+
+1. In the domain, add the repository method that takes a query and returns an `envelope.Page<T>`.
+2. Write a state class that implements `ListLoading`, `ListLoaded` and `ListFailed` (`lib/shared/paging/list_state.dart`)
+   and a controller that extends `PagedListController<Query, Item, State>` (`lib/shared/paging/`). The engine
+   owns paging, retry, stale-answer handling and the "unexpected response" failure; the controller only says how
+   to `fetch` a page and how to build each state.
+3. In the screen, put `ListFilters` above a `ListScaffold` (`lib/shared/widgets/list_scaffold.dart`), giving it the
+   empty message and the rows. Pass a `ListForbidden` when only some roles may read the listing.
+4. Register the route in `lib/app/router.dart`.
+5. Test the controller against a fake repository and the screen with `pumpApp`; see
+   `test/features/scopes/presentation/scope_list_controller_test.dart` and `scope_list_screen_test.dart`.
+
+### A detail screen
+
+Example: `lib/features/scopes/presentation/scope_detail_screen.dart`.
+
+1. Wrap the screen in `AppShell` and give it `hasUnsavedChanges` when it has an edit mode or a form; the route's
+   `onExit: confirmLeaveWithUnsavedChanges` then asks "Discard your changes?" (`lib/shared/forms/`) before Back,
+   a link or a sign-out leaves it. A screen that returns somewhere specific passes `onReturn`.
+2. Show a save result or a refusal with `Notice` (`lib/shared/widgets/notice.dart`), never a private copy.
+3. For deletion, use `DeleteActions` (`lib/shared/widgets/delete_actions.dart`). It carries the logical and the
+   permanent delete and the shared destructive-confirm dialog (`showConfirm`), so every record says the same thing.
+
+### A test
+
+Example: `test/features/scopes/presentation/scope_list_screen_test.dart`.
+
+- Name it `GivenSomeCondition_WhenSomeAction_ThenSomeOutput` with `// Given`, `// When` and `// Then` sections.
+- Build the world with the helpers in `test/support/`: `pumpApp` pumps a screen or a router inside a window and
+  a session; `testApiJwt` and `testJwt` mint tokens; `StubAdapter` stands in for the network in repository tests;
+  the session's expiry timer is already made idle by `pumpApp` and `testContainer`, so no real timer is left
+  pending. A new helper that two test files need goes in `test/support/`.
+- Accessibility checks (labels, tap targets, large text) live in `test/a11y/accessibility_test.dart`.
+
+### Shared or feature widget
+
+A widget used by one feature lives in that feature's `presentation/widgets/` (see
+`lib/features/home/presentation/widgets/`). When a second feature needs it, move it to `lib/shared/widgets/` and
+give it no feature knowledge — pass in what differs, as `Notice` and `ListForbidden` do. Copying a private widget
+into a second feature is how six `_Notice` copies appeared.
 
 ## Branching model
 

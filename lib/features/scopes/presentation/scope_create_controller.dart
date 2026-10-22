@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/scope.dart';
 import 'scope_list_controller.dart';
 
@@ -75,6 +76,10 @@ class ScopeCreateController extends Notifier<ScopeCreateState>
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
       return;
+    }
+
+    if (result.isSuccess) {
+      ref.markHomeDataStale();
     }
 
     state = result.fold(

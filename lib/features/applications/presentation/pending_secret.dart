@@ -74,6 +74,7 @@ Future<bool> confirmLeaveWithPendingSecret(
         'The secret is shown only once. If you leave now, it cannot be shown '
         'again; revoke this credential and issue another.',
     confirmLabel: 'Leave',
+    destructive: true,
   );
 
   if (leave) {

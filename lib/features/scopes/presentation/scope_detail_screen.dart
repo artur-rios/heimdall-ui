@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,13 +11,14 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/list_scaffold.dart' show ListForbidden;
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope.dart';
 import 'scope_detail_controller.dart';
-import 'scope_list_controller.dart';
 import 'scope_sign_in_settings_screen.dart' show signInSettingsSummary;
 
 /// UI-12 — one scope: what it is, who owns it, and what it contains.
@@ -68,7 +71,13 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     }
 
     _seeded = scope;
-    _restore(scope);
+
+    // A screen opened over this one can read the scope again (the Google
+    // users listing does) while an edit waits underneath; what was typed and
+    // not yet saved stays, as on the person page.
+    if (!_editing) {
+      _restore(scope);
+    }
   }
 
   void _restore(Scope scope) {
@@ -83,11 +92,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -139,45 +145,6 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
     return session is Authenticated && session.principal.isSystemAdmin;
   }
 
-  /// AF-13a — a dialog the user closes sends nothing.
-  Future<void> _confirmDelete(Scope scope) async {
-    final confirmed = await showConfirm(
-      context: context,
-      title: 'Delete this scope?',
-      message:
-          '${scope.name} will be marked deleted. The record is kept and '
-          'the API can restore it.',
-      confirmLabel: 'Delete',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(scopeDetailControllerProvider(widget.scopeId).notifier)
-          .delete();
-    }
-  }
-
-  /// AF-13c — the confirm control stays disabled until the name matches.
-  Future<void> _confirmDeletePermanently(Scope scope) async {
-    final confirmed = await showTypeToConfirm(
-      context: context,
-      title: 'Delete this scope permanently?',
-      message:
-          'The scope and everything in it — its persons, applications, '
-          'permissions, and Google users — are erased. This cannot be undone. '
-          'Type the name to confirm:',
-      confirmationValue: scope.name,
-      fieldLabel: 'Scope name',
-      confirmLabel: 'Delete permanently',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(scopeDetailControllerProvider(widget.scopeId).notifier)
-          .deletePermanently();
-    }
-  }
-
   Future<void> _save() async {
     if (!validateAndReveal(_formKey)) {
       return;
@@ -195,7 +162,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
       scopeDetailControllerProvider(widget.scopeId).notifier,
     );
 
-    // A deleted scope returns to the listing, which is now stale.
+    // A deleted scope returns to the listing, which reads itself again.
     ref.listen<ScopeDetailState>(
       scopeDetailControllerProvider(widget.scopeId),
       (previous, next) {
@@ -208,7 +175,8 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         }
 
         if (next is ScopeDeleted) {
-          ref.read(scopeListControllerProvider.notifier).load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go('/scopes');
         }
       },
@@ -222,7 +190,14 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ScopeDetailLoaded(:final scope) => scope.name,
         _ => 'Scope',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
+      // Back from one of the scope's own screens, which may have changed what
+      // this one shows. An edit in progress is not read over.
+      onReturn: () {
+        if (!_editing) {
+          unawaited(controller.refresh());
+        }
+      },
       body: switch (state) {
         ScopeDetailLoading() => const Center(
           child: CircularProgressIndicator(),
@@ -239,15 +214,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ),
         // AF-12b — the API says this scope is not this caller's, which is the
         // same answer UI-07 gives for a screen a role is not offered.
-        ScopeDetailUnavailable(isForbidden: true) => CollectionEmpty(
-          title: 'Not available for your role',
-          message:
-              'This scope is not one you administer. Nothing is wrong '
-              'with your session.',
-          icon: Icons.lock_person_outlined,
-          actionLabel: 'Back to scopes',
-          onAction: () => context.go('/scopes'),
-        ),
+        ScopeDetailUnavailable(isForbidden: true) => _forbidden(),
         ScopeDetailUnavailable(:final failure) => CollectionFailed(
           failure: failure,
           onRetry: controller.load,
@@ -257,6 +224,21 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
         ScopeDeleted() => const Center(child: CircularProgressIndicator()),
         final ScopeDetailLoaded loaded => _detail(loaded),
       },
+    );
+  }
+
+  /// The wording is the listings': [ListForbidden.scope] owns it.
+  Widget _forbidden() {
+    final forbidden = ListForbidden.scope(
+      onAction: () => context.go('/scopes'),
+    );
+
+    return CollectionEmpty(
+      title: 'Not available for your role',
+      message: forbidden.message,
+      icon: Icons.lock_person_outlined,
+      actionLabel: forbidden.actionLabel,
+      onAction: forbidden.onAction,
     );
   }
 
@@ -278,7 +260,12 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               // AF-12d — a deleted scope says so before anything else, since
               // everything below it is read-only because of it.
               if (state.isReadOnly) ...<Widget>[
-                const _DeletedNotice(),
+                const Notice(
+                  'This scope is deleted. It is shown for reference and cannot be '
+                  'changed from here.',
+                  icon: Icons.delete_outline,
+                  isError: true,
+                ),
                 const SizedBox(height: 16),
               ],
               _ScopeId(scopeId: scope.id),
@@ -299,7 +286,7 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _SavedNotice(),
+                      const Notice('Saved.'),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -384,12 +371,26 @@ class _ScopeDetailScreenState extends ConsumerState<ScopeDetailScreen> {
               // something that cannot happen.
               if (_maySeeDeletion && !state.isReadOnly) ...<Widget>[
                 const SizedBox(height: 24),
-                _DangerZone(
-                  scope: scope,
+                DeleteActions(
+                  noun: 'scope',
+                  confirmationValue: scope.name,
+                  fieldLabel: 'Scope name',
+                  permanentConsequence:
+                      'The scope and everything in it — its persons, '
+                      'applications, permissions, and Google users — are '
+                      'erased.',
                   deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
+                  onDelete: () => ref
+                      .read(
+                        scopeDetailControllerProvider(widget.scopeId).notifier,
+                      )
+                      .delete(),
+                  onDeletePermanently: () => ref
+                      .read(
+                        scopeDetailControllerProvider(widget.scopeId).notifier,
+                      )
+                      .deletePermanently(),
                 ),
               ],
             ],
@@ -526,125 +527,4 @@ class _Links extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// AF-12d — what a logically deleted scope says about itself.
-class _DeletedNotice extends StatelessWidget {
-  const _DeletedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.errorContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(Icons.delete_outline, color: scheme.onErrorContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'This scope is deleted. It is shown for reference and cannot be '
-              'changed from here.',
-              style: TextStyle(color: scheme.onErrorContainer),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SavedNotice extends StatelessWidget {
-  const _SavedNotice();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Saved.',
-        style: TextStyle(color: scheme.onSecondaryContainer),
-      ),
-    );
-  }
-}
-
-/// The two deletions, kept apart from everything else on the screen because
-/// neither is an ordinary edit.
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.scope,
-    required this.deleting,
-    required this.failure,
-    required this.onDelete,
-    required this.onDeletePermanently,
-  });
-
-  final Scope scope;
-  final bool deleting;
-  final Failure? failure;
-  final Future<void> Function(Scope scope) onDelete;
-  final Future<void> Function(Scope scope) onDeletePermanently;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Delete this scope',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deleting keeps the record and can be undone by the API. '
-              'Deleting permanently erases the scope and everything in it.',
-              style: TextStyle(color: theme.colorScheme.onErrorContainer),
-            ),
-            // AF-13b — the API refused, and the scope is still open.
-            if (failure case final Failure refusal) ...<Widget>[
-              const SizedBox(height: 16),
-              ErrorBanner(failure: refusal),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: deleting ? null : () => onDelete(scope),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete scope'),
-                ),
-                FilledButton.icon(
-                  onPressed: deleting ? null : () => onDeletePermanently(scope),
-                  icon: const Icon(Icons.delete_forever_outlined),
-                  label: const Text('Delete permanently'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

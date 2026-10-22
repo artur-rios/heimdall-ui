@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -15,6 +14,9 @@ import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
@@ -46,9 +48,14 @@ class _FakeFileSaver implements FileSaver {
 
 /// Google's half, faked: answers the flow with [attempt].
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {
-  _FakeGoogleSignInGateway(this.attempt);
+  _FakeGoogleSignInGateway(this.attempt, {this.hold});
 
   final GoogleSignInAttempt attempt;
+
+  /// When set, the flow stays open until it completes.
+  final Completer<void>? hold;
+
+  int obtains = 0;
 
   @override
   GoogleSignInAvailability get availability =>
@@ -62,20 +69,15 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
       const Stream<GoogleIdTokenObtained>.empty();
 
   @override
-  Future<GoogleSignInAttempt> obtainIdToken() async => attempt;
+  Future<GoogleSignInAttempt> obtainIdToken() async {
+    obtains++;
+    await hold?.future;
+
+    return attempt;
+  }
 
   @override
   Future<void> signOut() async {}
-}
-
-/// A subject-rights-only token, shaped as the API mints one.
-String _restrictedJwt() {
-  String segment(Map<String, Object> json) =>
-      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
-
-  return '${segment(<String, Object>{'alg': 'HS256'})}.'
-      '${segment(<String, Object>{'id': 'person-1', 'role': '3', 'subjectRightsOnly': 'true'})}.'
-      'signature';
 }
 
 const Failure _refused = Failure(
@@ -87,32 +89,36 @@ void main() {
   late _MockDataRightsRepository repository;
   late _FakeFileSaver saver;
   late InMemoryTokenStore store;
+  late _FakeGoogleSignInGateway gateway;
 
   Future<ProviderContainer> containerWith({
     GoogleSignInAttempt google = const GoogleSignInCancelled(),
     bool viaGoogle = false,
+    Completer<void>? hold,
   }) async {
     await store.write(
       AuthToken(
-        value: _restrictedJwt(),
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: viaGoogle,
         processingRestricted: true,
       ),
     );
-    final container = ProviderContainer(
+    final container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         dataRightsRepositoryProvider.overrideWithValue(repository),
         fileSaverProvider.overrideWithValue(saver),
-        tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(
-          _FakeGoogleSignInGateway(google),
+          gateway = _FakeGoogleSignInGateway(google, hold: hold),
         ),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
     // Keep the controller alive for the whole test.
     container.listen(restrictedSessionControllerProvider, (_, _) {});
 
@@ -340,8 +346,32 @@ void main() {
       // Then
       verifyNever(() => repository.requestErasure(any()));
       expect(stateOf(container).failure, isNull);
+      expect(stateOf(container).busy, isNull);
     },
   );
+
+  test('GivenAGoogleFlowOpen_WhenErasureTappedAgain_ThenOneFlowRuns', () async {
+    // Given
+    final hold = Completer<void>();
+    when(
+      () => repository.requestErasure(any()),
+    ).thenAnswer((_) async => const Success<ErasureRequest>(ErasureRequest()));
+    final container = await containerWith(
+      google: const GoogleIdTokenObtained('fresh-google-token'),
+      viaGoogle: true,
+      hold: hold,
+    );
+    final first = controllerOf(container).requestErasureWithGoogle();
+
+    // When
+    await controllerOf(container).requestErasureWithGoogle();
+    hold.complete();
+    await first;
+
+    // Then
+    expect(gateway.obtains, 1);
+    verify(() => repository.requestErasure(any())).called(1);
+  });
 
   test('GivenAnActionInFlight_WhenAnotherIsStarted_ThenItIsIgnored', () async {
     // Given

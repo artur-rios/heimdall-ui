@@ -3,7 +3,8 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/state/build_epoch.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../domain/google_user.dart';
 import '../domain/google_user_repository.dart';
 
@@ -40,29 +41,38 @@ class GoogleUserQuery {
 }
 
 /// How far the listing has got.
-sealed class GoogleUserListState {
+sealed class GoogleUserListState
+    implements ListState<GoogleUserQuery, GoogleUser> {
   const GoogleUserListState(this.query);
 
+  @override
   final GoogleUserQuery query;
 }
 
 /// The first page is on its way and the list shows a placeholder.
-final class GoogleUserListLoading extends GoogleUserListState {
+final class GoogleUserListLoading extends GoogleUserListState
+    implements ListLoading<GoogleUserQuery, GoogleUser> {
   const GoogleUserListLoading(super.query);
 }
 
 /// A page arrived.
-final class GoogleUserListLoaded extends GoogleUserListState {
+final class GoogleUserListLoaded extends GoogleUserListState
+    implements ListLoaded<GoogleUserQuery, GoogleUser> {
   const GoogleUserListLoaded(super.query, this.page, {this.busy = false});
 
+  @override
   final Page<GoogleUser> page;
+
+  @override
   final bool busy;
 }
 
 /// AF-28b and AF-28c — the request failed, and the query that failed is kept.
-final class GoogleUserListFailed extends GoogleUserListState {
+final class GoogleUserListFailed extends GoogleUserListState
+    implements ListFailed<GoogleUserQuery, GoogleUser> {
   const GoogleUserListFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
 
   /// AF-28c — a scope this admin does not own.
@@ -82,106 +92,57 @@ googleUserListControllerProvider =
     >(GoogleUserListController.new);
 
 /// Owns one scope's Google user listing.
-class GoogleUserListController extends Notifier<GoogleUserListState>
-    with BuildEpoch<GoogleUserListState> {
+class GoogleUserListController
+    extends
+        PagedListController<GoogleUserQuery, GoogleUser, GoogleUserListState> {
   GoogleUserListController(this.arg);
 
   /// The family argument this controller was created for.
   final String arg;
 
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight. It is asked as
-  /// soon as that one is answered, so a search typed during a load is not lost.
-  GoogleUserQuery? _queued;
-
-  @override
-  GoogleUserListState build() {
-    startEpoch();
-    // A request of an earlier build may still be in flight; it is not this
-    // build's, which has asked for nothing yet.
-    _inFlight = false;
-    _queued = null;
-
-    return const GoogleUserListLoading(GoogleUserQuery());
-  }
-
-  Future<void> load() => _fetch(state.query);
-
   /// A new search starts at the first page.
   Future<void> search({String? name, String? email}) =>
-      _fetch(state.query.copyWith(name: name, email: email, pageNumber: 1));
+      request(latest.copyWith(name: name, email: email, pageNumber: 1));
 
-  Future<void> setIncludeDeleted(bool includeDeleted) => _fetch(
-    state.query.copyWith(includeDeleted: includeDeleted, pageNumber: 1),
-  );
-
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(state.query.copyWith(pageNumber: pageNumber));
+  Future<void> setIncludeDeleted(bool includeDeleted) =>
+      request(latest.copyWith(includeDeleted: includeDeleted, pageNumber: 1));
 
   /// AF-28a — returns to the unfiltered listing from the empty-result panel.
-  Future<void> clearFilters() => _fetch(const GoogleUserQuery());
+  Future<void> clearFilters() => request(const GoogleUserQuery());
 
-  Future<void> _fetch(GoogleUserQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  GoogleUserQuery get initialQuery => const GoogleUserQuery();
 
-      return;
-    }
+  @override
+  int pageNumberOf(GoogleUserQuery query) => query.pageNumber;
 
-    final epoch = this.epoch;
-    final current = state;
-    _inFlight = true;
+  @override
+  GoogleUserQuery withPageNumber(GoogleUserQuery query, int pageNumber) =>
+      query.copyWith(pageNumber: pageNumber);
 
-    state = current is GoogleUserListLoaded
-        ? GoogleUserListLoaded(query, current.page, busy: true)
-        : GoogleUserListLoading(query);
-
-    try {
-      final result = await guardUnexpected(
-        () => ref
-            .read(googleUserRepositoryProvider)
-            .list(
-              scopeId: arg,
-              name: query.name,
-              email: query.email,
-              includeDeleted: query.includeDeleted,
-              pageNumber: query.pageNumber,
-            ),
+  @override
+  Future<Result<Page<GoogleUser>>> fetch(GoogleUserQuery query) => ref
+      .read(googleUserRepositoryProvider)
+      .list(
+        scopeId: arg,
+        name: query.name,
+        email: query.email,
+        includeDeleted: query.includeDeleted,
+        pageNumber: query.pageNumber,
       );
 
-      // Reset since it was asked: the answer is an earlier build's.
-      if (!isCurrent(epoch)) {
-        return;
-      }
+  @override
+  GoogleUserListState loadingState(GoogleUserQuery query) =>
+      GoogleUserListLoading(query);
 
-      state = result.fold(
-        onSuccess: (page) => GoogleUserListLoaded(query, page),
-        onFailure: (failure) => GoogleUserListFailed(query, failure),
-      );
-    } finally {
-      if (isCurrent(epoch)) {
-        _inFlight = false;
-      }
-    }
+  @override
+  GoogleUserListState loadedState(
+    GoogleUserQuery query,
+    Page<GoogleUser> page, {
+    bool busy = false,
+  }) => GoogleUserListLoaded(query, page, busy: busy);
 
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the last row of the last page was deleted, say —
-    // would show "nothing here" with no pager to go back with. The last page
-    // that still exists is asked for instead.
-    if (state case GoogleUserListLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
-      );
-    }
-  }
+  @override
+  GoogleUserListState failedState(GoogleUserQuery query, Failure failure) =>
+      GoogleUserListFailed(query, failure);
 }

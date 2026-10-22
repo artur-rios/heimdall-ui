@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
@@ -9,18 +6,20 @@ import 'package:heimdall_ui/features/audit_log/data/audit_log_repository_impl.da
 import 'package:heimdall_ui/features/audit_log/domain/audit_entry.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiAuditLogRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiAuditLogRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiAuditLogRepository(AuditClient(dio));
   }
 
-  const emptyPage = _Answer(
+  const emptyPage = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -40,7 +39,7 @@ void main() {
   test('GivenAPage_WhenListed_ThenEntriesAreMappedAsStored', () async {
     // Given — one attributed refusal and one cleared entry
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -146,7 +145,7 @@ void main() {
   test('GivenAForbiddenAnswer_WhenListed_ThenTheFailureIsForbidden', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{'success': false, 'errors': <String>[]},
       ),
@@ -162,7 +161,7 @@ void main() {
   test('GivenARefusalEnvelope_WhenListed_ThenTheApiMessageIsKept', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 400,
         body: <String, dynamic>{
           'success': false,
@@ -182,56 +181,4 @@ void main() {
       'The end of the date range must not be earlier than its start.',
     ]);
   });
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The query parameters it was asked for, so a test can assert which filters
-  /// actually travelled.
-  final List<Map<String, dynamic>> queries = <Map<String, dynamic>>[];
-
-  /// The request bodies it was sent, as JSON, so a test can assert which
-  /// fields actually travelled.
-  final List<Object?> bodies = <Object?>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    queries.add(options.queryParameters);
-    bodies.add(
-      options.data == null ? null : jsonDecode(jsonEncode(options.data)),
-    );
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

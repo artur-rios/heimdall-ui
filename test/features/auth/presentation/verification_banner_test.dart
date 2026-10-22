@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -13,14 +11,14 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verification_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// A token naming a User. The JWT says nothing about verification — the API
 /// reports that alongside the token, which is where AF-05e reads it from.
-final String _jwt =
-    'header.'
-    '${base64Url.encode(utf8.encode(jsonEncode(<String, dynamic>{'sub': 'id', 'email': 'a@b.c', 'role': 3})))}'
-    '.signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
@@ -34,35 +32,18 @@ void main() {
     bool? emailVerified,
     ThemeData? theme,
   }) async {
-    if (emailVerified != null) {
-      await store.write(
-        AuthToken(
-          value: _jwt,
-          expiresAt: DateTime.utc(2030),
-          emailVerified: emailVerified,
-        ),
-      );
-    }
-
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      store: store,
+      token: emailVerified == null
+          ? null
+          : testToken(_jwt, emailVerified: emailVerified),
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
       ],
+      home: const Scaffold(body: VerificationBanner()),
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const Scaffold(body: VerificationBanner()),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   setUp(() {

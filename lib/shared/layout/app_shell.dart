@@ -7,6 +7,9 @@ import '../../features/auth/domain/session.dart';
 import '../../features/auth/presentation/session_controller.dart';
 import '../../features/auth/presentation/verification_banner.dart';
 import '../../features/home/presentation/destinations.dart';
+import '../forms/edit_mode.dart';
+import '../forms/unsaved_changes.dart';
+import '../widgets/page_title.dart';
 import 'adaptive_scaffold.dart';
 
 /// The frame every signed-in screen sits in: the navigation for the role, the
@@ -26,6 +29,8 @@ class AppShell extends ConsumerWidget {
     this.onBack,
     this.backTooltip = 'Back',
     this.confirmLeave,
+    this.hasUnsavedChanges,
+    this.onReturn,
     super.key,
   });
 
@@ -33,6 +38,10 @@ class AppShell extends ConsumerWidget {
   /// navigation shows as selected. A screen below a destination — a detail
   /// under a listing — passes the destination's own route.
   final String currentRoute;
+
+  /// The screen's name. When it is a plain [Text] it also names the browser
+  /// tab (`<name> - Heimdall`), so every shell screen is titled from this one
+  /// place.
   final Widget title;
   final Widget body;
   final List<Widget> actions;
@@ -51,10 +60,28 @@ class AppShell extends ConsumerWidget {
   final String backTooltip;
 
   /// Asked before the navigation, the [backRoute] control or signing out
-  /// takes the person off this screen; `false` keeps them here. For a screen
-  /// holding something that would be lost — an unsaved form, or freshly issued
-  /// recovery codes. An [onBack] callback asks for itself.
+  /// takes the person off this screen; `false` keeps them here. Only for what
+  /// is not an edit and is not left like one: freshly issued recovery codes,
+  /// whose leaving signs the person out. An unsaved edit or form is
+  /// [hasUnsavedChanges]'s, asked by the route. An [onBack] callback asks for
+  /// itself.
   final Future<bool> Function()? confirmLeave;
+
+  /// Whether this screen holds an edit that is not yet saved.
+  ///
+  /// The route asks "Discard your changes?" before the screen is left with
+  /// one, through its `onExit` ([confirmLeaveWithUnsavedChanges]), so the
+  /// navigation, the back control, a system Back and a browser Back are all
+  /// covered by the one question. Signing out is no route change the screen
+  /// can refuse, so the shell asks before it.
+  final bool Function()? hasUnsavedChanges;
+
+  /// Called when this screen is on top again after a screen opened over it is
+  /// left — a listing back from a record, say.
+  ///
+  /// Routes nest, so the screen underneath stays as it was while the one over
+  /// it changed or deleted what it shows; this is where it reads it again.
+  final VoidCallback? onReturn;
 
   Future<bool> _mayLeave() async => await confirmLeave?.call() ?? true;
 
@@ -73,7 +100,7 @@ class AppShell extends ConsumerWidget {
       (destination) => destination.route == currentRoute,
     );
 
-    return AdaptiveScaffold(
+    final scaffold = AdaptiveScaffold(
       destinations: destinations,
       // A screen that is not itself a destination still has to select
       // something; the first entry is what the navigation highlights.
@@ -93,7 +120,14 @@ class AppShell extends ConsumerWidget {
           tooltip: 'Sign out',
           icon: const Icon(Icons.logout),
           onPressed: () async {
-            if (await _mayLeave()) {
+            // Every screen with an edit is asked about, not only this one: a
+            // record being edited may sit under the screen on top.
+            if (await _mayLeave() &&
+                context.mounted &&
+                await confirmDiscardChanges(
+                  context,
+                  hasChanges: ref.read(unsavedChangesProvider).any,
+                )) {
               await ref.read(sessionControllerProvider.notifier).signOut();
             }
           },
@@ -107,6 +141,21 @@ class AppShell extends ConsumerWidget {
           Expanded(child: body),
         ],
       ),
+    );
+
+    final Widget screen = switch (title) {
+      Text(data: final name?) => PageTitle(title: name, child: scaffold),
+      _ => scaffold,
+    };
+
+    if (hasUnsavedChanges == null && onReturn == null) {
+      return screen;
+    }
+
+    return _RouteBindings(
+      hasUnsavedChanges: hasUnsavedChanges,
+      onReturn: onReturn,
+      child: screen,
     );
   }
 
@@ -132,6 +181,99 @@ class AppShell extends ConsumerWidget {
       onPressed: action,
     );
   }
+}
+
+/// Ties a screen to the route that built it: registers its unsaved-changes
+/// question for the route's `onExit`, and tells it when it is back on top.
+///
+/// Inert outside a `GoRouter`, where there is no route to tie it to.
+class _RouteBindings extends ConsumerStatefulWidget {
+  const _RouteBindings({
+    required this.hasUnsavedChanges,
+    required this.onReturn,
+    required this.child,
+  });
+
+  final bool Function()? hasUnsavedChanges;
+  final VoidCallback? onReturn;
+  final Widget child;
+
+  @override
+  ConsumerState<_RouteBindings> createState() => _RouteBindingsState();
+}
+
+class _RouteBindingsState extends ConsumerState<_RouteBindings> {
+  UnsavedChanges? _registry;
+  GoRouterDelegate? _delegate;
+  LocalKey? _page;
+
+  /// Whether this screen's page was the top one at the last route change.
+  bool _onTop = true;
+
+  /// Reads the current callback, so the registration made once keeps
+  /// answering for the screen as it rebuilds.
+  bool _hasUnsavedChanges() => widget.hasUnsavedChanges?.call() ?? false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+
+    if (_page != null) {
+      return;
+    }
+
+    final router = GoRouter.maybeOf(context);
+
+    if (router == null) {
+      return;
+    }
+
+    final page = GoRouterState.of(context).pageKey;
+    final registry = ref.read(unsavedChangesProvider)
+      ..register(page, _hasUnsavedChanges);
+    final delegate = router.routerDelegate..addListener(_routeChanged);
+    _page = page;
+    _registry = registry;
+    _delegate = delegate;
+    _onTop = _isOnTop();
+  }
+
+  bool _isOnTop() {
+    final configuration = _delegate?.currentConfiguration;
+
+    return configuration != null &&
+        configuration.isNotEmpty &&
+        configuration.last.pageKey == _page;
+  }
+
+  void _routeChanged() {
+    final onTop = _isOnTop();
+
+    if (onTop && !_onTop) {
+      // The route changes mid-frame; the screen reads again after it.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          widget.onReturn?.call();
+        }
+      });
+    }
+
+    _onTop = onTop;
+  }
+
+  @override
+  void dispose() {
+    _delegate?.removeListener(_routeChanged);
+
+    if (_page case final page?) {
+      _registry?.unregister(page, _hasUnsavedChanges);
+    }
+
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 /// Cycles system → light → dark, and shows which is active.

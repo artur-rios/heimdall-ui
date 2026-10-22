@@ -2,7 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
-import '../../../core/state/build_epoch.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../domain/erasure_request_repository.dart';
 import '../domain/outstanding_erasure.dart';
 
@@ -25,29 +26,38 @@ class ErasureRequestQuery {
 }
 
 /// How far the listing has got.
-sealed class ErasureRequestListState {
+sealed class ErasureRequestListState
+    implements ListState<ErasureRequestQuery, OutstandingErasure> {
   const ErasureRequestListState(this.query);
 
+  @override
   final ErasureRequestQuery query;
 }
 
 /// The first page is on its way and the list shows a placeholder.
-final class ErasureRequestListLoading extends ErasureRequestListState {
+final class ErasureRequestListLoading extends ErasureRequestListState
+    implements ListLoading<ErasureRequestQuery, OutstandingErasure> {
   const ErasureRequestListLoading(super.query);
 }
 
 /// A page arrived.
-final class ErasureRequestListLoaded extends ErasureRequestListState {
+final class ErasureRequestListLoaded extends ErasureRequestListState
+    implements ListLoaded<ErasureRequestQuery, OutstandingErasure> {
   const ErasureRequestListLoaded(super.query, this.page, {this.busy = false});
 
+  @override
   final Page<OutstandingErasure> page;
+
+  @override
   final bool busy;
 }
 
 /// AF-32c and AF-32h — the request failed, and the query that failed is kept.
-final class ErasureRequestListFailed extends ErasureRequestListState {
+final class ErasureRequestListFailed extends ErasureRequestListState
+    implements ListFailed<ErasureRequestQuery, OutstandingErasure> {
   const ErasureRequestListFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
 }
 
@@ -58,87 +68,49 @@ erasureRequestListControllerProvider =
     );
 
 /// Owns the outstanding-erasure listing.
-class ErasureRequestListController extends Notifier<ErasureRequestListState>
-    with BuildEpoch<ErasureRequestListState> {
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight. It is asked as
-  /// soon as that one is answered, so a change made during a load is not lost.
-  ErasureRequestQuery? _queued;
-
-  @override
-  ErasureRequestListState build() {
-    startEpoch();
-    // A request of an earlier build may still be in flight; it is not this
-    // build's, which has asked for nothing yet.
-    _inFlight = false;
-    _queued = null;
-
-    return const ErasureRequestListLoading(ErasureRequestQuery());
-  }
-
-  Future<void> load() => _fetch(state.query);
-
+class ErasureRequestListController
+    extends
+        PagedListController<
+          ErasureRequestQuery,
+          OutstandingErasure,
+          ErasureRequestListState
+        > {
   /// A new filter starts at the first page.
   Future<void> setOverdueOnly(bool overdueOnly) =>
-      _fetch(state.query.copyWith(overdueOnly: overdueOnly, pageNumber: 1));
+      request(latest.copyWith(overdueOnly: overdueOnly, pageNumber: 1));
 
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(state.query.copyWith(pageNumber: pageNumber));
+  @override
+  ErasureRequestQuery get initialQuery => const ErasureRequestQuery();
 
-  Future<void> _fetch(ErasureRequestQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  int pageNumberOf(ErasureRequestQuery query) => query.pageNumber;
 
-      return;
-    }
+  @override
+  ErasureRequestQuery withPageNumber(
+    ErasureRequestQuery query,
+    int pageNumber,
+  ) => query.copyWith(pageNumber: pageNumber);
 
-    final epoch = this.epoch;
-    final current = state;
-    _inFlight = true;
+  @override
+  Future<Result<Page<OutstandingErasure>>> fetch(ErasureRequestQuery query) =>
+      ref
+          .read(erasureRequestRepositoryProvider)
+          .list(overdueOnly: query.overdueOnly, pageNumber: query.pageNumber);
 
-    state = current is ErasureRequestListLoaded
-        ? ErasureRequestListLoaded(query, current.page, busy: true)
-        : ErasureRequestListLoading(query);
+  @override
+  ErasureRequestListState loadingState(ErasureRequestQuery query) =>
+      ErasureRequestListLoading(query);
 
-    try {
-      final result = await guardUnexpected(
-        () => ref
-            .read(erasureRequestRepositoryProvider)
-            .list(overdueOnly: query.overdueOnly, pageNumber: query.pageNumber),
-      );
+  @override
+  ErasureRequestListState loadedState(
+    ErasureRequestQuery query,
+    Page<OutstandingErasure> page, {
+    bool busy = false,
+  }) => ErasureRequestListLoaded(query, page, busy: busy);
 
-      // Reset since it was asked: the answer is an earlier build's.
-      if (!isCurrent(epoch)) {
-        return;
-      }
-
-      state = result.fold(
-        onSuccess: (page) => ErasureRequestListLoaded(query, page),
-        onFailure: (failure) => ErasureRequestListFailed(query, failure),
-      );
-    } finally {
-      if (isCurrent(epoch)) {
-        _inFlight = false;
-      }
-    }
-
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the last request on the last page was carried out,
-    // say — would show "nothing here" with no pager to go back with.
-    if (state case ErasureRequestListLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
-      );
-    }
-  }
+  @override
+  ErasureRequestListState failedState(
+    ErasureRequestQuery query,
+    Failure failure,
+  ) => ErasureRequestListFailed(query, failure);
 }

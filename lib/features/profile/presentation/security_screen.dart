@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../core/files/file_saver.dart';
 import '../../../core/result/result.dart';
 import '../../../core/secrets/screen_security.dart';
 import '../../../core/secrets/secret_clipboard.dart';
@@ -27,6 +28,7 @@ Future<bool> _confirmLeavingCodes(BuildContext context) => showConfirm(
       'leave now you will not see them again, and you would have to '
       'generate a new set.',
   confirmLabel: 'Leave anyway',
+  destructive: true,
   cancelLabel: 'Stay',
 );
 
@@ -77,7 +79,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
       // AF-09c: codes still waiting to be acknowledged are not thrown away by
       // a fresh read on the way back to this screen.
       if (ref.read(twoFactorControllerProvider) is! TwoFactorCodesIssued) {
-        ref.read(twoFactorControllerProvider.notifier).load();
+        unawaited(ref.read(twoFactorControllerProvider.notifier).load());
       }
     });
   }
@@ -157,6 +159,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             'or one of your recovery codes.',
         confirmLabel: 'Turn off',
         requirePassword: true,
+        destructive: true,
       ),
     );
 
@@ -178,6 +181,7 @@ class _SecurityScreenState extends ConsumerState<SecurityScreen> {
             'The codes you have now stop working immediately. The new '
             'set is shown once. Confirm with any one of the following.',
         confirmLabel: 'Generate',
+        destructive: true,
       ),
     );
 
@@ -589,6 +593,44 @@ class _RecoveryCodes extends ConsumerWidget {
   final bool regenerated;
   final VoidCallback onAcknowledge;
 
+  /// FR-AU-19: saves the codes as a plain text file, one per line, through the
+  /// same saver as the data export. Says so either way, since a browser
+  /// download shows nothing of its own on some targets.
+  Future<void> _download(
+    BuildContext context,
+    WidgetRef ref,
+    String asText,
+  ) async {
+    final messenger = ScaffoldMessenger.maybeOf(context);
+
+    try {
+      final savedTo = await ref
+          .read(fileSaverProvider)
+          .saveText(
+            fileName: 'heimdall-recovery-codes.txt',
+            contents: asText,
+            mimeType: 'text/plain',
+          );
+      // A path where the file was written; none when a browser took it, which
+      // decides for itself where it goes.
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            savedTo == null
+                ? 'Recovery codes saved.'
+                : 'Recovery codes saved to $savedTo.',
+          ),
+        ),
+      );
+    } on Object {
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text('The codes could not be saved. Copy them instead.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final theme = Theme.of(context);
@@ -630,6 +672,11 @@ class _RecoveryCodes extends ConsumerWidget {
                 onPressed: () => ref.read(secretClipboardProvider).copy(asText),
                 icon: const Icon(Icons.copy_outlined),
                 label: const Text('Copy codes'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => _download(context, ref, asText),
+                icon: const Icon(Icons.download_outlined),
+                label: const Text('Download codes'),
               ),
             ],
           ),
@@ -782,6 +829,7 @@ class _CredentialDialog extends StatefulWidget {
     required this.message,
     required this.confirmLabel,
     this.requirePassword = false,
+    this.destructive = false,
   });
 
   final String title;
@@ -792,6 +840,11 @@ class _CredentialDialog extends StatefulWidget {
   /// as hard as a login"); regenerating takes only the second factor, so the
   /// password field is not offered where the API would not take it.
   final bool requirePassword;
+
+  /// Gives the confirm button the error colours and Cancel the focus, as
+  /// `showConfirm` does. None of the fields takes the focus at first, so Cancel
+  /// can, and Enter pressed by reflex cancels.
+  final bool destructive;
 
   @override
   State<_CredentialDialog> createState() => _CredentialDialogState();
@@ -880,10 +933,12 @@ class _CredentialDialogState extends State<_CredentialDialog> {
       ),
       actions: <Widget>[
         TextButton(
+          autofocus: widget.destructive,
           onPressed: () => Navigator.of(context).pop(),
           child: const Text('Cancel'),
         ),
         FilledButton(
+          style: confirmButtonStyle(context, widget.destructive),
           // Nothing filled in is nothing to send, so the control says so by
           // staying disabled rather than by letting the API refuse an empty
           // command.

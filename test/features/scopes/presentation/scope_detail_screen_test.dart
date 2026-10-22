@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,34 +7,22 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
-import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
+import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_detail_screen.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
+import 'package:heimdall_ui/shared/layout/app_shell.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockScopeRepository extends Mock implements ScopeRepository {}
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin.
-String _jwt({int role = 1, String? ownedScopeIds}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'admin@example.com',
-        'role': role,
-        'ownedScopeIds': ?ownedScopeIds,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _acme = Scope(
   id: 'scope-1',
@@ -68,65 +56,62 @@ void main() {
     int role = 1,
     String? ownedScopeIds,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role, ownedScopeIds: ownedScopeIds),
-        expiresAt: DateTime.utc(2030),
-      ),
-    );
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        scopeRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1',
+      // Nested and guarded as the app's own router is (#156).
       routes: <RouteBase>[
         GoRoute(
           path: '/scopes',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId',
-          builder: (context, state) =>
-              ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/sign-in-settings',
-          builder: (context, state) =>
-              const Scaffold(body: Text('sign-in settings')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/pending-registrations',
-          builder: (context, state) => const Scaffold(body: Text('pending')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/persons',
-          builder: (context, state) => const Scaffold(body: Text('persons')),
+          routes: <RouteBase>[
+            GoRoute(
+              path: ':scopeId',
+              builder: (context, state) =>
+                  ScopeDetailScreen(scopeId: state.pathParameters['scopeId']!),
+              onExit: confirmLeaveWithUnsavedChanges,
+              routes: <RouteBase>[
+                GoRoute(
+                  path: 'sign-in-settings',
+                  builder: (context, state) =>
+                      const Scaffold(body: Text('sign-in settings')),
+                ),
+                GoRoute(
+                  path: 'pending-registrations',
+                  builder: (context, state) =>
+                      const Scaffold(body: Text('pending')),
+                ),
+                GoRoute(
+                  path: 'persons',
+                  builder: (context, state) =>
+                      const Scaffold(body: Text('persons')),
+                ),
+                // In the shell, so it can be signed out from.
+                GoRoute(
+                  path: 'owners',
+                  builder: (context, state) => const AppShell(
+                    currentRoute: '/scopes',
+                    title: Text('owners'),
+                    body: SizedBox(),
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
+    container = await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(role: role, ownedScopeIds: ownedScopeIds)),
+      overrides: <Override>[
+        scopeRepositoryProvider.overrideWithValue(repository),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerGetWith(Result<Scope> result) {
@@ -153,23 +138,6 @@ void main() {
 
   void answerHardDeleteWith(Result<void> result) {
     when(() => repository.hardDelete(any())).thenAnswer((_) async => result);
-  }
-
-  /// The listing behind the detail is reloaded after a deletion; what it
-  /// answers does not matter here, only that it answers.
-  void answerListWith() {
-    when(
-      () => repository.list(
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<envelope.Page<Scope>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
   }
 
   void answerUpdateWith(Result<Scope> result) {
@@ -742,6 +710,12 @@ void main() {
 
     // Then
     expect(find.text('Delete this scope?'), findsOneWidget);
+    // The API has no restore endpoint, so the dialog must not promise one
+    expect(find.textContaining('the API can restore'), findsNothing);
+    expect(
+      find.textContaining('Only an operator can restore it'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('GivenAConfirmedDeletion_WhenConfirmed_ThenTheScopeIsDeleted', (
@@ -750,7 +724,6 @@ void main() {
     // Given
     answerGetWith(const Success<Scope>(_acme));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -772,7 +745,6 @@ void main() {
     // Given
     answerGetWith(const Success<Scope>(_acme));
     answerDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -898,7 +870,6 @@ void main() {
     // Given
     answerGetWith(const Success<Scope>(_acme));
     answerHardDeleteWith(const Success<void>(null));
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -929,7 +900,6 @@ void main() {
         Failure(kind: FailureKind.notFound, errors: <String>[]),
       ),
     );
-    answerListWith();
     await pump(tester);
     await tapAfterScrolling(
       tester,
@@ -1186,5 +1156,256 @@ void main() {
     // Then
     expect(find.text('Discard your changes?'), findsNothing);
     expect(find.text('listing'), findsOneWidget);
+  });
+
+  /// Opens the edit and changes the name, which is an unsaved edit.
+  Future<void> editTheName(WidgetTester tester) async {
+    await tester.tap(find.text('Edit'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Acme'),
+      'Acme Ltd',
+    );
+    await tester.pumpAndSettle();
+  }
+
+  // #156 — Android's Back is a way off the screen too.
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Keep editing'));
+    await tester.pumpAndSettle();
+    expect(nameField(tester).controller!.text, 'Acme Ltd');
+    expect(router.state.uri.path, '/scopes/scope-1');
+  });
+
+  testWidgets('GivenAnUnsavedEdit_WhenSystemBackIsDiscarded_ThenListingShows', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // On the web a browser Back is a route change, which the route asks about.
+  testWidgets('GivenAnUnsavedEdit_WhenTheRouteChanges_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    router.go('/scopes');
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+  });
+
+  // Saving ends the edit, so there is nothing left to lose.
+  testWidgets('GivenASavedEdit_WhenSystemBackIsPressed_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerUpdateWith(
+      const Success<Scope>(
+        Scope(id: 'scope-1', name: 'Acme Ltd', description: 'The first tenant'),
+      ),
+    );
+    await pump(tester);
+    await editTheName(tester);
+    await tester.tap(find.widgetWithText(FilledButton, 'Save changes'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // The edit went with the scope, so the way back to the listing asks nothing.
+  testWidgets('GivenAnUnsavedEdit_WhenTheScopeIsDeleted_ThenItLeavesAtOnce', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    answerDeleteWith(const Success<void>(null));
+    await pump(tester);
+    await editTheName(tester);
+
+    // When
+    await tapAfterScrolling(
+      tester,
+      find.widgetWithText(OutlinedButton, 'Delete scope'),
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Delete'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsNothing);
+    expect(find.text('listing'), findsOneWidget);
+  });
+
+  // #156 — the scope's own screens open over it, and what they change shows
+  // when the person comes back.
+  testWidgets('GivenOneOfTheScopesScreens_WhenLeft_ThenTheScopeIsReadAgain', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Persons'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(router.state.uri.path, '/scopes/scope-1');
+    verify(
+      () => repository.getById(
+        'scope-1',
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(2);
+  });
+
+  // The record stays on screen while it is read again, so neither the
+  // placeholder flashes nor the scroll position is lost.
+  testWidgets('GivenOneOfTheScopesScreens_WhenLeft_ThenTheScopeStaysShown', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await tester.tap(find.text('Persons'));
+    await tester.pumpAndSettle();
+    final held = Completer<Result<Scope>>();
+    when(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) => held.future);
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pump();
+    await tester.pump();
+    await tester.pump(const Duration(seconds: 1));
+
+    // Then
+    expect(router.state.uri.path, '/scopes/scope-1');
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(nameField(tester).controller!.text, 'Acme');
+    held.complete(const Success<Scope>(_acme));
+    await tester.pumpAndSettle();
+  });
+
+  // An edit waiting underneath is not read over.
+  testWidgets('GivenAnUnsavedEdit_WhenOneOfItsScreensIsLeft_ThenTheEditStays', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+    await tester.tap(find.text('Persons'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(nameField(tester).controller!.text, 'Acme Ltd');
+    verify(
+      () => repository.getById(
+        'scope-1',
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+  });
+
+  // A screen over this one may read the scope again (the Google users listing
+  // does); what was typed stays.
+  testWidgets('GivenAnUnsavedEdit_WhenTheScopeIsReadAgain_ThenTheTypingStays', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+    // A fresh read is a new record, not the one the fields were seeded from.
+    answerGetWith(
+      Success<Scope>(
+        Scope(
+          id: _acme.id,
+          name: _acme.name,
+          description: _acme.description,
+          googleSignInEnabled: _acme.googleSignInEnabled,
+          ownerIds: _acme.ownerIds,
+        ),
+      ),
+    );
+
+    // When
+    await container
+        .read(scopeDetailControllerProvider('scope-1').notifier)
+        .load();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(nameField(tester).controller!.text, 'Acme Ltd');
+    expect(find.widgetWithText(FilledButton, 'Save changes'), findsOneWidget);
+  });
+
+  // #156 — with screens nested, an edit can wait under the one on top, and
+  // signing out from there loses it too.
+  testWidgets('GivenAnEditUnderAnotherScreen_WhenSigningOut_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    await pump(tester);
+    await editTheName(tester);
+    await tester.tap(find.widgetWithText(ListTile, 'Owners'));
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.tap(find.byTooltip('Sign out'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
   });
 }

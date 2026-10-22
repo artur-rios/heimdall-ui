@@ -13,13 +13,19 @@ import 'package:heimdall_ui/features/auth/presentation/two_factor_screen.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
+/// A store whose platform refuses every write, as Linux without a keyring does.
+class _RefusingTokenStore extends InMemoryTokenStore {
+  @override
+  Future<void> write(AuthToken token) async => throw StateError('no keyring');
+}
+
 /// A token whose payload names a User, which is all the screen's flows need.
-const String _jwt =
-    'header.'
-    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
-    'signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
@@ -37,10 +43,6 @@ void main() {
     ThemeData? theme,
     List<String> methods = const <String>['Totp'],
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
     when(
       () => repository.login(
         email: 'a@b.c',
@@ -55,29 +57,22 @@ void main() {
         ),
       ),
     );
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-        tokenStoreProvider.overrideWithValue(store),
       ],
+      // The start-up read is settled first, so it cannot land on the
+      // challenge.
+      afterRestore: (container) => container
+          .read(sessionControllerProvider.notifier)
+          .signIn(email: 'a@b.c', password: 'secret'),
+      home: const TwoFactorScreen(),
     );
-    addTearDown(container.dispose);
-    final controller = container.read(sessionControllerProvider.notifier);
-    // Settle the start-up read first, so it cannot land on the challenge.
-    await controller.restore();
-    await controller.signIn(email: 'a@b.c', password: 'secret');
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const TwoFactorScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   /// Advances the clock without waiting for animations to end: once the
@@ -217,6 +212,24 @@ void main() {
       find.text('That sign-in attempt expired. Please sign in again.'),
       findsOneWidget,
     );
+    expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
+  });
+
+  // A session the device cannot keep is not an expired challenge.
+  testWidgets('GivenStoreRefusesWrite_WhenVerified_ThenStoreFailureIsShown', (
+    tester,
+  ) async {
+    // Given
+    store = _RefusingTokenStore();
+    answerVerifyWith(Success<AuthToken>(tokenFor(_jwt)));
+    await pump(tester);
+
+    // When
+    await enterAndVerify(tester, '123456');
+
+    // Then
+    expect(find.textContaining('could not store your session'), findsOneWidget);
+    expect(find.textContaining('expired'), findsNothing);
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
   });
 

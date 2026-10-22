@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +10,7 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/two_factor.dart';
 import '../../data_rights/presentation/restrict_processing_dialog.dart';
 import '../../google_users/domain/google_user.dart';
@@ -98,14 +101,11 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     setState(() => _editing = true);
     // FR-AU-16: which second factor is on decides what a new address's code
     // field suggests, so it is read before one can be typed.
-    controller.readSecondFactor();
+    unawaited(controller.readSecondFactor());
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -137,10 +137,20 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
 
   /// AF-08i — opens the two-factor settings, where the email method is turned
   /// off, once any unsaved edit has been let go.
+  ///
+  /// Security sits over this route rather than leaving it, so its `onExit`
+  /// does not ask; this does, and lets the edit go before opening it.
   Future<void> _openSecurity() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/profile/security');
+    if (!await confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit) ||
+        !mounted) {
+      return;
     }
+
+    if (_editing) {
+      _cancelEditing();
+    }
+
+    context.go('/profile/security');
   }
 
   Future<void> _save() async {
@@ -186,7 +196,14 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
     return AppShell(
       currentRoute: '/profile',
       title: const Text('Profile'),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
+      // Back from Security, where the second factor may have changed. An
+      // edit in progress is not read over.
+      onReturn: () {
+        if (!_editing) {
+          unawaited(ref.read(profileControllerProvider.notifier).load());
+        }
+      },
       body: switch (state) {
         ProfileLoading() => const Center(child: CircularProgressIndicator()),
         ProfileUnavailable(:final failure, :final sessionEnded) => _Unavailable(
@@ -228,7 +245,10 @@ class _ProfileScreenState extends ConsumerState<ProfileScreen> {
                   const SizedBox(height: 16),
                 ],
                 if (state.saved) ...<Widget>[
-                  const _SaveConfirmation(),
+                  // A change of address never stays here to be told: it signs the
+                  // person out (FR-AU-28), and the sign-in that follows reports
+                  // the address unverified and offers the resend (AF-05e).
+                  const Notice('Saved.'),
                   const SizedBox(height: 16),
                 ],
                 EditableSection(
@@ -542,32 +562,6 @@ class _EmailMethodHint extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// What a successful save says.
-///
-/// A change of address never stays here to be told: it signs the person out
-/// (FR-AU-28), and the sign-in that follows reports the address unverified
-/// and offers the resend (AF-05e).
-class _SaveConfirmation extends StatelessWidget {
-  const _SaveConfirmation();
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Text(
-        'Saved.',
-        style: TextStyle(color: scheme.onSecondaryContainer),
-      ),
-    );
-  }
 }
 
 /// FR-AU-16 — what a change of the person's own address is confirmed with:

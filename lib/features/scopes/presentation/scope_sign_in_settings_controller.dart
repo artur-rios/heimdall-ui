@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/email_link.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
@@ -206,6 +207,11 @@ class ScopeSignInSettingsController extends Notifier<SignInSettingsState>
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
       return;
+    }
+
+    if (result.isSuccess) {
+      // Home shows the Google sign-in badge and count.
+      ref.markHomeDataStale();
     }
 
     state = result.fold(

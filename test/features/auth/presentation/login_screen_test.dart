@@ -16,6 +16,10 @@ import 'package:heimdall_ui/features/auth/presentation/login_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/idle_expiry_timer.dart';
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// Google's half, faked. No test reaches Google's SDK, for the same reason
@@ -42,10 +46,7 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 }
 
 /// A token whose payload names a User, which is all the screen's flows need.
-const String _jwt =
-    'header.'
-    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
-    'signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
@@ -64,9 +65,7 @@ void main() {
     AppConfig config = withoutGoogle,
     GoogleSignInAvailability google = GoogleSignInAvailability.interactive,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       ProviderScope(
@@ -75,6 +74,7 @@ void main() {
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
           tokenStoreProvider.overrideWithValue(store),
+          sessionExpiryTimerProvider.overrideWithValue(idleExpiryTimer),
           googleSignInGatewayProvider.overrideWithValue(
             _FakeGoogleSignInGateway(google),
           ),

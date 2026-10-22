@@ -14,6 +14,7 @@ import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_r
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -75,6 +76,7 @@ void main() {
   ScopeOwnersController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         personRepositoryProvider.overrideWithValue(repository),
         scopeInvitationRepositoryProvider.overrideWithValue(invitations),
       ],
@@ -145,38 +147,6 @@ void main() {
     expect(state.owners.map((owner) => owner.name), <String>['Ada', 'Grace']);
   });
 
-  test('GivenAScope_WhenLoaded_ThenItsUsersAreOfferedForPromotion', () async {
-    // Given
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState() as ScopeOwnersLoaded;
-    expect(state.promotable.single.name, 'Alan');
-  });
-
-  // The users are not what this screen is about, so their listing failing does
-  // not take the owners down with it.
-  test('GivenAFailedUserListing_WhenLoaded_ThenTheOwnersStillShow', () async {
-    // Given
-    answerUsersWith(
-      const FailureResult<Page<Person>>(
-        Failure(kind: FailureKind.forbidden, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = currentState() as ScopeOwnersLoaded;
-    expect(state.owners, hasLength(2));
-    expect(state.promotable, isEmpty);
-  });
-
   test('GivenAFailedOwnerListing_WhenLoaded_ThenStateIsUnavailable', () async {
     // Given
     answerOwnersWith(
@@ -240,14 +210,28 @@ void main() {
     // Then
     final state = currentState() as ScopeOwnersLoaded;
     expect(state.failure?.errors, <String>['person-9 is not a Scope Admin.']);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
-  // AF-14c — someone already owning the scope is not offered again.
+  // #159 — the last-owner rule counts every owner the API reports, not the
+  // ones on the page: the second page of 21 owners holds a single row.
   test(
-    'GivenAnExistingOwner_WhenPromotionOffered_ThenTheyAreExcluded',
+    'GivenOwnersOnSeveralPages_WhenALonePageLoaded_ThenRemovalIsOffered',
     () async {
       // Given
-      answerUsersWith(Success<Page<Person>>(_page(<Person>[_ada, _user])));
+      answerOwnersWith(
+        const Success<Page<Person>>(
+          Page<Person>(
+            items: <Person>[_ada],
+            pageNumber: 2,
+            pageSize: 20,
+            totalItems: 21,
+            totalPages: 2,
+          ),
+        ),
+      );
       final controller = controllerUnderTest();
 
       // When
@@ -255,7 +239,146 @@ void main() {
 
       // Then
       final state = currentState() as ScopeOwnersLoaded;
-      expect(state.promotable.map((person) => person.id), <String>['person-3']);
+      expect(state.owners, hasLength(1));
+      expect(state.canRemove, isTrue);
+    },
+  );
+
+  test(
+    'GivenAnOwnersPage_WhenAnotherIsAsked_ThenItReplacesTheShownOne',
+    () async {
+      // Given
+      final controller = controllerUnderTest();
+      await controller.load();
+      answerOwnersWith(
+        const Success<Page<Person>>(
+          Page<Person>(
+            items: <Person>[_grace],
+            pageNumber: 2,
+            pageSize: 20,
+            totalItems: 21,
+            totalPages: 2,
+          ),
+        ),
+      );
+
+      // When
+      await controller.goToOwnersPage(2);
+
+      // Then
+      final state = currentState() as ScopeOwnersLoaded;
+      expect(state.owners.single.name, 'Grace');
+      expect(state.busy, isFalse);
+      verify(
+        () => repository.listScopeOwners(scopeId: 'scope-1', pageNumber: 2),
+      ).called(1);
+    },
+  );
+
+  test(
+    'GivenAFailedPage_WhenAskedFor_ThenTheShownPageStaysWithTheFailure',
+    () async {
+      // Given
+      final controller = controllerUnderTest();
+      await controller.load();
+      answerOwnersWith(
+        const FailureResult<Page<Person>>(
+          Failure(kind: FailureKind.network, errors: <String>[]),
+        ),
+      );
+
+      // When
+      await controller.goToOwnersPage(2);
+
+      // Then
+      final state = currentState() as ScopeOwnersLoaded;
+      expect(state.owners, hasLength(2));
+      expect(state.failure?.kind, FailureKind.network);
+      expect(state.busy, isFalse);
+    },
+  );
+
+  test('GivenOwnersStillLoading_WhenAPageIsAsked_ThenNothingIsRead', () async {
+    // Given
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.goToOwnersPage(2);
+
+    // Then
+    verifyNever(
+      () => repository.listScopeOwners(
+        scopeId: any(named: 'scopeId'),
+        pageNumber: any(named: 'pageNumber'),
+      ),
+    );
+  });
+
+  // The last owner of the last page was removed: the page that held them no
+  // longer exists, and an empty one with no pager to leave by is no answer.
+  test(
+    'GivenTheLastPagesOnlyOwnerRemoved_WhenReloaded_ThenThePreviousPageShows',
+    () async {
+      // Given
+      final controller = controllerUnderTest();
+      answerOwnersWith(
+        const Success<Page<Person>>(
+          Page<Person>(
+            items: <Person>[_grace],
+            pageNumber: 2,
+            pageSize: 20,
+            totalItems: 21,
+            totalPages: 2,
+          ),
+        ),
+      );
+      await controller.load();
+      await controller.goToOwnersPage(2);
+      when(
+        () => repository.listScopeOwners(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: 2,
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer(
+        (_) async => const Success<Page<Person>>(
+          Page<Person>(
+            items: <Person>[],
+            pageNumber: 2,
+            pageSize: 20,
+            totalItems: 20,
+            totalPages: 1,
+          ),
+        ),
+      );
+      when(
+        () => repository.listScopeOwners(
+          scopeId: any(named: 'scopeId'),
+          name: any(named: 'name'),
+          email: any(named: 'email'),
+          includeDeleted: any(named: 'includeDeleted'),
+          pageNumber: 1,
+          pageSize: any(named: 'pageSize'),
+        ),
+      ).thenAnswer((_) async => Success<Page<Person>>(_page(<Person>[_ada])));
+
+      when(
+        () => repository.removeScopeOwner(
+          scopeId: any(named: 'scopeId'),
+          personId: any(named: 'personId'),
+        ),
+      ).thenAnswer((_) async => const Success<void>(null));
+
+      // When
+      await controller.removeOwner('person-2');
+
+      // Then
+      final state = currentState() as ScopeOwnersLoaded;
+      expect(state.owners.single.name, 'Ada');
+      expect(state.ownersPage.pageNumber, 1);
     },
   );
 
@@ -302,6 +425,9 @@ void main() {
       () =>
           repository.removeScopeOwner(scopeId: 'scope-1', personId: 'person-2'),
     ).called(1);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   // AF-14a — the API refuses to leave a scope without an owner.
@@ -352,6 +478,63 @@ void main() {
       () =>
           repository.promoteScopeUser(scopeId: 'scope-1', personId: 'person-3'),
     ).called(1);
+  });
+
+  // The promoted user is a Scope Admin now, so the list they were offered in
+  // must be read again rather than keep them (#159).
+  test('GivenAUser_WhenPromoted_ThenTheUserListIsReadAgain', () async {
+    // Given
+    when(
+      () => repository.promoteScopeUser(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) async => const Success<void>(null));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    await controller.promote('person-3');
+
+    // Then
+    verify(
+      () => repository.listScopePersons(
+        scopeId: 'scope-1',
+        name: null,
+        email: null,
+        pageNumber: 1,
+      ),
+    ).called(1);
+  });
+
+  test('GivenARefusedPromotion_WhenDone_ThenTheUserListIsLeftAlone', () async {
+    // Given
+    when(
+      () => repository.promoteScopeUser(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer(
+      (_) async => const FailureResult<void>(
+        Failure(kind: FailureKind.validation, errors: <String>['No.']),
+      ),
+    );
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final result = await controller.promote('person-3');
+
+    // Then
+    expect(result, isA<OwnerCommandRefused>());
+    verifyNever(
+      () => repository.listScopePersons(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        pageNumber: any(named: 'pageNumber'),
+      ),
+    );
   });
 
   test('GivenADraftOwner_WhenCreated_ThenTheValuesAreSent', () async {
@@ -415,10 +598,95 @@ void main() {
     );
 
     // Then
-    expect(refusal?.errors, <String>['That email address is already taken.']);
+    expect((refusal as OwnerCommandRefused).failure.errors, <String>[
+      'That email address is already taken.',
+    ]);
     final state = currentState() as ScopeOwnersLoaded;
     expect(state.failure, isNull);
     expect(state.busy, isFalse);
+  });
+
+  // The dialog must not close as if the owner existed when the command was
+  // ignored.
+  test('GivenOwnersStillLoading_WhenCreated_ThenNothingIsSent', () async {
+    // Given
+    final controller = controllerUnderTest();
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandNotSent>());
+    verifyNever(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
+  });
+
+  test('GivenACommandInFlight_WhenCreated_ThenNothingIsSent', () async {
+    // Given
+    final release = Completer<Result<void>>();
+    when(
+      () => repository.removeScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        personId: any(named: 'personId'),
+      ),
+    ).thenAnswer((_) => release.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final removing = controller.removeOwner('person-2');
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandNotSent>());
+    verifyNever(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    );
+    release.complete(const Success<void>(null));
+    await removing;
+  });
+
+  test('GivenAnAcceptedDraft_WhenCreated_ThenItIsDone', () async {
+    // Given
+    when(
+      () => repository.createScopeOwner(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        password: any(named: 'password'),
+      ),
+    ).thenAnswer((_) async => const Success<Person>(_grace));
+    final controller = controllerUnderTest();
+    await controller.load();
+
+    // When
+    final result = await controller.createOwner(
+      name: 'Grace',
+      email: 'grace@example.com',
+      password: 'secret',
+    );
+
+    // Then
+    expect(result, isA<OwnerCommandDone>());
   });
 
   // What is on screen after a command is what the API last confirmed, not a

@@ -13,6 +13,8 @@ import 'package:heimdall_ui/features/applications/presentation/pending_secret.da
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/pump_app.dart';
+
 class _MockRepository extends Mock implements ApplicationCredentialRepository {}
 
 ApplicationCredential _live(String id) => ApplicationCredential(
@@ -38,9 +40,7 @@ void main() {
   }
 
   Future<void> pump(WidgetTester tester) async {
-    tester.view.physicalSize = const Size(900, 1400);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, const Size(900, 1400));
 
     await tester.pumpWidget(
       ProviderScope(
@@ -575,9 +575,7 @@ void main() {
         createdAt: DateTime.utc(2026, 10, 2, 9),
       ),
     ]);
-    tester.view.physicalSize = const Size(360, 640);
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, const Size(360, 640));
     await tester.pumpWidget(
       ProviderScope(
         overrides: <Override>[

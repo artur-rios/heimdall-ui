@@ -49,6 +49,7 @@ class FakeDashboardRepositories {
     this.googleMe,
     this.invitations = const <ScopeInvitation>[],
     this.acceptHeldUntil,
+    this.firstScopesReadHeldUntil,
     Person? me,
   }) : me =
            me ??
@@ -81,6 +82,14 @@ class FakeDashboardRepositories {
   /// When set, an acceptance answers only once this completes, so a test can
   /// hold one back.
   final Future<void>? acceptHeldUntil;
+
+  /// When set, the first scopes read answers only once this completes, so a
+  /// test can hold a dashboard load back.
+  final Future<void>? firstScopesReadHeldUntil;
+
+  /// How many times the scopes listing was asked for; one dashboard load asks
+  /// twice (the active page and the total with deleted ones).
+  int scopeReads = 0;
 
   /// The invitation ids accepted and declined through the fakes, in order.
   final List<String> accepted = <String>[];
@@ -131,6 +140,10 @@ class _Scopes extends Fake implements ScopeRepository {
     int pageNumber = 1,
     int pageSize = 20,
   }) async {
+    if (++fakes.scopeReads == 1 && fakes.firstScopesReadHeldUntil != null) {
+      await fakes.firstScopesReadHeldUntil;
+    }
+
     if (fakes.scopesFailure case final failure?) {
       return FailureResult<Page<Scope>>(failure);
     }

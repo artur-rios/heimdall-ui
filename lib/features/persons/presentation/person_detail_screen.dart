@@ -8,15 +8,15 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../home/presentation/home_screen.dart';
 import '../domain/person.dart';
 import 'account_emails_card.dart';
 import 'person_detail_controller.dart';
-import 'person_list_controller.dart';
 
 /// UI-18 — one person, as an administrator sees them.
 class PersonDetailScreen extends ConsumerStatefulWidget {
@@ -92,11 +92,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -157,45 +154,6 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
   bool _mayEmail(Person person) =>
       _maySeeHardDelete || person.role == Role.user;
 
-  /// AF-19a — a dialog the user closes sends nothing.
-  Future<void> _confirmDelete(Person person) async {
-    final confirmed = await showConfirm(
-      context: context,
-      title: 'Delete ${person.name}?',
-      message:
-          '${person.name} will be marked deleted. The record is kept and '
-          'the API can restore it.',
-      confirmLabel: 'Delete',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(personDetailControllerProvider(widget.personId).notifier)
-          .delete();
-    }
-  }
-
-  /// AF-19c — the confirm control stays disabled until the address matches.
-  Future<void> _confirmDeletePermanently(Person person) async {
-    final confirmed = await showTypeToConfirm(
-      context: context,
-      title: 'Delete ${person.name} permanently?',
-      message:
-          'Their record, the applications they own, their tokens, and '
-          'their scope membership are all erased. This cannot be undone. Type '
-          'their email address to confirm:',
-      confirmationValue: person.email,
-      fieldLabel: 'Email address',
-      confirmLabel: 'Delete permanently',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(personDetailControllerProvider(widget.personId).notifier)
-          .deletePermanently();
-    }
-  }
-
   Future<void> _save() async {
     if (!validateAndReveal(_formKey)) {
       return;
@@ -220,7 +178,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         ? 'Back to System Admins'
         : 'Back to the listing';
 
-    // A deleted person returns to the listing, which is now stale.
+    // A deleted person returns to the listing, which reads itself again.
     ref.listen<PersonDetailState>(
       personDetailControllerProvider(widget.personId),
       (previous, next) {
@@ -233,9 +191,8 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         }
 
         if (next is PersonDeleted) {
-          if (scopeId != null) {
-            ref.read(personListControllerProvider(scopeId).notifier).load();
-          }
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -247,7 +204,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
         PersonDetailLoaded(:final person) => person.name,
         _ => 'Person',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: backTooltip,
       body: switch (state) {
@@ -304,24 +261,22 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               // AF-18d — a deleted person says so before anything else, since
               // everything below is read-only because of it.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This person is deleted. They are shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.person_off_outlined,
-                  message:
-                      'This person is deleted. They are shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
               // AF-18e — this is you. The editing is the same as UI-08's, and
               // the role is not editable here for anyone.
               if (_isSelf && !state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This is your own record. Your role is not '
+                  'something you can change here. Change your email '
+                  'address from your profile.',
                   icon: Icons.person_outline,
-                  message:
-                      'This is your own record. Your role is not '
-                      'something you can change here. Change your email '
-                      'address from your profile.',
                 ),
                 const SizedBox(height: 16),
               ],
@@ -341,10 +296,7 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _Notice(
-                        icon: Icons.check_circle_outline,
-                        message: 'Saved.',
-                      ),
+                      const Notice('Saved.', icon: Icons.check_circle_outline),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -463,61 +415,41 @@ class _PersonDetailScreenState extends ConsumerState<PersonDetailScreen> {
               // AF-18d leaves a deleted person nothing left to delete.
               if (!state.isReadOnly && _mayDelete(person)) ...<Widget>[
                 const SizedBox(height: 24),
-                _DangerZone(
-                  person: person,
+                DeleteActions(
+                  recordName: person.name,
+                  noun: 'person',
+                  confirmationValue: person.email,
+                  fieldLabel: 'Email address',
+                  permanentConsequence:
+                      'Their record, the applications they own, their tokens, '
+                      'and their scope membership are all erased.',
+                  anonymises: true,
                   deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
-                  isSelf: _isSelf,
+                  // AF-19d: you cannot delete yourself from here. The API
+                  // refuses it too; this stops the interface offering it.
+                  blockedReason: _isSelf
+                      ? 'You cannot delete your own account from here.'
+                      : null,
+                  // AF-19e: a Scope Admin never sees the permanent deletion.
                   mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
+                  onDelete: () => ref
+                      .read(
+                        personDetailControllerProvider(widget.personId)
+                            .notifier,
+                      )
+                      .delete(),
+                  onDeletePermanently: () => ref
+                      .read(
+                        personDetailControllerProvider(widget.personId)
+                            .notifier,
+                      )
+                      .deletePermanently(),
                 ),
               ],
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// A one-line panel: what a deleted record, your own record, and a saved edit
-/// each say about themselves.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
       ),
     );
   }
@@ -543,89 +475,4 @@ class _Fact extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// The two deletions, kept apart from the rest of the screen because neither
-/// is an ordinary edit.
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.person,
-    required this.deleting,
-    required this.failure,
-    required this.isSelf,
-    required this.mayDeletePermanently,
-    required this.onDelete,
-    required this.onDeletePermanently,
-  });
-
-  final Person person;
-  final bool deleting;
-  final Failure? failure;
-
-  /// AF-19d — you cannot delete yourself from here. The API refuses it too;
-  /// this is what stops the interface offering it.
-  final bool isSelf;
-
-  /// AF-19e — a Scope Admin never sees the permanent deletion.
-  final bool mayDeletePermanently;
-
-  final Future<void> Function(Person person) onDelete;
-  final Future<void> Function(Person person) onDeletePermanently;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final blocked = deleting || isSelf;
-
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Delete this person',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isSelf
-                  ? 'You cannot delete your own account from here.'
-                  : 'Deleting keeps the record and can be undone by the API. '
-                        'Deleting permanently erases it.',
-              style: TextStyle(color: theme.colorScheme.onErrorContainer),
-            ),
-            // AF-19b — the API refused, and the person is still open.
-            if (failure case final refusal?) ...<Widget>[
-              const SizedBox(height: 16),
-              ErrorBanner(failure: refusal),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: blocked ? null : () => onDelete(person),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete person'),
-                ),
-                if (mayDeletePermanently)
-                  FilledButton.icon(
-                    onPressed: blocked
-                        ? null
-                        : () => onDeletePermanently(person),
-                    icon: const Icon(Icons.delete_forever_outlined),
-                    label: const Text('Delete permanently'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
