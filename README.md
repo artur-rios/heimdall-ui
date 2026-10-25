@@ -70,7 +70,7 @@ flutter doctor
 ## Install
 
 ```bash
-git clone https://github.com/artur-rios/heimdall-ui.git
+git clone https://git.techcraftsmen.net/artur-rios/heimdall-ui.git
 ```
 
 ```bash

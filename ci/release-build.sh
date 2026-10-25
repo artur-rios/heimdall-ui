@@ -13,8 +13,8 @@
 #   HEIMDALL_UI_KEYSTORE_PASSWORD   its password
 #   HEIMDALL_UI_KEY_ALIAS           the key's alias
 #   HEIMDALL_UI_KEY_PASSWORD        the key's password (defaults to the keystore's)
-# Without KEYSTORE_BASE64 the APK is signed with the debug key and named -debug-signed, as the workflow did,
-# so a build with no credentials (by hand, a fork) still works. Do not distribute that file.
+# Without KEYSTORE_BASE64 a local run (no RELEASE_VERSION) signs the APK with the debug key and names it
+# -debug-signed. Do not distribute that file. A release (RELEASE_VERSION set) fails instead.
 #
 # The Linux build needs desktop packages the Flutter image does not carry; they are installed with apt when
 # this runs as root, as it does on the release agent.
@@ -22,10 +22,18 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 root=$PWD
 
+version=${RELEASE_VERSION:-dev}
+
+# A real release (RELEASE_VERSION set by the pipeline) must be signed with the release key: refuse to
+# publish a debug-signed APK, and say so before the long builds start.
+if [ "$version" != dev ] && [ -z "${KEYSTORE_BASE64:-}" ]; then
+  echo "ci/release-build.sh: release $version needs the Android keystore (KEYSTORE_BASE64, the Jenkins credential heimdall-ui-android-keystore); it is empty, so the APK would be signed with the debug key and must not be published" >&2
+  exit 1
+fi
+
 # shellcheck source=ci/flutter-env.sh
 source ci/flutter-env.sh
 
-version=${RELEASE_VERSION:-dev}
 rm -rf dist
 mkdir dist
 
@@ -56,7 +64,7 @@ flutter build linux --release
 tar -czf "dist/heimdall-ui-linux-x64-$version.tar.gz" -C build/linux/x64/release/bundle .
 
 # ---- Android ----
-# Unset credentials are empty strings, which the Gradle build treats as unset: the debug key signs.
+# Only a local run (no RELEASE_VERSION) gets here without a keystore: the debug key signs.
 suffix=''
 if [ -n "${KEYSTORE_BASE64:-}" ]; then
   keystore_dir=$(mktemp -d)

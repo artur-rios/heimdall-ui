@@ -425,7 +425,7 @@ request into `main` to production once every check passes (§2.2) — see
 | `flutter build apk` fails after `flutter doctor` flags the Android toolchain | `cmdline-tools` is missing, or the SDK licences were never accepted (see §3) |
 | `flutter build apk` fails with `Failed to find target with hash string 'android-37'` | The API 37 platform is not installed — `sdkmanager --install "platforms;android-37.0"` |
 | A plugin module fails with `Could not close incremental caches in ...caches-jvm` | Kotlin incremental compilation; `kotlin.incremental=false` in `android/gradle.properties` turns it off, and is already set |
-| CI fails on `check-api-client` | The specification changed without the client being regenerated, or the reverse |
+| CI fails on `api-client-drift` | The specification changed without the client being regenerated, or the reverse |
 
 ---
 
