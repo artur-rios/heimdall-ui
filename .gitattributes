@@ -3,7 +3,7 @@
 # rather than changing it.
 #
 # It matters here because CI regenerates the API client and compares it with
-# what is committed (check-api-client.yml): a CRLF checkout on Windows would
+# what is committed (ci/api-client-drift.sh): a CRLF checkout on Windows would
 # report drift that is not there. Same rules as fortuna-ui.
 * text=auto eol=lf
 

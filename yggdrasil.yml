@@ -1,0 +1,52 @@
+# What Jenkins checks and releases for heimdall-ui, read by the pipeline of the yggdrasil installation that
+# deploys it (yggdrasil's docs/catalog.md, "Repository pipeline file", has every field). It is data: images,
+# commands, globs and the names of Jenkins credentials. The commands are scripts under ci/ that run from the
+# repository's root, so they can be run by hand too. On Forgejo only the owner merges a change to this file
+# into develop.
+#
+# Check it in the yggdrasil checkout:
+#   python3 scripts/pipeline_config.py describe heimdall-ui <this repository's checkout>
+#
+# Flutter 3.47.7 is pinned in ci/flutter-env.sh, not by the image: ghcr.io/cirruslabs/flutter has no tag newer
+# than 3.44.0, whose Dart is older than pubspec.yaml's `sdk: ^3.13.5`. The image supplies the Android SDK, the
+# JDK, git, curl and zip, and ci/flutter-env.sh fetches the SDK itself (checksummed).
+#
+# The deploy is the repository's Dockerfile (the Flutter web build behind nginx), built by yggdrasil for each
+# environment (stacks/heimdall-ui.yml): it needs nothing from here.
+
+checks:
+  analyze-and-test:                      # formatting, analysis, tests with coverage (ci.yml: analyze-and-test)
+    image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
+    run: ci/analyze-and-test.sh
+    archive: "coverage/lcov.info"        # read, not gated: there is no coverage threshold
+  api-client-drift:                      # the generated API client matches api/heimdall.json (check-api-client.yml: drift)
+    image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
+    run: ci/api-client-drift.sh
+  build-web:                             # the web build still compiles (ci.yml: build-web)
+    image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
+    run: ci/build-web.sh
+
+# What the Branch Policy workflow checked besides the branching model: a release carries its own version.
+branchPolicy:
+  image: alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+  run: sh ci/branch-policy.sh
+
+release:
+  # build.yml's Linux jobs (web, linux, android), on the release agent from the release's tag.
+  build:
+    image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
+    run: ci/release-build.sh
+    files:
+      - "dist/*.zip"
+      - "dist/*.tar.gz"
+      - "dist/*.apk"
+    credentials:                         # ENV_VAR: Jenkins credential id (the catalog's releaseCredentials)
+      KEYSTORE_BASE64: heimdall-ui-android-keystore
+      HEIMDALL_UI_KEYSTORE_PASSWORD: heimdall-ui-android-keystore-password
+      HEIMDALL_UI_KEY_ALIAS: heimdall-ui-android-key-alias
+      HEIMDALL_UI_KEY_PASSWORD: heimdall-ui-android-key-password
+  # build.yml's Windows job, on GitHub Actions: dispatched on the tag, with tag=<tag>.
+  windows:
+    workflow: release-windows.yml
+    files:
+      - "heimdall-ui-windows/*.zip"

@@ -19,7 +19,8 @@
 # ---------------------------------------------------------------------------
 FROM --platform=linux/amd64 debian:trixie-slim AS build
 
-# Keep in step with FLUTTER_VERSION in .github/workflows. FLUTTER_SHA256 is the
+# Keep in step with FLUTTER_VERSION and FLUTTER_SHA256 in ci/flutter-env.sh (and
+# FLUTTER_VERSION in .github/workflows/release-windows.yml). FLUTTER_SHA256 is the
 # archive's checksum from
 # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json;
 # override it together with FLUTTER_VERSION, or pass it empty to skip the check.
