@@ -17,7 +17,7 @@
 # (its newest versioned tag is 3.44.0). The archive is x64-only, and the output
 # is platform-independent static files, so this stage always runs as amd64.
 # ---------------------------------------------------------------------------
-FROM --platform=linux/amd64 debian:trixie-slim AS build
+FROM --platform=linux/amd64 debian:13.7-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS build
 
 # Keep in step with FLUTTER_VERSION and FLUTTER_SHA256 in ci/flutter-env.sh (and
 # FLUTTER_VERSION in .github/workflows/release-windows.yml). FLUTTER_SHA256 is the
@@ -95,7 +95,7 @@ RUN test -n "$HEIMDALL_API_BASE_URL" \
 # ---------------------------------------------------------------------------
 # Runtime stage: static files behind unprivileged nginx on port 8080.
 # ---------------------------------------------------------------------------
-FROM nginxinc/nginx-unprivileged:alpine
+FROM nginxinc/nginx-unprivileged:1.31.7-alpine@sha256:b5047b9b76845eac124358373c6852377c52e4b05834a47647e955dd91cb8f1e
 
 COPY --from=build /home/flutter/nginx.conf /etc/nginx/conf.d/default.conf
 COPY --from=build /home/flutter/app/build/web /usr/share/nginx/html
