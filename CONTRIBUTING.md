@@ -1,5 +1,8 @@
 # Contributing
 
+This repository lives at <https://git.techcraftsmen.net/artur-rios/heimdall-ui>. GitHub is a read-only mirror:
+open pull requests on the git server, not on GitHub.
+
 ## Prerequisites
 
 The toolchain for each target is listed under [Prerequisites](./README.md#prerequisites) in the README; check it
@@ -136,7 +139,7 @@ Names are lowercase: letters, digits, `.`, `_` and `-`. A `release/` branch is a
 `develop` and carries no commits of its own: a fix for a release lands on `develop` through a
 `fix/` branch and a new release branch is cut.
 
-The **Branch Policy** workflow checks all of this on every pull request and is a required check
+The `branch-policy` check, run by Jenkins, checks all of this on every pull request and is a required check
 on `develop` and `main`.
 
 Each use case ships on its own `feature/` branch, issue and pull request into `develop` — see the
@@ -170,7 +173,7 @@ against.
 
 The release version is the name of the release branch: `release/1.4.0` is deployed
 as the image tag `1.4.0-<short commit>`, which is what the yggdrasil console shows, and when it reaches
-production Jenkins tags the merge `v1.4.0` and creates the GitHub release of that name. The Branch Policy workflow
+production Jenkins tags the merge `v1.4.0` and creates the release of that name. The `branch-policy` check
 refuses a release branch whose version already has a tag.
 
 The app also shows the version in the footer of every screen, so it is written in the source too, in two places
@@ -181,7 +184,7 @@ that must agree with the release branch's name:
 - `appVersion` in `lib/app/app_version.dart`, which is what the footer shows.
 
 Both are set in the pull request that finalizes the changelog (see [Releasing](#releasing)). A test fails when
-either disagrees with the newest release heading in CHANGELOG.md, and the Branch Policy workflow refuses a
+either disagrees with the newest release heading in CHANGELOG.md, and the `branch-policy` check refuses a
 `release/x.y.z → main` pull request whose `pubspec.yaml` does not say `x.y.z`. Releases up to `v1.5.1` were
 built with Flutter's template value `1.0.0+1` in `pubspec.yaml`.
 
@@ -213,13 +216,15 @@ Before cutting the release, finalize [CHANGELOG.md](./CHANGELOG.md) on `develop`
    — Jenkins deploys the branch to **homologation**. Start homologation to check the release there
    before step 2.
 2. Open a pull request `release/1.4.0 → main`.
-3. When every GitHub check on the pull request passes, Jenkins deploys to **production**. On
+3. When every check on the pull request passes, Jenkins deploys to **production**. On
    success it sets the `deploy/production` status, merges the pull request with a merge commit,
-   creates the tag and GitHub release `v1.4.0`, and deletes the release branch.
+   creates the tag `v1.4.0`, builds the release files (web, Linux and Android from Jenkins, Windows
+   from the `Release Windows` workflow on GitHub), publishes the release `v1.4.0`, and deletes the
+   release branch.
 4. If the production deploy fails, Jenkins rolls back to the previous image and the pull request
    stays open. Fix on `develop`, then cut a new release.
 
-The GitHub release's notes are generated from the pull requests merged since the previous tag;
+The release's notes are generated from the pull requests merged since the previous tag;
 CHANGELOG.md is the curated record.
 
 Follow a release in the **yggdrasil console** (`https://yggdrasil.<domain>`, or the Android app).
