@@ -23,7 +23,8 @@ FROM --platform=linux/amd64 debian:trixie-slim AS build
 # FLUTTER_VERSION in .github/workflows/release-windows.yml). FLUTTER_SHA256 is the
 # archive's checksum from
 # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json;
-# override it together with FLUTTER_VERSION, or pass it empty to skip the check.
+# override it together with FLUTTER_VERSION (Renovate bumps the version, not the checksum).
+# renovate: datasource=github-tags depName=flutter/flutter
 ARG FLUTTER_VERSION=3.47.7
 ARG FLUTTER_SHA256=af7455f540df951184c7953fbe3cf884766e7541dacf8571f9f582db03dd6230
 
@@ -39,9 +40,9 @@ ENV CI=true \
     PUB_CACHE=/home/flutter/.pub-cache \
     PATH=/opt/flutter/bin:/opt/flutter/bin/cache/dart-sdk/bin:$PATH
 
-RUN curl -fsSL -o /tmp/flutter.tar.xz \
+RUN curl --fail --silent --show-error --location --retry 3 -o /tmp/flutter.tar.xz \
       "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz" \
- && if [ -n "$FLUTTER_SHA256" ]; then echo "$FLUTTER_SHA256  /tmp/flutter.tar.xz" | sha256sum -c -; fi \
+ && echo "$FLUTTER_SHA256  /tmp/flutter.tar.xz" | sha256sum -c - \
  && tar -xJf /tmp/flutter.tar.xz -C /opt \
  && rm /tmp/flutter.tar.xz \
  && flutter config --no-analytics --no-cli-animations \

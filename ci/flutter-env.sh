@@ -6,10 +6,12 @@
 # Android SDK, the JDK and the desktop tools, and the SDK itself is fetched here from Flutter's release
 # archive and checked against its checksum (the Dockerfile does the same). FLUTTER_SHA256 comes from
 # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json; change it together
-# with FLUTTER_VERSION, and the same two lines in the Dockerfile.
+# with FLUTTER_VERSION (Renovate bumps the version, not the checksum), and the same two lines in the
+# Dockerfile.
 #
 # FLUTTER_SDK_DIR reuses an unpacked SDK between runs (default: a directory under $TMPDIR).
 
+# renovate: datasource=github-tags depName=flutter/flutter
 FLUTTER_VERSION=3.47.7
 FLUTTER_SHA256=af7455f540df951184c7953fbe3cf884766e7541dacf8571f9f582db03dd6230
 
@@ -18,10 +20,10 @@ FLUTTER_SDK_DIR=${FLUTTER_SDK_DIR:-${TMPDIR:-/tmp}/flutter-$FLUTTER_VERSION}
 if [ ! -x "$FLUTTER_SDK_DIR/bin/flutter" ]; then
   _flutter_work=$(mktemp -d)
   echo "ci/flutter-env.sh: fetching Flutter $FLUTTER_VERSION"
-  curl -fsSL -o "$_flutter_work/flutter.tar.xz" \
+  curl --fail --silent --show-error --location --retry 3 -o "$_flutter_work/flutter.tar.xz" \
     "https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_${FLUTTER_VERSION}-stable.tar.xz"
   echo "$FLUTTER_SHA256  $_flutter_work/flutter.tar.xz" | sha256sum -c -
-  tar -xJf "$_flutter_work/flutter.tar.xz" -C "$_flutter_work"
+  tar -xJf "$_flutter_work/flutter.tar.xz" --no-same-owner -C "$_flutter_work"
   mkdir -p "$(dirname "$FLUTTER_SDK_DIR")"
   rm -rf "$FLUTTER_SDK_DIR"
   mv "$_flutter_work/flutter" "$FLUTTER_SDK_DIR"
