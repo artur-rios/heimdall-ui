@@ -123,8 +123,9 @@ no test reaches the network.
 
 | Tool | Role |
 | --- | --- |
-| **GitHub Actions** | Runs the analyze-and-test gate, the multi-platform builds, and the client drift check. |
-| **subosito/flutter-action** | Installs the pinned Flutter version on each runner. |
+| **Jenkins** (yggdrasil) | Runs the analyze-and-test gate, the web build check and the client drift check (`ci/`), builds the release files, and deploys. |
+| **GitHub Actions** | Builds the Windows release files (`release-windows.yml`) on the GitHub copy. |
+| **ci/flutter-env.sh** | Installs the pinned Flutter version in the CI image (`subosito/flutter-action` in the Windows workflow). |
 
 ---
 

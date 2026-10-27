@@ -304,11 +304,11 @@ source that silences them.
   `storePassword`, `keyAlias` and `keyPassword`. When none is set, `flutter build apk --release` signs
   with the debug key and prints a warning in its output (at Gradle's error level, so Flutter's quiet
   Gradle run shows it); that APK is suitable for testing and not for distribution. A partial
-  configuration, or a keystore that does not exist, fails the release build. `build.yml` maps the
-  repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the runner's temp directory),
-  `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD` to those
-  variables. Without the secrets it emits a warning annotation and produces a debug-signed artifact named
-  `heimdall-ui-android-debug-signed`.
+  configuration, or a keystore that does not exist, fails the release build. `ci/release-build.sh` maps
+  the Jenkins credentials `heimdall-ui-android-keystore` (the keystore, base64-encoded, decoded to a file in
+  a temporary directory), `heimdall-ui-android-keystore-password`, `heimdall-ui-android-key-alias` and
+  `heimdall-ui-android-key-password` to those variables; they are bound only on the release build. Without
+  them it warns and produces a debug-signed file named `heimdall-ui-android-<version>-debug-signed.apk`.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 
 ---
@@ -349,19 +349,27 @@ Branding page.
 
 ## 8. Continuous integration
 
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| `ci.yml` | Push to `main` or `develop`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test --coverage` (uploads `coverage/lcov.info`, no threshold), and a separate `flutter build web --release` job |
-| `build.yml` | Push to `main`, manual dispatch, and weekly (Monday 06:00 UTC, Windows and Android only) | Builds web, Windows, Linux, and Android, and uploads each artifact |
-| `check-api-client.yml` | Push to `main` or `develop`, and every pull request | Regenerates the client and fails if the committed output differs |
-| `branch-policy.yml` | Every pull request into `develop` or `main` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model) |
+Jenkins runs these checks (`yggdrasil.yml`, scripts under `ci/`) on every pull request into `develop` or
+`main`:
+
+| Check | What it does |
+| --- | --- |
+| `analyze-and-test` | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test --coverage` (keeps `coverage/lcov.info`, no threshold) |
+| `build-web` | `flutter build web --release` |
+| `api-client-drift` | Regenerates the client and fails if the committed output differs |
+| `branch-policy` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model), and that a release's `pubspec.yaml` says its version |
+
+The release files are built when a release pull request is merged: `ci/release-build.sh` on the release
+agent (web zip, Linux tarball, signed Android package) and the `Release Windows` workflow
+(`release-windows.yml`, dispatched on the tag, on the GitHub copy) for the Windows zip. There is no scheduled
+build.
 
 CI never receives a real API base URL: the analyze-and-test job needs none, and the build jobs use
 the default so that no deployment address is exposed in a public log.
 
-Deployment is not part of GitHub Actions. The web container image (see the README's *Container image
-(web)*) is built and deployed by the self-hosted Jenkins in
-[yggdrasil](https://github.com/artur-rios/yggdrasil), driven by the `Jenkinsfile`: a push to
+The web container image (see the README's *Container image (web)*) is built and deployed by the
+self-hosted Jenkins in [yggdrasil](https://github.com/artur-rios/yggdrasil), which builds the repository's
+`Dockerfile` (Jenkins does not read a `Jenkinsfile` from the repository): a push to
 `develop` deploys to development, a pushed `release/x.y.z` branch to homologation, and its pull
 request into `main` to production once every check passes (§2.2) — see
 [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
@@ -417,7 +425,7 @@ request into `main` to production once every check passes (§2.2) — see
 | `flutter build apk` fails after `flutter doctor` flags the Android toolchain | `cmdline-tools` is missing, or the SDK licences were never accepted (see §3) |
 | `flutter build apk` fails with `Failed to find target with hash string 'android-37'` | The API 37 platform is not installed — `sdkmanager --install "platforms;android-37.0"` |
 | A plugin module fails with `Could not close incremental caches in ...caches-jvm` | Kotlin incremental compilation; `kotlin.incremental=false` in `android/gradle.properties` turns it off, and is already set |
-| CI fails on `check-api-client` | The specification changed without the client being regenerated, or the reverse |
+| CI fails on `api-client-drift` | The specification changed without the client being regenerated, or the reverse |
 
 ---
 

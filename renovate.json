@@ -1,0 +1,23 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>artur-rios/yggdrasil//renovate/default"],
+  "enabledManagers": ["pub", "github-actions", "dockerfile", "docker-compose", "custom.regex"],
+  "packageRules": [
+    {
+      "description": "pub weekly, as Dependabot did.",
+      "matchManagers": ["pub"],
+      "schedule": ["on monday"]
+    },
+    {
+      "description": "packages/*_api_client is generated (tool/generate_api_client.dart) and pins what the generator emits, so only the application pubspec is updated.",
+      "matchManagers": ["pub"],
+      "matchFileNames": ["packages/**"],
+      "enabled": false
+    },
+    {
+      "description": "The workflow actions in one pull request, as Dependabot grouped them.",
+      "matchManagers": ["github-actions"],
+      "groupName": "github-actions"
+    }
+  ]
+}

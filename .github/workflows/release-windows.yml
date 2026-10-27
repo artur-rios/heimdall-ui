@@ -1,0 +1,53 @@
+name: Release Windows
+
+# The Windows files of a release. Jenkins builds the rest (ci/release-build.sh) and dispatches this workflow
+# on the release's tag once the mirror has pushed it (release.windows in yggdrasil.yml), waits for it, and
+# attaches the zip below to the release. It is not a pull request check.
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to build, e.g. v1.9.0'
+        required: true
+
+concurrency:
+  group: release-windows-${{ inputs.tag }}
+  cancel-in-progress: false
+
+env:
+  FLUTTER_VERSION: 3.47.7
+
+jobs:
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      # flutter_secure_storage_windows includes atlstr.h, so the runner's
+      # Visual Studio installation must carry the C++ ATL component.
+      - run: flutter build windows --release
+      # One file per release, named with the version: the release's files are
+      # uploaded by name, and the Release folder holds dozens.
+      - name: Zip the build
+        shell: pwsh
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          $version = $env:TAG.TrimStart('v')
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Compress-Archive -Path 'build/windows/x64/runner/Release/*' -DestinationPath "dist/heimdall-ui-windows-x64-$version.zip"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: heimdall-ui-windows
+          path: dist/*.zip
+          if-no-files-found: error
