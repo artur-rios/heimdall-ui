@@ -1,5 +1,11 @@
 # Heimdall UI
 
+> [!NOTE]
+> This is the real, open-source code of heimdall-ui. Its home is Forgejo, at
+> https://git.techcraftsmen.net/artur-rios/heimdall-ui; the copy on GitHub is a read-only mirror, for viewing only, and
+> its issues and pull requests are not followed. If you want to contribute, email me at
+> arturdev@duck.com.
+
 [![CI](https://github.com/artur-rios/heimdall-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/ci.yml)
 [![Build](https://github.com/artur-rios/heimdall-ui/actions/workflows/build.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/build.yml)
 [![Check API client](https://github.com/artur-rios/heimdall-ui/actions/workflows/check-api-client.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/check-api-client.yml)
