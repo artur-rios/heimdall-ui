@@ -1,14 +1,6 @@
 # Heimdall UI
 
-> [!NOTE]
-> This is the real, open-source code of heimdall-ui. Its home is Forgejo, at
-> https://git.techcraftsmen.net/artur-rios/heimdall-ui; the copy on GitHub is a read-only mirror, for viewing only, and
-> its issues and pull requests are not followed. If you want to contribute, email me at
-> arturdev@duck.com.
-
 The Flutter front-end for the [Heimdall API](https://github.com/artur-rios/heimdall-api).
-
-This repository lives at <https://git.techcraftsmen.net/artur-rios/heimdall-ui>. GitHub is a read-only mirror.
 
 ## Overview
 
@@ -391,6 +383,9 @@ Notable changes in each release are recorded in [CHANGELOG.md](./CHANGELOG.md).
 
 The project structure, regenerating the API client, running the tests, the branching model and the release process
 are described in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+The GitHub repository is a read-only mirror for the real, open-source code of heimdall-ui. Its home is Forgejo, at
+https://git.techcraftsmen.net/artur-rios/heimdall-ui. If you want to contribute, e-mail me at arturdev@duck.com.
 
 ## Legal
 
