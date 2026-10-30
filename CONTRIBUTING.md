@@ -1,5 +1,8 @@
 # Contributing
 
+This repository lives at <https://git.techcraftsmen.net/artur-rios/heimdall-ui>. GitHub is a read-only mirror:
+open pull requests on the git server, not on GitHub.
+
 ## Prerequisites
 
 The toolchain for each target is listed under [Prerequisites](./README.md#prerequisites) in the README; check it
@@ -57,15 +60,10 @@ dart run tool/refresh_privacy_notice.dart "https://raw.githubusercontent.com/art
 flutter test
 ```
 
-```bash
-flutter test integration_test
-```
+CI runs `flutter test --coverage` and uploads `coverage/lcov.info` as an artifact; there is no coverage threshold.
+There is no `integration_test/` directory: every test, including those that drive the router, is a `flutter test`.
 
-```bash
-flutter test --coverage
-```
-
-The gate before every pull request is all three of these, passing:
+The gate before every pull request is these three, passing:
 
 ```bash
 dart format --set-exit-if-changed . && flutter analyze && flutter test
@@ -75,6 +73,54 @@ Tests are named `GivenSomeCondition_WhenSomeAction_ThenSomeOutput`, and each bod
 `// Given`, `// When`, and `// Then` comments. No test reaches the network: HTTP is stubbed through a
 local Dio adapter, and controllers are tested against fake repositories. See the
 [Testing Specification Document](docs/requirements/Testing%20Specification%20Document.md).
+
+## Adding to the app
+
+Copy the example named in each step and change what differs.
+
+### A list screen
+
+Example: scopes, `lib/features/scopes/presentation/scope_list_controller.dart` and `scope_list_screen.dart`.
+
+1. In the domain, add the repository method that takes a query and returns an `envelope.Page<T>`.
+2. Write a state class that implements `ListLoading`, `ListLoaded` and `ListFailed` (`lib/shared/paging/list_state.dart`)
+   and a controller that extends `PagedListController<Query, Item, State>` (`lib/shared/paging/`). The engine
+   owns paging, retry, stale-answer handling and the "unexpected response" failure; the controller only says how
+   to `fetch` a page and how to build each state.
+3. In the screen, put `ListFilters` above a `ListScaffold` (`lib/shared/widgets/list_scaffold.dart`), giving it the
+   empty message and the rows. Pass a `ListForbidden` when only some roles may read the listing.
+4. Register the route in `lib/app/router.dart`.
+5. Test the controller against a fake repository and the screen with `pumpApp`; see
+   `test/features/scopes/presentation/scope_list_controller_test.dart` and `scope_list_screen_test.dart`.
+
+### A detail screen
+
+Example: `lib/features/scopes/presentation/scope_detail_screen.dart`.
+
+1. Wrap the screen in `AppShell` and give it `hasUnsavedChanges` when it has an edit mode or a form; the route's
+   `onExit: confirmLeaveWithUnsavedChanges` then asks "Discard your changes?" (`lib/shared/forms/`) before Back,
+   a link or a sign-out leaves it. A screen that returns somewhere specific passes `onReturn`.
+2. Show a save result or a refusal with `Notice` (`lib/shared/widgets/notice.dart`), never a private copy.
+3. For deletion, use `DeleteActions` (`lib/shared/widgets/delete_actions.dart`). It carries the logical and the
+   permanent delete and the shared destructive-confirm dialog (`showConfirm`), so every record says the same thing.
+
+### A test
+
+Example: `test/features/scopes/presentation/scope_list_screen_test.dart`.
+
+- Name it `GivenSomeCondition_WhenSomeAction_ThenSomeOutput` with `// Given`, `// When` and `// Then` sections.
+- Build the world with the helpers in `test/support/`: `pumpApp` pumps a screen or a router inside a window and
+  a session; `testApiJwt` and `testJwt` mint tokens; `StubAdapter` stands in for the network in repository tests;
+  the session's expiry timer is already made idle by `pumpApp` and `testContainer`, so no real timer is left
+  pending. A new helper that two test files need goes in `test/support/`.
+- Accessibility checks (labels, tap targets, large text) live in `test/a11y/accessibility_test.dart`.
+
+### Shared or feature widget
+
+A widget used by one feature lives in that feature's `presentation/widgets/` (see
+`lib/features/home/presentation/widgets/`). When a second feature needs it, move it to `lib/shared/widgets/` and
+give it no feature knowledge — pass in what differs, as `Notice` and `ListForbidden` do. Copying a private widget
+into a second feature is how six `_Notice` copies appeared.
 
 ## Branching model
 
@@ -93,7 +139,7 @@ Names are lowercase: letters, digits, `.`, `_` and `-`. A `release/` branch is a
 `develop` and carries no commits of its own: a fix for a release lands on `develop` through a
 `fix/` branch and a new release branch is cut.
 
-The **Branch Policy** workflow checks all of this on every pull request and is a required check
+The `branch-policy` check, run by Jenkins, checks all of this on every pull request and is a required check
 on `develop` and `main`.
 
 Each use case ships on its own `feature/` branch, issue and pull request into `develop` — see the
@@ -127,7 +173,7 @@ against.
 
 The release version is the name of the release branch: `release/1.4.0` is deployed
 as the image tag `1.4.0-<short commit>`, which is what the yggdrasil console shows, and when it reaches
-production Jenkins tags the merge `v1.4.0` and creates the GitHub release of that name. The Branch Policy workflow
+production Jenkins tags the merge `v1.4.0` and creates the release of that name. The `branch-policy` check
 refuses a release branch whose version already has a tag.
 
 The app also shows the version in the footer of every screen, so it is written in the source too, in two places
@@ -138,7 +184,7 @@ that must agree with the release branch's name:
 - `appVersion` in `lib/app/app_version.dart`, which is what the footer shows.
 
 Both are set in the pull request that finalizes the changelog (see [Releasing](#releasing)). A test fails when
-either disagrees with the newest release heading in CHANGELOG.md, and the Branch Policy workflow refuses a
+either disagrees with the newest release heading in CHANGELOG.md, and the `branch-policy` check refuses a
 `release/x.y.z → main` pull request whose `pubspec.yaml` does not say `x.y.z`. Releases up to `v1.5.1` were
 built with Flutter's template value `1.0.0+1` in `pubspec.yaml`.
 
@@ -170,13 +216,15 @@ Before cutting the release, finalize [CHANGELOG.md](./CHANGELOG.md) on `develop`
    — Jenkins deploys the branch to **homologation**. Start homologation to check the release there
    before step 2.
 2. Open a pull request `release/1.4.0 → main`.
-3. When every GitHub check on the pull request passes, Jenkins deploys to **production**. On
+3. When every check on the pull request passes, Jenkins deploys to **production**. On
    success it sets the `deploy/production` status, merges the pull request with a merge commit,
-   creates the tag and GitHub release `v1.4.0`, and deletes the release branch.
+   creates the tag `v1.4.0`, builds the release files (web, Linux and Android from Jenkins, Windows
+   from the `Release Windows` workflow on GitHub), publishes the release `v1.4.0`, and deletes the
+   release branch.
 4. If the production deploy fails, Jenkins rolls back to the previous image and the pull request
    stays open. Fix on `develop`, then cut a new release.
 
-The GitHub release's notes are generated from the pull requests merged since the previous tag;
+The release's notes are generated from the pull requests merged since the previous tag;
 CHANGELOG.md is the curated record.
 
 Follow a release in the **yggdrasil console** (`https://yggdrasil.<domain>`, or the Android app).

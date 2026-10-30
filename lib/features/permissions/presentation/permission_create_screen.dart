@@ -6,10 +6,8 @@ import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
 import 'permission_create_controller.dart';
-import 'permission_list_controller.dart';
 
 /// UI-25 — the create-permission form.
 class PermissionCreateScreen extends ConsumerStatefulWidget {
@@ -68,22 +66,15 @@ class _PermissionCreateScreenState
   }
 
   /// AF-25c — leaving a modified form asks first, whichever way it is left:
-  /// Cancel, the back control, the navigation, or signing out.
-  Future<bool> _confirmLeave() async =>
-      !_isDirty ||
-      await showConfirm(
-        context: context,
-        title: 'Discard this permission?',
-        message: 'What you have entered has not been saved and will be lost.',
-        confirmLabel: 'Discard',
-        cancelLabel: 'Keep editing',
-      );
+  /// Cancel, the back control, the navigation, a system or browser Back, or
+  /// signing out (`AppShell.hasUnsavedChanges`). A created record is nothing
+  /// to lose, so the way on to it asks nothing.
+  bool get _hasUnsavedInput =>
+      _isDirty &&
+      ref.read(permissionCreateControllerProvider(widget.scopeId))
+          is! PermissionCreated;
 
-  Future<void> _cancel() async {
-    if (await _confirmLeave() && mounted) {
-      context.go('/scopes/${widget.scopeId}/permissions');
-    }
-  }
+  void _cancel() => context.go('/scopes/${widget.scopeId}/permissions');
 
   @override
   Widget build(BuildContext context) {
@@ -95,10 +86,8 @@ class _PermissionCreateScreenState
       permissionCreateControllerProvider(widget.scopeId),
       (previous, next) {
         if (next case PermissionCreated(:final permission)) {
-          // The listing behind this form is now stale.
-          ref
-              .read(permissionListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The listing behind this form reads itself again once it is back
+          // on top (`AppShell.onReturn`).
           context.go('/scopes/${widget.scopeId}/permissions/${permission.id}');
         }
       },
@@ -107,8 +96,8 @@ class _PermissionCreateScreenState
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('New permission'),
-      onBack: _cancel,
-      confirmLeave: _confirmLeave,
+      backRoute: '/scopes/${widget.scopeId}/permissions',
+      hasUnsavedChanges: () => _hasUnsavedInput,
       backTooltip: 'Back to the listing',
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),

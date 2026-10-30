@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_create_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
@@ -28,6 +29,7 @@ void main() {
   ScopeCreateController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopeRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -65,6 +67,9 @@ void main() {
     // Then
     final state = container.read(scopeCreateControllerProvider);
     expect((state as ScopeCreated).scope.id, 'scope-9');
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAValidForm_WhenCreated_ThenTheValuesAreSent', () async {
@@ -163,6 +168,9 @@ void main() {
     // Then
     final state = container.read(scopeCreateControllerProvider);
     expect((state as ScopeCreateRejected).failure.kind, FailureKind.network);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test(

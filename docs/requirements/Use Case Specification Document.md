@@ -359,7 +359,9 @@ delivered the same way.
 - **AF-05d — Already verified.** The API reports the address as already verified. The client treats
   this as success and says so plainly.
 - **AF-05e — Unverified session banner.** An authenticated user whose address is unverified sees a
-  dismissible banner on the home screen offering the resend action.
+  dismissible banner on the home screen offering the resend action. Verifying a link ends the banner
+  only when the person's own record then reports the address as verified; a link mailed to someone
+  else leaves it.
 - **AF-05f — Resend held back.** The API answers `429`: "An email of this kind was sent to you
   recently. Try again in a few minutes." inside the account-email cooldown, a daily-limit message
   once the day's account emails are spent, or "Too many requests." from the rate limit. The client
@@ -691,8 +693,8 @@ User's own record
 **Main flow — logical deletion**
 
 1. The user chooses to delete the scope.
-2. A confirmation dialog names the scope and explains that the record is kept and can be restored by
-   the API.
+2. A confirmation dialog explains that the record is hidden, not erased, and that only an operator can restore
+   it, from the database, within the retention window; the API has no restore endpoint.
 3. The client calls `DELETE /api/scopes/{id}` and returns to the listing with a confirmation.
 
 **Main flow — permanent deletion**
@@ -724,8 +726,11 @@ User's own record
 
 1. The user opens the owners section of a scope, which lists the current owners and, under **Pending
    invitations**, the people invited to co-own it who have not answered yet, each with their address and
-   the invitation's expiry. The section is hidden while there are none.
-2. The client calls `GET /api/scopes/{scopeId}/owners` and `GET /api/scopes/{scopeId}/owner-invitations`.
+   the invitation's expiry. The section is hidden while there are none. Under **Promote a user** it lists
+   the scope's users, with a search box for a name or an address.
+2. The client calls `GET /api/scopes/{scopeId}/owners`, `GET /api/scopes/{scopeId}/owner-invitations`
+   and `GET /api/scopes/{scopeId}/persons`. The owners and the users are paged, with a pager shown
+   whenever there is more than one page, so every owner and every user can be reached.
 3. The user adds an existing Scope Admin (or, as a System Admin, a System Admin) as a co-owner, and
    the client calls `POST /api/scopes/{scopeId}/owners/{personId}`. The client tells an owner added from
    a person invited by the `invited` field of the answer, not by its status code. For a System Admin the
@@ -744,7 +749,8 @@ User's own record
 **Alternative flows**
 
 - **AF-14a — Last owner.** The API refuses to remove the only owner. The client shows the returned
-  errors; the remove control is disabled when the list holds a single owner.
+  errors; the remove control is disabled when the scope has a single owner, as the API's total owner
+  count says, not as the page on screen shows.
 - **AF-14b — Person is not a Scope Admin.** The API refuses. The client shows the returned errors
   against the selector.
 - **AF-14c — Already an owner.** The API refuses a duplicate. The client shows the returned errors,
@@ -878,8 +884,10 @@ User's own record
   email from your profile." beneath it while editing: changing it is done from your profile (UI-08),
   which asks for your password (AF-08g) and signs you in again.
 - **AF-18f — Opened from the System Admins list.** A System Admin may also open a person at
-  `/persons/:personId` from UI-38. The page is the same, without a scope: its back control (tooltip
-  **Back to System Admins**) returns to the System Admins list, and so does a delete.
+  `/system-admins/:personId` from UI-38; a link to the earlier address, `/persons/:personId`, is
+  redirected there. The page is the same, without a scope: its back control (tooltip **Back to System
+  Admins**), the system Back and the browser's Back return to the System Admins list, and so does a
+  delete.
 
 ---
 
@@ -1690,10 +1698,11 @@ an issue is also shown in the issue dialog.
 **Placement.** The **System Admins** tile on Home, in the **Overview** grid, shows how many System
 Admins there are, with the caption "Full access to every scope", and opens `/system-admins`. If the
 count cannot be read, the tile shows "—" and still opens the list. A Scope Admin's and a User's Home
-do not show the tile, and `/system-admins` and `/persons/:personId` are not available to them: the
-not-available-for-your-role screen is shown. The screen, titled **System Admins**, has a back control
-(tooltip **Back to Home**). There is no navigation destination of its own. Rows open
-`/persons/:personId`.
+do not show the tile, and `/system-admins` and `/system-admins/:personId` (and the earlier
+`/persons/:personId`, which redirects to it) are not available to them: the not-available-for-your-role
+screen is shown. The screen, titled **System Admins**, opens over Home and has a back control (tooltip
+**Back to Home**); the system Back returns there too. There is no navigation destination of its own.
+Rows open `/system-admins/:personId`.
 
 A line above the list says: "System Admins can administer every scope. Deleted and restricted
 accounts are not listed."
@@ -1708,10 +1717,13 @@ accounts are not listed."
 4. The admin searches by name or email (Enter in either field, or **Search**), which returns to
    page 1, or moves between pages. Overlapping requests queue the newest query, so a search typed
    during a load is not lost.
-5. The admin opens a row, and the person page opens at `/persons/:personId`, without a scope. Its
-   back control (tooltip **Back to System Admins**) goes to the list, and so does a delete.
+5. The admin opens a row, and the person page opens over the list at `/system-admins/:personId`,
+   without a scope. Its back control (tooltip **Back to System Admins**), the system Back and the
+   browser's Back go to the list, and so does a delete.
 
-The listing is forgotten when the screen is left, so a return loads it fresh.
+The listing stays under the person page while it is open, and is read again, with its filters, when
+it is back on top, so a change or delete made there shows. It is forgotten once the screen itself is
+left.
 
 **Alternative flows**
 

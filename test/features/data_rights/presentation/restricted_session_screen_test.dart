@@ -1,5 +1,3 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -18,6 +16,9 @@ import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_screen.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockDataRightsRepository extends Mock implements DataRightsRepository {}
 
@@ -68,27 +69,40 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
   Future<void> signOut() async {}
 }
 
-/// A subject-rights-only token naming Ada.
-String _restrictedJwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'id': 'person-1',
-        'name': 'Ada Lovelace',
-        'role': '3',
-        'subjectRightsOnly': 'true',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
-
 const Size _compact = Size(400, 900);
 const Size _medium = Size(800, 900);
 const Size _expanded = Size(1400, 900);
 
 const String _heading = 'Processing of your account is restricted';
+
+void expectDestructive(WidgetTester tester, String confirmLabel) {
+  final dialog = find.byType(AlertDialog);
+  final scheme = Theme.of(tester.element(dialog)).colorScheme;
+  expect(
+    tester
+        .widget<TextButton>(
+          find.descendant(
+            of: dialog,
+            matching: find.widgetWithText(TextButton, 'Cancel'),
+          ),
+        )
+        .autofocus,
+    isTrue,
+  );
+  expect(
+    tester
+        .widget<FilledButton>(
+          find.descendant(
+            of: dialog,
+            matching: find.widgetWithText(FilledButton, confirmLabel),
+          ),
+        )
+        .style!
+        .backgroundColor!
+        .resolve(<WidgetState>{}),
+    scheme.error,
+  );
+}
 
 void main() {
   late _MockDataRightsRepository repository;
@@ -104,20 +118,23 @@ void main() {
     bool viaGoogle = false,
     String? googleClientId,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _restrictedJwt(),
+    container = await pumpApp(
+      tester,
+      home: const RestrictedSessionScreen(),
+      size: size,
+      theme: theme,
+      store: store,
+      token: AuthToken(
+        value: testApiJwt(<String, Object?>{
+          'id': 'person-1',
+          'name': 'Ada Lovelace',
+          'role': '3',
+          'subjectRightsOnly': 'true',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: viaGoogle,
         processingRestricted: true,
       ),
-    );
-
-    container = ProviderContainer(
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
           AppConfig(
@@ -127,24 +144,10 @@ void main() {
         ),
         dataRightsRepositoryProvider.overrideWithValue(repository),
         fileSaverProvider.overrideWithValue(saver),
-        tokenStoreProvider.overrideWithValue(store),
         authRepositoryProvider.overrideWithValue(_MockAuthRepository()),
         googleSignInGatewayProvider.overrideWithValue(google),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const RestrictedSessionScreen(),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   Future<void> tapButton(WidgetTester tester, String label) async {
@@ -244,6 +247,19 @@ void main() {
     verify(() => repository.liftOwnRestriction()).called(1);
     final session = container.read(sessionControllerProvider);
     expect((session as Unauthenticated).restrictionLifted, isTrue);
+  });
+
+  testWidgets('GivenTheLiftDialog_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tapButton(tester, 'Lift the restriction');
+
+    // Then a pending erasure goes ahead, so Cancel has the focus
+    expectDestructive(tester, 'Lift the restriction');
   });
 
   testWidgets('GivenTheScreen_WhenLiftCancelled_ThenNothingIsSent', (
@@ -525,6 +541,19 @@ void main() {
         verify(() => repository.requestErasure(captureAny())).captured.single
             as GoogleIdTokenCredential;
     expect(sent.idToken, 'fresh-google-token');
+  });
+
+  testWidgets('GivenTheGoogleErasureDialog_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester, viaGoogle: true, googleClientId: 'client-id');
+
+    // When
+    await tapButton(tester, 'Request erasure');
+
+    // Then erasure is irreversible
+    expectDestructive(tester, 'Confirm with Google');
   });
 
   // AF-30h — without Google's flow there is no way to confirm it is them.

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/features/applications/presentation/owner_names.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
@@ -11,6 +12,7 @@ import 'package:heimdall_ui/features/persons/presentation/person_detail_controll
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
@@ -38,6 +40,7 @@ void main() {
   PersonDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         personRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -230,6 +233,37 @@ void main() {
     expect(captured.single, isNull);
   });
 
+  // #179 — the applications list names owners from a cache, which a rename
+  // must not leave stale.
+  for (final accepted in <bool>[true, false]) {
+    test(
+      'Given${accepted ? 'ASaved' : 'ARefused'}Edit_WhenSaved_Then'
+      '${accepted ? 'TheOwnerNamesAreForgotten' : 'TheOwnerNamesAreKept'}',
+      () async {
+        // Given
+        answerGetWith(const Success<Person>(_ada));
+        answerUpdateWith(
+          accepted
+              ? const Success<Person>(_ada)
+              : const FailureResult<Person>(
+                  Failure(kind: FailureKind.validation, errors: <String>['no']),
+                ),
+        );
+        final controller = controllerUnderTest();
+        await controller.load();
+        final names = container.read(ownerNamesProvider);
+        await names.resolve(<String>['person-1']);
+        expect(names.labelFor('person-1'), 'Ada');
+
+        // When
+        await controller.save(name: 'Ada L', email: 'ada@example.com');
+
+        // Then
+        expect(names.labelFor('person-1'), accepted ? 'person-1' : 'Ada');
+      },
+    );
+  }
+
   // AF-18c — a refusal keeps the record and carries the API's own errors.
   test('GivenARejectedUpdate_WhenSaved_ThenApiErrorsAreKept', () async {
     // Given
@@ -348,6 +382,9 @@ void main() {
     // Then
     verify(() => repository.delete('person-1')).called(1);
     expect(currentState(), isA<PersonDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test('GivenAnOpenPerson_WhenErased_ThenTheHardEndpointIsUsed', () async {
@@ -387,6 +424,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'They are the last owner of a scope.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   test('GivenAnAlreadyDeletedPerson_WhenDeleted_ThenItCountsAsDone', () async {
@@ -504,6 +544,66 @@ void main() {
     // Then
     final state = currentState() as PersonDetailLoaded;
     expect(state.saveFailure?.errors, <String>['Refused.']);
+  });
+
+  // A reread must not replace a command that is still on its way: its
+  // `deleting` guard would be lost and its answer would overwrite the reread.
+  test(
+    'GivenADeletionInFlight_WhenLoaded_ThenTheDeletionIsLeftAlone',
+    () async {
+      // Given
+      answerGetWith(const Success<Person>(_ada));
+      final pending = Completer<Result<void>>();
+      when(() => repository.delete(any())).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final deleting = controller.delete();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect((currentState() as PersonDetailLoaded).deleting, isTrue);
+      verify(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+      pending.complete(const Success<void>(null));
+      await deleting;
+    },
+  );
+
+  test('GivenASaveInFlight_WhenLoaded_ThenTheSaveIsLeftAlone', () async {
+    // Given
+    answerGetWith(const Success<Person>(_ada));
+    final pending = Completer<Result<Person>>();
+    when(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        roleId: any(named: 'roleId'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(name: 'Ada L', email: 'ada@example.com');
+
+    // When
+    await controller.load();
+
+    // Then
+    expect((currentState() as PersonDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<Person>(_ada));
+    await saving;
   });
 
   // A sign-out resets the page while its read is in flight, and the late

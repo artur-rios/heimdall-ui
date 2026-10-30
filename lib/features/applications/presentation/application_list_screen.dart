@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,8 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_filters.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../domain/application.dart';
 import 'application_list_controller.dart';
 
@@ -49,7 +53,7 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
 
   void _clearFilters() {
     _search.clear();
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   @override
@@ -60,6 +64,8 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
     return AppShell(
       currentRoute: '/scopes',
       title: const Text('Applications'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: _controller.load,
       backRoute: '/scopes/${widget.scopeId}',
       backTooltip: 'Back to the scope',
       floatingActionButton: FloatingActionButton.extended(
@@ -69,63 +75,54 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
       ),
       body: Column(
         children: <Widget>[
-          _Filters(
-            search: _search,
+          ListFilters(
+            fields: <ListSearchField>[
+              ListSearchField(controller: _search, label: 'Search by name'),
+            ],
             includeDeleted: state.query.includeDeleted,
             onSearch: () => _controller.search(_search.text),
             onIncludeDeletedChanged: _controller.setIncludeDeleted,
           ),
           Expanded(
-            child: switch (state) {
-              ApplicationListLoading() => const CollectionLoading(),
-              // AF-20c — the scope is not one this admin owns.
-              ApplicationListFailed(isForbidden: true) => CollectionEmpty(
-                title: 'Not available for your role',
-                message:
-                    'This scope is not one you administer. Nothing is '
-                    'wrong with your session.',
-                icon: Icons.lock_person_outlined,
-                actionLabel: 'Back to scopes',
+            // AF-20c — the scope is not one this admin owns. AF-20b — the
+            // returned errors, with a retry.
+            child: ListScaffold(
+              state: state,
+              onRetry: _controller.refresh,
+              forbidden: ListForbidden.scope(
                 onAction: () => context.go('/scopes'),
               ),
-              // AF-20b — the returned errors, with a retry.
-              ApplicationListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
-              ),
-              ApplicationListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                _empty(query, createRoute),
-              final ApplicationListLoaded loaded =>
-                AdaptiveCollection<Application>(
-                  items: loaded.page.items,
-                  busy: loaded.busy,
-                  reservesFloatingAction: true,
-                  pageNumber: loaded.page.pageNumber,
-                  totalPages: loaded.page.totalPages,
-                  totalItems: loaded.page.totalItems,
-                  onPageChanged: _controller.goToPage,
-                  onTap: (application) => context.go(
-                    '/scopes/${widget.scopeId}/applications/'
-                    '${application.id}',
+              empty: (query) => _empty(query, createRoute),
+              loaded: (ApplicationListLoaded loaded) =>
+                  AdaptiveCollection<Application>(
+                    items: loaded.page.items,
+                    busy: loaded.busy,
+                    reservesFloatingAction: true,
+                    pageNumber: loaded.page.pageNumber,
+                    totalPages: loaded.page.totalPages,
+                    totalItems: loaded.page.totalItems,
+                    onPageChanged: _controller.goToPage,
+                    onTap: (application) => context.go(
+                      '/scopes/${widget.scopeId}/applications/'
+                      '${application.id}',
+                    ),
+                    title: (application) => application.name,
+                    columns: <CollectionColumn<Application>>[
+                      CollectionColumn<Application>(
+                        label: 'Owner',
+                        // FR-AP-08 and AF-20d: the owner's name where the API
+                        // resolved one, their identifier where it did not.
+                        cell: (application) =>
+                            Text(loaded.ownerLabel(application.ownerId)),
+                      ),
+                      CollectionColumn<Application>(
+                        label: 'State',
+                        cell: (application) =>
+                            Text(application.isDeleted ? 'Deleted' : 'Active'),
+                      ),
+                    ],
                   ),
-                  title: (application) => application.name,
-                  columns: <CollectionColumn<Application>>[
-                    CollectionColumn<Application>(
-                      label: 'Owner',
-                      // FR-AP-08 and AF-20d: the owner's name where the API
-                      // resolved one, their identifier where it did not.
-                      cell: (application) =>
-                          Text(loaded.ownerLabel(application.ownerId)),
-                    ),
-                    CollectionColumn<Application>(
-                      label: 'State',
-                      cell: (application) =>
-                          Text(application.isDeleted ? 'Deleted' : 'Active'),
-                    ),
-                  ],
-                ),
-            },
+            ),
           ),
         ],
       ),
@@ -152,55 +149,4 @@ class _ApplicationListScreenState extends ConsumerState<ApplicationListScreen> {
           actionLabel: 'New application',
           onAction: () => context.go(createRoute),
         );
-}
-
-/// The search field and the include-deleted switch.
-class _Filters extends StatelessWidget {
-  const _Filters({
-    required this.search,
-    required this.includeDeleted,
-    required this.onSearch,
-    required this.onIncludeDeletedChanged,
-  });
-
-  final TextEditingController search;
-  final bool includeDeleted;
-  final VoidCallback onSearch;
-  final ValueChanged<bool> onIncludeDeletedChanged;
-
-  @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-    child: Wrap(
-      spacing: 16,
-      runSpacing: 8,
-      crossAxisAlignment: WrapCrossAlignment.center,
-      children: <Widget>[
-        SizedBox(
-          width: 320,
-          child: TextField(
-            controller: search,
-            decoration: InputDecoration(
-              labelText: 'Search by name',
-              prefixIcon: const Icon(Icons.search),
-              suffixIcon: IconButton(
-                tooltip: 'Search',
-                icon: const Icon(Icons.arrow_forward),
-                onPressed: onSearch,
-              ),
-            ),
-            onSubmitted: (_) => onSearch(),
-          ),
-        ),
-        Row(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Switch(value: includeDeleted, onChanged: onIncludeDeletedChanged),
-            const SizedBox(width: 8),
-            const Text('Include deleted'),
-          ],
-        ),
-      ],
-    ),
-  );
 }

@@ -1,7 +1,6 @@
-import 'dart:convert';
+import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -13,24 +12,14 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/auth/presentation/verify_email_screen.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
-
-/// A token naming a User, which is all this screen needs to decide that a
-/// session exists.
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{'sub': 'id', 'email': 'a@b.c', 'role': 3}),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -40,58 +29,38 @@ void main() {
     Size size = const Size(400, 900),
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    if (signedIn) {
-      await store.write(
-        AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)),
-      );
-    }
-
-    container = ProviderContainer(
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: signedIn
+          ? testToken(testJwt(sub: 'id', email: 'a@b.c', role: 3))
+          : null,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
       ],
-    );
-    addTearDown(container.dispose);
-    // Settle the start-up read before the screen asks about the session.
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    router = GoRouter(
-      initialLocation: token == null
-          ? '/verify-email'
-          : '/verify-email?token=$token',
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/verify-email',
-          builder: (context, state) =>
-              VerifyEmailScreen(token: state.uri.queryParameters['token']),
-        ),
-        GoRoute(
-          path: '/',
-          builder: (context, state) => const Scaffold(body: Text('home')),
-        ),
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const Scaffold(body: Text('login')),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+      routerFor: (_) => router = GoRouter(
+        initialLocation: token == null
+            ? '/verify-email'
+            : '/verify-email?token=$token',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/verify-email',
+            builder: (context, state) =>
+                VerifyEmailScreen(token: state.uri.queryParameters['token']),
+          ),
+          GoRoute(
+            path: '/',
+            builder: (context, state) => const Scaffold(body: Text('home')),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) => const Scaffold(body: Text('login')),
+          ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   void answerVerifyWith(Result<List<String>> result) {
@@ -181,6 +150,36 @@ void main() {
     // Then
     expect(find.text('home'), findsOneWidget);
   });
+
+  // #158 — the controller outlives the screen, so a second visit must start
+  // from a clean state rather than from the previous visit's answer. The
+  // first frame can still draw the old state; this checks it is gone as soon
+  // as the screen has settled itself, while the new answer is pending.
+  testWidgets(
+    'GivenAVerifiedLink_WhenASecondLinkIsOpened_ThenTheOldResultIsNotShown',
+    (tester) async {
+      // Given
+      answerVerifyWith(const Success<List<String>>(<String>[]));
+      await pump(tester, token: 'token-a');
+      expect(find.text('Your email is verified'), findsOneWidget);
+      router.go('/login');
+      await tester.pumpAndSettle();
+      final pending = Completer<Result<List<String>>>();
+      when(() => repository.verifyEmail(token: 'token-b'))
+          .thenAnswer((_) => pending.future);
+
+      // When
+      router.go('/verify-email?token=token-b');
+      await tester.pump();
+      await tester.pump();
+
+      // Then
+      expect(find.text('Your email is verified'), findsNothing);
+      pending.complete(const Success<List<String>>(<String>[]));
+      await tester.pumpAndSettle();
+      expect(find.text('Your email is verified'), findsOneWidget);
+    },
+  );
 
   // AF-05a — a link with no token verifies nothing and offers the resend.
   testWidgets('GivenNoToken_WhenOpened_ThenNoRequestIsMade', (tester) async {

@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
 import '../features/applications/presentation/application_create_controller.dart';
 import '../features/applications/presentation/application_detail_controller.dart';
 import '../features/applications/presentation/application_list_controller.dart';
+import '../features/applications/presentation/owner_names.dart';
 import '../features/applications/presentation/pending_secret.dart';
 import '../features/audit_log/presentation/audit_log_controller.dart';
 import '../features/auth/presentation/email_verification_controller.dart';
@@ -30,6 +31,7 @@ import '../features/scopes/presentation/scope_detail_controller.dart';
 import '../features/scopes/presentation/scope_list_controller.dart';
 import '../features/scopes/presentation/scope_owners_controller.dart';
 import '../features/scopes/presentation/scope_sign_in_settings_controller.dart';
+import '../features/scopes/presentation/scope_users_controller.dart';
 
 /// Every provider that remembers something about the person signed in: their
 /// listings and filters, the records they opened, their own profile, the
@@ -61,6 +63,7 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   scopeCreateControllerProvider,
   scopeDetailControllerProvider,
   scopeOwnersControllerProvider,
+  scopeUsersControllerProvider,
   scopeSignInSettingsControllerProvider,
   pendingRegistrationListControllerProvider,
   scopeInvitationsControllerProvider,
@@ -70,6 +73,7 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   personCreateControllerProvider,
   personDetailControllerProvider,
   applicationListControllerProvider,
+  ownerNamesProvider,
   applicationCreateControllerProvider,
   applicationDetailControllerProvider,
   permissionListControllerProvider,

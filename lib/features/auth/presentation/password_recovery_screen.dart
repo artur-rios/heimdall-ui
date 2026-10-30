@@ -6,6 +6,7 @@ import '../../../core/result/result.dart';
 import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/page_title.dart';
 import 'password_recovery_controller.dart';
 
 /// The password recovery screen.
@@ -65,91 +66,96 @@ class _PasswordRecoveryScreenState
     final state = ref.watch(passwordRecoveryControllerProvider);
     final sending = state is RecoverySending;
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          tooltip: 'Back to sign in',
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.go('/login'),
+    return PageTitle(
+      title: 'Reset your password',
+      child: Scaffold(
+        appBar: AppBar(
+          leading: IconButton(
+            tooltip: 'Back to sign in',
+            icon: const Icon(Icons.arrow_back),
+            onPressed: () => context.go('/login'),
+          ),
+          title: const Text('Reset your password'),
         ),
-        title: const Text('Reset your password'),
-      ),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: state is RecoverySent
-                  ? _Confirmation(onBackToSignIn: () => context.go('/login'))
-                  : Form(
-                      key: _formKey,
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: <Widget>[
-                          Text(
-                            'Forgot your password?',
-                            style: theme.textTheme.headlineMedium,
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            'Enter your email address and we will send you a '
-                            'link to set a new password.',
-                            style: theme.textTheme.bodyMedium,
-                          ),
-                          const SizedBox(height: 24),
-                          if (state is RecoveryFailed) ...<Widget>[
-                            if (state.failure.kind == FailureKind.network)
-                              // AF-03b: nothing was sent, so the same
-                              // submission is worth making again.
-                              RetryBanner(onRetry: sending ? null : _submit)
-                            else
-                              ErrorBanner(failure: state.failure),
-                            const SizedBox(height: 16),
-                          ],
-                          TextFormField(
-                            controller: _email,
-                            autofillHints: const <String>[AutofillHints.email],
-                            keyboardType: TextInputType.emailAddress,
-                            decoration: const InputDecoration(
-                              labelText: 'Email',
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: state is RecoverySent
+                    ? _Confirmation(onBackToSignIn: () => context.go('/login'))
+                    : Form(
+                        key: _formKey,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: <Widget>[
+                            Text(
+                              'Forgot your password?',
+                              style: theme.textTheme.headlineMedium,
                             ),
-                            onFieldSubmitted: (_) => _submit(),
-                            validator: (value) {
-                              final email = value?.trim() ?? '';
+                            const SizedBox(height: 8),
+                            Text(
+                              'Enter your email address and we will send you a '
+                              'link to set a new password.',
+                              style: theme.textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: 24),
+                            if (state is RecoveryFailed) ...<Widget>[
+                              if (state.failure.kind == FailureKind.network)
+                                // AF-03b: nothing was sent, so the same
+                                // submission is worth making again.
+                                RetryBanner(onRetry: sending ? null : _submit)
+                              else
+                                ErrorBanner(failure: state.failure),
+                              const SizedBox(height: 16),
+                            ],
+                            TextFormField(
+                              controller: _email,
+                              autofillHints: const <String>[
+                                AutofillHints.email,
+                              ],
+                              keyboardType: TextInputType.emailAddress,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                              ),
+                              onFieldSubmitted: (_) => _submit(),
+                              validator: (value) {
+                                final email = value?.trim() ?? '';
 
-                              if (email.isEmpty) {
-                                return 'Enter your email address.';
-                              }
+                                if (email.isEmpty) {
+                                  return 'Enter your email address.';
+                                }
 
-                              return isPlausibleEmail(email)
+                                return isPlausibleEmail(email)
+                                    ? null
+                                    : 'Enter a valid email address.';
+                              },
+                            ),
+                            const SizedBox(height: 24),
+                            FilledButton(
+                              onPressed: sending ? null : _submit,
+                              child: sending
+                                  ? const SizedBox.square(
+                                      dimension: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                      ),
+                                    )
+                                  : const Text('Send reset link'),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: sending
                                   ? null
-                                  : 'Enter a valid email address.';
-                            },
-                          ),
-                          const SizedBox(height: 24),
-                          FilledButton(
-                            onPressed: sending ? null : _submit,
-                            child: sending
-                                ? const SizedBox.square(
-                                    dimension: 20,
-                                    child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                    ),
-                                  )
-                                : const Text('Send reset link'),
-                          ),
-                          const SizedBox(height: 8),
-                          TextButton(
-                            onPressed: sending
-                                ? null
-                                : () => context.go('/login'),
-                            child: const Text('Back to sign in'),
-                          ),
-                        ],
+                                  : () => context.go('/login'),
+                              child: const Text('Back to sign in'),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+              ),
             ),
           ),
         ),

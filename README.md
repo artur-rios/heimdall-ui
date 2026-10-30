@@ -1,9 +1,5 @@
 # Heimdall UI
 
-[![CI](https://github.com/artur-rios/heimdall-ui/actions/workflows/ci.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/ci.yml)
-[![Build](https://github.com/artur-rios/heimdall-ui/actions/workflows/build.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/build.yml)
-[![Check API client](https://github.com/artur-rios/heimdall-ui/actions/workflows/check-api-client.yml/badge.svg)](https://github.com/artur-rios/heimdall-ui/actions/workflows/check-api-client.yml)
-
 The Flutter front-end for the [Heimdall API](https://github.com/artur-rios/heimdall-api).
 
 ## Overview
@@ -51,7 +47,8 @@ The design this repository was built from is at
 
 ## Prerequisites
 
-- **Flutter 3.47.7** or newer, on the stable channel.
+- **Dart 3.13.5+ (Flutter 3.47.7+)**, on the stable channel. `pubspec.yaml` requires `sdk: ^3.13.5`, so a Flutter
+  that bundles an older Dart fails `flutter pub get`.
 - **Web** — a Chromium-based browser for `flutter run -d chrome`.
 - **Windows** — Visual Studio (or Build Tools) with the *Desktop development with C++* workload
   **and the C++ ATL component**. Without ATL the build fails on `atlstr.h`, which
@@ -71,7 +68,7 @@ flutter doctor
 ## Install
 
 ```bash
-git clone https://github.com/artur-rios/heimdall-ui.git
+git clone https://git.techcraftsmen.net/artur-rios/heimdall-ui.git
 ```
 
 ```bash
@@ -222,9 +219,12 @@ With none of them set, the release build signs with the **debug key** and prints
 the first three but not all, or naming a keystore that does not exist, fails the release build (a debug build is not
 affected).
 
-The `Build` workflow reads the same values from the repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (the keystore,
-base64-encoded), `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD`. Without the
-keystore secret it still builds, raises a warning annotation, and names the artifact `heimdall-ui-android-debug-signed`.
+A release is built by Jenkins (`ci/release-build.sh`), which reads the same values from the Jenkins credentials
+`heimdall-ui-android-keystore` (the keystore, base64-encoded), `heimdall-ui-android-keystore-password`,
+`heimdall-ui-android-key-alias` and `heimdall-ui-android-key-password`, bound to that build alone. Without the
+keystore it still builds, warns, and names the file `heimdall-ui-android-<version>-debug-signed.apk`. The release
+carries the web bundle, the Linux bundle and the Android package from Jenkins, and the Windows build from the
+`Release Windows` workflow on the GitHub copy.
 
 ## Container image (web)
 
@@ -383,6 +383,9 @@ Notable changes in each release are recorded in [CHANGELOG.md](./CHANGELOG.md).
 
 The project structure, regenerating the API client, running the tests, the branching model and the release process
 are described in [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+The GitHub repository is a read-only mirror for the real, open-source code of heimdall-ui. Its home is Forgejo, at
+https://git.techcraftsmen.net/artur-rios/heimdall-ui. If you want to contribute, e-mail me at arturdev@duck.com.
 
 ## Legal
 

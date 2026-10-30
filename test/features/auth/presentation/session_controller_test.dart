@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -12,6 +11,9 @@ import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
+
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -27,17 +29,6 @@ class _BrokenTokenStore implements TokenStore {
 
   @override
   Future<void> clear() async => throw StateError('keyring locked');
-}
-
-/// A JWT shaped exactly as the API mints one (`IdentityUserMapper`): every
-/// claim a string, named `id` and `role`, and owned scopes comma-separated.
-String _apiJwt(Map<String, String> claims) {
-  String segment(Map<String, Object> json) =>
-      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
-
-  return '${segment(<String, Object>{'alg': 'HS256', 'typ': 'JWT'})}.'
-      '${segment(<String, Object>{...claims, 'exp': 1893456000})}.'
-      'signature';
 }
 
 /// Google's half, faked. No test reaches Google's SDK.
@@ -84,11 +75,9 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 
 /// A token whose payload claims the System Admin role, so the principal read
 /// from it is something the guards can be asserted against.
-const String _systemAdminJwt =
-    'header.'
-    'eyJzdWIiOiI2ZjFkM2EwMC0wMDAwLTAwMDAtMDAwMC0wMDAwMDAwMDAwMDEiLCJlbWFpbCI6'
-    'ImFkbWluQGV4YW1wbGUuY29tIiwicm9sZSI6MX0.'
-    'signature';
+final String _systemAdminJwt = testJwt(
+  sub: '6f1d3a00-0000-0000-0000-000000000001',
+);
 
 void main() {
   late _MockAuthRepository repository;
@@ -98,14 +87,13 @@ void main() {
       AuthToken(value: value, expiresAt: DateTime.utc(2030));
 
   ProviderContainer containerWith({String? scopeId}) {
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(FixedScopeSource(scopeId)),
-        tokenStoreProvider.overrideWithValue(store),
       ],
     );
-    addTearDown(container.dispose);
 
     return container;
   }
@@ -150,16 +138,14 @@ void main() {
         viaGoogle: true,
       ),
     );
-    final container = ProviderContainer(
+    final container = await sessionContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-        tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
 
     return container;
   }
@@ -685,17 +671,16 @@ void main() {
       ),
     );
     final repository = _MockAuthRepository();
-    when(() => repository.signOutFromGoogle())
+    when(repository.signOutFromGoogle)
         .thenAnswer((_) async => const Success<void>(null));
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-        tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
-    addTearDown(container.dispose);
     final controller = container.read(sessionControllerProvider.notifier);
     await controller.restore();
 
@@ -703,7 +688,7 @@ void main() {
     await controller.signOut();
 
     // Then
-    verify(() => repository.signOutFromGoogle()).called(1);
+    verify(repository.signOutFromGoogle).called(1);
     expect(gateway.signOuts, 1);
   });
 
@@ -716,15 +701,14 @@ void main() {
       AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
     );
     final repository = _MockAuthRepository();
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-        tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
       ],
     );
-    addTearDown(container.dispose);
     final controller = container.read(sessionControllerProvider.notifier);
     await controller.restore();
 
@@ -732,7 +716,7 @@ void main() {
     await controller.signOut();
 
     // Then
-    verifyNever(() => repository.signOutFromGoogle());
+    verifyNever(repository.signOutFromGoogle);
     expect(gateway.signOuts, 0);
   });
 
@@ -752,20 +736,19 @@ void main() {
         ),
       );
       final repository = _MockAuthRepository();
-      when(() => repository.signOutFromGoogle()).thenAnswer(
+      when(repository.signOutFromGoogle).thenAnswer(
         (_) async => const FailureResult<void>(
           Failure(kind: FailureKind.unauthorized, errors: <String>['No.']),
         ),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -871,17 +854,16 @@ void main() {
           scopeId: any(named: 'scopeId'),
         ),
       ).thenThrow(const FormatException('not an envelope'));
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(
             _FakeGoogleSignInGateway(),
           ),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -916,15 +898,14 @@ void main() {
       final gateway = _FakeGoogleSignInGateway(
         signOutError: StateError('offline'),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -1030,14 +1011,13 @@ void main() {
           emailVerified: false,
         ),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: held,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(held),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
       final release = held.holdNextWrite();
@@ -1071,7 +1051,7 @@ void main() {
   test('GivenAnApiToken_WhenPrincipalRead_ThenIdAndRoleAreRead', () {
     // Given
     final token = AuthToken(
-      value: _apiJwt(<String, String>{
+      value: testApiJwt(<String, Object?>{
         'id': '6f1d3a00-0000-0000-0000-000000000003',
         'role': '3',
         'scopeId': '6f1d3a00-0000-0000-0000-0000000000aa',
@@ -1092,7 +1072,7 @@ void main() {
   test('GivenAScopeAdminToken_WhenPrincipalRead_ThenOwnedScopesAreSplit', () {
     // Given
     final token = AuthToken(
-      value: _apiJwt(<String, String>{
+      value: testApiJwt(<String, Object?>{
         'id': '6f1d3a00-0000-0000-0000-000000000002',
         'role': '2',
         'ownedScopeIds': 'scope-a,scope-b',
@@ -1112,7 +1092,7 @@ void main() {
     // Given
     await store.write(
       AuthToken(
-        value: _apiJwt(<String, String>{
+        value: testApiJwt(<String, Object?>{
           'id': '6f1d3a00-0000-0000-0000-000000000002',
           'role': '2',
           'ownedScopeIds': 'scope-a,scope-b',
@@ -1133,14 +1113,13 @@ void main() {
   // AF-07c must end: a store that cannot be read is no session, not a wait.
   test('GivenAnUnreadableStore_WhenRestored_ThenTheSessionSettles', () async {
     // Given
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: _BrokenTokenStore(),
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-        tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
       ],
     );
-    addTearDown(container.dispose);
 
     // When
     await container.read(sessionControllerProvider.notifier).restore();
@@ -1162,14 +1141,13 @@ void main() {
       ).thenAnswer(
         (_) async => Success<LoginOutcome>(LoggedIn(tokenFor(_systemAdminJwt))),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: _BrokenTokenStore(),
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(_BrokenTokenStore()),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -1194,14 +1172,13 @@ void main() {
       final store = _ReadableBrokenTokenStore(
         AuthToken(value: _systemAdminJwt, expiresAt: DateTime.utc(2030)),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(store),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -1217,7 +1194,7 @@ void main() {
   test('GivenASubjectRightsOnlyClaim_WhenPrincipalRead_ThenItIsRestricted', () {
     // Given
     final token = AuthToken(
-      value: _apiJwt(<String, String>{
+      value: testApiJwt(<String, Object?>{
         'id': '6f1d3a00-0000-0000-0000-000000000003',
         'role': '1',
         'subjectRightsOnly': 'true',
@@ -1235,7 +1212,7 @@ void main() {
   test('GivenAFullToken_WhenPrincipalRead_ThenItIsNotRestricted', () {
     // Given
     final token = AuthToken(
-      value: _apiJwt(<String, String>{
+      value: testApiJwt(<String, Object?>{
         'id': '6f1d3a00-0000-0000-0000-000000000003',
         'role': '1',
       }),
@@ -1340,7 +1317,7 @@ void main() {
     // Given
     await store.write(
       AuthToken(
-        value: _apiJwt(<String, String>{
+        value: testApiJwt(<String, Object?>{
           'id': '6f1d3a00-0000-0000-0000-000000000003',
           'role': '3',
           'subjectRightsOnly': 'true',
@@ -1431,14 +1408,13 @@ void main() {
           viaGoogle: true,
         ),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
-          tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 
@@ -1466,15 +1442,14 @@ void main() {
           processingRestricted: true,
         ),
       );
-      final container = ProviderContainer(
+      final container = testContainer(
+        store: store,
         overrides: <Override>[
           authRepositoryProvider.overrideWithValue(repository),
           scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
-          tokenStoreProvider.overrideWithValue(store),
           googleSignInGatewayProvider.overrideWithValue(gateway),
         ],
       );
-      addTearDown(container.dispose);
       final controller = container.read(sessionControllerProvider.notifier);
       await controller.restore();
 

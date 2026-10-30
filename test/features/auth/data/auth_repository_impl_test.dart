@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
@@ -9,20 +6,22 @@ import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
   late ApiAuthRepository repository;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiAuthRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiAuthRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiAuthRepository(AuthClient(dio));
   }
 
   /// A verify response carrying a usable token.
-  const acceptedChallenge = _Answer(
+  const acceptedChallenge = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -41,7 +40,7 @@ void main() {
   test('GivenTokenResponse_WhenLoggingIn_ThenLoggedInIsReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -67,7 +66,7 @@ void main() {
   test('GivenAScope_WhenLoggingIn_ThenItTravelsInTheBody', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -96,7 +95,7 @@ void main() {
   test('GivenNoScope_WhenLoggingIn_ThenTheBodyCarriesNone', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -123,7 +122,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -157,7 +156,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': false,
@@ -183,7 +182,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 401,
           body: <String, dynamic>{
             'success': false,
@@ -206,7 +205,7 @@ void main() {
     'GivenTransportFailure_WhenLoggingIn_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.login(email: 'a@b.c', password: 'secret');
@@ -220,7 +219,7 @@ void main() {
   test('GivenIncompleteEnvelope_WhenLoggingIn_ThenFailureIsReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -291,7 +290,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': false,
@@ -318,7 +317,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 401,
           body: <String, dynamic>{
             'success': false,
@@ -342,7 +341,7 @@ void main() {
     'GivenTransportFailure_WhenVerifying_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.verifySecondFactor(
@@ -360,7 +359,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -383,7 +382,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -408,7 +407,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -433,7 +432,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 400,
           body: <String, dynamic>{
             'success': false,
@@ -457,7 +456,7 @@ void main() {
     'GivenTransportFailure_WhenRequestingRecovery_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.requestPasswordRecovery(email: 'a@b.c');
@@ -470,7 +469,7 @@ void main() {
   test('GivenAcceptedEnvelope_WhenResetting_ThenSuccessIsReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -493,7 +492,7 @@ void main() {
   test('GivenAResetToken_WhenResetting_ThenTokenAndPasswordAreSent', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -518,7 +517,7 @@ void main() {
   test('GivenRejectedToken_WhenResetting_ThenApiErrorsAreReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 400,
         body: <String, dynamic>{
           'success': false,
@@ -545,7 +544,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': false,
@@ -572,7 +571,7 @@ void main() {
     'GivenTransportFailure_WhenResetting_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.resetPassword(
@@ -588,7 +587,7 @@ void main() {
   test('GivenAVerificationToken_WhenVerifying_ThenTheTokenIsSent', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -611,7 +610,7 @@ void main() {
   test('GivenAcceptedEnvelope_WhenVerifying_ThenMessagesAreReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -633,7 +632,7 @@ void main() {
   test('GivenRejectedToken_WhenVerifying_ThenApiErrorsAreReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 400,
         body: <String, dynamic>{
           'success': false,
@@ -655,7 +654,7 @@ void main() {
     'GivenTransportFailure_WhenVerifying_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.verifyEmail(token: 'verification-token');
@@ -669,7 +668,7 @@ void main() {
   test('GivenASession_WhenResending_ThenNoBodyIsSent', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -690,7 +689,7 @@ void main() {
   test('GivenRejectedResend_WhenResending_ThenApiErrorsAreReturned', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 400,
         body: <String, dynamic>{
           'success': false,
@@ -712,7 +711,7 @@ void main() {
     'GivenTransportFailure_WhenResending_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.resendVerificationEmail();
@@ -723,7 +722,7 @@ void main() {
   );
 
   /// A Google exchange answering with a usable token.
-  const acceptedGoogleExchange = _Answer(
+  const acceptedGoogleExchange = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -792,7 +791,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 403,
           body: <String, dynamic>{
             'success': false,
@@ -821,7 +820,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 401,
           body: <String, dynamic>{
             'success': false,
@@ -843,7 +842,7 @@ void main() {
 
   test('GivenTransportFailure_WhenSigningInWithGoogle_ThenNetworkFailureIsReturned', () async {
     // Given
-    repository = repositoryAnswering(const _Answer(status: 0));
+    repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.signInWithGoogle(
@@ -858,7 +857,7 @@ void main() {
   test('GivenAGoogleSession_WhenSigningOut_ThenNoBodyIsSent', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -881,7 +880,7 @@ void main() {
   test('GivenAnUnverifiedAddress_WhenLoggingIn_ThenTheTokenSaysSo', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -908,7 +907,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -938,7 +937,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -966,7 +965,7 @@ void main() {
   test('GivenNoAnswerAboutTheAddress_WhenLoggingIn_ThenItIsVerified', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -992,7 +991,7 @@ void main() {
     () async {
       // Given
       repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 401,
           body: <String, dynamic>{
             'success': false,
@@ -1012,7 +1011,7 @@ void main() {
   test('GivenAConfiguration_WhenStatusRead_ThenTheFlagsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1041,7 +1040,7 @@ void main() {
   test('GivenAGoogleUser_WhenStatusRead_ThenForbiddenIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{'success': false, 'errors': <String>[]},
       ),
@@ -1057,7 +1056,7 @@ void main() {
   test('GivenTheAppMethod_WhenEnabled_ThenItsWireValueIsSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1081,7 +1080,7 @@ void main() {
   test('GivenAPassword_WhenEnabled_ThenItIsSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1104,7 +1103,7 @@ void main() {
   test('GivenTheAppMethod_WhenEnabled_ThenTheUriIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1129,7 +1128,7 @@ void main() {
   test('GivenTheEmailMethod_WhenEnabled_ThenTheCodeSentFlagIsRead', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1155,7 +1154,7 @@ void main() {
   test('GivenAnAppCode_WhenConfirmed_ThenItTravelsAsTheAppCode', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1182,7 +1181,7 @@ void main() {
   test('GivenAnEmailCode_WhenConfirmed_ThenItTravelsAsTheEmailCode', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1209,7 +1208,7 @@ void main() {
   test('GivenAConfirmedSetup_WhenConfirmed_ThenTheCodesAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1236,7 +1235,7 @@ void main() {
   test('GivenAWrongCode_WhenConfirmed_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': false,
@@ -1258,7 +1257,7 @@ void main() {
   test('GivenAPassword_WhenDisabled_ThenOnlyThatFieldIsFilled', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1281,7 +1280,7 @@ void main() {
   test('GivenABadCredential_WhenDisabled_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': false,
@@ -1304,7 +1303,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -1331,7 +1330,7 @@ void main() {
     'GivenNoConnection_WhenStatusRead_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      final repository = repositoryAnswering(const _Answer(status: 0));
+      final repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.twoFactorStatus();
@@ -1343,7 +1342,7 @@ void main() {
 
   /// A token response carrying the restricted flag, as AF-11i, AF-25e and
   /// UC-38 answer for a person whose processing is restricted.
-  const restrictedToken = _Answer(
+  const restrictedToken = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -1426,7 +1425,7 @@ void main() {
   test('GivenAChallenge_WhenACodeIsResent_ThenTheTokenTravels', () async {
     // Given
     repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -1452,7 +1451,7 @@ void main() {
     'GivenNoConnection_WhenACodeIsResent_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      repository = repositoryAnswering(const _Answer(status: 0));
+      repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.resendSecondFactorCode(
@@ -1463,63 +1462,4 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
-}
-
-/// What the stub answers with. A [status] of zero stands for a connection that
-/// never got as far as a response.
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The bodies it was asked to send, so a test can assert which field a value
-  /// travelled in.
-  final List<Map<String, dynamic>> requests = <Map<String, dynamic>>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    if (requestStream != null) {
-      final bytes = <int>[];
-
-      await for (final chunk in requestStream) {
-        bytes.addAll(chunk);
-      }
-
-      if (bytes.isNotEmpty) {
-        if (jsonDecode(utf8.decode(bytes)) case final Map<String, dynamic> b) {
-          requests.add(b);
-        }
-      }
-    }
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

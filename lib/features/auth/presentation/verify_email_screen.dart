@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../core/entry/entry_link.dart';
 import '../../../core/result/result.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/session.dart';
 import 'email_verification_controller.dart';
 import 'session_controller.dart';
@@ -34,7 +37,11 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        ref.read(emailVerificationControllerProvider.notifier).verify(_token);
+        // An answer left by an earlier link is not this one's.
+        ref.invalidate(emailVerificationControllerProvider);
+        unawaited(
+          ref.read(emailVerificationControllerProvider.notifier).verify(_token),
+        );
       }
     });
   }
@@ -62,74 +69,77 @@ class _VerifyEmailScreenState extends ConsumerState<VerifyEmailScreen> {
       },
     );
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('Verify your email')),
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 420),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: <Widget>[
-                  ...switch (state.verification) {
-                    Verifying() => <Widget>[
-                      const Center(child: CircularProgressIndicator()),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Checking your link…',
-                        style: theme.textTheme.bodyMedium,
-                        textAlign: TextAlign.center,
+    return PageTitle(
+      title: 'Verify your email',
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Verify your email')),
+        body: SafeArea(
+          child: Center(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 420),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: <Widget>[
+                    ...switch (state.verification) {
+                      Verifying() => <Widget>[
+                        const Center(child: CircularProgressIndicator()),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Checking your link…',
+                          style: theme.textTheme.bodyMedium,
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                      Verified(:final messages) => _verified(
+                        context,
+                        theme,
+                        messages,
+                        authenticated: authenticated,
                       ),
+                      // AF-05b: the token is no good and cannot be corrected
+                      // here, so the resend below is the way on.
+                      VerifyRejected(:final failure) => <Widget>[
+                        Text(
+                          'That link did not work',
+                          style: theme.textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 16),
+                        if (failure.kind == FailureKind.network)
+                          RetryBanner(
+                            onRetry: () => ref
+                                .read(
+                                  emailVerificationControllerProvider.notifier,
+                                )
+                                .verify(_token),
+                          )
+                        else
+                          ErrorBanner(failure: failure),
+                      ],
+                      // AF-05a: no token, so nothing was ever sent.
+                      VerifyIdle() => <Widget>[
+                        Text(
+                          'This link is incomplete',
+                          style: theme.textTheme.headlineMedium,
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'It carries no verification token, so there is nothing '
+                          'to confirm. Ask for a fresh email below.',
+                          style: theme.textTheme.bodyMedium,
+                        ),
+                      ],
+                    },
+                    // AF-05a and AF-05b both end here: the resend is what makes
+                    // either recoverable.
+                    if (state.verification is! Verified) ...<Widget>[
+                      const SizedBox(height: 24),
+                      _ResendSection(authenticated: authenticated),
                     ],
-                    Verified(:final messages) => _verified(
-                      context,
-                      theme,
-                      messages,
-                      authenticated: authenticated,
-                    ),
-                    // AF-05b: the token is no good and cannot be corrected
-                    // here, so the resend below is the way on.
-                    VerifyRejected(:final failure) => <Widget>[
-                      Text(
-                        'That link did not work',
-                        style: theme.textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 16),
-                      if (failure.kind == FailureKind.network)
-                        RetryBanner(
-                          onRetry: () => ref
-                              .read(
-                                emailVerificationControllerProvider.notifier,
-                              )
-                              .verify(_token),
-                        )
-                      else
-                        ErrorBanner(failure: failure),
-                    ],
-                    // AF-05a: no token, so nothing was ever sent.
-                    VerifyIdle() => <Widget>[
-                      Text(
-                        'This link is incomplete',
-                        style: theme.textTheme.headlineMedium,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'It carries no verification token, so there is nothing '
-                        'to confirm. Ask for a fresh email below.',
-                        style: theme.textTheme.bodyMedium,
-                      ),
-                    ],
-                  },
-                  // AF-05a and AF-05b both end here: the resend is what makes
-                  // either recoverable.
-                  if (state.verification is! Verified) ...<Widget>[
-                    const SizedBox(height: 24),
-                    _ResendSection(authenticated: authenticated),
                   ],
-                ],
+                ),
               ),
             ),
           ),

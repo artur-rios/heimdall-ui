@@ -1,7 +1,4 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -13,31 +10,20 @@ import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_create_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
-
-String _jwt({String id = 'person-9', int role = 1}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'id': id,
-        'email': 'admin@example.com',
-        'role': '$role',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _ada = Person(
   id: 'person-1',
@@ -79,7 +65,6 @@ void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
   late InMemoryTokenStore store;
-  late ProviderContainer container;
   late GoRouter router;
 
   Future<void> pump(
@@ -88,57 +73,53 @@ void main() {
     ThemeData? theme,
     String? token,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(value: token ?? _jwt(), expiresAt: DateTime.utc(2030)),
-    );
-
-    container = ProviderContainer(
-      overrides: <Override>[
-        applicationRepositoryProvider.overrideWithValue(applications),
-        personRepositoryProvider.overrideWithValue(persons),
-        tokenStoreProvider.overrideWithValue(store),
-      ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
     router = GoRouter(
       initialLocation: '/scopes/scope-1/applications/new',
       routes: <RouteBase>[
+        // Nested and guarded as the app's own router is (#156).
         GoRoute(
           path: '/scopes/:scopeId/applications',
           builder: (context, state) => const Scaffold(body: Text('listing')),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/new',
-          builder: (context, state) => ApplicationCreateScreen(
-            scopeId: state.pathParameters['scopeId']!,
-          ),
-        ),
-        GoRoute(
-          path: '/scopes/:scopeId/applications/:applicationId',
-          builder: (context, state) => Scaffold(
-            body: Text('detail ${state.pathParameters['applicationId']}'),
-          ),
+          routes: <RouteBase>[
+            GoRoute(
+              path: 'new',
+              builder: (context, state) => ApplicationCreateScreen(
+                scopeId: state.pathParameters['scopeId']!,
+              ),
+              onExit: confirmLeaveWithUnsavedChanges,
+            ),
+            GoRoute(
+              path: ':applicationId',
+              builder: (context, state) => Scaffold(
+                body: Text('detail ${state.pathParameters['applicationId']}'),
+              ),
+            ),
+          ],
         ),
       ],
     );
-    addTearDown(router.dispose);
 
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+    await pumpApp(
+      tester,
+      router: router,
+      size: size,
+      theme: theme,
+      store: store,
+      token: AuthToken(
+        value:
+            token ??
+            testApiJwt(<String, Object?>{
+              'id': 'person-9',
+              'email': 'admin@example.com',
+              'role': '1',
+            }),
+        expiresAt: DateTime.utc(2030),
       ),
+      overrides: <Override>[
+        applicationRepositoryProvider.overrideWithValue(applications),
+        personRepositoryProvider.overrideWithValue(persons),
+      ],
     );
-    await tester.pumpAndSettle();
   }
 
   void answerCreateWith(Result<Application> result) {
@@ -233,7 +214,14 @@ void main() {
     tester,
   ) async {
     // Given / When
-    await pump(tester, token: _jwt(id: 'person-2', role: 2));
+    await pump(
+      tester,
+      token: testApiJwt(<String, Object?>{
+        'id': 'person-2',
+        'email': 'admin@example.com',
+        'role': '2',
+      }),
+    );
     await tester.tap(find.byType(DropdownButtonFormField<String>));
     await tester.pumpAndSettle();
 
@@ -508,7 +496,7 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    expect(find.text('Discard this application?'), findsOneWidget);
+    expect(find.text('Discard your changes?'), findsOneWidget);
   });
 
   testWidgets('GivenAModifiedForm_WhenDiscardConfirmed_ThenTheListingOpens', (
@@ -574,5 +562,29 @@ void main() {
 
     // Then
     expect(find.text('Create an application'), findsOneWidget);
+  });
+
+  // #156 — Android's Back is a way off the form too, and asks the same
+  // question as Cancel.
+  testWidgets('GivenAModifiedForm_WhenSystemBackIsPressed_ThenItAsksFirst', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+    await tester.enterText(
+      find.widgetWithText(TextFormField, 'Name'),
+      'Billing',
+    );
+    await tester.pumpAndSettle();
+
+    // When
+    await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Discard your changes?'), findsOneWidget);
+    await tester.tap(find.widgetWithText(FilledButton, 'Discard'));
+    await tester.pumpAndSettle();
+    expect(find.text('listing'), findsOneWidget);
   });
 }

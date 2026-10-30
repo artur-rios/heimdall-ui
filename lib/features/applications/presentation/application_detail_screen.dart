@@ -8,15 +8,15 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../../persons/domain/person.dart';
 import '../../persons/presentation/scope_members.dart';
 import '../domain/application.dart';
 import 'application_detail_controller.dart';
-import 'application_list_controller.dart';
 import 'credentials_card.dart';
 
 /// UI-22 — one application: what it is called and who owns it.
@@ -94,11 +94,8 @@ class _ApplicationDetailScreenState
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -133,44 +130,6 @@ class _ApplicationDetailScreenState
     return session is Authenticated && session.principal.isSystemAdmin;
   }
 
-  /// AF-23a — a dialog the user closes sends nothing.
-  Future<void> _confirmDelete(Application application) async {
-    final confirmed = await showConfirm(
-      context: context,
-      title: 'Delete ${application.name}?',
-      message:
-          '${application.name} will be marked deleted. The record is '
-          'kept and the API can restore it.',
-      confirmLabel: 'Delete',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(applicationDetailControllerProvider(_ref).notifier)
-          .delete();
-    }
-  }
-
-  /// AF-23c — the confirm control stays disabled until the name matches.
-  Future<void> _confirmDeletePermanently(Application application) async {
-    final confirmed = await showTypeToConfirm(
-      context: context,
-      title: 'Delete ${application.name} permanently?',
-      message:
-          'The application and everything recorded against it are '
-          'erased. This cannot be undone. Type its name to confirm:',
-      confirmationValue: application.name,
-      fieldLabel: 'Application name',
-      confirmLabel: 'Delete permanently',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(applicationDetailControllerProvider(_ref).notifier)
-          .deletePermanently();
-    }
-  }
-
   Future<void> _save() async {
     if (!validateAndReveal(_formKey)) {
       return;
@@ -197,7 +156,7 @@ class _ApplicationDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/applications';
 
-    // A deleted application returns to the listing, which is now stale.
+    // A deleted application returns to the listing, which reads itself again.
     ref.listen<ApplicationDetailState>(
       applicationDetailControllerProvider(_ref),
       (previous, next) {
@@ -210,9 +169,8 @@ class _ApplicationDetailScreenState
         }
 
         if (next is ApplicationDeleted) {
-          ref
-              .read(applicationListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -224,7 +182,7 @@ class _ApplicationDetailScreenState
         ApplicationDetailLoaded(:final application) => application.name,
         _ => 'Application',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: 'Back to the listing',
       body: switch (state) {
@@ -282,12 +240,11 @@ class _ApplicationDetailScreenState
             children: <Widget>[
               // AF-22d — a deleted application says so before anything else.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This application is deleted. It is shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.delete_outline,
-                  message:
-                      'This application is deleted. It is shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -307,10 +264,7 @@ class _ApplicationDetailScreenState
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      const _Notice(
-                        icon: Icons.check_circle_outline,
-                        message: 'Saved.',
-                      ),
+                      const Notice('Saved.', icon: Icons.check_circle_outline),
                       const SizedBox(height: 16),
                     ],
                     EditableSection(
@@ -381,13 +335,24 @@ class _ApplicationDetailScreenState
                 ),
                 // AF-22d leaves a deleted application nothing left to delete.
                 const SizedBox(height: 24),
-                _DangerZone(
-                  application: application,
+                DeleteActions(
+                  recordName: application.name,
+                  noun: 'application',
+                  confirmationValue: application.name,
+                  fieldLabel: 'Application name',
+                  permanentConsequence:
+                      'The application and everything recorded against it '
+                      'are erased.',
                   deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
+                  // AF-23d: a Scope Admin never sees the permanent deletion.
                   mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
+                  onDelete: () => ref
+                      .read(applicationDetailControllerProvider(_ref).notifier)
+                      .delete(),
+                  onDeletePermanently: () => ref
+                      .read(applicationDetailControllerProvider(_ref).notifier)
+                      .deletePermanently(),
                 ),
               ],
             ],
@@ -422,19 +387,33 @@ class _ApplicationDetailScreenState
     }
 
     return switch (members) {
-      AsyncData<List<Person>>(:final value) when value.isEmpty => Text(
-        'This scope has nobody who could own an application.',
-        style: theme.textTheme.bodyMedium,
-      ),
+      AsyncData<List<Person>>(:final value)
+          when value.isEmpty && _ownerId == null =>
+        Text(
+          'This scope has nobody who could own an application.',
+          style: theme.textTheme.bodyMedium,
+        ),
       AsyncData<List<Person>>(:final value) => DropdownButtonFormField<String>(
-        initialValue: value.any((person) => person.id == _ownerId)
-            ? _ownerId
-            : null,
+        initialValue: _ownerId,
         isExpanded: true,
         decoration: const InputDecoration(labelText: 'Owner'),
         validator: (_) =>
             _ownerId == null ? 'Choose an owner for the application.' : null,
         items: <DropdownMenuItem<String>>[
+          // The owner the application has is always on show. One the listing
+          // does not hold — past its first page, or no longer in the scope —
+          // would otherwise leave the field blank while Save still sends the
+          // old id. It cannot be picked again, only kept.
+          if (_ownerId case final current?
+              when !value.any((person) => person.id == current))
+            DropdownMenuItem<String>(
+              value: current,
+              enabled: false,
+              child: Text(
+                _ownerLabel(members, application),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
           for (final person in value)
             DropdownMenuItem<String>(
               value: person.id,
@@ -446,9 +425,22 @@ class _ApplicationDetailScreenState
         ],
         onChanged: state.saving ? null : (id) => setState(() => _ownerId = id),
       ),
-      AsyncError<List<Person>>() => _Fact(
-        label: 'Owner',
-        value: _ownerLabel(members, application),
+      AsyncError<List<Person>>() => Row(
+        children: <Widget>[
+          Expanded(
+            child: _Fact(
+              label: 'Owner',
+              value: _ownerLabel(members, application),
+            ),
+          ),
+          // A failed read stays cached for the session, so the way out is to
+          // ask again.
+          TextButton(
+            onPressed: () =>
+                ref.invalidate(scopeMembersProvider(widget.scopeId)),
+            child: const Text('Retry'),
+          ),
+        ],
       ),
       _ => const Padding(
         padding: EdgeInsets.symmetric(vertical: 12),
@@ -468,47 +460,6 @@ class _ApplicationDetailScreenState
     }
 
     return application.ownerId.isEmpty ? 'Nobody' : application.ownerId;
-  }
-}
-
-/// A one-line panel: what a deleted record and a saved edit each say.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
-      ),
-    );
   }
 }
 
@@ -532,81 +483,4 @@ class _Fact extends StatelessWidget {
       ],
     ),
   );
-}
-
-/// The two deletions, kept apart from the rest of the screen because neither
-/// is an ordinary edit.
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.application,
-    required this.deleting,
-    required this.failure,
-    required this.mayDeletePermanently,
-    required this.onDelete,
-    required this.onDeletePermanently,
-  });
-
-  final Application application;
-  final bool deleting;
-  final Failure? failure;
-
-  /// AF-23d — a Scope Admin never sees the permanent deletion.
-  final bool mayDeletePermanently;
-
-  final Future<void> Function(Application application) onDelete;
-  final Future<void> Function(Application application) onDeletePermanently;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Delete this application',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deleting keeps the record and can be undone by the API. '
-              'Deleting permanently erases it.',
-              style: TextStyle(color: theme.colorScheme.onErrorContainer),
-            ),
-            // AF-23b — the API refused, and the application is still open.
-            if (failure case final refusal?) ...<Widget>[
-              const SizedBox(height: 16),
-              ErrorBanner(failure: refusal),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: deleting ? null : () => onDelete(application),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete application'),
-                ),
-                if (mayDeletePermanently)
-                  FilledButton.icon(
-                    onPressed: deleting
-                        ? null
-                        : () => onDeletePermanently(application),
-                    icon: const Icon(Icons.delete_forever_outlined),
-                    label: const Text('Delete permanently'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }

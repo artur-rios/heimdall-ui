@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -45,9 +47,11 @@ class ScreenSecurity {
     }
 
     // Best effort: a failure here must never get in the way of the screen.
-    _channel
-        .invokeMethod<void>('setSecure', <String, Object>{'secure': secure})
-        .catchError((Object _) {});
+    unawaited(
+      _channel
+          .invokeMethod<void>('setSecure', <String, Object>{'secure': secure})
+          .catchError((Object _) {}),
+    );
   }
 }
 

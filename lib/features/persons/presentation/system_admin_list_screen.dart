@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -5,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
+import '../../../shared/widgets/list_scaffold.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/person.dart';
@@ -46,7 +49,7 @@ class _SystemAdminListScreenState extends ConsumerState<SystemAdminListScreen> {
   void _clearFilters() {
     _name.clear();
     _email.clear();
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   @override
@@ -59,6 +62,8 @@ class _SystemAdminListScreenState extends ConsumerState<SystemAdminListScreen> {
     return AppShell(
       currentRoute: '/',
       title: const Text('System Admins'),
+      // Back from a record that may have been changed or deleted.
+      onReturn: _controller.load,
       backRoute: '/',
       backTooltip: 'Back to Home',
       body: Column(
@@ -78,59 +83,57 @@ class _SystemAdminListScreenState extends ConsumerState<SystemAdminListScreen> {
             ),
           ),
           Expanded(
-            child: switch (state) {
-              SystemAdminListLoading() => const CollectionLoading(),
-              // AF-38c — only a System Admin may list System Admins.
-              SystemAdminListFailed(isForbidden: true) => CollectionEmpty(
-                title: 'Not available for your role',
+            // AF-38c — only a System Admin may list System Admins. AF-38d — the
+            // returned errors, with a retry.
+            child: ListScaffold(
+              state: state,
+              onRetry: _controller.load,
+              forbidden: ListForbidden(
                 message:
                     'Only a System Admin may see who the System Admins '
                     'are. Nothing is wrong with your session.',
-                icon: Icons.lock_person_outlined,
                 actionLabel: 'Back to Home',
                 onAction: () => context.go('/'),
               ),
-              SystemAdminListFailed(:final failure) => CollectionFailed(
-                failure: failure,
-                onRetry: _controller.load,
-              ),
-              SystemAdminListLoaded(:final page, :final query)
-                  when page.items.isEmpty =>
-                query.isFiltered
-                    ? CollectionEmpty(
-                        title: 'No System Admins match.',
-                        message: 'Nothing here matches what you searched for.',
-                        icon: Icons.search_off_outlined,
-                        actionLabel: 'Clear filters',
-                        onAction: _clearFilters,
-                      )
-                    : const CollectionEmpty(
-                        title: 'No System Admins.',
-                        message: 'There are no System Admins to show.',
-                        icon: Icons.admin_panel_settings_outlined,
-                      ),
-              final SystemAdminListLoaded loaded =>
-                AdaptiveCollection<PersonSummary>(
-                  items: loaded.page.items,
-                  busy: loaded.busy,
-                  pageNumber: loaded.page.pageNumber,
-                  totalPages: loaded.page.totalPages,
-                  totalItems: loaded.page.totalItems,
-                  onPageChanged: _controller.goToPage,
-                  onTap: (admin) => context.go('/persons/${admin.id}'),
-                  title: (admin) =>
-                      admin.id == me ? '${admin.name} (you)' : admin.name,
-                  // The email is the subtitle, which the table shows under the
-                  // name, so there is no column of its own.
-                  subtitle: (admin) => admin.email,
-                  columns: const <CollectionColumn<PersonSummary>>[],
-                ),
-            },
+              empty: _empty,
+              loaded: (SystemAdminListLoaded loaded) =>
+                  AdaptiveCollection<PersonSummary>(
+                    items: loaded.page.items,
+                    busy: loaded.busy,
+                    pageNumber: loaded.page.pageNumber,
+                    totalPages: loaded.page.totalPages,
+                    totalItems: loaded.page.totalItems,
+                    onPageChanged: _controller.goToPage,
+                    onTap: (admin) => context.go('/system-admins/${admin.id}'),
+                    title: (admin) =>
+                        admin.id == me ? '${admin.name} (you)' : admin.name,
+                    // The email is the subtitle, which the table shows under
+                    // the name, so there is no column of its own.
+                    subtitle: (admin) => admin.email,
+                    columns: const <CollectionColumn<PersonSummary>>[],
+                  ),
+            ),
           ),
         ],
       ),
     );
   }
+
+  /// AF-38a and AF-38b — nobody to list and nothing matching are different
+  /// situations, and only the second has filters to clear.
+  Widget _empty(SystemAdminQuery query) => query.isFiltered
+      ? CollectionEmpty(
+          title: 'No System Admins match.',
+          message: 'Nothing here matches what you searched for.',
+          icon: Icons.search_off_outlined,
+          actionLabel: 'Clear filters',
+          onAction: _clearFilters,
+        )
+      : const CollectionEmpty(
+          title: 'No System Admins.',
+          message: 'There are no System Admins to show.',
+          icon: Icons.admin_panel_settings_outlined,
+        );
 }
 
 /// The two search fields; Enter in either one searches.

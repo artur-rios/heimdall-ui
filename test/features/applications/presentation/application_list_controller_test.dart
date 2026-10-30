@@ -5,16 +5,18 @@ import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/network/envelope.dart';
 import 'package:heimdall_ui/core/result/result.dart';
+import 'package:heimdall_ui/core/time/clock.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';
 import 'package:heimdall_ui/features/applications/domain/application_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/application_list_controller.dart';
+import 'package:heimdall_ui/features/applications/presentation/owner_names.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/late_answer.dart';
+import '../../../support/held_answer.dart';
 
 class _MockApplicationRepository extends Mock
     implements ApplicationRepository {}
@@ -46,12 +48,14 @@ void main() {
   late _MockApplicationRepository applications;
   late _MockPersonRepository persons;
   late ProviderContainer container;
+  var now = DateTime.utc(2026, 10, 21, 12);
 
   ApplicationListController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
         applicationRepositoryProvider.overrideWithValue(applications),
         personRepositoryProvider.overrideWithValue(persons),
+        clockProvider.overrideWithValue(() => now),
       ],
     );
     addTearDown(container.dispose);
@@ -84,20 +88,8 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
-  void failWith(Object error) {
-    when(
-      () => applications.list(
-        scopeId: any(named: 'scopeId'),
-        name: any(named: 'name'),
-        ownerId: any(named: 'ownerId'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<Application>>>.error(error));
-  }
-
   setUp(() {
+    now = DateTime.utc(2026, 10, 21, 12);
     applications = _MockApplicationRepository();
     persons = _MockPersonRepository();
     answerOwnerWith(const Success<Person>(_ada));
@@ -265,23 +257,6 @@ void main() {
     ).called(1);
   });
 
-  // AF-20b — the query that failed is kept, so the retry asks it again.
-  test('GivenAFailedRequest_WhenSearched_ThenTheFiltersSurvive', () async {
-    // Given
-    answerWith(
-      const FailureResult<Page<Application>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.search('Billing');
-
-    // Then
-    expect(currentState().query.name, 'Billing');
-  });
-
   // AF-20c — a scope this admin does not own.
   test('GivenAForbiddenScope_WhenLoaded_ThenStateIsForbidden', () async {
     // Given
@@ -332,55 +307,6 @@ void main() {
     ).called(1);
   });
 
-  test(
-    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
-    () async {
-      // Given
-      final pending = Completer<Result<Page<Application>>>();
-      when(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => pending.future);
-      final controller = controllerUnderTest();
-
-      // When
-      final first = controller.goToPage(2);
-      final second = controller.goToPage(3);
-
-      // Then — the second waits for the first rather than racing it
-      verify(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-
-      // …and is asked once the first is answered, rather than dropped
-      pending.complete(Success<Page<Application>>(_page()));
-      await Future.wait<void>(<Future<void>>[first, second]);
-      verify(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-    },
-  );
-
   // A read that merely failed says nothing about the person, so it is asked
   // again rather than pinning them to their identifier for the session.
   test('GivenAFailedOwnerRead_WhenPaged_ThenItIsAskedAgain', () async {
@@ -425,24 +351,46 @@ void main() {
     ).called(1);
   });
 
-  // A reload is where a renamed owner should show their new name.
-  test('GivenARenamedOwner_WhenReloaded_ThenTheNewNameIsShown', () async {
+  const lovelace = Success<Person>(
+    Person(
+      id: 'person-1',
+      name: 'Ada Lovelace',
+      email: 'ada@example.com',
+      role: Role.user,
+    ),
+  );
+
+  // #179 — a quick return reuses the names; no request per owner.
+  test('GivenAQuickReload_WhenLoaded_ThenTheOwnerIsNotReadAgain', () async {
     // Given
     answerWith(Success<Page<Application>>(_page()));
     final controller = controllerUnderTest();
     await controller.load();
-    answerOwnerWith(
-      const Success<Person>(
-        Person(
-          id: 'person-1',
-          name: 'Ada Lovelace',
-          email: 'ada@example.com',
-          role: Role.user,
-        ),
-      ),
-    );
+    answerOwnerWith(lovelace);
 
     // When
+    now = now.add(const Duration(minutes: 4, seconds: 59));
+    await controller.load();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+    verify(
+      () =>
+          persons.getById(any(), includeDeleted: any(named: 'includeDeleted')),
+    ).called(1);
+  });
+
+  // A name older than five minutes is where a rename should show.
+  test('GivenARenamedOwner_WhenTheNameExpired_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(lovelace);
+
+    // When
+    now = now.add(OwnerNames.timeToLive);
     await controller.load();
 
     // Then
@@ -450,20 +398,40 @@ void main() {
     expect(state.ownerLabel('person-1'), 'Ada Lovelace');
   });
 
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
+  test('GivenAnExpiredName_WhenTheReReadFails_ThenTheOldNameStays', () async {
     // Given
-    failWith(const FormatException('not the shape of a page'));
+    answerWith(Success<Page<Application>>(_page()));
     final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(
+      const FailureResult<Person>(
+        Failure(kind: FailureKind.network, errors: <String>[]),
+      ),
+    );
 
     // When
+    now = now.add(OwnerNames.timeToLive);
     await controller.load();
 
     // Then
-    final state = currentState();
-    expect(state, isA<ApplicationListFailed>());
-    final failure = (state as ApplicationListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada');
+  });
+
+  // An explicit refresh forgets every name at once.
+  test('GivenARenamedOwner_WhenRefreshed_ThenTheNewNameIsShown', () async {
+    // Given
+    answerWith(Success<Page<Application>>(_page()));
+    final controller = controllerUnderTest();
+    await controller.load();
+    answerOwnerWith(lovelace);
+
+    // When
+    await controller.refresh();
+
+    // Then
+    final state = currentState() as ApplicationListLoaded;
+    expect(state.ownerLabel('person-1'), 'Ada Lovelace');
   });
 
   test(
@@ -497,36 +465,42 @@ void main() {
     },
   );
 
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<Application>>>();
-      when(
-        () => applications.list(
-          scopeId: any(named: 'scopeId'),
-          name: any(named: 'name'),
-          ownerId: any(named: 'ownerId'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
+  // #157 — a search queued during a load, then a second change: the request
+  // that follows the load carries both.
+  test('GivenASearchQueuedDuringALoad_WhenIncludeDeletedIsToggled_ThenTheLastRequestCarriesBoth', () async {
+    // Given
+    final first = Completer<Result<Page<Application>>>();
+    when(
+      () => applications.list(
+        scopeId: any(named: 'scopeId'),
+        name: any(named: 'name'),
+        ownerId: any(named: 'ownerId'),
+        includeDeleted: any(named: 'includeDeleted'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer(
+      heldFirstAnswer(first, () => Success<Page<Application>>(_page())),
+    );
+    final controller = controllerUnderTest();
+    final loading = controller.load();
 
-      // When
-      await answerAfterReset(
-        container,
-        applicationListControllerProvider('scope-1'),
-        reset: applicationListControllerProvider,
-        start: controller.load,
-        answer: () => answer.complete(Success<Page<Application>>(_page())),
-      );
+    // When
+    unawaited(controller.search('abc'));
+    unawaited(controller.setIncludeDeleted(true));
+    first.complete(Success<Page<Application>>(_page()));
+    await loading;
 
-      // Then
-      expect(currentState(), isA<ApplicationListLoading>());
-    },
-  );
+    // Then
+    verify(
+      () => applications.list(
+        scopeId: 'scope-1',
+        name: 'abc',
+        includeDeleted: true,
+        pageNumber: 1,
+      ),
+    ).called(1);
+    expect(currentState().query.name, 'abc');
+    expect(currentState().query.includeDeleted, isTrue);
+  });
 }

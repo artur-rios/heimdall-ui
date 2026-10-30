@@ -1,6 +1,3 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
@@ -9,12 +6,14 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/persons/data/person_repository_impl.dart';
 import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiPersonRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiPersonRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiPersonRepository(PersonClient(dio));
@@ -29,7 +28,7 @@ void main() {
     () async {
       // Given - FR-SC-14: 202 and invited
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 202,
           body: <String, dynamic>{
             'success': true,
@@ -61,7 +60,7 @@ void main() {
   test('GivenASystemAdminsAdd_WhenTheApiAdds_ThenTheOutcomeIsAdded', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 201,
         body: <String, dynamic>{
           'success': true,
@@ -91,7 +90,7 @@ void main() {
     () async {
       // Given - an API from before FR-SC-14, whose answer has no `invited`
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 201,
           body: <String, dynamic>{
             'success': true,
@@ -121,7 +120,7 @@ void main() {
     () async {
       // Given - the outcome is read from the body, never the status code
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 202,
           body: <String, dynamic>{
             'success': true,
@@ -150,7 +149,7 @@ void main() {
   test('GivenAnExistingOwner_WhenAdded_ThenTheOutcomeIsAlreadyOwner', () async {
     // Given - AF-21d
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -178,7 +177,7 @@ void main() {
   test('GivenAPersonResponse_WhenReadById_ThenThePersonIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -210,7 +209,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -232,7 +231,7 @@ void main() {
   test('GivenAMissingPerson_WhenReadById_ThenNotFoundIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 404,
         body: <String, dynamic>{
           'success': false,
@@ -253,7 +252,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -285,7 +284,7 @@ void main() {
   test('GivenAnOrdinaryEdit_WhenUpdated_ThenTheRoleIsSentAsNull', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -308,7 +307,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -336,7 +335,7 @@ void main() {
   test('GivenAnOrdinaryEdit_WhenUpdated_ThenNoPasswordIsSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -358,7 +357,7 @@ void main() {
   test('GivenARejectedUpdate_WhenUpdated_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': false,
@@ -380,7 +379,7 @@ void main() {
 
   test('GivenNoConnection_WhenReadById_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.getById('person-1');
@@ -394,7 +393,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -428,7 +427,7 @@ void main() {
   test('GivenAnExcludedScope_WhenListed_ThenTheFilterIsSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -442,7 +441,10 @@ void main() {
     await repository.listScopeAdmins(excludeOwnersOfScopeId: 'scope-1');
 
     // Then
-    expect(adapter.queries.single['ExcludeOwnersOfScopeId'], 'scope-1');
+    expect(
+      adapter.uris.single.queryParameters['ExcludeOwnersOfScopeId'],
+      'scope-1',
+    );
   });
 
   // An empty filter is no filter: sent, it would ask the API to match the
@@ -450,7 +452,7 @@ void main() {
   test('GivenABlankQuery_WhenListed_ThenNoFilterIsSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -464,16 +466,16 @@ void main() {
     await repository.listScopeAdmins(name: '   ', excludeOwnersOfScopeId: '');
 
     // Then
-    expect(adapter.queries.single.containsKey('Name'), isFalse);
+    expect(adapter.uris.single.queryParameters.containsKey('Name'), isFalse);
     expect(
-      adapter.queries.single.containsKey('ExcludeOwnersOfScopeId'),
+      adapter.uris.single.queryParameters.containsKey('ExcludeOwnersOfScopeId'),
       isFalse,
     );
   });
 
   test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.listScopeAdmins();
@@ -485,7 +487,7 @@ void main() {
   test('GivenASecondFactor_WhenReadById_ThenItIsCarried', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -513,7 +515,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': true,
@@ -535,7 +537,7 @@ void main() {
   test('GivenAPerson_WhenAResetIsSent_ThenTheirIdIsAddressed', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -556,7 +558,7 @@ void main() {
   test('GivenACooldown_WhenAResetIsSent_ThenTheFailureIsRateLimitedWithTheApiMessage', () async {
     // Given — AF-36a
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 429,
         body: <String, dynamic>{
           'success': false,
@@ -581,7 +583,7 @@ void main() {
   test('GivenSystemAdmins_WhenListed_ThenTheyAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -610,14 +612,14 @@ void main() {
     expect(page.items.single.name, 'Ada');
     expect(page.totalItems, 21);
     expect(adapter.paths.single, '/api/persons/system-admins');
-    expect(adapter.queries.single['PageNumber'], '2');
-    expect(adapter.queries.single['PageSize'], '20');
+    expect(adapter.uris.single.queryParameters['PageNumber'], '2');
+    expect(adapter.uris.single.queryParameters['PageSize'], '20');
   });
 
   test('GivenFilters_WhenSystemAdminsListed_ThenTheyAreSent', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -631,16 +633,16 @@ void main() {
     await repository.listSystemAdmins(name: 'Ada', email: '  ');
 
     // Then
-    expect(adapter.queries.single['Name'], 'Ada');
-    expect(adapter.queries.single.containsKey('Email'), isFalse);
-    expect(adapter.queries.single['PageNumber'], '1');
-    expect(adapter.queries.single['PageSize'], '20');
+    expect(adapter.uris.single.queryParameters['Name'], 'Ada');
+    expect(adapter.uris.single.queryParameters.containsKey('Email'), isFalse);
+    expect(adapter.uris.single.queryParameters['PageNumber'], '1');
+    expect(adapter.uris.single.queryParameters['PageSize'], '20');
   });
 
   test('GivenA403_WhenSystemAdminsListed_ThenForbiddenIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{
           'success': false,
@@ -661,7 +663,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 200,
           body: <String, dynamic>{
             'success': false,
@@ -680,74 +682,4 @@ void main() {
       ]);
     },
   );
-}
-
-/// What the stub answers with. A [status] of zero stands for a connection that
-/// never got as far as a response.
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The bodies it was asked to send, so a test can assert which field a value
-  /// travelled in.
-  final List<Map<String, dynamic>> requests = <Map<String, dynamic>>[];
-
-  /// The query strings it was asked for, so a test can assert which filters
-  /// reached the API and which were left off.
-  final List<Map<String, String>> queries = <Map<String, String>>[];
-
-  /// The paths it was asked for, so a test can assert which endpoint a call
-  /// addressed.
-  final List<String> paths = <String>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    queries.add(options.uri.queryParameters);
-    paths.add(options.uri.path);
-
-    if (requestStream != null) {
-      final bytes = <int>[];
-
-      await for (final chunk in requestStream) {
-        bytes.addAll(chunk);
-      }
-
-      if (bytes.isNotEmpty) {
-        if (jsonDecode(utf8.decode(bytes)) case final Map<String, dynamic> b) {
-          requests.add(b);
-        }
-      }
-    }
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }

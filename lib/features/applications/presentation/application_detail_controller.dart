@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/application.dart';
 import '../domain/application_repository.dart';
 
@@ -126,6 +127,15 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
   }
 
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is ApplicationDetailLoaded &&
+        (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const ApplicationDetailLoading();
 
     final epoch = this.epoch;
@@ -203,8 +213,10 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
     }
   }
 
-  /// Logically deletes the application. The record is kept and the API can
-  /// restore it, which is what the confirmation says before this is called.
+  /// Logically deletes the application. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window. The confirmation says so
+  /// before this is called.
   Future<void> delete() => _delete(
     (repository) =>
         repository.delete(scopeId: arg.scopeId, id: arg.applicationId),
@@ -240,6 +252,7 @@ class ApplicationDetailController extends Notifier<ApplicationDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const ApplicationDeleted();
       case FailureResult<void>(:final failure):
         // Somebody already deleted it, which is the outcome that was asked

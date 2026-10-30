@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,34 +9,18 @@ import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
+import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/home/presentation/home_screen.dart';
 import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
-import 'package:heimdall_ui/shared/widgets/notice_banner.dart';
+import 'package:heimdall_ui/shared/widgets/notice.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';
-
-/// A token naming a person of [role]: 1 System Admin, 2 Scope Admin, 3 User.
-///
-/// A Google sign-in's token names a Google User instead, in its scope.
-String _jwt({int role = 1, bool viaGoogle = false}) {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': viaGoogle ? 'google-1' : 'person-1',
-        'name': 'Ada',
-        'role': role,
-        if (viaGoogle) 'scopeId': 'scope-1',
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
+import '../../support/jwt.dart';
+import '../../support/pump_app.dart';
 
 const _acme = Scope(
   id: 'scope-1',
@@ -81,58 +64,57 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
     bool viaGoogle = false,
+    void Function(ProviderContainer container)? withContainer,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(
-      AuthToken(
-        value: _jwt(role: role, viaGoogle: viaGoogle),
-        expiresAt: DateTime.utc(2030),
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(
+        testJwt(
+          sub: viaGoogle ? 'google-1' : 'person-1',
+          email: null,
+          name: 'Ada',
+          role: role,
+          scopeId: viaGoogle ? 'scope-1' : null,
+        ),
         viaGoogle: viaGoogle,
       ),
-    );
-
-    final container = ProviderContainer(
       overrides: <Override>[
         ...(fakes ?? FakeDashboardRepositories()).overrides,
-        tokenStoreProvider.overrideWithValue(store),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    final router = GoRouter(
-      routes: <RouteBase>[
-        GoRoute(path: '/', builder: (context, state) => const HomeScreen()),
-        for (final path in <String>[
-          '/scopes',
-          '/scopes/:scopeId',
-          '/profile',
-          '/profile/security',
-          '/health',
-          '/system-admins',
-        ])
+      afterRestore: (container) async => withContainer?.call(container),
+      router: GoRouter(
+        routes: <RouteBase>[
           GoRoute(
-            path: path,
-            builder: (context, state) =>
-                Scaffold(body: Text('opened ${state.uri.path}')),
+            path: '/',
+            builder: (context, state) => const HomeScreen(),
+            // A child of Home, as in the application: leaving it keeps Home
+            // beneath, and coming back re-reads Home through `onReturn`.
+            routes: <RouteBase>[
+              GoRoute(
+                path: 'system-admins',
+                builder: (context, state) =>
+                    Scaffold(body: Text('opened ${state.uri.path}')),
+              ),
+            ],
           ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+          for (final path in <String>[
+            '/scopes',
+            '/scopes/:scopeId',
+            '/profile',
+            '/profile/security',
+            '/health',
+          ])
+            GoRoute(
+              path: path,
+              builder: (context, state) =>
+                  Scaffold(body: Text('opened ${state.uri.path}')),
+            ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   testWidgets('GivenASystemAdmin_WhenOpened_ThenTheFiguresAreShown', (
@@ -239,6 +221,66 @@ void main() {
 
     // Then
     expect(find.text('opened /system-admins'), findsOneWidget);
+  });
+
+  group('reuse of a recent read (#172)', () {
+    Future<void> openAndGoBack(WidgetTester tester) async {
+      await tester.tap(find.text('System Admins'));
+      await tester.pumpAndSettle();
+      expect(find.text('opened /system-admins'), findsOneWidget);
+
+      Navigator.of(tester.element(find.text('opened /system-admins'))).pop();
+      await tester.pumpAndSettle();
+    }
+
+    testWidgets('GivenAQuickReturn_WhenBackAtHome_ThenNothingIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      await pump(tester, fakes: fakes);
+      expect(fakes.scopeReads, 2);
+
+      // When
+      await openAndGoBack(tester);
+
+      // Then
+      expect(fakes.scopeReads, 2);
+    });
+
+    testWidgets('GivenAChangeMade_WhenBackAtHome_ThenItIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      late ProviderContainer container;
+      await pump(tester, fakes: fakes, withContainer: (c) => container = c);
+      await tester.tap(find.text('System Admins'));
+      await tester.pumpAndSettle();
+
+      // When a command that changes Home's figures succeeds
+      container.read(dashboardControllerProvider.notifier).markStale();
+      Navigator.of(tester.element(find.text('opened /system-admins'))).pop();
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
+
+    testWidgets('GivenAQuickReturn_WhenRefreshIsTapped_ThenItIsReadAgain', (
+      tester,
+    ) async {
+      // Given
+      final fakes = FakeDashboardRepositories(scopes: const <Scope>[_acme]);
+      await pump(tester, fakes: fakes);
+
+      // When
+      await tester.tap(find.byTooltip('Refresh'));
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(fakes.scopeReads, 4);
+    });
   });
 
   testWidgets('GivenTheCountFails_WhenHomeOpens_ThenTheTileStillOpensTheList', (
@@ -543,7 +585,7 @@ void main() {
       expect(fakes.accepted, <String>['invitation-1']);
       expect(
         find.descendant(
-          of: find.byType(NoticeBanner),
+          of: find.byType(Notice),
           matching: find.text('Invitation accepted. You now co-own Initech.'),
         ),
         findsOneWidget,

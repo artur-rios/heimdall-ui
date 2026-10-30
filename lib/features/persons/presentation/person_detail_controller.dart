@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../applications/presentation/owner_names.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 import '../domain/person_repository.dart';
@@ -107,6 +109,14 @@ class PersonDetailController extends Notifier<PersonDetailState>
   /// Deleted persons are included: AF-18d shows one read-only, and it cannot
   /// do that if the API is asked to pretend they are gone.
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is PersonDetailLoaded && (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const PersonDetailLoading();
 
     final epoch = this.epoch;
@@ -186,6 +196,11 @@ class PersonDetailController extends Notifier<PersonDetailState>
       return;
     }
 
+    if (result.isSuccess) {
+      // The applications list shows owners by name; a rename must reach it.
+      ref.read(ownerNamesProvider).forget();
+    }
+
     state = result.fold(
       // The update endpoint does not report a second factor, and this edit
       // cannot have changed one — so the state already read is carried over
@@ -209,8 +224,9 @@ class PersonDetailController extends Notifier<PersonDetailState>
     }
   }
 
-  /// Logically deletes the person. The record is kept and the API can restore
-  /// it, which is what the confirmation says before this is called.
+  /// Logically deletes the person. The record is hidden, not erased. The API has
+  /// no restore: only an operator can undo it, in the database, within the
+  /// retention window. The confirmation says so before this is called.
   Future<void> delete() => _delete((repository) => repository.delete(arg));
 
   /// Permanently deletes the person and everything that belonged to them.
@@ -239,6 +255,7 @@ class PersonDetailController extends Notifier<PersonDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const PersonDeleted();
       case FailureResult<void>(:final failure):
         // Somebody already deleted them, which is the outcome that was asked

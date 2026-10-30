@@ -199,4 +199,26 @@ void main() {
       expect(allowed, isFalse);
     });
   }
+
+  // #156 — the person page sits under the System Admins listing now.
+  test('GivenASystemAdmin_WhenAListedPersonPageAsked_ThenItIsReachable', () {
+    // Given / When
+    final allowed = roleMayReach(
+      role: Role.systemAdmin,
+      path: '/system-admins/p1',
+    );
+
+    // Then
+    expect(allowed, isTrue);
+  });
+
+  for (final role in <Role>[Role.scopeAdmin, Role.user]) {
+    test('Given${role.name}_WhenAListedPersonPageAsked_ThenItIsNot', () {
+      // Given / When
+      final allowed = roleMayReach(role: role, path: '/system-admins/p1');
+
+      // Then
+      expect(allowed, isFalse);
+    });
+  }
 }

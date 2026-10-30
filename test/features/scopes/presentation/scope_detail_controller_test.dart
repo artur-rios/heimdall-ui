@@ -10,6 +10,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_controller
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/home_stale_spy.dart';
 import '../../../support/late_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
@@ -43,6 +44,7 @@ void main() {
   ScopeDetailController controllerUnderTest() {
     container = ProviderContainer(
       overrides: <Override>[
+        staleSpyOverride(),
         scopeRepositoryProvider.overrideWithValue(repository),
       ],
     );
@@ -169,6 +171,7 @@ void main() {
         privacyNoticeUri: null,
       ),
     ).called(1);
+    expect(staleMarksOf(container), 1);
   });
 
   // The API replaces the privacy settings on every update, so an edit that
@@ -222,6 +225,7 @@ void main() {
       'A scope with that name already exists.',
     ]);
     expect(state.scope.name, 'Acme');
+    expect(staleMarksOf(container), 0);
   });
 
   // AF-12d — a deleted scope is read-only.
@@ -332,6 +336,9 @@ void main() {
     // Then
     verify(() => repository.delete('scope-1')).called(1);
     expect(currentState(), isA<ScopeDeleted>());
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 1);
   });
 
   test(
@@ -374,6 +381,9 @@ void main() {
     expect(state.deleteFailure?.errors, <String>[
       'The scope still holds users.',
     ]);
+
+    // And whether Home was told
+    expect(staleMarksOf(container), 0);
   });
 
   // AF-13d — already deleted is the outcome that was asked for.
@@ -413,6 +423,70 @@ void main() {
     verify(() => repository.delete('scope-1')).called(1);
   });
 
+  // A reread must not replace a command that is still on its way: its
+  // `deleting` guard would be lost and its answer would overwrite the reread.
+  test(
+    'GivenADeletionInFlight_WhenLoaded_ThenTheDeletionIsLeftAlone',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final pending = Completer<Result<void>>();
+      when(() => repository.delete(any())).thenAnswer((_) => pending.future);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final deleting = controller.delete();
+
+      // When
+      await controller.load();
+
+      // Then
+      expect((currentState() as ScopeDetailLoaded).deleting, isTrue);
+      verify(
+        () => repository.getById(
+          any(),
+          includeDeleted: any(named: 'includeDeleted'),
+        ),
+      ).called(1);
+      pending.complete(const Success<void>(null));
+      await deleting;
+    },
+  );
+
+  test('GivenASaveInFlight_WhenLoaded_ThenTheSaveIsLeftAlone', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<Scope>>();
+    when(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
+      ),
+    ).thenAnswer((_) => pending.future);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(
+      name: 'Acme 2',
+      description: 'The first tenant',
+    );
+
+    // When
+    await controller.load();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<Scope>(_acme));
+    await saving;
+  });
+
   // A sign-out resets the page while its read is in flight, and the late
   // answer must not land in the reset state.
   test(
@@ -435,6 +509,141 @@ void main() {
         reset: scopeDetailControllerProvider,
         start: controller.load,
         answer: () => answer.complete(const Success<Scope>(_acme)),
+      );
+
+      // Then
+      expect(currentState(), isA<ScopeDetailLoading>());
+    },
+  );
+
+  /// Holds every read after the first until [held] is completed.
+  Completer<Result<Scope>> holdTheNextRead() {
+    final held = Completer<Result<Scope>>();
+    when(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).thenAnswer((_) => held.future);
+
+    return held;
+  }
+
+  void holdSaves(Completer<Result<Scope>> pending) {
+    when(
+      () => repository.update(
+        id: any(named: 'id'),
+        name: any(named: 'name'),
+        description: any(named: 'description'),
+        defaultLegalBasis: any(named: 'defaultLegalBasis'),
+        privacyNoticeUri: any(named: 'privacyNoticeUri'),
+      ),
+    ).thenAnswer((_) => pending.future);
+  }
+
+  const renamed = Scope(id: 'scope-1', name: 'Acme Ltd', description: '');
+
+  // #156 — back from one of the scope's screens, the record stays on screen
+  // while it is read again, as a listing keeps its rows.
+  test(
+    'GivenAShownScope_WhenRefreshed_ThenItStaysShownUntilTheAnswer',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+
+      // When
+      final refreshing = controller.refresh();
+
+      // Then
+      expect((currentState() as ScopeDetailLoaded).scope, _acme);
+      held.complete(const Success<Scope>(renamed));
+      await refreshing;
+      expect((currentState() as ScopeDetailLoaded).scope, renamed);
+    },
+  );
+
+  test('GivenNothingShown_WhenRefreshed_ThenItIsLoaded', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final controller = controllerUnderTest();
+
+    // When
+    await controller.refresh();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).scope, _acme);
+  });
+
+  test('GivenASaveInFlight_WhenRefreshed_ThenNothingIsRead', () async {
+    // Given
+    answerGetWith(const Success<Scope>(_acme));
+    final pending = Completer<Result<Scope>>();
+    holdSaves(pending);
+    final controller = controllerUnderTest();
+    await controller.load();
+    final saving = controller.save(name: 'Acme 2', description: '');
+
+    // When
+    await controller.refresh();
+
+    // Then
+    expect((currentState() as ScopeDetailLoaded).saving, isTrue);
+    verify(
+      () => repository.getById(
+        any(),
+        includeDeleted: any(named: 'includeDeleted'),
+      ),
+    ).called(1);
+    pending.complete(const Success<Scope>(_acme));
+    await saving;
+  });
+
+  // A save started while the reread was out owns the state when it lands.
+  test(
+    'GivenASaveStartedMidRefresh_WhenTheReadAnswers_ThenItIsDropped',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final pending = Completer<Result<Scope>>();
+      holdSaves(pending);
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+      final refreshing = controller.refresh();
+      final saving = controller.save(name: 'Acme 2', description: '');
+
+      // When
+      held.complete(const Success<Scope>(renamed));
+      await refreshing;
+
+      // Then
+      final state = currentState() as ScopeDetailLoaded;
+      expect(state.saving, isTrue);
+      expect(state.scope, _acme);
+      pending.complete(const Success<Scope>(_acme));
+      await saving;
+    },
+  );
+
+  test(
+    'GivenARefreshInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
+    () async {
+      // Given
+      answerGetWith(const Success<Scope>(_acme));
+      final controller = controllerUnderTest();
+      await controller.load();
+      final held = holdTheNextRead();
+
+      // When
+      await answerAfterReset(
+        container,
+        scopeDetailControllerProvider('scope-1'),
+        reset: scopeDetailControllerProvider,
+        start: controller.refresh,
+        answer: () => held.complete(const Success<Scope>(renamed)),
       );
 
       // Then

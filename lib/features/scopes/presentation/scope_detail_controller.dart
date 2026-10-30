@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/misc.dart' show NotifierProviderFamily;
 
 import '../../../core/result/result.dart';
 import '../../../core/state/build_epoch.dart';
+import '../../home/presentation/dashboard_controller.dart';
 import '../domain/scope.dart';
 import '../domain/scope_repository.dart';
 import 'scope_list_controller.dart';
@@ -114,6 +115,14 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
   /// Deleted scopes are included: AF-12d shows one read-only, and it cannot do
   /// that if the API is asked to pretend it is gone.
   Future<void> load() async {
+    // A save or delete in flight owns the state: loading over it would drop
+    // its `saving`/`deleting` guard and let its answer overwrite the reread.
+    final current = state;
+
+    if (current is ScopeDetailLoaded && (current.saving || current.deleting)) {
+      return;
+    }
+
     state = const ScopeDetailLoading();
 
     final epoch = this.epoch;
@@ -121,6 +130,40 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
 
     // Reset since it was asked: the answer is an earlier build's.
     if (!isCurrent(epoch)) {
+      return;
+    }
+
+    state = result.fold(
+      onSuccess: ScopeDetailLoaded.new,
+      onFailure: ScopeDetailUnavailable.new,
+    );
+  }
+
+  /// Reads the scope again while the one on screen stays, as a listing keeps
+  /// its rows while it re-reads, so returning from one of the scope's own
+  /// screens does not flash the placeholder or lose the scroll position.
+  /// With nothing on screen yet it is [load].
+  Future<void> refresh() async {
+    final current = state;
+
+    if (current is! ScopeDetailLoaded) {
+      return load();
+    }
+
+    // As in [load]: a save or delete in flight owns the state.
+    if (current.saving || current.deleting) {
+      return;
+    }
+
+    final epoch = this.epoch;
+    final result = await ref.read(scopeRepositoryProvider).getById(arg);
+
+    // Reset since it was asked, or a save or delete started meanwhile and
+    // now owns the state.
+    final now = state;
+
+    if (!isCurrent(epoch) ||
+        (now is ScopeDetailLoaded && (now.saving || now.deleting))) {
       return;
     }
 
@@ -176,6 +219,11 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
       return;
     }
 
+    if (result.isSuccess) {
+      // Home lists scope names.
+      ref.markHomeDataStale();
+    }
+
     state = result.fold(
       onSuccess: (scope) => ScopeDetailLoaded(scope, saved: true),
       // AF-12c: the refusal is kept as it came back, and the record on screen
@@ -193,8 +241,9 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
     }
   }
 
-  /// Logically deletes the scope. The record is kept and the API can restore
-  /// it, which is what the confirmation says before this is called.
+  /// Logically deletes the scope. The record is hidden, not erased. The API has
+  /// no restore: only an operator can undo it, in the database, within the
+  /// retention window. The confirmation says so before this is called.
   Future<void> delete() => _delete((repository) => repository.delete(arg));
 
   /// Permanently deletes the scope and everything it holds.
@@ -222,6 +271,7 @@ class ScopeDetailController extends Notifier<ScopeDetailState>
 
     switch (result) {
       case Success<void>():
+        ref.markHomeDataStale();
         state = const ScopeDeleted();
       case FailureResult<void>(:final failure):
         // AF-13d: the scope is already gone, which is the outcome that was

@@ -19,6 +19,9 @@ import 'package:heimdall_ui/features/auth/domain/session.dart';
 import 'package:heimdall_ui/features/auth/domain/two_factor.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 /// The session wired exactly as `main.dart` wires it — the real repository,
 /// the real client, and the real interceptor — with only the transport
 /// replaced. These are the flows whose behaviour depends on how the API's
@@ -29,12 +32,12 @@ void main() {
   late _FakeGoogleSignInGateway google;
 
   ProviderContainer wired() {
-    final container = ProviderContainer(
+    final container = testContainer(
+      store: store,
       overrides: <Override>[
         appConfigProvider.overrideWithValue(
           const AppConfig(apiBaseUrl: 'https://example.invalid'),
         ),
-        tokenStoreProvider.overrideWithValue(store),
         scopeSourceProvider.overrideWithValue(const FixedScopeSource(null)),
         googleSignInGatewayProvider.overrideWithValue(google),
         authRepositoryProvider.overrideWith(
@@ -42,7 +45,6 @@ void main() {
         ),
       ],
     );
-    addTearDown(container.dispose);
     container.read(dioProvider).httpClientAdapter = adapter;
 
     return container;
@@ -153,7 +155,10 @@ void main() {
     // Given
     await store.write(
       AuthToken(
-        value: _jwt(role: '3'),
+        value: testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+        }),
         expiresAt: DateTime.utc(2030),
       ),
     );
@@ -215,7 +220,10 @@ void main() {
       // Given
       await store.write(
         AuthToken(
-          value: _jwt(role: '3'),
+          value: testApiJwt(<String, Object?>{
+            'id': '6f1d3a00-0000-0000-0000-000000000003',
+            'role': '3',
+          }),
           expiresAt: DateTime.utc(2030),
         ),
       );
@@ -253,7 +261,10 @@ void main() {
       // Given
       await store.write(
         AuthToken(
-          value: _jwt(role: '3'),
+          value: testApiJwt(<String, Object?>{
+            'id': '6f1d3a00-0000-0000-0000-000000000003',
+            'role': '3',
+          }),
           expiresAt: DateTime.utc(2030),
         ),
       );
@@ -321,7 +332,10 @@ void main() {
     // Given
     await store.write(
       AuthToken(
-        value: _jwt(role: '3'),
+        value: testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: true,
       ),
@@ -367,7 +381,10 @@ void main() {
     // Given
     await store.write(
       AuthToken(
-        value: _jwt(role: '3'),
+        value: testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '3',
+        }),
         expiresAt: DateTime.utc(2030),
         viaGoogle: true,
       ),
@@ -400,13 +417,19 @@ void main() {
     'GivenALiveSession_WhenTheStoredTokenChanges_ThenItsOwnIsSent',
     () async {
       // Given
-      final own = _jwt(role: '3');
+      final own = testApiJwt(<String, Object?>{
+        'id': '6f1d3a00-0000-0000-0000-000000000003',
+        'role': '3',
+      });
       await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
       final container = wired();
       await container.read(sessionControllerProvider.notifier).restore();
       await store.write(
         AuthToken(
-          value: _jwt(role: '1'),
+          value: testApiJwt(<String, Object?>{
+            'id': '6f1d3a00-0000-0000-0000-000000000003',
+            'role': '1',
+          }),
           expiresAt: DateTime.utc(2030),
         ),
       );
@@ -426,7 +449,10 @@ void main() {
   // session this tab shows is still the one that acts.
   test('GivenALiveSession_WhenTheStoreIsCleared_ThenItsOwnIsSent', () async {
     // Given
-    final own = _jwt(role: '3');
+    final own = testApiJwt(<String, Object?>{
+      'id': '6f1d3a00-0000-0000-0000-000000000003',
+      'role': '3',
+    });
     await store.write(AuthToken(value: own, expiresAt: DateTime.utc(2030)));
     final container = wired();
     await container.read(sessionControllerProvider.notifier).restore();
@@ -449,7 +475,10 @@ void main() {
     await container.read(sessionControllerProvider.notifier).restore();
     await store.write(
       AuthToken(
-        value: _jwt(role: '1'),
+        value: testApiJwt(<String, Object?>{
+          'id': '6f1d3a00-0000-0000-0000-000000000003',
+          'role': '1',
+        }),
         expiresAt: DateTime.utc(2030),
       ),
     );
@@ -464,16 +493,6 @@ void main() {
     expect(adapter.bearers.single, isNull);
     expect(container.read(sessionControllerProvider), isA<Unauthenticated>());
   });
-}
-
-/// A token shaped as the API mints it: string claims named `id` and `role`.
-String _jwt({required String role}) {
-  String segment(Map<String, dynamic> json) =>
-      base64Url.encode(utf8.encode(jsonEncode(json))).replaceAll('=', '');
-
-  return '${segment(<String, dynamic>{'alg': 'HS256', 'typ': 'JWT'})}.'
-      '${segment(<String, dynamic>{'id': '6f1d3a00-0000-0000-0000-000000000003', 'role': role})}.'
-      'signature';
 }
 
 class _FakeGoogleSignInGateway implements GoogleSignInGateway {

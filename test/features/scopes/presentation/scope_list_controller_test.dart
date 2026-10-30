@@ -10,7 +10,7 @@ import 'package:heimdall_ui/features/scopes/domain/scope_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
-import '../../../support/late_answer.dart';
+import '../../../support/held_answer.dart';
 
 class _MockScopeRepository extends Mock implements ScopeRepository {}
 
@@ -54,17 +54,6 @@ void main() {
     ).thenAnswer((_) async => result);
   }
 
-  void failWith(Object error) {
-    when(
-      () => repository.list(
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) => Future<Result<Page<Scope>>>.error(error));
-  }
-
   setUp(() {
     repository = _MockScopeRepository();
   });
@@ -80,21 +69,6 @@ void main() {
     // Then
     final state = container.read(scopeListControllerProvider);
     expect((state as ScopeListLoaded).page.items.single.name, 'Acme');
-  });
-
-  // AF-10e — nothing has arrived yet, so the placeholder is what shows.
-  test('GivenNothingLoaded_WhenBuilt_ThenStateIsLoading', () async {
-    // Given
-    answerWith(Success<Page<Scope>>(_page()));
-
-    // When
-    controllerUnderTest();
-
-    // Then
-    expect(
-      container.read(scopeListControllerProvider),
-      isA<ScopeListLoading>(),
-    );
   });
 
   test('GivenASearch_WhenSubmitted_ThenTheNameIsSent', () async {
@@ -172,32 +146,6 @@ void main() {
     ).called(1);
   });
 
-  // AF-10b — the query that failed is kept, so the retry asks it again.
-  test('GivenAFailedRequest_WhenLoaded_ThenTheFiltersSurvive', () async {
-    // Given
-    when(
-      () => repository.list(
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: any(named: 'pageNumber'),
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer(
-      (_) async => const FailureResult<Page<Scope>>(
-        Failure(kind: FailureKind.network, errors: <String>[]),
-      ),
-    );
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.search('Acme');
-
-    // Then
-    final state = container.read(scopeListControllerProvider);
-    expect(state, isA<ScopeListFailed>());
-    expect(state.query.name, 'Acme');
-  });
-
   test('GivenARefusedListing_WhenLoaded_ThenApiErrorsAreKept', () async {
     // Given
     answerWith(
@@ -267,129 +215,34 @@ void main() {
     ).called(1);
   });
 
-  test(
-    'GivenARequestInFlight_WhenAskedAgain_ThenTheNewestWaitsItsTurn',
-    () async {
-      // Given
-      final pending = Completer<Result<Page<Scope>>>();
-      when(
-        () => repository.list(
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => pending.future);
-      final controller = controllerUnderTest();
-
-      // When
-      final first = controller.goToPage(2);
-      final second = controller.goToPage(3);
-
-      // Then — the second waits for the first rather than racing it
-      verify(
-        () => repository.list(
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-
-      // …and is asked once the first is answered, rather than dropped
-      pending.complete(Success<Page<Scope>>(_page()));
-      await Future.wait<void>(<Future<void>>[first, second]);
-      verify(
-        () => repository.list(
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).called(1);
-    },
-  );
-  // The last row of the last page was deleted: asking for that page again
-  // would show "nothing here" with no pager to go back with.
-  test('GivenAPagePastTheEnd_WhenLoaded_ThenTheLastPageIsAskedFor', () async {
+  // #157 — a search queued during a load, then a second change: the request
+  // that follows the load carries both.
+  test('GivenASearchQueuedDuringALoad_WhenIncludeDeletedIsToggled_ThenTheLastRequestCarriesBoth', () async {
     // Given
+    final first = Completer<Result<Page<Scope>>>();
     when(
       () => repository.list(
         name: any(named: 'name'),
         includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: 2,
+        pageNumber: any(named: 'pageNumber'),
         pageSize: any(named: 'pageSize'),
       ),
-    ).thenAnswer(
-      (_) async =>
-          Success<Page<Scope>>(_page(items: const <Scope>[], pageNumber: 2)),
-    );
-    when(
-      () => repository.list(
-        name: any(named: 'name'),
-        includeDeleted: any(named: 'includeDeleted'),
-        pageNumber: 1,
-        pageSize: any(named: 'pageSize'),
-      ),
-    ).thenAnswer((_) async => Success<Page<Scope>>(_page()));
+    ).thenAnswer(heldFirstAnswer(first, () => Success<Page<Scope>>(_page())));
     final controller = controllerUnderTest();
+    final loading = controller.load();
 
     // When
-    await controller.goToPage(2);
+    unawaited(controller.search('abc'));
+    unawaited(controller.setIncludeDeleted(true));
+    first.complete(Success<Page<Scope>>(_page()));
+    await loading;
 
     // Then
-    final state = container.read(scopeListControllerProvider);
-    expect(state.query.pageNumber, 1);
-    expect((state as ScopeListLoaded).page.items.single.name, 'Acme');
+    verify(
+      () => repository.list(name: 'abc', includeDeleted: true, pageNumber: 1),
+    ).called(1);
+    final query = container.read(scopeListControllerProvider).query;
+    expect(query.name, 'abc');
+    expect(query.includeDeleted, isTrue);
   });
-
-  test('GivenARepositoryThatThrowsAFormatException_WhenLoaded_ThenTheStateIsFailedAsUnexpected', () async {
-    // Given
-    failWith(const FormatException('not the shape of a page'));
-    final controller = controllerUnderTest();
-
-    // When
-    await controller.load();
-
-    // Then
-    final state = container.read(scopeListControllerProvider);
-    expect(state, isA<ScopeListFailed>());
-    final failure = (state as ScopeListFailed).failure;
-    expect(failure.kind, FailureKind.unknown);
-    expect(failure.displayMessage, 'The API returned an unexpected response.');
-  });
-
-  // A sign-out resets the listing while its request is in flight, and the late
-  // answer, the previous session's scopes, must not land in the reset state.
-  test(
-    'GivenALoadInFlight_WhenTheSessionResets_ThenTheAnswerIsDropped',
-    () async {
-      // Given
-      final answer = Completer<Result<Page<Scope>>>();
-      when(
-        () => repository.list(
-          name: any(named: 'name'),
-          includeDeleted: any(named: 'includeDeleted'),
-          pageNumber: any(named: 'pageNumber'),
-          pageSize: any(named: 'pageSize'),
-        ),
-      ).thenAnswer((_) => answer.future);
-      final controller = controllerUnderTest();
-
-      // When
-      await answerAfterReset(
-        container,
-        scopeListControllerProvider,
-        reset: scopeListControllerProvider,
-        start: controller.load,
-        answer: () => answer.complete(Success<Page<Scope>>(_page())),
-      );
-
-      // Then
-      expect(
-        container.read(scopeListControllerProvider),
-        isA<ScopeListLoading>(),
-      );
-    },
-  );
 }

@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
+import '../../../shared/paging/list_state.dart';
+import '../../../shared/paging/paged_list_controller.dart';
 import '../../profile/presentation/profile_controller.dart';
 import '../domain/person.dart';
 
@@ -31,33 +33,39 @@ class SystemAdminQuery {
 
 /// How far the listing has got. The query travels with every state, so the
 /// filters survive a failure and a retry.
-sealed class SystemAdminListState {
+sealed class SystemAdminListState
+    implements ListState<SystemAdminQuery, PersonSummary> {
   const SystemAdminListState(this.query);
 
+  @override
   final SystemAdminQuery query;
 }
 
-final class SystemAdminListLoading extends SystemAdminListState {
+final class SystemAdminListLoading extends SystemAdminListState
+    implements ListLoading<SystemAdminQuery, PersonSummary> {
   const SystemAdminListLoading(super.query);
 }
 
 /// A page arrived. [busy] keeps the rows on screen while a further page or
 /// search is in flight.
-final class SystemAdminListLoaded extends SystemAdminListState {
+final class SystemAdminListLoaded extends SystemAdminListState
+    implements ListLoaded<SystemAdminQuery, PersonSummary> {
   const SystemAdminListLoaded(super.query, this.page, {this.busy = false});
 
+  @override
   final Page<PersonSummary> page;
+
+  @override
   final bool busy;
 }
 
 /// AF-38c/d — the request failed, and the query that failed is kept.
-final class SystemAdminListFailed extends SystemAdminListState {
+final class SystemAdminListFailed extends SystemAdminListState
+    implements ListFailed<SystemAdminQuery, PersonSummary> {
   const SystemAdminListFailed(super.query, this.failure);
 
+  @override
   final Failure failure;
-
-  /// AF-38c — only a System Admin may list System Admins.
-  bool get isForbidden => failure.kind == FailureKind.forbidden;
 }
 
 /// Disposed when the screen is left, so a return starts from a fresh,
@@ -71,88 +79,50 @@ systemAdminListControllerProvider =
 
 /// Owns the System Admins listing: its filters, its page, and the request in
 /// flight.
-class SystemAdminListController extends Notifier<SystemAdminListState> {
-  bool _inFlight = false;
-
-  /// The newest query asked for while another was in flight, asked as soon as
-  /// that one is answered.
-  SystemAdminQuery? _queued;
-
-  /// What the next change builds on: the queued query when there is one, so
-  /// two changes during one load both survive.
-  SystemAdminQuery get _latest => _queued ?? state.query;
-
-  @override
-  SystemAdminListState build() =>
-      const SystemAdminListLoading(SystemAdminQuery());
-
-  Future<void> load() => _fetch(_latest);
-
+class SystemAdminListController
+    extends
+        PagedListController<
+          SystemAdminQuery,
+          PersonSummary,
+          SystemAdminListState
+        > {
   /// A new search starts at the first page.
   Future<void> search({String? name, String? email}) =>
-      _fetch(_latest.copyWith(name: name, email: email, pageNumber: 1));
+      request(latest.copyWith(name: name, email: email, pageNumber: 1));
 
-  Future<void> goToPage(int pageNumber) =>
-      _fetch(_latest.copyWith(pageNumber: pageNumber));
+  Future<void> clearFilters() => request(const SystemAdminQuery());
 
-  Future<void> clearFilters() => _fetch(const SystemAdminQuery());
+  @override
+  SystemAdminQuery get initialQuery => const SystemAdminQuery();
 
-  Future<void> _fetch(SystemAdminQuery query) async {
-    if (_inFlight) {
-      _queued = query;
+  @override
+  int pageNumberOf(SystemAdminQuery query) => query.pageNumber;
 
-      return;
-    }
+  @override
+  SystemAdminQuery withPageNumber(SystemAdminQuery query, int pageNumber) =>
+      query.copyWith(pageNumber: pageNumber);
 
-    final current = state;
-    _inFlight = true;
-
-    state = current is SystemAdminListLoaded
-        ? SystemAdminListLoaded(query, current.page, busy: true)
-        : SystemAdminListLoading(query);
-
-    final Result<Page<PersonSummary>> result;
-
-    try {
-      result = await guardUnexpected(
-        () => ref
-            .read(personRepositoryProvider)
-            .listSystemAdmins(
-              name: query.name,
-              email: query.email,
-              pageNumber: query.pageNumber,
-            ),
+  @override
+  Future<Result<Page<PersonSummary>>> fetch(SystemAdminQuery query) => ref
+      .read(personRepositoryProvider)
+      .listSystemAdmins(
+        name: query.name,
+        email: query.email,
+        pageNumber: query.pageNumber,
       );
-    } finally {
-      _inFlight = false;
-    }
 
-    if (!ref.mounted) {
-      return;
-    }
+  @override
+  SystemAdminListState loadingState(SystemAdminQuery query) =>
+      SystemAdminListLoading(query);
 
-    state = result.fold(
-      onSuccess: (page) => SystemAdminListLoaded(query, page),
-      onFailure: (failure) => SystemAdminListFailed(query, failure),
-    );
+  @override
+  SystemAdminListState loadedState(
+    SystemAdminQuery query,
+    Page<PersonSummary> page, {
+    bool busy = false,
+  }) => SystemAdminListLoaded(query, page, busy: busy);
 
-    if (_queued case final queued?) {
-      _queued = null;
-      await _fetch(queued);
-
-      return;
-    }
-
-    // A page past the end — the last admin of the last page was deleted, say —
-    // would show "nothing here" with no pager to go back with. The last page
-    // that still exists is asked for instead.
-    if (state case SystemAdminListLoaded(:final page)
-        when page.items.isEmpty && query.pageNumber > 1) {
-      await _fetch(
-        query.copyWith(
-          pageNumber: page.totalPages.clamp(1, query.pageNumber - 1),
-        ),
-      );
-    }
-  }
+  @override
+  SystemAdminListState failedState(SystemAdminQuery query, Failure failure) =>
+      SystemAdminListFailed(query, failure);
 }

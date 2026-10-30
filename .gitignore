@@ -53,3 +53,6 @@ app.*.map.json
 
 # Claude Code local settings
 .claude/settings.local.json
+
+# Release files (ci/release-build.sh)
+/dist/

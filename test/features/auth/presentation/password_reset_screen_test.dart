@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -12,11 +11,12 @@ import 'package:heimdall_ui/features/auth/presentation/password_reset_screen.dar
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 void main() {
   late _MockAuthRepository repository;
-  late ProviderContainer container;
   late GoRouter router;
 
   /// Pumps the screen behind a router, so the actions that leave it — request a
@@ -27,50 +27,35 @@ void main() {
     Size size = const Size(400, 900),
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    container = ProviderContainer(
+    await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
       ],
-    );
-    addTearDown(container.dispose);
-
-    router = GoRouter(
-      initialLocation: token == null
-          ? '/password-reset'
-          : '/password-reset?token=$token',
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/password-reset',
-          builder: (context, state) =>
-              PasswordResetScreen(token: state.uri.queryParameters['token']),
-        ),
-        GoRoute(
-          path: '/password-recovery',
-          builder: (context, state) =>
-              const Scaffold(body: Text('recovery screen')),
-        ),
-        GoRoute(
-          path: '/login',
-          builder: (context, state) => const Scaffold(body: Text('login')),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
+      routerFor: (_) => router = GoRouter(
+        initialLocation: token == null
+            ? '/password-reset'
+            : '/password-reset?token=$token',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/password-reset',
+            builder: (context, state) =>
+                PasswordResetScreen(token: state.uri.queryParameters['token']),
+          ),
+          GoRoute(
+            path: '/password-recovery',
+            builder: (context, state) =>
+                const Scaffold(body: Text('recovery screen')),
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (context, state) => const Scaffold(body: Text('login')),
+          ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<void> result) {
@@ -151,6 +136,55 @@ void main() {
     // Then
     expect(find.text('login'), findsOneWidget);
   });
+
+  // #158 — the controller outlives the screen, so a second link opened in the
+  // same app run must not inherit the first one's result.
+  testWidgets(
+    'GivenASucceededReset_WhenASecondLinkIsOpened_ThenTheFormIsShown',
+    (tester) async {
+      // Given
+      answerWith(const Success<void>(null));
+      await pump(tester, token: 'token-a');
+      await submit(tester, 'new-secret', 'new-secret');
+      await tester.tap(find.widgetWithText(FilledButton, 'Sign in'));
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/password-reset?token=token-b');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Your password is set'), findsNothing);
+      expect(find.widgetWithText(FilledButton, 'Set password'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'GivenAFailedReset_WhenASecondLinkIsOpened_ThenNoStaleFailureIsShown',
+    (tester) async {
+      // Given
+      answerWith(
+        const FailureResult<void>(
+          Failure(
+            kind: FailureKind.validation,
+            errors: <String>['Token spent.'],
+          ),
+        ),
+      );
+      await pump(tester, token: 'token-a');
+      await submit(tester, 'new-secret', 'new-secret');
+      expect(find.text('Token spent.'), findsWidgets);
+      router.go('/login');
+      await tester.pumpAndSettle();
+
+      // When
+      router.go('/password-reset?token=token-b');
+      await tester.pumpAndSettle();
+
+      // Then
+      expect(find.text('Token spent.'), findsNothing);
+    },
+  );
 
   // AF-04a — the link carried no token.
   testWidgets('GivenNoToken_WhenRendered_ThenTheLinkIsCalledIncomplete', (

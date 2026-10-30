@@ -7,6 +7,8 @@ import 'package:heimdall_ui/features/home/presentation/destinations.dart';
 import 'package:heimdall_ui/shared/layout/adaptive_scaffold.dart';
 import 'package:heimdall_ui/shared/layout/destination.dart';
 
+import '../../support/pump_app.dart';
+
 void main() {
   const destinations = <AppDestination>[
     AppDestination(label: 'Scopes', icon: Icons.domain, route: '/scopes'),
@@ -19,9 +21,7 @@ void main() {
     ValueChanged<int>? onDestinationSelected,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       MaterialApp(
@@ -169,9 +169,7 @@ void main() {
       final systemAdmin = destinationsFor(
         const Principal(id: 'p', email: '', role: Role.systemAdmin),
       );
-      tester.view.physicalSize = const Size(900, 800);
-      tester.view.devicePixelRatio = 1;
-      addTearDown(tester.view.reset);
+      useWindow(tester, const Size(900, 800));
       await tester.pumpWidget(
         MaterialApp(
           theme: buildLightTheme(),

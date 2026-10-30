@@ -27,10 +27,10 @@ versions and roles are maintained in exactly one place.
 | Concern | Choice | Notes |
 | --- | --- | --- |
 | Framework | **Flutter 3.47.7** (stable) | One codebase for every target. |
-| Language | **Dart 3.13.5** | Ships with the Flutter version above. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
+| Language | **Dart 3.13.5+** | `pubspec.yaml` requires `sdk: ^3.13.5`; Flutter 3.47.7 and newer ship it. A Flutter whose bundled Dart is older (3.13.2, say) fails `flutter pub get`. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
 | Design system | **Material 3** | `useMaterial3: true`, with both schemes derived from one seed color. |
 | Targets | **Web, Windows, Linux, Android** | No iOS or macOS platform folder exists. |
-| Analysis | `flutter_lints`, with `strict-casts` and `strict-raw-types` enabled | Generated code is excluded from analysis. |
+| Analysis | `flutter_lints`, with `strict-casts`, `strict-raw-types` and `strict-inference` enabled, plus the lints `always_declare_return_types`, `avoid_print`, `close_sinks`, `directives_ordering`, `discarded_futures`, `prefer_const_constructors`, `prefer_final_locals`, `require_trailing_commas`, `unawaited_futures` and `unnecessary_lambdas` | Generated code is excluded from analysis. |
 
 ---
 
@@ -39,7 +39,7 @@ versions and roles are maintained in exactly one place.
 | Package | Constraint | Role |
 | --- | --- | --- |
 | **flutter_riverpod** | `^3.4.3` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
-| **go_router** | `^18.0.2` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
+| **go_router** | `^18.1.1` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
 | **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. Debug builds add the application's own request log, one line per request with the method, path, status and duration; it never prints headers, query strings, bodies or an error's text. |
 | **retrofit** | `^4.10.0` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
 | **json_annotation** | `^4.12.0` | The generated models' runtime, paired with `json_serializable` at build time. |
@@ -58,9 +58,9 @@ versions and roles are maintained in exactly one place.
 | Package | Constraint | Role |
 | --- | --- | --- |
 | **swagger_parser** | `^1.45.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
-| **build_runner** | `^2.16.2` | Runs the generators. |
+| **build_runner** | `^2.17.1` | Runs the generators. |
 | **json_serializable** | `^6.14.1` | Emits the `fromJson`/`toJson` bodies for the generated models. |
-| **retrofit_generator** | `^10.2.11` | Emits the client implementations. |
+| **retrofit_generator** | `^10.2.12` | Emits the client implementations. |
 
 ### 4.1 The generation pipeline
 
@@ -109,7 +109,6 @@ named after their area — `AuthClient`, `ScopeClient`, `PersonClient`, `Applica
 | Package | Constraint | Role |
 | --- | --- | --- |
 | **flutter_test** | SDK | The test framework for unit and widget tests. |
-| **integration_test** | SDK | Drives end-to-end flows against a stubbed API. |
 | **mocktail** | `^1.0.5` | The single mocking library, for repositories and other collaborators. Chosen over `mockito` because it needs no code generation. Do not introduce a second one. |
 
 How tests are written — naming, structure, and what each use case must cover — is defined in the
@@ -124,8 +123,9 @@ no test reaches the network.
 
 | Tool | Role |
 | --- | --- |
-| **GitHub Actions** | Runs the analyze-and-test gate, the multi-platform builds, and the client drift check. |
-| **subosito/flutter-action** | Installs the pinned Flutter version on each runner. |
+| **Jenkins** (yggdrasil) | Runs the analyze-and-test gate, the web build check and the client drift check (`ci/`), builds the release files, and deploys. |
+| **GitHub Actions** | Builds the Windows release files (`release-windows.yml`) on the GitHub copy. |
+| **ci/flutter-env.sh** | Installs the pinned Flutter version in the CI image (`subosito/flutter-action` in the Windows workflow). |
 
 ---
 
@@ -134,9 +134,9 @@ no test reaches the network.
 | Category | Package / tool | Version |
 | --- | --- | --- |
 | Framework | Flutter | `3.47.7` |
-| Language | Dart | `3.13.5` |
+| Language | Dart | `3.13.5+` |
 | State | flutter_riverpod | `^3.4.3` |
-| Routing | go_router | `^18.0.2` |
+| Routing | go_router | `^18.1.1` |
 | HTTP | dio | `^5.11.1` |
 | HTTP | retrofit | `^4.10.0` |
 | Serialization | json_annotation | `^4.12.0` |
@@ -148,9 +148,9 @@ no test reaches the network.
 | Platform | url_launcher | `^6.3.3` |
 | Platform | path_provider | `^2.1.6` |
 | Generation | swagger_parser | `^1.45.0` |
-| Generation | build_runner | `^2.16.2` |
+| Generation | build_runner | `^2.17.1` |
 | Generation | json_serializable | `^6.14.1` |
-| Generation | retrofit_generator | `^10.2.11` |
+| Generation | retrofit_generator | `^10.2.12` |
 | Testing | mocktail | `^1.0.5` |
 | Lints | flutter_lints | `^6.0.0` |
 

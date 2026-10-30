@@ -1,13 +1,11 @@
 import 'dart:async';
 
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
-import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/storage/token_store.dart';
@@ -16,26 +14,13 @@ import 'package:heimdall_ui/features/audit_log/domain/audit_log_repository.dart'
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
-import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
-import 'package:flutter/services.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuditLogRepository extends Mock implements AuditLogRepository {}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-9',
-        'email': 'admin@example.com',
-        'role': 1,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
-}
 
 const _actorId = '6f1c2b9e-0d4a-4c1e-9a3b-2f6d8e7a1b0c';
 const _targetId = 'b7c1d2e3-0000-4000-8000-000000000001';
@@ -86,50 +71,31 @@ void main() {
   late _MockAuditLogRepository repository;
   late InMemoryTokenStore store;
   late ProviderContainer container;
-  late GoRouter router;
 
   Future<void> pump(
     WidgetTester tester, {
     Future<void> Function(ProviderContainer container)? prepare,
     Size size = const Size(1400, 900),
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      store: store,
+      token: testToken(testJwt(sub: 'person-9')),
       overrides: <Override>[
         auditLogRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
-    await prepare?.call(container);
-
-    router = GoRouter(
-      initialLocation: '/audit-log',
-      routes: <RouteBase>[
-        GoRoute(
-          path: '/audit-log',
-          builder: (context, state) => const AuditLogScreen(),
-        ),
-      ],
-    );
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: buildLightTheme(),
-          routerConfig: router,
-        ),
+      afterRestore: prepare,
+      routerFor: (_) => GoRouter(
+        initialLocation: '/audit-log',
+        routes: <RouteBase>[
+          GoRoute(
+            path: '/audit-log',
+            builder: (context, state) => const AuditLogScreen(),
+          ),
+        ],
       ),
     );
-    await tester.pumpAndSettle();
   }
 
   void answerWith(Result<envelope.Page<AuditEntry>> result) {

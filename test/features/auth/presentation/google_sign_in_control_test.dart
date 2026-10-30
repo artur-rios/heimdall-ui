@@ -16,6 +16,9 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
+
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
 /// Google's half, faked: what it would have returned, without its SDK.
@@ -32,6 +35,9 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 
   final StreamController<GoogleIdTokenObtained> tokens =
       StreamController<GoogleIdTokenObtained>.broadcast();
+
+  /// Closes the token stream the test feeds; registered as a tear-down.
+  Future<void> close() => tokens.close();
 
   int initializations = 0;
   int signOuts = 0;
@@ -50,10 +56,7 @@ class _FakeGoogleSignInGateway implements GoogleSignInGateway {
 }
 
 /// A token naming a User, which is all the control's outcomes need.
-const String _jwt =
-    'header.'
-    'eyJzdWIiOiJpZCIsImVtYWlsIjoiYUBiLmMiLCJyb2xlIjozfQ.'
-    'signature';
+final String _jwt = testJwt(sub: 'id', email: 'a@b.c', role: 3);
 
 void main() {
   late _MockAuthRepository repository;
@@ -65,30 +68,20 @@ void main() {
     WidgetTester tester, {
     String? scopeId = 'scope-public-id',
     ThemeData? theme,
+    bool enabled = true,
   }) async {
-    container = ProviderContainer(
+    addTearDown(gateway.close);
+    container = await pumpApp(
+      tester,
+      store: store,
+      theme: theme,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
         googleSignInGatewayProvider.overrideWithValue(gateway),
         scopeSourceProvider.overrideWithValue(FixedScopeSource(scopeId)),
       ],
+      home: Scaffold(body: GoogleSignInControl(enabled: enabled)),
     );
-    addTearDown(container.dispose);
-    addTearDown(gateway.tokens.close);
-    // Settle the start-up read so it cannot land mid-exchange.
-    await container.read(sessionControllerProvider.notifier).restore();
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp(
-          theme: theme ?? buildLightTheme(),
-          home: const Scaffold(body: GoogleSignInControl(enabled: true)),
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   void answerExchangeWith(Result<AuthToken> result) {
@@ -366,6 +359,92 @@ void main() {
       ),
     ).called(1);
   });
+
+  // Google can send a second token while the first is being exchanged.
+  testWidgets('GivenTwoTokenEvents_WhenTheFirstIsPending_ThenOneExchangeRuns', (
+    tester,
+  ) async {
+    // Given
+    gateway = _FakeGoogleSignInGateway(
+      availability: GoogleSignInAvailability.platformControl,
+    );
+    final answer = Completer<Result<AuthToken>>();
+    when(
+      () => repository.signInWithGoogle(
+        idToken: any(named: 'idToken'),
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).thenAnswer((_) => answer.future);
+    await pump(tester);
+
+    // When
+    gateway.tokens.add(const GoogleIdTokenObtained('google-id-token'));
+    await tester.pump();
+    gateway.tokens.add(const GoogleIdTokenObtained('google-id-token'));
+    await tester.pump();
+    answer.complete(Success<AuthToken>(googleToken()));
+    await tester.pumpAndSettle();
+
+    // Then
+    verify(
+      () => repository.signInWithGoogle(
+        idToken: any(named: 'idToken'),
+        scopeId: any(named: 'scopeId'),
+      ),
+    ).called(1);
+  });
+
+  // Pointer-ignoring does not reach Google's iframe on the web, so a token can
+  // still arrive while the credentials form submits.
+  testWidgets('GivenADisabledControl_WhenATokenArrives_ThenNoExchangeRuns', (
+    tester,
+  ) async {
+    // Given
+    gateway = _FakeGoogleSignInGateway(
+      availability: GoogleSignInAvailability.platformControl,
+    );
+    answerExchangeWith(Success<AuthToken>(googleToken()));
+    await pump(tester, enabled: false);
+
+    // When
+    gateway.tokens.add(const GoogleIdTokenObtained('google-id-token'));
+    await tester.pumpAndSettle();
+
+    // Then
+    verifyNever(
+      () => repository.signInWithGoogle(
+        idToken: any(named: 'idToken'),
+        scopeId: any(named: 'scopeId'),
+      ),
+    );
+  });
+
+  // The platform's own control cannot be greyed out, so it is not reachable.
+  for (final enabled in <bool>[true, false]) {
+    testWidgets(
+      'GivenAPlatformControl_When${enabled ? 'Enabled_ThenItAcceptsInput' : 'Disabled_ThenInputIsIgnored'}',
+      (tester) async {
+        // Given
+        gateway = _FakeGoogleSignInGateway(
+          availability: GoogleSignInAvailability.platformControl,
+        );
+
+        // When
+        await pump(tester, enabled: enabled);
+
+        // Then
+        expect(
+          find.descendant(
+            of: find.byType(GoogleSignInControl),
+            matching: find.byWidgetPredicate(
+              (widget) => widget is IgnorePointer && widget.ignoring,
+            ),
+          ),
+          enabled ? findsNothing : findsOneWidget,
+        );
+      },
+    );
+  }
 
   testWidgets('GivenAPlatformControl_WhenRendered_ThenTheSdkIsInitialized', (
     tester,

@@ -12,9 +12,11 @@ import 'package:heimdall_ui/features/persons/domain/person_repository.dart';
 import 'package:heimdall_ui/features/persons/presentation/scope_admin_picker.dart';
 import 'package:heimdall_ui/features/persons/presentation/scope_admin_picker_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
+import 'package:heimdall_ui/shared/widgets/collection_states.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/late_answer.dart';
+import '../../../support/pump_app.dart';
 
 class _MockPersonRepository extends Mock implements PersonRepository {}
 
@@ -85,9 +87,7 @@ void main() {
     Set<String> excludeIds = const <String>{},
     void Function(PersonSummary?)? onChosen,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
+    useWindow(tester, size);
 
     await tester.pumpWidget(
       UncontrolledProviderScope(
@@ -364,6 +364,82 @@ void main() {
 
     // Then
     expect(find.widgetWithText(ListTile, 'Ada'), findsOneWidget);
+  });
+
+  // The provider outlives the dialog, so the second opening must not show the
+  // first one's list: it still holds the owner just added, and choosing that
+  // row would be refused as "already an owner" (AF-14b).
+  testWidgets('GivenAnEarlierOpening_WhenReopened_ThenItStartsLoading', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester, excludeOwnersOfScopeId: 'scope-1');
+    expect(find.widgetWithText(ListTile, 'Ada'), findsOneWidget);
+    await tester.tap(find.widgetWithText(TextButton, 'Cancel'));
+    await tester.pumpAndSettle();
+    final answer = Completer<Result<envelope.Page<PersonSummary>>>();
+    when(
+      () => repository.listScopeAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        excludeOwnersOfScopeId: any(named: 'excludeOwnersOfScopeId'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => answer.future);
+
+    // When
+    await tester.tap(find.text('Open'));
+    await tester.pump();
+    await tester.pump();
+
+    // Then
+    expect(find.widgetWithText(ListTile, 'Ada'), findsNothing);
+    expect(find.byType(CollectionLoading), findsOneWidget);
+    answer.complete(_listing(<PersonSummary>[_grace]));
+    await tester.pumpAndSettle();
+    expect(find.widgetWithText(ListTile, 'Grace'), findsOneWidget);
+    expect(find.widgetWithText(ListTile, 'Ada'), findsNothing);
+  });
+
+  // Enter, then the arrow button: the answers can arrive in either order, and
+  // the one asked last is the one the person is waiting for.
+  test('GivenTwoSearches_WhenAnsweredInReverse_ThenTheLatestWins', () async {
+    // Given
+    final first = Completer<Result<envelope.Page<PersonSummary>>>();
+    final second = Completer<Result<envelope.Page<PersonSummary>>>();
+    final answers = <Completer<Result<envelope.Page<PersonSummary>>>>[
+      first,
+      second,
+    ];
+    when(
+      () => repository.listScopeAdmins(
+        name: any(named: 'name'),
+        email: any(named: 'email'),
+        excludeOwnersOfScopeId: any(named: 'excludeOwnersOfScopeId'),
+        pageNumber: any(named: 'pageNumber'),
+        pageSize: any(named: 'pageSize'),
+      ),
+    ).thenAnswer((_) => answers.removeAt(0).future);
+    final container = containerUnderTest();
+    final controller = container.read(
+      scopeAdminPickerControllerProvider('').notifier,
+    );
+    final earlier = controller.search('ada');
+    final later = controller.search('grace');
+
+    // When
+    second.complete(_listing(<PersonSummary>[_grace]));
+    await later;
+    first.complete(_listing(<PersonSummary>[_ada]));
+    await earlier;
+
+    // Then
+    final state = container.read(
+      scopeAdminPickerControllerProvider(''),
+    ) as ScopeAdminsLoaded;
+    expect(state.query, 'grace');
+    expect(state.candidates, <PersonSummary>[_grace]);
   });
 
   testWidgets('GivenACompactWindow_WhenOpened_ThenTheCandidatesAreListed', (

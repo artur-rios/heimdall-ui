@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +11,7 @@ import '../../../shared/widgets/adaptive_collection.dart';
 import '../../../shared/widgets/collection_states.dart';
 import '../../../shared/widgets/confirm_dialog.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../domain/pending_registration.dart';
 import 'pending_registration_list_controller.dart';
 import 'scope_detail_controller.dart';
@@ -30,14 +33,18 @@ class _PendingRegistrationListScreenState
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.load();
+      unawaited(_controller.load());
 
       // A deep link or a refresh arrives without the scope page having read
       // the scope, so it is read once here for the subtitle's name. Only
       // here, so a scope that cannot be read is not asked for again.
       final scope = ref.read(scopeDetailControllerProvider(widget.scopeId));
       if (scope is! ScopeDetailLoaded) {
-        ref.read(scopeDetailControllerProvider(widget.scopeId).notifier).load();
+        unawaited(
+          ref
+              .read(scopeDetailControllerProvider(widget.scopeId).notifier)
+              .load(),
+        );
       }
     });
   }
@@ -53,6 +60,7 @@ class _PendingRegistrationListScreenState
       title: 'Discard the registration for ${registration.email}?',
       message: 'Its confirmation link will stop working.',
       confirmLabel: 'Discard',
+      destructive: true,
     );
 
     if (!confirmed || !mounted) {
@@ -142,7 +150,7 @@ class _PendingRegistrationListScreenState
       if (loaded.notice case final notice?)
         Padding(
           padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-          child: _Notice(icon: Icons.check_circle_outline, message: notice),
+          child: Notice(notice, icon: Icons.check_circle_outline),
         ),
       Expanded(
         child: loaded.page.items.isEmpty
@@ -210,37 +218,5 @@ class _PendingRegistrationListScreenState
         cell: (registration) => Text('${registration.attemptsLeft}'),
       ),
     ];
-  }
-}
-
-class _Notice extends StatelessWidget {
-  const _Notice({required this.icon, required this.message});
-
-  final IconData icon;
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: scheme.secondaryContainer,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: scheme.onSecondaryContainer),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              message,
-              style: TextStyle(color: scheme.onSecondaryContainer),
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

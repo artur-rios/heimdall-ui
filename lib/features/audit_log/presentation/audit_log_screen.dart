@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,7 +49,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
     _actor.text = filter.actorId ?? '';
     _target.text = filter.targetId ?? '';
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      ref.read(auditLogControllerProvider.notifier).load();
+      unawaited(ref.read(auditLogControllerProvider.notifier).load());
     });
   }
 
@@ -99,7 +101,7 @@ class _AuditLogScreenState extends ConsumerState<AuditLogScreen> {
       _actorError = null;
       _targetError = null;
     });
-    _controller.clearFilters();
+    unawaited(_controller.clearFilters());
   }
 
   Future<void> _pickDays(AuditLogFilter filter) async {

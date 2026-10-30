@@ -1,11 +1,10 @@
-import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
+import 'package:heimdall_ui/core/files/file_saver.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/core/secrets/screen_security.dart';
 import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
@@ -19,22 +18,32 @@ import 'package:heimdall_ui/shared/widgets/qr_code.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../support/jwt.dart';
+import '../../../support/pump_app.dart';
 import '../../../support/secret_fakes.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'ada@example.com',
-        'role': 3,
-      }),
-    ),
-  );
+class _FakeFileSaver implements FileSaver {
+  final Map<String, String> saved = <String, String>{};
+  Object? failWith;
 
-  return 'header.$payload.signature';
+  /// Where the saver says it wrote the file; `null` is a browser download.
+  String? savedTo;
+
+  @override
+  Future<String?> saveText({
+    required String fileName,
+    required String contents,
+    String mimeType = 'application/json',
+  }) async {
+    if (failWith case final error?) {
+      throw error;
+    }
+    saved[fileName] = '$mimeType|$contents';
+
+    return savedTo;
+  }
 }
 
 const _off = TwoFactorStatus();
@@ -59,6 +68,7 @@ void main() {
   late _MockAuthRepository repository;
   late InMemoryTokenStore store;
   late RecordingSecretClipboard secrets;
+  late _FakeFileSaver saver;
   late RecordingScreenSecurity security;
   late ProviderContainer container;
   late GoRouter router;
@@ -68,77 +78,70 @@ void main() {
     Size size = _expanded,
     ThemeData? theme,
   }) async {
-    tester.view.physicalSize = size;
-    tester.view.devicePixelRatio = 1;
-    addTearDown(tester.view.reset);
-
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
-
-    container = ProviderContainer(
+    container = await pumpApp(
+      tester,
+      size: size,
+      theme: theme,
+      store: store,
+      token: testToken(testJwt(email: 'ada@example.com', role: 3)),
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
         secretClipboardProvider.overrideWithValue(secrets),
+        fileSaverProvider.overrideWithValue(saver),
         screenSecurityProvider.overrideWithValue(security),
       ],
-    );
-    addTearDown(container.dispose);
-    await container.read(sessionControllerProvider.notifier).restore();
+      routerFor: (container) {
+        // The application's guard sends a signed-out person to sign-in; this
+        // stands in for it, so a sign-out lands somewhere that settles.
+        final sessionChanges = ValueNotifier<int>(0);
+        addTearDown(sessionChanges.dispose);
+        container.listen(
+          sessionControllerProvider,
+          (_, _) => sessionChanges.value++,
+        );
 
-    // The application's guard sends a signed-out person to sign-in; this
-    // stands in for it, so a sign-out lands somewhere that settles.
-    final sessionChanges = ValueNotifier<int>(0);
-    addTearDown(sessionChanges.dispose);
-    container.listen(
-      sessionControllerProvider,
-      (_, _) => sessionChanges.value++,
-    );
+        // Built under a provider, as the application's is, so the security
+        // route's onExit has the Ref it reads the codes and the session
+        // through.
+        final routerProvider = Provider<GoRouter>(
+          (ref) => GoRouter(
+            initialLocation: '/profile/security',
+            refreshListenable: sessionChanges,
+            redirect: (context, state) =>
+                ref.read(sessionControllerProvider) is Unauthenticated
+                ? '/login'
+                : null,
+            routes: <RouteBase>[
+              GoRoute(
+                path: '/',
+                builder: (context, state) => const Scaffold(body: Text('home')),
+              ),
+              GoRoute(
+                path: '/login',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('sign-in')),
+              ),
+              // Nested as the app's own routes are (#156).
+              GoRoute(
+                path: '/profile',
+                builder: (context, state) =>
+                    const Scaffold(body: Text('profile')),
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: 'security',
+                    builder: (context, state) => const SecurityScreen(),
+                    onExit: (context, state) =>
+                        confirmLeaveWithRecoveryCodes(context, ref),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        );
 
-    // Built under a provider, as the application's is, so the security
-    // route's onExit has the Ref it reads the codes and the session through.
-    final routerProvider = Provider<GoRouter>(
-      (ref) => GoRouter(
-        initialLocation: '/profile/security',
-        refreshListenable: sessionChanges,
-        redirect: (context, state) =>
-            ref.read(sessionControllerProvider) is Unauthenticated
-            ? '/login'
-            : null,
-        routes: <RouteBase>[
-          GoRoute(
-            path: '/',
-            builder: (context, state) => const Scaffold(body: Text('home')),
-          ),
-          GoRoute(
-            path: '/login',
-            builder: (context, state) => const Scaffold(body: Text('sign-in')),
-          ),
-          GoRoute(
-            path: '/profile',
-            builder: (context, state) => const Scaffold(body: Text('profile')),
-          ),
-          GoRoute(
-            path: '/profile/security',
-            builder: (context, state) => const SecurityScreen(),
-            onExit: (context, state) =>
-                confirmLeaveWithRecoveryCodes(context, ref),
-          ),
-        ],
-      ),
+        return router = container.read(routerProvider);
+      },
     );
-    router = container.read(routerProvider);
-    addTearDown(router.dispose);
-
-    await tester.pumpWidget(
-      UncontrolledProviderScope(
-        container: container,
-        child: MaterialApp.router(
-          theme: theme ?? buildLightTheme(),
-          routerConfig: router,
-        ),
-      ),
-    );
-    await tester.pumpAndSettle();
   }
 
   void answerStatusWith(Result<TwoFactorStatus> result) {
@@ -208,6 +211,7 @@ void main() {
     SharedPreferences.setMockInitialValues(<String, Object>{});
     repository = _MockAuthRepository();
     secrets = RecordingSecretClipboard();
+    saver = _FakeFileSaver();
     security = RecordingScreenSecurity();
     store = InMemoryTokenStore();
     answerStatusWith(const Success<TwoFactorStatus>(_off));
@@ -748,6 +752,64 @@ void main() {
     expect(find.textContaining('replace your previous codes'), findsOneWidget);
   });
 
+  testWidgets('GivenTurnOff_WhenAsked_ThenItIsDestructive', (tester) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Turn off two-factor'));
+    await tester.pumpAndSettle();
+
+    // Then Cancel takes the focus and confirming looks destructive
+    final scheme = Theme.of(tester.element(find.byType(AlertDialog)))
+        .colorScheme;
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+          .autofocus,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Turn off'))
+          .style!
+          .backgroundColor!
+          .resolve(<WidgetState>{}),
+      scheme.error,
+    );
+  });
+
+  testWidgets('GivenGenerateNewCodes_WhenAsked_ThenItIsDestructive', (
+    tester,
+  ) async {
+    // Given
+    answerStatusWith(const Success<TwoFactorStatus>(_on));
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Generate new codes'));
+    await tester.pumpAndSettle();
+
+    // Then Cancel takes the focus and confirming looks destructive
+    final scheme = Theme.of(tester.element(find.byType(AlertDialog)))
+        .colorScheme;
+    expect(
+      tester
+          .widget<TextButton>(find.widgetWithText(TextButton, 'Cancel'))
+          .autofocus,
+      isTrue,
+    );
+    expect(
+      tester
+          .widget<FilledButton>(find.widgetWithText(FilledButton, 'Generate'))
+          .style!
+          .backgroundColor!
+          .resolve(<WidgetState>{}),
+      scheme.error,
+    );
+  });
+
   // UC-39 — the API refuses to disable without the password *and* a second
   // factor, so both travel together.
   testWidgets('GivenAPasswordAndACode_WhenDisabled_ThenBothAreSent', (
@@ -1129,6 +1191,23 @@ void main() {
     expect(find.widgetWithText(TextButton, 'Retry'), findsOneWidget);
   });
 
+  // #156 — Security opens over the profile, so Android's Back returns there
+  // instead of leaving the app.
+  testWidgets('GivenNothingPending_WhenSystemBackIsPressed_ThenProfileShows', (
+    tester,
+  ) async {
+    // Given
+    await pump(tester);
+
+    // When
+    final handled = await tester.binding.handlePopRoute();
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(handled, isTrue);
+    expect(find.text('profile'), findsOneWidget);
+  });
+
   testWidgets('GivenNothingPending_WhenLeaving_ThenTheProfileOpens', (
     tester,
   ) async {
@@ -1266,6 +1345,53 @@ void main() {
       expect(secrets.copied, <String>['aaa\nbbb']);
     },
   );
+
+  testWidgets('GivenRecoveryCodes_WhenDownloaded_ThenTheyAreSavedOnePerLine', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saved, <String, String>{
+      'heimdall-recovery-codes.txt': 'text/plain|aaa\nbbb',
+    });
+    expect(find.text('Recovery codes saved.'), findsOneWidget);
+  });
+
+  testWidgets('GivenAFileSavedToAPath_WhenDownloaded_ThenThePathIsShown', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+    saver.savedTo = '/downloads/heimdall-recovery-codes.txt';
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(
+      find.text(
+        'Recovery codes saved to /downloads/heimdall-recovery-codes.txt.',
+      ),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('GivenRecoveryCodes_WhenTheDownloadFails_ThenItIsSaid', (
+    tester,
+  ) async {
+    await issueCodes(tester);
+    saver.failWith = StateError('disk full');
+
+    await tester.tap(find.text('Download codes'));
+    await tester.pumpAndSettle();
+
+    expect(saver.saved, isEmpty);
+    expect(
+      find.text('The codes could not be saved. Copy them instead.'),
+      findsOneWidget,
+    );
+  });
 
   // AF-09c — on the web a browser Back, Forward or typed address is a route
   // change that PopScope and the shell never see, so the route itself asks.

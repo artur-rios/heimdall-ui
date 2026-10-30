@@ -229,22 +229,36 @@ host should send the same (NFR-10).
 | Header | Value | Why |
 | --- | --- | --- |
 | `Content-Security-Policy` | Enforced; see below | A second line of defence against injected script |
-| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. In deployed environments the reverse proxy sets this header; see below |
+| `Referrer-Policy` | `no-referrer` on `/password-reset` and `/verify-email`; `strict-origin-when-cross-origin` elsewhere | The reset and verification pages are opened with a token in the URL. Elsewhere Google Identity Services asks for `strict-origin-when-cross-origin`, and a stricter policy would send it nothing. yggdrasil's edge (0.7.4 and later) passes it through; see below |
 | `X-Frame-Options` | `DENY` | No framing, alongside `frame-ancestors 'none'` |
 | `X-Content-Type-Options` | `nosniff` | |
 
-**Referrer-Policy behind a proxy.** In deployed environments Referrer-Policy is set by the reverse
-proxy. nginx's per-route `no-referrer` reaches the browser when the image is served directly. Behind
-yggdrasil's Traefik, the `secure-headers` middleware attached to the UI's routers sets
-`Referrer-Policy: strict-origin-when-cross-origin` on every response in place of nginx's value. The
+**Referrer-Policy behind a proxy.** nginx's per-route value reaches the browser when the image is
+served directly, and behind yggdrasil's Traefik from 0.7.4: the UI's routers carry the
+`secure-headers-ui` middleware, which is the shared `secure-headers` set without `referrerPolicy`.
+The edge still sends `Strict-Transport-Security: max-age=31536000; includeSubDomains` and
+`X-Content-Type-Options: nosniff`, and removes `Server` and `X-Powered-By`.
+
+Behind a proxy that does replace the header (yggdrasil before 0.7.4, whose `secure-headers` set
+`strict-origin-when-cross-origin` on every response, or another proxy's security-headers
+middleware), those two routes get the proxy's value. There the protection is that the
 application removes a link token from the address as it starts, so the requests it makes afterwards
 do not carry it.
 
 > [!NOTE]
-> For no Referer on those two routes behind a proxy, the edge middleware must not set
-> `referrerPolicy` for the UI's routers (nginx's per-route value then reaches the browser), or must
-> set a route-specific one: `no-referrer` for `/password-reset` and `/verify-email`. Confirm with
-> `curl -sI https://<host>/password-reset` after deploying.
+> Confirm after deploying. The first two commands each print exactly one line, ending
+> `no-referrer`; the last prints one ending `strict-origin-when-cross-origin`. A second line means
+> a proxy is adding its own header:
+>
+> ```bash
+> curl -sI 'https://<host>/password-reset?token=x' | grep -i '^referrer-policy'
+> curl -sI 'https://<host>/verify-email?token=x' | grep -i '^referrer-policy'
+> curl -sI 'https://<host>/' | grep -i '^referrer-policy'
+> ```
+>
+> The same responses carry `Strict-Transport-Security` and `X-Content-Type-Options: nosniff`, and no
+> `Server` header. All of this was verified in production on 2026-10-20, with heimdall-ui 1.9.0
+> behind yggdrasil 0.7.4.
 
 The Content-Security-Policy:
 
@@ -290,11 +304,11 @@ source that silences them.
   `storePassword`, `keyAlias` and `keyPassword`. When none is set, `flutter build apk --release` signs
   with the debug key and prints a warning in its output (at Gradle's error level, so Flutter's quiet
   Gradle run shows it); that APK is suitable for testing and not for distribution. A partial
-  configuration, or a keystore that does not exist, fails the release build. `build.yml` maps the
-  repository secrets `HEIMDALL_UI_KEYSTORE_BASE64` (decoded to a file in the runner's temp directory),
-  `HEIMDALL_UI_KEYSTORE_PASSWORD`, `HEIMDALL_UI_KEY_ALIAS` and `HEIMDALL_UI_KEY_PASSWORD` to those
-  variables. Without the secrets it emits a warning annotation and produces a debug-signed artifact named
-  `heimdall-ui-android-debug-signed`.
+  configuration, or a keystore that does not exist, fails the release build. `ci/release-build.sh` maps
+  the Jenkins credentials `heimdall-ui-android-keystore` (the keystore, base64-encoded, decoded to a file in
+  a temporary directory), `heimdall-ui-android-keystore-password`, `heimdall-ui-android-key-alias` and
+  `heimdall-ui-android-key-password` to those variables; they are bound only on the release build. Without
+  them it warns and produces a debug-signed file named `heimdall-ui-android-<version>-debug-signed.apk`.
 - No target auto-updates. Distribution and update are the operator's responsibility.
 
 ---
@@ -335,19 +349,27 @@ Branding page.
 
 ## 8. Continuous integration
 
-| Workflow | Trigger | What it does |
-| --- | --- | --- |
-| `ci.yml` | Push to `main` or `develop`, and every pull request | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test` |
-| `build.yml` | Push to `main`, and manual dispatch | Builds web, Windows, Linux, and Android, and uploads each artifact |
-| `check-api-client.yml` | Push to `main` or `develop`, and every pull request | Regenerates the client and fails if the committed output differs |
-| `branch-policy.yml` | Every pull request into `develop` or `main` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model) |
+Jenkins runs these checks (`yggdrasil.yml`, scripts under `ci/`) on every pull request into `develop` or
+`main`:
+
+| Check | What it does |
+| --- | --- |
+| `analyze-and-test` | `dart format --set-exit-if-changed`, `flutter analyze`, `flutter test --coverage` (keeps `coverage/lcov.info`, no threshold) |
+| `build-web` | `flutter build web --release` |
+| `api-client-drift` | Regenerates the client and fails if the committed output differs |
+| `branch-policy` | Checks the branching model described in [CONTRIBUTING.md](../../CONTRIBUTING.md#branching-model), and that a release's `pubspec.yaml` says its version |
+
+The release files are built when a release pull request is merged: `ci/release-build.sh` on the release
+agent (web zip, Linux tarball, signed Android package) and the `Release Windows` workflow
+(`release-windows.yml`, dispatched on the tag, on the GitHub copy) for the Windows zip. There is no scheduled
+build.
 
 CI never receives a real API base URL: the analyze-and-test job needs none, and the build jobs use
 the default so that no deployment address is exposed in a public log.
 
-Deployment is not part of GitHub Actions. The web container image (see the README's *Container image
-(web)*) is built and deployed by the self-hosted Jenkins in
-[yggdrasil](https://github.com/artur-rios/yggdrasil), driven by the `Jenkinsfile`: a push to
+The web container image (see the README's *Container image (web)*) is built and deployed by the
+self-hosted Jenkins in [yggdrasil](https://github.com/artur-rios/yggdrasil), which builds the repository's
+`Dockerfile` (Jenkins does not read a `Jenkinsfile` from the repository): a push to
 `develop` deploys to development, a pushed `release/x.y.z` branch to homologation, and its pull
 request into `main` to production once every check passes (§2.2) — see
 [CONTRIBUTING.md](../../CONTRIBUTING.md#releasing).
@@ -403,7 +425,7 @@ request into `main` to production once every check passes (§2.2) — see
 | `flutter build apk` fails after `flutter doctor` flags the Android toolchain | `cmdline-tools` is missing, or the SDK licences were never accepted (see §3) |
 | `flutter build apk` fails with `Failed to find target with hash string 'android-37'` | The API 37 platform is not installed — `sdkmanager --install "platforms;android-37.0"` |
 | A plugin module fails with `Could not close incremental caches in ...caches-jvm` | Kotlin incremental compilation; `kotlin.incremental=false` in `android/gradle.properties` turns it off, and is already set |
-| CI fails on `check-api-client` | The specification changed without the client being regenerated, or the reverse |
+| CI fails on `api-client-drift` | The specification changed without the client being regenerated, or the reverse |
 
 ---
 

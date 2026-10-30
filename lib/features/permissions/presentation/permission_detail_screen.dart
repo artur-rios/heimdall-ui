@@ -8,13 +8,13 @@ import '../../../shared/forms/field_rules.dart';
 import '../../../shared/forms/form_feedback.dart';
 import '../../../shared/layout/app_shell.dart';
 import '../../../shared/widgets/collection_states.dart';
-import '../../../shared/widgets/confirm_dialog.dart';
+import '../../../shared/widgets/delete_actions.dart';
 import '../../../shared/widgets/failure_banner.dart';
+import '../../../shared/widgets/notice.dart';
 import '../../auth/domain/session.dart';
 import '../../auth/presentation/session_controller.dart';
 import '../domain/scope_permission.dart';
 import 'permission_detail_controller.dart';
-import 'permission_list_controller.dart';
 
 /// UI-26 — one scope permission.
 class PermissionDetailScreen extends ConsumerStatefulWidget {
@@ -91,11 +91,8 @@ class _PermissionDetailScreenState
     setState(() => _editing = true);
   }
 
-  /// Leaving with unsaved changes — by the navigation, the back control or
-  /// signing out — asks first.
-  Future<bool> _confirmLeave() =>
-      confirmDiscardChanges(context, hasChanges: _hasUnsavedEdit);
-
+  /// Leaving with unsaved changes — by the navigation, the back control, a
+  /// system or browser Back, or signing out — asks first (`AppShell`).
   bool get _hasUnsavedEdit {
     final seeded = _seeded;
 
@@ -131,45 +128,6 @@ class _PermissionDetailScreenState
     return session is Authenticated && session.principal.isSystemAdmin;
   }
 
-  /// AF-27a — a dialog the user closes sends nothing.
-  Future<void> _confirmDelete(ScopePermission permission) async {
-    final confirmed = await showConfirm(
-      context: context,
-      title: 'Delete ${permission.name}?',
-      message:
-          '${permission.name} will be marked deleted. The record is kept '
-          'and the API can restore it.',
-      confirmLabel: 'Delete',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(permissionDetailControllerProvider(_ref).notifier)
-          .delete();
-    }
-  }
-
-  /// AF-27c — the confirm control stays disabled until the name matches.
-  Future<void> _confirmDeletePermanently(ScopePermission permission) async {
-    final confirmed = await showTypeToConfirm(
-      context: context,
-      title: 'Delete ${permission.name} permanently?',
-      message:
-          'The permission is erased. Tokens already issued that carry it '
-          'keep doing so until they expire. This cannot be undone. Type its '
-          'name to confirm:',
-      confirmationValue: permission.name,
-      fieldLabel: 'Permission name',
-      confirmLabel: 'Delete permanently',
-    );
-
-    if (confirmed && mounted) {
-      await ref
-          .read(permissionDetailControllerProvider(_ref).notifier)
-          .deletePermanently();
-    }
-  }
-
   Future<void> _save() async {
     if (!validateAndReveal(_formKey)) {
       return;
@@ -192,7 +150,7 @@ class _PermissionDetailScreenState
     );
     final backToListing = '/scopes/${widget.scopeId}/permissions';
 
-    // A deleted permission returns to the listing, which is now stale.
+    // A deleted permission returns to the listing, which reads itself again.
     ref.listen<PermissionDetailState>(
       permissionDetailControllerProvider(_ref),
       (previous, next) {
@@ -205,9 +163,8 @@ class _PermissionDetailScreenState
         }
 
         if (next is PermissionDeleted) {
-          ref
-              .read(permissionListControllerProvider(widget.scopeId).notifier)
-              .load();
+          // The edit went with the record, so leaving has nothing to ask.
+          setState(() => _editing = false);
           context.go(backToListing);
         }
       },
@@ -219,7 +176,7 @@ class _PermissionDetailScreenState
         PermissionDetailLoaded(:final permission) => permission.name,
         _ => 'Permission',
       }),
-      confirmLeave: _confirmLeave,
+      hasUnsavedChanges: () => _hasUnsavedEdit,
       backRoute: backToListing,
       backTooltip: 'Back to the listing',
       body: switch (state) {
@@ -273,12 +230,11 @@ class _PermissionDetailScreenState
             children: <Widget>[
               // AF-26d — a deleted permission says so before anything else.
               if (state.isReadOnly) ...<Widget>[
-                const _Notice(
+                const Notice(
+                  'This permission is deleted. It is shown for '
+                  'reference and cannot be changed from here.',
                   icon: Icons.delete_outline,
-                  message:
-                      'This permission is deleted. It is shown for '
-                      'reference and cannot be changed from here.',
-                  destructive: true,
+                  isError: true,
                 ),
                 const SizedBox(height: 16),
               ],
@@ -298,11 +254,8 @@ class _PermissionDetailScreenState
                       const SizedBox(height: 16),
                     ],
                     if (state.saved) ...<Widget>[
-                      _Notice(
-                        icon: Icons.check_circle_outline,
-                        // AF-26e — the tokens already out there are unchanged,
-                        // which is the part that is easy to assume otherwise.
-                        message: state.claimChanged
+                      Notice(
+                        state.claimChanged
                             ? (permission.includeAsJwtClaim
                                   ? 'Saved. Tokens this scope issues from now '
                                         'on carry this permission; tokens '
@@ -312,6 +265,7 @@ class _PermissionDetailScreenState
                                         'already issued still carry it until '
                                         'they expire.')
                             : 'Saved.',
+                        icon: Icons.check_circle_outline,
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -382,136 +336,29 @@ class _PermissionDetailScreenState
               // AF-26d leaves a deleted permission nothing left to delete.
               if (!state.isReadOnly) ...<Widget>[
                 const SizedBox(height: 24),
-                _DangerZone(
-                  permission: permission,
+                DeleteActions(
+                  recordName: permission.name,
+                  noun: 'permission',
+                  confirmationValue: permission.name,
+                  fieldLabel: 'Permission name',
+                  permanentConsequence:
+                      'The permission is erased. Tokens already issued that '
+                      'carry it keep doing so until they expire.',
                   deleting: state.deleting || state.saving,
                   failure: state.deleteFailure,
+                  // AF-27d: a Scope Admin never sees the permanent deletion.
                   mayDeletePermanently: _maySeeHardDelete,
-                  onDelete: _confirmDelete,
-                  onDeletePermanently: _confirmDeletePermanently,
+                  onDelete: () => ref
+                      .read(permissionDetailControllerProvider(_ref).notifier)
+                      .delete(),
+                  onDeletePermanently: () => ref
+                      .read(permissionDetailControllerProvider(_ref).notifier)
+                      .deletePermanently(),
                 ),
               ],
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-/// The two deletions, kept apart from the rest of the screen because neither
-/// is an ordinary edit.
-class _DangerZone extends StatelessWidget {
-  const _DangerZone({
-    required this.permission,
-    required this.deleting,
-    required this.failure,
-    required this.mayDeletePermanently,
-    required this.onDelete,
-    required this.onDeletePermanently,
-  });
-
-  final ScopePermission permission;
-  final bool deleting;
-  final Failure? failure;
-
-  /// AF-27d — a Scope Admin never sees the permanent deletion.
-  final bool mayDeletePermanently;
-
-  final Future<void> Function(ScopePermission permission) onDelete;
-  final Future<void> Function(ScopePermission permission) onDeletePermanently;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
-    return Card(
-      color: theme.colorScheme.errorContainer,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: <Widget>[
-            Text(
-              'Delete this permission',
-              style: theme.textTheme.titleMedium?.copyWith(
-                color: theme.colorScheme.onErrorContainer,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Deleting keeps the record and can be undone by the API. '
-              'Deleting permanently erases it.',
-              style: TextStyle(color: theme.colorScheme.onErrorContainer),
-            ),
-            // AF-27b — the API refused, and the permission is still open.
-            if (failure case final refusal?) ...<Widget>[
-              const SizedBox(height: 16),
-              ErrorBanner(failure: refusal),
-            ],
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: <Widget>[
-                OutlinedButton.icon(
-                  onPressed: deleting ? null : () => onDelete(permission),
-                  icon: const Icon(Icons.delete_outline),
-                  label: const Text('Delete permission'),
-                ),
-                if (mayDeletePermanently)
-                  FilledButton.icon(
-                    onPressed: deleting
-                        ? null
-                        : () => onDeletePermanently(permission),
-                    icon: const Icon(Icons.delete_forever_outlined),
-                    label: const Text('Delete permanently'),
-                  ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// A one-line panel: what a deleted record and a saved edit each say.
-class _Notice extends StatelessWidget {
-  const _Notice({
-    required this.icon,
-    required this.message,
-    this.destructive = false,
-  });
-
-  final IconData icon;
-  final String message;
-  final bool destructive;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final background = destructive
-        ? scheme.errorContainer
-        : scheme.secondaryContainer;
-    final foreground = destructive
-        ? scheme.onErrorContainer
-        : scheme.onSecondaryContainer;
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: <Widget>[
-          Icon(icon, color: foreground),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(message, style: TextStyle(color: foreground)),
-          ),
-        ],
       ),
     );
   }

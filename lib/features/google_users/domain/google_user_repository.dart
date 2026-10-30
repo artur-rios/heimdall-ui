@@ -36,8 +36,9 @@ abstract interface class GoogleUserRepository {
     bool includeDeleted = true,
   });
 
-  /// Logically deletes a Google User. The record is kept and the API can
-  /// restore it.
+  /// Logically deletes a Google User. The record is hidden, not erased.
+  /// The API has no restore: only an operator can undo it, in the
+  /// database, within the retention window.
   Future<Result<void>> delete({required String scopeId, required String id});
 
   /// Permanently deletes a Google User. Only a System Admin may, which is why

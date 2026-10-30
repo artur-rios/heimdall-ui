@@ -157,7 +157,7 @@ class ProfileController extends Notifier<ProfileState>
       case Success<Person>(:final value):
         state = ProfileLoaded(value);
       case FailureResult<Person>(:final failure):
-        await _settleFailure(failure, (f) => ProfileUnavailable(f));
+        await _settleFailure(failure, ProfileUnavailable.new);
     }
   }
 
@@ -232,7 +232,7 @@ class ProfileController extends Notifier<ProfileState>
       case Success<GoogleUser>(:final value):
         state = GoogleProfileLoaded(value);
       case FailureResult<GoogleUser>(:final failure):
-        await _settleFailure(failure, (f) => ProfileUnavailable(f));
+        await _settleFailure(failure, ProfileUnavailable.new);
     }
   }
 

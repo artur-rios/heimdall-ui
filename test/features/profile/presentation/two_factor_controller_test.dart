@@ -1,7 +1,5 @@
 import 'dart:async';
 
-import 'dart:convert';
-
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +13,9 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/two_factor_controller.dart';
 import 'package:mocktail/mocktail.dart';
 
+import '../../../support/jwt.dart';
 import '../../../support/late_answer.dart';
+import '../../../support/pump_app.dart';
 
 class _MockAuthRepository extends Mock implements AuthRepository {}
 
@@ -28,20 +28,6 @@ class _FakeUnloadGuard implements UnloadGuard {
 
   @override
   void unregister() => calls.add('unregister');
-}
-
-String _jwt() {
-  final payload = base64Url.encode(
-    utf8.encode(
-      jsonEncode(<String, dynamic>{
-        'sub': 'person-1',
-        'email': 'ada@example.com',
-        'role': 3,
-      }),
-    ),
-  );
-
-  return 'header.$payload.signature';
 }
 
 /// The API's answer to a wrong password (TwoFactorMessages.PasswordMismatch).
@@ -64,14 +50,13 @@ void main() {
   late ProviderContainer container;
 
   TwoFactorController controllerUnderTest() {
-    container = ProviderContainer(
+    container = testContainer(
+      store: store,
       overrides: <Override>[
         authRepositoryProvider.overrideWithValue(repository),
-        tokenStoreProvider.overrideWithValue(store),
         unloadGuardProvider.overrideWithValue(guard),
       ],
     );
-    addTearDown(container.dispose);
 
     return container.read(twoFactorControllerProvider.notifier);
   }
@@ -82,7 +67,12 @@ void main() {
 
   /// A person signed in, so a test can see whether the session survives.
   Future<TwoFactorController> signedInControllerUnderTest() async {
-    await store.write(AuthToken(value: _jwt(), expiresAt: DateTime.utc(2030)));
+    await store.write(
+      AuthToken(
+        value: testJwt(email: 'ada@example.com', role: 3),
+        expiresAt: DateTime.utc(2030),
+      ),
+    );
     final controller = controllerUnderTest();
     await container.read(sessionControllerProvider.notifier).restore();
 

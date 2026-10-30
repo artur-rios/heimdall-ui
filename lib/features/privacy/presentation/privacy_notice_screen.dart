@@ -1,9 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../shared/layout/breakpoints.dart';
+import '../../../shared/widgets/page_title.dart';
 import '../domain/privacy_notice.dart';
 
 /// The public privacy notice, at `/privacy` — the page Google's consent screen
@@ -42,60 +45,65 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
     final compact = context.breakpoint == Breakpoint.compact;
     final padding = compact ? 16.0 : 24.0;
 
-    return Scaffold(
-      appBar: AppBar(
-        // Opened from Google's consent screen, this is the first page, and a
-        // back button with nowhere to go would be a dead end — so it opens the
-        // application instead.
-        leading: BackButton(
-          onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+    return PageTitle(
+      title: 'Privacy notice',
+      child: Scaffold(
+        appBar: AppBar(
+          // Opened from Google's consent screen, this is the first page, and a
+          // back button with nowhere to go would be a dead end — so it opens the
+          // application instead.
+          leading: BackButton(
+            onPressed: () => context.canPop() ? context.pop() : context.go('/'),
+          ),
+          title: const Text('Privacy notice'),
         ),
-        title: const Text('Privacy notice'),
-      ),
-      body: SafeArea(
-        child: FutureBuilder<String>(
-          future: _notice,
-          builder: (context, snapshot) {
-            if (snapshot.hasError) {
-              return Center(
-                child: Padding(
-                  padding: EdgeInsets.all(padding),
-                  child: Text(
-                    'The privacy notice could not be loaded.',
-                    style: theme.textTheme.bodyMedium,
-                    textAlign: TextAlign.center,
+        body: SafeArea(
+          child: FutureBuilder<String>(
+            future: _notice,
+            builder: (context, snapshot) {
+              if (snapshot.hasError) {
+                return Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Text(
+                      'The privacy notice could not be loaded.',
+                      style: theme.textTheme.bodyMedium,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                );
+              }
+
+              final notice = snapshot.data;
+
+              if (notice == null) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              return SingleChildScrollView(
+                padding: EdgeInsets.all(padding),
+                child: Center(
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      maxWidth: PrivacyNoticeScreen.maxContentWidth,
+                    ),
+                    child: MarkdownBody(
+                      data: notice,
+                      selectable: true,
+                      styleSheet: _styleSheet(theme, compact: compact),
+                      onTapLink: (text, href, title) {
+                        if (href != null) {
+                          unawaited(
+                            widget.openLink(resolvePrivacyNoticeLink(href)),
+                          );
+                        }
+                      },
+                    ),
                   ),
                 ),
               );
-            }
-
-            final notice = snapshot.data;
-
-            if (notice == null) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            return SingleChildScrollView(
-              padding: EdgeInsets.all(padding),
-              child: Center(
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(
-                    maxWidth: PrivacyNoticeScreen.maxContentWidth,
-                  ),
-                  child: MarkdownBody(
-                    data: notice,
-                    selectable: true,
-                    styleSheet: _styleSheet(theme, compact: compact),
-                    onTapLink: (text, href, title) {
-                      if (href != null) {
-                        widget.openLink(resolvePrivacyNoticeLink(href));
-                      }
-                    },
-                  ),
-                ),
-              ),
-            );
-          },
+            },
+          ),
         ),
       ),
     );

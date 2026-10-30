@@ -82,7 +82,7 @@ describes the flows that satisfy these requirements; the
 | FR-SC-08 | The client shall list a scope's owners through `GET /api/scopes/{scopeId}/owners`. | UI-14 |
 | FR-SC-09 | The client shall add an existing Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners/{personId}`, and shall say "Invitation sent" and list the person as pending when the answer says the API invited them. | UI-14 |
 | FR-SC-10 | The client shall create a new Scope Admin as a co-owner through `POST /api/scopes/{scopeId}/owners`. | UI-14 |
-| FR-SC-11 | The client shall promote a user of the scope to owner through `POST /api/scopes/{scopeId}/users/{personId}/promote`, and shall remove an owner through `DELETE /api/scopes/{scopeId}/owners/{personId}`, each after confirmation. | UI-14 |
+| FR-SC-11 | The client shall promote a user of the scope to owner through `POST /api/scopes/{scopeId}/users/{personId}/promote`, and shall remove an owner through `DELETE /api/scopes/{scopeId}/owners/{personId}`, each after confirmation. The lists of owners and of promotable users shall be paged, and the users searched, so that every owner and user is reachable. | UI-14 |
 | FR-SC-12 | The client shall toggle a scope's Google Sign-In through `PUT /api/scopes/{id}/google-signin`. | UI-15, UI-31 |
 | FR-SC-13 | The client shall show and toggle a scope's self-registration through `PUT /api/scopes/{id}/self-registration`, asking before opening it while the scope has no verification link and before closing it. | UI-31 |
 | FR-SC-14 | The client shall set or clear a scope's verification and password-reset links through `PUT /api/scopes/{id}/email-links`, sending both on every save, trimmed, with an empty link sent as `null`. | UI-31 |
@@ -161,6 +161,7 @@ describes the flows that satisfy these requirements; the
 | FR-UX-07 | The client shall show a retryable error state when a request fails for transport reasons, preserving the user's filters and input. Wherever a transport failure is shown, it reads "Could not reach the API. Check your connection and try again.", never the HTTP library's own text. An answer the client cannot read, such as a success response whose body is not the expected shape, shows "The API returned an unexpected response." with Retry, never an endless placeholder. | All |
 | FR-UX-08 | The client shall address every screen by a URL, so that a link opens the screen directly on the web target. | UI-07 |
 | FR-UX-09 | A `429` shows the API's message, and never ends the session. When the response carries `Retry-After`, it adds "Try again in N seconds.", in minutes from a minute and in hours from an hour, rounded up; a control that would send the same email again (the verification resend, the second-factor code resend, starting the email method) stays disabled for that long. `Retry-After` is read as whole non-negative seconds and held to a day (86400); zero, a sign, a fraction, an HTTP-date or anything else unreadable pauses nothing and adds no hint. | UI-01, UI-02, UI-03, UI-04, UI-05, UI-06, UI-09, UI-30, UI-36 |
+| FR-UX-10 | A record's screen sits on the list it is opened from, a scope's own screens on the scope, Security on the profile and the System Admins list on Home, so the system Back and the browser's Back return there, a link to a record arrives with its list beneath, and a list, a scope, the profile or Home returned to is read again; on Home and the main lists the system Back leaves the app. Leaving an unsaved edit of a record, a new record's form, the profile or a scope's sign-in settings — by the navigation, the back control, the system Back or the browser's Back — asks first, and so does signing out while any open screen holds one. | UI-07 |
 
 ### 2.8 Data subject administration (`FR-DA`)
 
@@ -210,7 +211,7 @@ describes the flows that satisfy these requirements; the
 | `/scopes/:scopeId/google-users` | Google user listing | UI-28 |
 | `/scopes/:scopeId/google-users/:googleUserId` | Google user detail | UI-29 |
 | `/system-admins` | System Admins — list, search and page; rows open the person page | UI-38 |
-| `/persons/:personId` | Person detail without a scope, opened from the System Admins list; back returns to it | UI-38, UI-18, UI-19 |
+| `/system-admins/:personId` | Person detail without a scope, opened from the System Admins list; back returns to it. `/persons/:personId`, its earlier address, redirects here | UI-38, UI-18, UI-19 |
 | `/erasure-requests` | Outstanding erasure requests; re-apply erasures after a restore | UI-32 |
 | `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
 | `/health` | API health and diagnostics | P-04 |
@@ -247,7 +248,7 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Permanent delete person | Full | Hidden | Hidden | Hidden |
 | Account emails: resend verification, send password reset | Full | Users of owned scopes only | Hidden | Hidden |
 | System Admins: list | Full | Hidden | Hidden | Hidden |
-| Person detail without a scope (`/persons/:personId`) | Full | Hidden | Hidden | Hidden |
+| Person detail without a scope (`/system-admins/:personId`) | Full | Hidden | Hidden | Hidden |
 | Application listing, create, update | Full | Owned scopes only | Hidden | Hidden |
 | Logical delete application | Full | Owned scopes only | Hidden | Hidden |
 | Permanent delete application | Full | Hidden | Hidden | Hidden |

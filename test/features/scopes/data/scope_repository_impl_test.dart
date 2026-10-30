@@ -1,24 +1,23 @@
-import 'dart:convert';
-import 'dart:typed_data';
-
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_api_client/export.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/scopes/data/scope_repository_impl.dart';
 
+import '../../../support/stub_adapter.dart';
+
 void main() {
   late Dio dio;
-  late _StubAdapter adapter;
+  late StubAdapter adapter;
 
-  ApiScopeRepository repositoryAnswering(_Answer answer) {
-    adapter = _StubAdapter(answer);
+  ApiScopeRepository repositoryAnswering(StubAnswer answer) {
+    adapter = StubAdapter(answer);
     dio.httpClientAdapter = adapter;
 
     return ApiScopeRepository(ScopeClient(dio));
   }
 
-  const onePage = _Answer(
+  const onePage = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -40,7 +39,7 @@ void main() {
     },
   );
 
-  const updated = _Answer(
+  const updated = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -113,7 +112,7 @@ void main() {
   test('GivenAnEmptyPage_WhenListed_ThenNoItemsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -137,7 +136,7 @@ void main() {
   test('GivenARefusedListing_WhenListed_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': false,
@@ -157,7 +156,7 @@ void main() {
   // retry rather than an error panel with nothing in it.
   test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(const _Answer(status: 0));
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
 
     // When
     final result = await repository.list();
@@ -169,7 +168,7 @@ void main() {
   test('GivenAForbiddenListing_WhenListed_ThenForbiddenIsReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 403,
         body: <String, dynamic>{'success': false, 'errors': <String>[]},
       ),
@@ -185,7 +184,7 @@ void main() {
   test('GivenPrivacySettings_WhenRead_ThenTheyAreMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -260,7 +259,7 @@ void main() {
     );
   });
 
-  const signUpOpened = _Answer(
+  const signUpOpened = StubAnswer(
     status: 200,
     body: <String, dynamic>{
       'success': true,
@@ -281,7 +280,7 @@ void main() {
   test('GivenScopeSettings_WhenRead_ThenTheyAreMapped', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -311,7 +310,7 @@ void main() {
   test('GivenAnEmptyLinkFromTheApi_WhenRead_ThenItIsNoLink', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 200,
         body: <String, dynamic>{
           'success': true,
@@ -367,7 +366,7 @@ void main() {
     () async {
       // Given
       final repository = repositoryAnswering(
-        const _Answer(
+        const StubAnswer(
           status: 403,
           body: <String, dynamic>{
             'success': false,
@@ -411,7 +410,7 @@ void main() {
   test('GivenRefusedEmailLinks_WhenSet_ThenApiErrorsAreReturned', () async {
     // Given
     final repository = repositoryAnswering(
-      const _Answer(
+      const StubAnswer(
         status: 400,
         body: <String, dynamic>{
           'success': false,
@@ -438,7 +437,7 @@ void main() {
     'GivenNoConnection_WhenEmailLinksSet_ThenNetworkFailureIsReturned',
     () async {
       // Given
-      final repository = repositoryAnswering(const _Answer(status: 0));
+      final repository = repositoryAnswering(const StubAnswer(status: 0));
 
       // When
       final result = await repository.setEmailLinks(
@@ -451,56 +450,4 @@ void main() {
       expect(result.failureOrNull!.kind, FailureKind.network);
     },
   );
-}
-
-class _Answer {
-  const _Answer({required this.status, this.body});
-
-  final int status;
-  final Map<String, dynamic>? body;
-}
-
-/// Answers from memory, so no test reaches the network.
-class _StubAdapter implements HttpClientAdapter {
-  _StubAdapter(this._answer);
-
-  final _Answer _answer;
-
-  /// The query parameters it was asked for, so a test can assert which filters
-  /// actually travelled.
-  final List<Map<String, dynamic>> queries = <Map<String, dynamic>>[];
-
-  /// The request bodies it was sent, as JSON, so a test can assert which
-  /// fields actually travelled.
-  final List<Object?> bodies = <Object?>[];
-
-  @override
-  Future<ResponseBody> fetch(
-    RequestOptions options,
-    Stream<Uint8List>? requestStream,
-    Future<void>? cancelFuture,
-  ) async {
-    queries.add(options.queryParameters);
-    bodies.add(
-      options.data == null ? null : jsonDecode(jsonEncode(options.data)),
-    );
-
-    if (_answer.status == 0) {
-      throw DioException.connectionError(
-        requestOptions: options,
-        reason: 'No route to host',
-      );
-    }
-
-    return ResponseBody.fromString(
-      jsonEncode(_answer.body),
-      _answer.status,
-      headers: <String, List<String>>{
-        Headers.contentTypeHeader: <String>[Headers.jsonContentType],
-      },
-    );
-  }
-
-  @override
-  void close({bool force = false}) {}
 }
