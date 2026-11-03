@@ -1,6 +1,7 @@
 ---
 title: "Testing Specification Document"
 linkTitle: "Testing Specification Document"
+slug: "testing-specification-document"
 weight: 50
 description: "How each use case is tested: the levels, the naming convention, the structure, and what coverage means here."
 ---

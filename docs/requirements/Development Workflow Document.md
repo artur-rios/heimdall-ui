@@ -1,6 +1,7 @@
 ---
 title: "Development Workflow Document"
 linkTitle: "Development Workflow Document"
+slug: "development-workflow-document"
 weight: 60
 description: "How a use case goes from backlog to merged: branch, issue status, testing gate, pull request."
 ---

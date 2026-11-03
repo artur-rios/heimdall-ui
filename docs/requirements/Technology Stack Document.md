@@ -1,6 +1,7 @@
 ---
 title: "Technology Stack Document"
 linkTitle: "Technology Stack Document"
+slug: "technology-stack-document"
 weight: 40
 description: "The technologies, libraries, and pinned versions Heimdall UI is built on."
 ---

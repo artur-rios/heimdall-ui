@@ -1,6 +1,7 @@
 ---
 title: "Vision Document"
 linkTitle: "Vision Document"
+slug: "vision-document"
 weight: 10
 description: "Why Heimdall UI exists, who it serves, its stakeholders, goals, and what success looks like."
 ---
