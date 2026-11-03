@@ -14,7 +14,7 @@ final Uri _noticeDirectory = Uri.parse(
 
 final RegExp _frontMatter = RegExp(r'^---\r?\n[\s\S]*?\r?\n---\r?\n(\r?\n)*');
 
-/// [source] without the Hugo front matter the API's docs site reads.
+/// [source] without the Hugo front matter heimdall-docs reads.
 ///
 /// Stripped here rather than in the copy, so the asset stays byte for byte the
 /// API's file and a refresh can never quietly drift from it.

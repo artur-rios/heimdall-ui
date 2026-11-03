@@ -1,6 +1,7 @@
 ---
 title: "Use Case Specification Document"
 linkTitle: "Use Case Specification Document"
+slug: "use-case-specification-document"
 weight: 30
 description: "The Heimdall UI use cases, their flows, and how each one traces back to the API use cases it consumes."
 ---

@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- The README links the Application section of the Heimdall documentation site, which now publishes the documents in
+  `docs/requirements`. Each of those documents carries a `slug` in its front matter, so its address on the site stays
+  the same if the file is renamed.
+
 ## [1.10.0] - 2026-10-30
 
 ### Fixed

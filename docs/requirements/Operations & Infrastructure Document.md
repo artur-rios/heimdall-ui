@@ -1,6 +1,7 @@
 ---
 title: "Operations & Infrastructure Document"
 linkTitle: "Operations & Infrastructure Document"
+slug: "operations--infrastructure-document"
 weight: 70
 description: "How Heimdall UI is configured, built, packaged, and released for each of its four targets and four environments."
 ---
