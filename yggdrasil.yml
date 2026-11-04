@@ -26,6 +26,16 @@ checks:
     image: ghcr.io/cirruslabs/flutter:3.44.0@sha256:46691e311715845de03a3ba4753a475476936805b29431b1f00f1816981033f8
     run: ci/build-web.sh
 
+# What heimdall-docs shows of this repository. On a push to main whose checks passed, the pipeline copies each
+# `from` into heimdall-docs and pushes the commit straight to its main, so the copy there stays current without a
+# pull request. Each `to` is replaced as a whole: a file removed here is removed there, and an edit made by hand
+# under it is overwritten by the next sync, so change the requirements here, not there. Nothing here comes from a
+# check's archive, so there are no `inputs`: the files are the checkout's own.
+sync:
+  repository: heimdall-docs              # a repository of the catalog, never this one
+  paths:
+    - { from: docs/requirements, to: content/en/docs/application/requirements/documents }
+
 # What the Branch Policy workflow checked besides the branching model: a release carries its own version.
 branchPolicy:
   image: alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a

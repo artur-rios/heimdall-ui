@@ -1,6 +1,7 @@
 ---
 title: "System Requirements Document"
 linkTitle: "System Requirements Document"
+slug: "system-requirements-document"
 weight: 20
 description: "Functional and non-functional requirements, the screen inventory, and the authorization matrix."
 ---

@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [1.11.0] - 2026-11-03
+
+### Added
+
+- `yggdrasil.yml` has a `sync` section: on a push to `main` whose checks pass, the pipeline copies `docs/requirements`
+  into heimdall-docs and pushes the commit to its `main`, replacing the copy made by hand until now. The copy starts
+  with the first release after yggdrasil's sync is in place.
+
+### Changed
+
+- The README links the Application section of the Heimdall documentation site, which now publishes the documents in
+  `docs/requirements`. Each of those documents carries a `slug` in its front matter, so its address on the site stays
+  the same if the file is renamed.
+
 ## [1.10.0] - 2026-10-30
 
 ### Fixed
@@ -521,7 +535,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.8.0...v1.9.0
 [1.8.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.7.0...v1.8.0

@@ -2,6 +2,9 @@
 
 The Flutter front-end for the [Heimdall API](https://github.com/artur-rios/heimdall-api).
 
+The Heimdall documentation site has an [Application section](https://docs.artur-rios.tech/heimdall-docs/docs/application/)
+for this interface.
+
 ## Overview
 
 Heimdall UI is the interface over Heimdall, a centralized identity-management API with scope-based
@@ -24,7 +27,8 @@ not a security one: the API remains the sole authority on what anyone may actual
 
 ## Documentation
 
-The specification lives in [`docs/requirements`](docs/requirements):
+The specification lives in [`docs/requirements`](docs/requirements), and the same documents are also published in the
+[Application section](https://docs.artur-rios.tech/heimdall-docs/docs/application/) of the Heimdall documentation site:
 
 - [Vision Document](docs/requirements/Vision%20Document.md) — why the interface exists, who it
   serves, and what success looks like.
