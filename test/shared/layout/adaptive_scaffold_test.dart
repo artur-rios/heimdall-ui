@@ -104,7 +104,7 @@ void main() {
     expect(find.byType(NavigationRail), findsOneWidget);
   });
 
-  // #144 — a System Admin's six destinations on a short window, or with the
+  // #144 — a System Admin's five destinations on a short window, or with the
   // soft keyboard open, are more than the rail's height; the rail scrolls
   // rather than overflowing, so the last one stays reachable.
   for (final (:name, :size, :keyboard)
@@ -113,14 +113,14 @@ void main() {
         (name: 'TheKeyboardOpen', size: const Size(900, 800), keyboard: 380),
       ]) {
     testWidgets(
-      'Given${name}AndSixDestinations_WhenRendered_ThenTheRailFitsAndHealthCanBeTapped',
+      'Given${name}AndFiveDestinations_WhenRendered_ThenTheRailFitsAndTheLastCanBeTapped',
       (tester) async {
         // Given
         final systemAdmin = destinationsFor(
           const Principal(id: 'p', email: '', role: Role.systemAdmin),
         );
-        expect(systemAdmin, hasLength(6));
-        expect(systemAdmin.last.label, 'Health');
+        expect(systemAdmin, hasLength(5));
+        expect(systemAdmin.last.label, 'Audit log');
         var selected = -1;
         tester.view.physicalSize = size;
         tester.view.devicePixelRatio = 1;
@@ -146,15 +146,15 @@ void main() {
 
         // Then
         expect(errors, isEmpty);
-        final health = find.descendant(
+        final last = find.descendant(
           of: find.byType(NavigationRail),
-          matching: find.text('Health'),
+          matching: find.text('Audit log'),
         );
-        await tester.ensureVisible(health);
+        await tester.ensureVisible(last);
         await tester.pumpAndSettle();
-        expect(health.hitTestable(), findsOneWidget);
-        await tester.tap(health);
-        expect(selected, 5);
+        expect(last.hitTestable(), findsOneWidget);
+        await tester.tap(last);
+        expect(selected, 4);
       },
     );
   }
@@ -163,7 +163,7 @@ void main() {
   // primary scroll view below it. A scrolling rail must not claim it, or the
   // body's list shares it and a keyboard scroll finds two positions.
   testWidgets(
-    'GivenSixDestinationsAndAScrollableBody_WhenPageDownIsPressed_ThenOnlyTheBodyScrolls',
+    'GivenFiveDestinationsAndAScrollableBody_WhenPageDownIsPressed_ThenOnlyTheBodyScrolls',
     (tester) async {
       // Given
       final systemAdmin = destinationsFor(

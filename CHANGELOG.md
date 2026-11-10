@@ -7,6 +7,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [2.0.0] - 2026-11-10
+
+### Upgrading from 1.x to 2.0
+
+Nothing to change in a build or a deployment. The Health screen is gone: system admins who used it, or bookmarked
+`/health`, see the same information, per environment, in the yggdrasil console. This release still works against a
+Heimdall API 5.x, which keeps the endpoint the screen used, and against 6.0, which removes it.
+
+### Removed
+
+- The Health screen (`/health`) and its navigation entry are gone: the yggdrasil console now shows what the detailed
+  health report did. The dashboard's API tile still shows whether the API answered its liveness check, but no longer
+  links anywhere. A bookmarked `/health` address now lands on the unknown-route screen.
+
 ## [1.11.0] - 2026-11-03
 
 ### Added
@@ -535,7 +549,8 @@ First release.
 - An API health and diagnostics screen.
 - A container image that serves the web build with nginx on port 8080, with a `/healthz` probe.
 
-[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v1.11.0...HEAD
+[Unreleased]: https://github.com/artur-rios/heimdall-ui/compare/v2.0.0...HEAD
+[2.0.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.11.0...v2.0.0
 [1.11.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.10.0...v1.11.0
 [1.10.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/artur-rios/heimdall-ui/compare/v1.8.0...v1.9.0

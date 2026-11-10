@@ -12,7 +12,6 @@ import '../features/data_rights/presentation/restricted_session_controller.dart'
 import '../features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import '../features/google_users/presentation/google_user_detail_controller.dart';
 import '../features/google_users/presentation/google_user_list_controller.dart';
-import '../features/health/presentation/health_controller.dart';
 import '../features/home/presentation/dashboard_controller.dart';
 import '../features/permissions/presentation/permission_create_controller.dart';
 import '../features/permissions/presentation/permission_detail_controller.dart';
@@ -58,7 +57,6 @@ final List<ProviderOrFamily> sessionScopedProviders = <ProviderOrFamily>[
   twoFactorControllerProvider,
   emailVerificationControllerProvider,
   verificationBannerDismissedProvider,
-  healthControllerProvider,
   scopeListControllerProvider,
   scopeCreateControllerProvider,
   scopeDetailControllerProvider,

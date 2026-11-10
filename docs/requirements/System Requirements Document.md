@@ -215,7 +215,6 @@ describes the flows that satisfy these requirements; the
 | `/system-admins/:personId` | Person detail without a scope, opened from the System Admins list; back returns to it. `/persons/:personId`, its earlier address, redirects here | UI-38, UI-18, UI-19 |
 | `/erasure-requests` | Outstanding erasure requests; re-apply erasures after a restore | UI-32 |
 | `/audit-log` | Audit trail — filter by dates, action, actor, target and outcome | UI-34 |
-| `/health` | API health and diagnostics | P-04 |
 | `/privacy` | Privacy notice — the Heimdall API's own, shown verbatim; the privacy policy link on Google's consent screen | [#73](https://github.com/artur-rios/heimdall-ui/issues/73) |
 | `/not-found` | Not found — where a route whose id is not a `PublicId` lands | UI-07 |
 
@@ -262,7 +261,6 @@ shows, and a request the API refuses is refused regardless of what appears here.
 | Permanent delete Google user | Full | Hidden | Hidden | Hidden |
 | Erasure requests | Full | Hidden | Hidden | Hidden |
 | Audit log | Full | Hidden | Hidden | Hidden |
-| Health and diagnostics | Full | Read-only | Hidden | Hidden |
 
 A **restricted session** — one holding the subject-rights-only token the API issues to an identity
 whose processing is restricted (UI-30) — is offered the restricted session screen and the privacy

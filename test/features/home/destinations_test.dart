@@ -21,7 +21,6 @@ void main() {
         '/',
         '/scopes',
         '/profile',
-        '/health',
         '/erasure-requests',
         '/audit-log',
       ]) {
@@ -58,6 +57,20 @@ void main() {
     // Then
     expect(routes, isNot(contains('/erasure-requests')));
   });
+
+  test(
+    'GivenAnyRole_WhenNavigationIsBuilt_ThenNoHealthDestinationIsOffered',
+    () {
+      // Given / When / Then
+      for (final role in Role.values) {
+        final principal = Principal(id: 'p', email: '', role: role);
+        final destinations = destinationsFor(principal);
+
+        expect(destinations.map((d) => d.route), isNot(contains('/health')));
+        expect(destinations.map((d) => d.label), isNot(contains('Health')));
+      }
+    },
+  );
 
   test('GivenASystemAdmin_WhenNavigationIsBuilt_ThenTheAuditLogIsOffered', () {
     // Given

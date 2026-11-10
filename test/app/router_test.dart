@@ -352,7 +352,7 @@ void main() {
   // UI-30 — every other screen would only answer 403, whatever the role.
   test('GivenARestrictedSession_WhenVisitingAnyRoute_ThenRedirectsToIt', () {
     for (final role in Role.values) {
-      for (final location in <String>['/', '/scopes', '/profile', '/health']) {
+      for (final location in <String>['/', '/scopes', '/profile']) {
         // Given
         final session = restricted(role: role);
 

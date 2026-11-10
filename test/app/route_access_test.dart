@@ -111,22 +111,13 @@ void main() {
     },
   );
 
-  // Health: full for a System Admin, read-only for a Scope Admin, hidden for
-  // a User — read-only is still reaching it.
-  test('GivenScopeAdmin_WhenAskingHealth_ThenItIsAllowed', () {
-    // Given / When
-    final allowed = roleMayReach(role: Role.scopeAdmin, path: '/health');
-
-    // Then
-    expect(allowed, isTrue);
-  });
-
-  test('GivenUser_WhenAskingHealth_ThenItIsRefused', () {
-    // Given / When
-    final allowed = roleMayReach(role: Role.user, path: '/health');
-
-    // Then
-    expect(allowed, isFalse);
+  // The health screen is gone: /health is a route nobody has built, so the
+  // guard no longer has an opinion about it (the console shows API health).
+  test('GivenAnyRole_WhenAskingHealth_ThenTheGuardHasNoRuleForIt', () {
+    // Given / When / Then
+    for (final role in Role.values) {
+      expect(roleMayReach(role: role, path: '/health'), isTrue);
+    }
   });
 
   // A route nobody has built is the error screen's business: answering "not

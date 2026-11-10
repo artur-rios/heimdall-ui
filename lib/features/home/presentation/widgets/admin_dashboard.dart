@@ -182,8 +182,7 @@ class _LoadedDashboard extends StatelessWidget {
 /// read.
 String _figure(int? value) => value == null ? '—' : '$value';
 
-/// Whether the API answered its liveness check, and the way to the full
-/// health report.
+/// Whether the API answered its liveness check.
 class _ApiStatusTile extends StatelessWidget {
   const _ApiStatusTile({required this.reachable});
 
@@ -198,11 +197,12 @@ class _ApiStatusTile extends StatelessWidget {
       label: 'API',
       icon: up ? Icons.cloud_done_outlined : Icons.cloud_off_outlined,
       value: up ? 'Online' : 'Unreachable',
-      caption: 'Open the health report',
+      caption: up
+          ? 'Answered the liveness check'
+          : 'Did not answer the liveness check',
       iconBackground: up ? scheme.tertiaryContainer : scheme.errorContainer,
       iconForeground: up ? scheme.onTertiaryContainer : scheme.onErrorContainer,
       valueColor: up ? null : scheme.error,
-      onTap: () => context.go('/health'),
     );
   }
 }

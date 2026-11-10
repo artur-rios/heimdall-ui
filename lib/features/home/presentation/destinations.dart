@@ -44,14 +44,4 @@ List<AppDestination> destinationsFor(Principal principal) => <AppDestination>[
       selectedIcon: Icons.history,
       route: '/audit-log',
     ),
-  // Full for a System Admin, read-only for a Scope Admin (the Authorization
-  // Matrix, and `roleMayReach`): the screen already answers the detailed
-  // report's refusal for a Scope Admin with what they may see.
-  if (principal.administersAnything)
-    const AppDestination(
-      label: 'Health',
-      icon: Icons.monitor_heart_outlined,
-      selectedIcon: Icons.monitor_heart,
-      route: '/health',
-    ),
 ];
