@@ -105,7 +105,6 @@ void main() {
             '/scopes/:scopeId',
             '/profile',
             '/profile/security',
-            '/health',
           ])
             GoRoute(
               path: path,
@@ -174,6 +173,20 @@ void main() {
 
     // Then
     expect(find.text('opened /scopes/scope-1'), findsOneWidget);
+  });
+
+  testWidgets('GivenTheApiTile_WhenTapped_ThenNothingOpens', (tester) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Online'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Open the health report'), findsNothing);
+    expect(find.textContaining('opened'), findsNothing);
+    expect(find.text('Overview'), findsOneWidget);
   });
 
   testWidgets('GivenTheScopesTile_WhenTapped_ThenTheListingOpens', (

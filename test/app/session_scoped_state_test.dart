@@ -15,7 +15,6 @@ import 'package:heimdall_ui/features/data_rights/presentation/restricted_session
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_controller.dart';
 import 'package:heimdall_ui/features/google_users/presentation/google_user_detail_controller.dart';
 import 'package:heimdall_ui/features/google_users/presentation/google_user_list_controller.dart';
-import 'package:heimdall_ui/features/health/presentation/health_controller.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/permissions/presentation/permission_create_controller.dart';
 import 'package:heimdall_ui/features/permissions/presentation/permission_detail_controller.dart';
@@ -44,7 +43,6 @@ final Map<String, ProviderOrFamily> _userScoped = <String, ProviderOrFamily>{
   'twoFactorControllerProvider': twoFactorControllerProvider,
   'emailVerificationControllerProvider': emailVerificationControllerProvider,
   'verificationBannerDismissedProvider': verificationBannerDismissedProvider,
-  'healthControllerProvider': healthControllerProvider,
   'scopeListControllerProvider': scopeListControllerProvider,
   'scopeCreateControllerProvider': scopeCreateControllerProvider,
   'scopeDetailControllerProvider': scopeDetailControllerProvider,

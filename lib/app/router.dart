@@ -20,7 +20,6 @@ import '../features/data_rights/presentation/restricted_session_screen.dart';
 import '../features/erasure_requests/presentation/erasure_request_list_screen.dart';
 import '../features/google_users/presentation/google_user_detail_screen.dart';
 import '../features/google_users/presentation/google_user_list_screen.dart';
-import '../features/health/presentation/health_screen.dart';
 import '../features/home/presentation/home_screen.dart';
 import '../features/permissions/presentation/permission_create_screen.dart';
 import '../features/permissions/presentation/permission_detail_screen.dart';
@@ -382,10 +381,6 @@ final Provider<GoRouter> routerProvider = Provider<GoRouter>((ref) {
       GoRoute(
         path: '/audit-log',
         builder: (context, state) => const AuditLogScreen(),
-      ),
-      GoRoute(
-        path: '/health',
-        builder: (context, state) => const HealthScreen(),
       ),
       GoRoute(
         path: restrictedRoute,
