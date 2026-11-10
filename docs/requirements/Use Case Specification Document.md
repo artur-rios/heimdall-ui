@@ -180,7 +180,7 @@ delivered the same way.
 | P-01 | Project scaffolding and initial infrastructure |
 | P-02 | Generated API client and specification drift check |
 | P-03 | Multi-platform build and release pipelines |
-| P-04 | API health and diagnostics screen (consumes UC-30) |
+| P-04 | API health and diagnostics screen (consumes UC-30); removed, the yggdrasil console shows it |
 
 ### 1.6 Conventions used below
 

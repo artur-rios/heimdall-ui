@@ -7,6 +7,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Removed
+
+- The Health screen (`/health`) and its navigation entry are gone: the yggdrasil console now shows what the detailed
+  health report did. The dashboard's API tile still shows whether the API answered its liveness check, but no longer
+  links anywhere. A bookmarked `/health` address now lands on the unknown-route screen.
+
 ## [1.11.0] - 2026-11-03
 
 ### Added

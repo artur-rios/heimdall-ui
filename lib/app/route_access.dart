@@ -24,8 +24,6 @@ bool roleMayReach({required Role role, required String path}) => switch (path) {
   '/erasure-requests' => role == Role.systemAdmin,
   // UC-48: the trail has no scope column, so it cannot be divided by scope.
   '/audit-log' => role == Role.systemAdmin,
-  // Full for a System Admin, read-only for a Scope Admin, hidden for a User.
-  '/health' => role != Role.user,
   // UC-07 read (e) is answered to a System Admin only: who else holds full
   // access is not a Scope Admin's to know. UI-38's person page sits under the
   // listing and has no scope to authorise against; a Scope Admin reaches the

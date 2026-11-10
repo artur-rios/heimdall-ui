@@ -105,7 +105,6 @@ void main() {
             '/scopes/:scopeId',
             '/profile',
             '/profile/security',
-            '/health',
           ])
             GoRoute(
               path: path,
@@ -175,6 +174,33 @@ void main() {
     // Then
     expect(find.text('opened /scopes/scope-1'), findsOneWidget);
   });
+
+  testWidgets('GivenTheApiTile_WhenTapped_ThenNothingOpens', (tester) async {
+    // Given
+    await pump(tester);
+
+    // When
+    await tester.tap(find.text('Online'));
+    await tester.pumpAndSettle();
+
+    // Then
+    expect(find.text('Answered the liveness check'), findsOneWidget);
+    expect(find.textContaining('opened'), findsNothing);
+    expect(find.text('Overview'), findsOneWidget);
+  });
+
+  testWidgets(
+    'GivenAnUnreachableApi_WhenOpened_ThenTheCaptionSaysItDidNotAnswer',
+    (tester) async {
+      // Given
+      await pump(tester, fakes: FakeDashboardRepositories(apiReachable: false));
+
+      // When / Then
+      expect(find.text('Unreachable'), findsOneWidget);
+      expect(find.text('Did not answer the liveness check'), findsOneWidget);
+      expect(find.text('Answered the liveness check'), findsNothing);
+    },
+  );
 
   testWidgets('GivenTheScopesTile_WhenTapped_ThenTheListingOpens', (
     tester,

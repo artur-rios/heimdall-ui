@@ -5,7 +5,6 @@
 import 'package:dio/dio.dart';
 import 'package:retrofit/retrofit.dart';
 
-import '../models/health_check_output_data_output.dart';
 import '../models/string_data_output.dart';
 
 part 'health_check_client.g.dart';
@@ -20,13 +19,4 @@ abstract class HealthCheckClient {
   /// **Anonymous** — no bearer token required.
   @GET('/api/healthcheck')
   Future<StringDataOutput> healthCheckHelloWorld();
-
-  /// Detailed health check (UC-30, FR-HC-02…07): reports the status of each verified service.
-  /// plus an aggregate general status. Restricted to System Admins (AF-30a → 403, AF-30b → 401).
-  /// Returns `200 OK` when healthy and `503 Service Unavailable` when any verified.
-  /// service is down (FR-HC-07, AF-30c).
-  ///
-  /// **Requires role:** System Admin.
-  @GET('/api/healthcheck/detailed')
-  Future<HealthCheckOutputDataOutput> healthCheckDetailed();
 }
