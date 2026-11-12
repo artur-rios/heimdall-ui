@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/secrets/screen_security.dart';
 import 'package:heimdall_ui/core/secrets/secret_clipboard.dart';
 import 'package:heimdall_ui/features/applications/presentation/one_time_secret_dialog.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../support/secret_fakes.dart';
 

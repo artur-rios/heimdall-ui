@@ -1,10 +1,10 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/network/envelope.dart' as envelope;
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/shared/paging/list_state.dart';
 import 'package:heimdall_ui/shared/widgets/collection_states.dart';
 import 'package:heimdall_ui/shared/widgets/list_scaffold.dart';
+import 'package:material_ui/material_ui.dart';
 
 class _Loading implements ListLoading<String, int> {
   @override

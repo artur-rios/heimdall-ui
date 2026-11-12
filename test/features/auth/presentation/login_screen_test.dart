@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -14,6 +13,7 @@ import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/domain/google_sign_in_gateway.dart';
 import 'package:heimdall_ui/features/auth/presentation/login_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/idle_expiry_timer.dart';

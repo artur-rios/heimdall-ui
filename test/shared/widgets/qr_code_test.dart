@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/shared/widgets/qr_code.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// An `otpauth://` URI of the shape the API returns.
 const _uri =

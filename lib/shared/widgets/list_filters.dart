@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// One search box of [ListFilters]: the field's label and icon, and the
 /// controller the screen keeps so the box can show the filter a listing still

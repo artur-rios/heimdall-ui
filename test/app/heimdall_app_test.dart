@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -32,6 +31,7 @@ import 'package:heimdall_ui/features/google_users/domain/google_user.dart';
 import 'package:heimdall_ui/features/home/presentation/dashboard_controller.dart';
 import 'package:heimdall_ui/features/profile/presentation/profile_controller.dart';
 import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -966,9 +966,11 @@ void main() {
     container.read(routerProvider).go('/verify-email');
     await tester.pump();
 
-    // Then
+    // Then — the check never answers, so its spinner never settles and one
+    // frame is all there is. Since Flutter 3.50 the new route spends that first
+    // frame offstage, while its transition is set up.
     final screen = tester.widget<VerifyEmailScreen>(
-      find.byType(VerifyEmailScreen),
+      find.byType(VerifyEmailScreen, skipOffstage: false),
     );
     expect(screen.token, 'verify-token');
   });

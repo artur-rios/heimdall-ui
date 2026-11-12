@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -18,6 +17,7 @@ import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.d
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation_repository.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_controller.dart';
 import 'package:heimdall_ui/features/scopes/presentation/scope_owners_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

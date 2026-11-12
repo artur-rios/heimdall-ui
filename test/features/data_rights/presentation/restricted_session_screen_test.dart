@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +14,7 @@ import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights.dart';
 import 'package:heimdall_ui/features/data_rights/domain/data_rights_repository.dart';
 import 'package:heimdall_ui/features/data_rights/presentation/restricted_session_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/jwt.dart';

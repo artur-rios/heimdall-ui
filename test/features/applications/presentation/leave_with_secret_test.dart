@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +10,7 @@ import 'package:heimdall_ui/features/applications/domain/application_credential.
 import 'package:heimdall_ui/features/applications/domain/application_credential_repository.dart';
 import 'package:heimdall_ui/features/applications/presentation/credentials_card.dart';
 import 'package:heimdall_ui/features/applications/presentation/pending_secret.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/jwt.dart';

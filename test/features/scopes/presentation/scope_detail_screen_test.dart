@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -16,6 +15,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_detail_screen.dar
 import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.dart';
 import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:heimdall_ui/shared/layout/app_shell.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

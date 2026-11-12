@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../shared/layout/destination.dart';
 import '../../auth/domain/session.dart';

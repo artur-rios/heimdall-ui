@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -12,6 +11,7 @@ import 'package:heimdall_ui/features/scopes/presentation/scope_list_controller.d
 import 'package:heimdall_ui/features/scopes/presentation/scope_sign_in_settings_screen.dart';
 import 'package:heimdall_ui/shared/forms/unsaved_changes.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -1,9 +1,9 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/shared/retention_window.dart';
 import 'package:heimdall_ui/shared/widgets/delete_actions.dart';
 import 'package:heimdall_ui/shared/widgets/failure_banner.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   var deleted = 0;

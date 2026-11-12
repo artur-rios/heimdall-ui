@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// An instant as the reader's local date and time of day, in the locale's
 /// words — for records where the time matters, such as audit entries.

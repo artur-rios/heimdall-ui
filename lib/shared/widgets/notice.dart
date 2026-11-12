@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// What the last action did, or what state the screen is in, shown beside the
 /// thing it is about.

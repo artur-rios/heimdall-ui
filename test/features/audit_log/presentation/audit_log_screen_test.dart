@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -14,6 +13,7 @@ import 'package:heimdall_ui/features/audit_log/domain/audit_log_repository.dart'
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_controller.dart';
 import 'package:heimdall_ui/features/audit_log/presentation/audit_log_screen.dart';
 import 'package:heimdall_ui/features/auth/domain/session.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
