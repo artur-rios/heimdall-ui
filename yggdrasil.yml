@@ -7,7 +7,7 @@
 # Check it in the yggdrasil checkout:
 #   python3 scripts/pipeline_config.py describe heimdall-ui <this repository's checkout>
 #
-# Flutter 3.47.7 is pinned in ci/flutter-env.sh, not by the image: ghcr.io/cirruslabs/flutter has no tag newer
+# Flutter 3.50.0 is pinned in ci/flutter-env.sh, not by the image: ghcr.io/cirruslabs/flutter has no tag newer
 # than 3.44.0, whose Dart is older than pubspec.yaml's `sdk: ^3.13.5`. The image supplies the Android SDK, the
 # JDK, git, curl and zip, and ci/flutter-env.sh fetches the SDK itself (checksummed).
 #
