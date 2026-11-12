@@ -17,7 +17,7 @@
 # (its newest versioned tag is 3.44.0). The archive is x64-only, and the output
 # is platform-independent static files, so this stage always runs as amd64.
 # ---------------------------------------------------------------------------
-FROM --platform=linux/amd64 debian:13.7-slim@sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad AS build
+FROM --platform=linux/amd64 debian:13.7-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 AS build
 
 # Keep in step with FLUTTER_VERSION and FLUTTER_SHA256 in ci/flutter-env.sh (and
 # FLUTTER_VERSION in .github/workflows/release-windows.yml). FLUTTER_SHA256 is the
