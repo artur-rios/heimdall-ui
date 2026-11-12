@@ -1,8 +1,8 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../shared/layout/breakpoints.dart';
@@ -87,17 +87,28 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
                     constraints: const BoxConstraints(
                       maxWidth: PrivacyNoticeScreen.maxContentWidth,
                     ),
-                    child: MarkdownBody(
-                      data: notice,
-                      selectable: true,
-                      styleSheet: _styleSheet(theme, compact: compact),
-                      onTapLink: (text, href, title) {
-                        if (href != null) {
-                          unawaited(
-                            widget.openLink(resolvePrivacyNoticeLink(href)),
-                          );
-                        }
-                      },
+                    // flutter_markdown_plus still draws with the SDK's
+                    // package:flutter/material.dart, whose Theme and
+                    // MaterialLocalizations are other classes than
+                    // material_ui's. The bridge hands it this application's
+                    // theme and strings, so the notice keeps the theme's
+                    // colours (dark included). material_ui deprecates the
+                    // bridge on purpose, as a migration aid; it goes when the
+                    // package moves to material_ui.
+                    // ignore: deprecated_member_use
+                    child: MaterialUiCompatibilityBridge(
+                      child: MarkdownBody(
+                        data: notice,
+                        selectable: true,
+                        styleSheet: _styleSheet(theme, compact: compact),
+                        onTapLink: (text, href, title) {
+                          if (href != null) {
+                            unawaited(
+                              widget.openLink(resolvePrivacyNoticeLink(href)),
+                            );
+                          }
+                        },
+                      ),
                     ),
                   ),
                 ),
@@ -110,10 +121,14 @@ class _PrivacyNoticeScreenState extends State<PrivacyNoticeScreen> {
   }
 
   /// The renderer's defaults, adjusted to the notice and to both themes.
+  ///
+  /// Only the adjustments: the renderer merges them onto the style sheet it
+  /// builds from the SDK Material theme the bridge supplies, which is another
+  /// `ThemeData` class than material_ui's [theme].
   MarkdownStyleSheet _styleSheet(ThemeData theme, {required bool compact}) {
     final scheme = theme.colorScheme;
 
-    return MarkdownStyleSheet.fromTheme(theme).copyWith(
+    return MarkdownStyleSheet(
       // The default is a fixed blue, whatever the theme.
       a: TextStyle(color: scheme.primary),
       // Room above each numbered section, which otherwise sits on the last

@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
@@ -8,6 +7,7 @@ import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
 import 'package:heimdall_ui/features/auth/presentation/password_recovery_screen.dart';
 import 'package:heimdall_ui/features/auth/presentation/session_controller.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 
 import '../../../support/pump_app.dart';

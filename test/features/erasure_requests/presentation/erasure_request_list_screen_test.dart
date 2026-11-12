@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -10,6 +9,7 @@ import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/erasure_request_repository.dart';
 import 'package:heimdall_ui/features/erasure_requests/domain/outstanding_erasure.dart';
 import 'package:heimdall_ui/features/erasure_requests/presentation/erasure_request_list_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

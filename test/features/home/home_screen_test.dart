@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -16,6 +15,7 @@ import 'package:heimdall_ui/features/persons/domain/person.dart';
 import 'package:heimdall_ui/features/scope_invitations/domain/scope_invitation.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
 import 'package:heimdall_ui/shared/widgets/notice.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../support/dashboard_fakes.dart';

@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/startup_guard.dart';
 import 'package:heimdall_ui/core/config/app_config.dart';
+import 'package:material_ui/material_ui.dart';
 
 void main() {
   // A release build that refuses its API must say so on screen, not leave a

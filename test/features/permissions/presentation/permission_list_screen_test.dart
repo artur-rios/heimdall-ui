@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
@@ -9,6 +8,7 @@ import 'package:heimdall_ui/core/storage/token_store.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission.dart';
 import 'package:heimdall_ui/features/permissions/domain/scope_permission_repository.dart';
 import 'package:heimdall_ui/features/permissions/presentation/permission_list_screen.dart';
+import 'package:material_ui/material_ui.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 

@@ -29,7 +29,7 @@ versions and roles are maintained in exactly one place.
 | --- | --- | --- |
 | Framework | **Flutter 3.50.0** (stable) | One codebase for every target. |
 | Language | **Dart 3.13.5+** | `pubspec.yaml` requires `sdk: ^3.13.5`; Flutter 3.47.7 and newer ship it. A Flutter whose bundled Dart is older (3.13.2, say) fails `flutter pub get`. Pattern matching, sealed classes, and exhaustive `switch` expressions are used freely, and the session and result models depend on them. |
-| Design system | **Material 3** | `useMaterial3: true`, with both schemes derived from one seed color. |
+| Design system | **Material 3**, from `material_ui` | `useMaterial3: true`, with both schemes derived from one seed color. Imported from `package:material_ui/material_ui.dart`, which replaces the SDK's `package:flutter/material.dart`, deprecated since Flutter 3.50. |
 | Targets | **Web, Windows, Linux, Android** | No iOS or macOS platform folder exists. |
 | Analysis | `flutter_lints`, with `strict-casts`, `strict-raw-types` and `strict-inference` enabled, plus the lints `always_declare_return_types`, `avoid_print`, `close_sinks`, `directives_ordering`, `discarded_futures`, `prefer_const_constructors`, `prefer_final_locals`, `require_trailing_commas`, `unawaited_futures` and `unnecessary_lambdas` | Generated code is excluded from analysis. |
 
@@ -39,6 +39,7 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
+| **material_ui** | `^1.11.0` | The Material widgets, themes and icons, published outside the SDK since Flutter 3.50 deprecated `package:flutter/material.dart`. Already in the tree through `go_router`; depended on directly because every screen imports it. |
 | **flutter_riverpod** | `^3.4.3` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
 | **go_router** | `^18.1.1` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
 | **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. Debug builds add the application's own request log, one line per request with the method, path, status and duration; it never prints headers, query strings, bodies or an error's text. |
@@ -48,7 +49,7 @@ versions and roles are maintained in exactly one place.
 | **shared_preferences** | `^2.5.6` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
 | **google_sign_in** | `^7.2.0` | Obtains the Google ID token the API exchanges for a Heimdall token. |
 | **qr** | `^4.0.0` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
-| **flutter_markdown_plus** | `^1.0.12` | Renders the privacy notice at `/privacy`, which is the Heimdall API's Markdown file bundled verbatim. The maintained fork of `flutter_markdown`, which Google discontinued. |
+| **flutter_markdown_plus** | `^1.0.12` | Renders the privacy notice at `/privacy`, which is the Heimdall API's Markdown file bundled verbatim. The maintained fork of `flutter_markdown`, which Google discontinued. It still draws with the SDK's `package:flutter/material.dart`, so the notice wraps it in material_ui's `MaterialUiCompatibilityBridge`, which hands it the application's theme and strings; the bridge goes when the package moves to `material_ui`. |
 | **url_launcher** | `^6.3.3` | Opens the privacy notice's links — the contact address in the mail client, the rest in the browser. |
 | **path_provider** | `^2.1.6` | Finds the downloads folder a data export (UI-30) is saved to off the web; the web hands the file to the browser as a download instead. Already in the tree through `flutter_secure_storage`; depended on directly because the application now calls it. |
 
@@ -136,6 +137,7 @@ no test reaches the network.
 | --- | --- | --- |
 | Framework | Flutter | `3.50.0` |
 | Language | Dart | `3.13.5+` |
+| Design system | material_ui | `^1.11.0` |
 | State | flutter_riverpod | `^3.4.3` |
 | Routing | go_router | `^18.1.1` |
 | HTTP | dio | `^5.11.1` |

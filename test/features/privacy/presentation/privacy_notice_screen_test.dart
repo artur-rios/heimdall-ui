@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/features/privacy/domain/privacy_notice.dart';
 import 'package:heimdall_ui/features/privacy/presentation/privacy_notice_screen.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../../support/pump_app.dart';
 
@@ -170,6 +170,33 @@ void main() {
     // Then
     final markdown = tester.widget<MarkdownBody>(find.byType(MarkdownBody));
     expect(markdown.styleSheet?.a?.color, theme.colorScheme.primary);
+  });
+
+  // The renderer builds its text styles from the SDK Material theme, a
+  // different class from material_ui's; without the compatibility bridge it
+  // falls back to a light default and draws dark text on the dark surface.
+  testWidgets('GivenDarkTheme_WhenOpened_ThenTheTextIsDrawnLight', (
+    tester,
+  ) async {
+    // Given / When
+    await pump(tester, theme: buildDarkTheme());
+
+    // Then
+    // Selectable, so the text is an EditableText whose controller holds the
+    // renderer's span.
+    final finder = textContaining(versionLine);
+    final span = tester
+        .widget<EditableText>(finder)
+        .controller
+        .buildTextSpan(context: tester.element(finder), withComposing: false);
+    Color? color;
+    span.visitChildren((child) {
+      color = child.style?.color;
+
+      return color == null;
+    });
+    expect(color, isNotNull);
+    expect(ThemeData.estimateBrightnessForColor(color!), Brightness.light);
   });
 
   testWidgets('GivenTheFrontMatter_WhenOpened_ThenItIsNotShown', (

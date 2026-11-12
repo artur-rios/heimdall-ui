@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:material_ui/material_ui.dart';
 
 /// Lays the tiles out in as many columns as the width allows, never letting a
 /// tile shrink below [minTileWidth].

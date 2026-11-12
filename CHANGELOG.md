@@ -10,8 +10,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Flutter 3.47.7 → 3.50.0 (Dart 3.13.5 → 3.14.0) in CI, the container image and the Windows release workflow. The
-  SDK constraint stays `^3.13.5`. The SDK moves `test_api` 0.7.12 → 0.7.14 in `pubspec.lock`. The generated API
-  client is unchanged.
+  SDK constraint stays `^3.13.5`. Flutter 3.50 deprecates `package:flutter/material.dart` in favour of the
+  `material_ui` package, so the application depends on `material_ui` directly (1.8.0 → 1.11.0, until now only
+  through `go_router`) and imports it everywhere it imported the SDK's Material library. `flutter_markdown_plus`
+  still draws with the SDK's Material theme, a different class, so the privacy notice wraps it in material_ui's
+  compatibility bridge and keeps the application's colours in both themes. The SDK moves `test_api` 0.7.12 →
+  0.7.14 in `pubspec.lock`. The generated API client is unchanged.
 - Android build: Kotlin Gradle Plugin 2.4.0 → 2.4.10, the oldest Flutter 3.50's tooling accepts.
 
 ## [2.0.0] - 2026-11-10

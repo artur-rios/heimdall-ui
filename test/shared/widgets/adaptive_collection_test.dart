@@ -1,7 +1,7 @@
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:heimdall_ui/app/theme.dart';
 import 'package:heimdall_ui/shared/widgets/adaptive_collection.dart';
+import 'package:material_ui/material_ui.dart';
 
 import '../../support/pump_app.dart';
 
@@ -291,7 +291,14 @@ void main() {
         expect(tester.getSize(find.text(text)).width, lessThanOrEqualTo(260));
         expect(shown.maxLines, 1);
         expect(shown.overflow, TextOverflow.ellipsis);
-        expect(find.byTooltip(text), findsOneWidget);
+        // Not find.byTooltip: with excludeFromSemantics it matches only the
+        // SDK's own Tooltip class, and this one is material_ui's.
+        expect(
+          find.byWidgetPredicate(
+            (widget) => widget is Tooltip && widget.message == text,
+          ),
+          findsOneWidget,
+        );
       }
       expect(tester.takeException(), isNull);
     },
