@@ -232,7 +232,7 @@ carries the web bundle, the Linux bundle and the Android package from Jenkins, a
 
 ## Container image (web)
 
-`Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.47.7, the
+`Dockerfile` builds the web target into a production image: a pinned Flutter SDK (3.50.0, the
 version CI uses) compiles `build/web`, and `nginxinc/nginx-unprivileged:alpine` serves it as a
 non-root user on port **8080**, with a deep-link fallback to `index.html` and a `/healthz` probe.
 The server configuration is [`docker/nginx.conf`](docker/nginx.conf). It expects TLS to be

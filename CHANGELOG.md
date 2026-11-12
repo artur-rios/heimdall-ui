@@ -7,6 +7,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+### Changed
+
+- Flutter 3.47.7 → 3.50.0 (Dart 3.13.5 → 3.14.0) in CI, the container image and the Windows release workflow. The
+  SDK constraint stays `^3.13.5`. The SDK moves `test_api` 0.7.12 → 0.7.14 in `pubspec.lock`. The generated API
+  client is unchanged.
+- Android build: Kotlin Gradle Plugin 2.4.0 → 2.4.10, the oldest Flutter 3.50's tooling accepts.
+
 ## [2.0.0] - 2026-11-10
 
 ### Upgrading from 1.x to 2.0

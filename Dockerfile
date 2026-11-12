@@ -13,7 +13,7 @@
 # Build stage: a pinned Flutter SDK compiles the web bundle.
 #
 # The SDK comes from Flutter's official release archive rather than
-# ghcr.io/cirruslabs/flutter, because that image publishes no tag for 3.47.7
+# ghcr.io/cirruslabs/flutter, because that image publishes no tag for 3.50.0
 # (its newest versioned tag is 3.44.0). The archive is x64-only, and the output
 # is platform-independent static files, so this stage always runs as amd64.
 # ---------------------------------------------------------------------------
@@ -25,8 +25,8 @@ FROM --platform=linux/amd64 debian:13.7-slim@sha256:a72b4433de1cf7d6bae0c4cee74d
 # https://storage.googleapis.com/flutter_infra_release/releases/releases_linux.json;
 # override it together with FLUTTER_VERSION (Renovate bumps the version, not the checksum).
 # renovate: datasource=github-tags depName=flutter/flutter versioning=regex:^(?<major>\d+)\.(?<minor>\d+)\.(?<patch>\d+)$
-ARG FLUTTER_VERSION=3.47.7
-ARG FLUTTER_SHA256=af7455f540df951184c7953fbe3cf884766e7541dacf8571f9f582db03dd6230
+ARG FLUTTER_VERSION=3.50.0
+ARG FLUTTER_SHA256=6ea2d806fd57269ae783e6788e2a81fc26eaad782f1e0d0ff38623bb765ff9f5
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
