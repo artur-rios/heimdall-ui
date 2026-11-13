@@ -16,7 +16,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   still draws with the SDK's Material theme, a different class, so the privacy notice wraps it in material_ui's
   compatibility bridge and keeps the application's colours in both themes. The SDK moves `test_api` 0.7.12 →
   0.7.14 in `pubspec.lock`. The generated API client is unchanged.
-- Android build: Kotlin Gradle Plugin 2.4.0 → 2.4.10, the oldest Flutter 3.50's tooling accepts.
+- Android build: Android Gradle Plugin 9.1.1 → 9.3.1, Kotlin Gradle Plugin 2.4.0 → 2.4.20 and Gradle 9.3.1 →
+  9.5.0, the versions of Flutter 3.50's app template; its Gradle plugin warns that older ones will soon be dropped.
 
 ## [2.0.0] - 2026-11-10
 
