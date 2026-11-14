@@ -40,15 +40,15 @@ versions and roles are maintained in exactly one place.
 | Package | Constraint | Role |
 | --- | --- | --- |
 | **material_ui** | `^1.11.0` | The Material widgets, themes and icons, published outside the SDK since Flutter 3.50 deprecated `package:flutter/material.dart`. Already in the tree through `go_router`; depended on directly because every screen imports it. |
-| **flutter_riverpod** | `^3.4.3` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
-| **go_router** | `^18.1.1` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
+| **flutter_riverpod** | `^3.5.0` | Dependency injection and state. Providers are the only global wiring; each feature owns its own. `Notifier` and `AsyncNotifier` back the session and the theme mode. |
+| **go_router** | `^18.1.4` | Declarative routing. Gives the web target real URLs, and hosts the single redirect that guards every route by session and role. |
 | **dio** | `^5.11.1` | HTTP. One configured instance is shared by every generated client, carrying the bearer-token interceptor and the timeouts. Debug builds add the application's own request log, one line per request with the method, path, status and duration; it never prints headers, query strings, bodies or an error's text. |
 | **retrofit** | `^4.10.0` | The generated clients' runtime: turns the annotated interfaces `swagger_parser` emits into `dio` calls. |
 | **json_annotation** | `^4.12.0` | The generated models' runtime, paired with `json_serializable` at build time. |
 | **flutter_secure_storage** | `^11.2.0` | Token storage: Keystore on Android, DPAPI on Windows, libsecret on Linux, and WebCrypto-encrypted session storage on the web, so the token is kept per tab. |
 | **shared_preferences** | `^2.5.6` | Non-sensitive preferences — currently only the chosen theme mode. Never used for tokens. |
 | **google_sign_in** | `^7.2.0` | Obtains the Google ID token the API exchanges for a Heimdall token. |
-| **qr** | `^4.0.0` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
+| **qr** | `^4.0.1` | Encodes the `otpAuthUri` of a two-factor setup into a QR matrix (FR-AU-18). Pure Dart, no platform code: the drawing is this repository's own `QrCodeView`, so the dependency is an encoder rather than a widget. |
 | **flutter_markdown_plus** | `^1.0.12` | Renders the privacy notice at `/privacy`, which is the Heimdall API's Markdown file bundled verbatim. The maintained fork of `flutter_markdown`, which Google discontinued. It still draws with the SDK's `package:flutter/material.dart`, so the notice wraps it in material_ui's `MaterialUiCompatibilityBridge`, which hands it the application's theme and strings; the bridge goes when the package moves to `material_ui`. |
 | **url_launcher** | `^6.3.3` | Opens the privacy notice's links — the contact address in the mail client, the rest in the browser. |
 | **path_provider** | `^2.1.6` | Finds the downloads folder a data export (UI-30) is saved to off the web; the web hands the file to the browser as a download instead. Already in the tree through `flutter_secure_storage`; depended on directly because the application now calls it. |
@@ -59,10 +59,10 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
-| **swagger_parser** | `^1.45.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
+| **swagger_parser** | `^1.46.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
 | **build_runner** | `^2.17.1` | Runs the generators. |
-| **json_serializable** | `^6.14.1` | Emits the `fromJson`/`toJson` bodies for the generated models. |
-| **retrofit_generator** | `^10.2.12` | Emits the client implementations. |
+| **json_serializable** | `^6.15.2` | Emits the `fromJson`/`toJson` bodies for the generated models. |
+| **retrofit_generator** | `^10.3.3` | Emits the client implementations. |
 
 ### 4.1 The generation pipeline
 
@@ -138,22 +138,22 @@ no test reaches the network.
 | Framework | Flutter | `3.50.0` |
 | Language | Dart | `3.13.5+` |
 | Design system | material_ui | `^1.11.0` |
-| State | flutter_riverpod | `^3.4.3` |
-| Routing | go_router | `^18.1.1` |
+| State | flutter_riverpod | `^3.5.0` |
+| Routing | go_router | `^18.1.4` |
 | HTTP | dio | `^5.11.1` |
 | HTTP | retrofit | `^4.10.0` |
 | Serialization | json_annotation | `^4.12.0` |
 | Storage | flutter_secure_storage | `^11.2.0` |
 | Storage | shared_preferences | `^2.5.6` |
 | Authentication | google_sign_in | `^7.2.0` |
-| Encoding | qr | `^4.0.0` |
+| Encoding | qr | `^4.0.1` |
 | Rendering | flutter_markdown_plus | `^1.0.12` |
 | Platform | url_launcher | `^6.3.3` |
 | Platform | path_provider | `^2.1.6` |
-| Generation | swagger_parser | `^1.45.0` |
+| Generation | swagger_parser | `^1.46.0` |
 | Generation | build_runner | `^2.17.1` |
-| Generation | json_serializable | `^6.14.1` |
-| Generation | retrofit_generator | `^10.2.12` |
+| Generation | json_serializable | `^6.15.2` |
+| Generation | retrofit_generator | `^10.3.3` |
 | Testing | mocktail | `^1.0.5` |
 | Lints | flutter_lints | `^6.0.0` |
 

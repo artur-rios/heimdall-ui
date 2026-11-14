@@ -16,8 +16,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   still draws with the SDK's Material theme, a different class, so the privacy notice wraps it in material_ui's
   compatibility bridge and keeps the application's colours in both themes. The SDK moves `test_api` 0.7.12 →
   0.7.14 in `pubspec.lock`. The generated API client is unchanged.
-- Android build: Android Gradle Plugin 9.1.1 → 9.3.1, Kotlin Gradle Plugin 2.4.0 → 2.4.20 and Gradle 9.3.1 →
-  9.5.0, the versions of Flutter 3.50's app template; its Gradle plugin warns that older ones will soon be dropped.
+- Android build: Android Gradle Plugin 9.1.1 → 9.5.1, Kotlin Gradle Plugin 2.4.0 → 2.4.21 and Gradle 9.3.1 →
+  9.9.1, at least the versions of Flutter 3.50's app template (9.3.1, 2.4.20 and 9.5.0); its Gradle plugin warns
+  that older ones will soon be dropped.
+- Dependencies on their latest stable versions: `flutter_riverpod` 3.4.3 → 3.5.0, `go_router` 18.1.1 → 18.1.4,
+  `qr` 4.0.0 → 4.0.1, `web` 1.1.1 → 1.1.2, `retrofit_generator` 10.3.2 → 10.3.3 and `swagger_parser` 1.45.0 →
+  1.46.0, with their transitive packages, and the `json_serializable` constraint follows the 6.15.2 already
+  resolved. The generated API client's package moves to `build_runner` 2.17.1, `json_serializable` 6.15.2 and
+  `retrofit_generator` 10.3.3. The regenerated client is unchanged. `swagger_parser` stays on 1.x: 2.0 replaces its
+  configuration and generates a client with a different layout and different type names, which the application
+  would have to be rewritten against.
+- The Technology Stack Document's dependency tables match `pubspec.yaml`.
 
 ## [2.0.0] - 2026-11-10
 
