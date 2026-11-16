@@ -107,26 +107,33 @@ void main() {
   testWidgets('GivenALoadingState_WhenBuilt_ThenThePlaceholderShows', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _Loading());
 
+    // Then
     expect(find.byType(CollectionLoading), findsOneWidget);
   });
 
   testWidgets('GivenAStateOfNoKnownKind_WhenBuilt_ThenItIsLoading', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _Other());
 
+    // Then
     expect(find.byType(CollectionLoading), findsOneWidget);
   });
 
   testWidgets('GivenAFailure_WhenRetryIsTapped_ThenItAsksAgain', (
     tester,
   ) async {
+    // Given
     await pump(tester, _Failed(_server));
 
+    // When
     await tester.tap(find.widgetWithText(FilledButton, 'Retry'));
 
+    // Then
     expect(find.byType(CollectionFailed), findsOneWidget);
     expect(retries, 1);
   });
@@ -134,37 +141,49 @@ void main() {
   testWidgets('GivenForbidden_WhenTheListingHasAWayBack_ThenItIsOffered', (
     tester,
   ) async {
+    // Given
     await pump(tester, _Failed(_forbidden));
-
     expect(find.text('Not available for your role'), findsOneWidget);
+
+    // When
     await tester.tap(find.widgetWithText(FilledButton, 'Back to scopes'));
+
+    // Then
     expect(backs, 1);
   });
 
   testWidgets('GivenForbidden_WhenTheListingSaysItsOwnWords_ThenTheyShow', (
     tester,
   ) async {
+    // Given
     await pump(tester, _Failed(_forbidden), customForbidden: true);
-
     expect(find.text('Only a System Admin may see this.'), findsOneWidget);
     expect(find.textContaining('scope'), findsNothing);
+
+    // When
     await tester.tap(find.widgetWithText(FilledButton, 'Back to Home'));
+
+    // Then
     expect(backs, 1);
   });
 
   testWidgets('GivenALoadedStateOfAnotherKind_WhenBuilt_ThenDebugRefusesIt', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _LoadedOfAnotherKind());
 
+    // Then
     expect(tester.takeException(), isA<AssertionError>());
   });
 
   testWidgets('GivenForbidden_WhenTheListingHasNoWayBack_ThenItIsAFailure', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _Failed(_forbidden), withBack: false);
 
+    // Then
     expect(find.text('Not available for your role'), findsNothing);
     expect(find.byType(CollectionFailed), findsOneWidget);
   });
@@ -172,16 +191,20 @@ void main() {
   testWidgets('GivenAnEmptyPage_WhenBuilt_ThenTheEmptyBuilderGetsTheQuery', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _Loaded(const <int>[], query: 'abc'));
 
+    // Then
     expect(find.text('empty for abc'), findsOneWidget);
   });
 
   testWidgets('GivenAPageOfRows_WhenBuilt_ThenTheRowsBuilderGetsTheState', (
     tester,
   ) async {
+    // Given / When
     await pump(tester, _Loaded(const <int>[1, 2]));
 
+    // Then
     expect(find.text('rows 1,2'), findsOneWidget);
   });
 }

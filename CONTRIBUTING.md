@@ -63,6 +63,18 @@ flutter test
 CI runs `flutter test --coverage` and uploads `coverage/lcov.info` as an artifact; there is no coverage threshold.
 There is no `integration_test/` directory: every test, including those that drive the router, is a `flutter test`.
 
+CI runs the suite as four bundles side by side rather than one test file at a time, which is how the whole suite
+runs fastest (`flutter test` compiles one entry point after another, whatever its concurrency):
+
+```bash
+dart run tool/test_bundles.dart build/test-bundles 4
+flutter test --coverage --concurrency 4 build/test-bundles
+```
+
+The files of a bundle share one isolate, so a test that sets global state (mock preferences, a mock method channel,
+`PageTitle`'s label) sets it in its own `setUp` and puts it back afterwards; `flutter test <file>` still runs a file
+on its own.
+
 The gate before every pull request is these three, passing:
 
 ```bash

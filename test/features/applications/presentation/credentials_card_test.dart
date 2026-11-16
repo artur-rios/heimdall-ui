@@ -178,6 +178,10 @@ void main() {
     await pump(tester);
     await openIssueDialog(tester);
 
+    // The picker opens on the real clock's today, and a run may cross
+    // midnight: the day picked is the one before or the one after.
+    final todayBefore = DateUtils.dateOnly(DateTime.now());
+
     // When
     await tester.tap(find.text('Never expires'));
     await tester.pumpAndSettle();
@@ -187,10 +191,18 @@ void main() {
     await tester.pumpAndSettle();
 
     // Then
-    final today = DateUtils.dateOnly(DateTime.now());
-    verify(
-      () => repository.issue('s1', 'a1', expiresAt: credentialExpiryFor(today)),
-    ).called(1);
+    final todayAfter = DateUtils.dateOnly(DateTime.now());
+    final expiry = verify(
+      () => repository.issue(
+        's1',
+        'a1',
+        expiresAt: captureAny(named: 'expiresAt'),
+      ),
+    ).captured.single;
+    expect(
+      expiry,
+      anyOf(credentialExpiryFor(todayBefore), credentialExpiryFor(todayAfter)),
+    );
   });
 
   testWidgets('GivenADayNextYear_WhenChosen_ThenTheLabelShowsTheYear', (

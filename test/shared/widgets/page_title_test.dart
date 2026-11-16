@@ -33,14 +33,17 @@ void main() {
   testWidgets('GivenAScreen_WhenShown_ThenTheTitleNamesItAndTheApp', (
     tester,
   ) async {
+    // Given / When
     await tester.pumpWidget(MaterialApp(home: screen('Permissions')));
 
+    // Then
     expect(titles.last, 'Permissions - Heimdall');
   });
 
   testWidgets(
     'GivenAScreenOverAnother_WhenTheOneUnderRebuilds_ThenTheTopTitleStays',
     (tester) async {
+      // Given
       final underneath = ValueNotifier<int>(0);
       await tester.pumpWidget(
         MaterialApp(
@@ -62,15 +65,16 @@ void main() {
       );
       await tester.tap(find.text('open 0'));
       await tester.pumpAndSettle();
-
       expect(titles.last, 'Ada - Heimdall');
 
-      // The offstage parent builds again, after the detail did.
+      // When — the offstage parent builds again, after the detail did.
       underneath.value = 1;
       await tester.pump();
 
+      // Then
       expect(titles.last, 'Ada - Heimdall');
 
+      // And once the detail is closed, the one under it names the page.
       Navigator.of(tester.element(find.byType(PageTitle).last)).pop();
       await tester.pumpAndSettle();
 
@@ -81,6 +85,7 @@ void main() {
   testWidgets('GivenNoNavigator_WhenShown_ThenTheTitleIsStillSet', (
     tester,
   ) async {
+    // Given / When
     await tester.pumpWidget(
       const PageTitle(
         title: 'Alone',
@@ -91,12 +96,14 @@ void main() {
       ),
     );
 
+    // Then
     expect(titles.last, 'Alone - Heimdall');
   });
 
   testWidgets('GivenAScreenOnTop_WhenTheAppRebuilds_ThenItsTitleSurvives', (
     tester,
   ) async {
+    // Given
     final mode = ValueNotifier<ThemeMode>(ThemeMode.light);
     await tester.pumpWidget(
       ValueListenableBuilder<ThemeMode>(
@@ -110,16 +117,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    // When
     mode.value = ThemeMode.dark;
     await tester.pumpAndSettle();
 
-    // Whatever the application's own title put last is the screen's.
+    // Then — whatever the application's own title put last is the screen's.
     expect(titles.last, 'Persons - Heimdall');
   });
 
   testWidgets('GivenTheSameTitle_WhenRebuilt_ThenThePlatformIsToldOnce', (
     tester,
   ) async {
+    // Given
     late StateSetter rebuild;
     await tester.pumpWidget(
       StatefulBuilder(
@@ -136,9 +145,12 @@ void main() {
         },
       ),
     );
+
+    // When
     rebuild(() {});
     await tester.pump();
 
+    // Then
     expect(titles, <String>['Same - Heimdall']);
   });
 }

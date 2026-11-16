@@ -1462,4 +1462,1110 @@ void main() {
       expect(result.failureOrNull?.kind, FailureKind.network);
     },
   );
+
+  /// A refusal inside a 2xx, which the API answers often enough that the
+  /// envelope, not the status, is what is read.
+  const refusedInEnvelope = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': false,
+      'errors': <String>['Refused by the API.'],
+    },
+  );
+
+  /// A refusal that gives no reason at all.
+  const refusedWithoutReason = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': false},
+  );
+
+  /// A successful envelope that carries no data.
+  const acceptedWithoutData = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': true, 'errors': <String>[]},
+  );
+
+  /// A token without the expiry that has to come with it.
+  const tokenWithoutExpiry = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{'token': 'jwt'},
+    },
+  );
+
+  /// The API's one refusal of a mistyped password or code under a token.
+  const wrongCredential = StubAnswer(
+    status: 401,
+    body: <String, dynamic>{
+      'success': false,
+      'errors': <String>['The password or code is incorrect.'],
+    },
+  );
+
+  const noConnection = StubAnswer(status: 0);
+
+  const incompleteResponse = <String>[
+    'The API returned an incomplete response.',
+  ];
+
+  test('GivenACredential_WhenLoggingIn_ThenItIsPostedToTheLogin', () async {
+    // Given
+    repository = repositoryAnswering(acceptedChallenge);
+
+    // When
+    await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/login');
+    expect(adapter.requests.single['password'], 'secret');
+  });
+
+  test('GivenATokenResponse_WhenLoggingIn_ThenItsExpiryIsMapped', () async {
+    // Given — no `requiresTwoFactor` at all, which is not a challenge
+    repository = repositoryAnswering(acceptedChallenge);
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'secret');
+
+    // Then
+    final token = (result.valueOrNull! as LoggedIn).token;
+    expect(token.value, 'jwt');
+    expect(token.expiresAt, DateTime.utc(2030));
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenLoggingIn_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.login(email: 'a@b.c', password: 'x');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoData_WhenLoggingIn_ThenAnIncompleteResponseIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.login(email: 'a@b.c', password: 'x');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, incompleteResponse);
+    },
+  );
+
+  test('GivenAChallengeWithoutItsToken_WhenLoggingIn_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'requiresTwoFactor': true},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.login(email: 'a@b.c', password: 'x');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  test(
+    'GivenAChallengeWithoutMethods_WhenLoggingIn_ThenNoMethodsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'requiresTwoFactor': true,
+              'challengeToken': 'challenge',
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.login(email: 'a@b.c', password: 'x');
+
+      // Then
+      final challenge = result.valueOrNull! as TwoFactorRequired;
+      expect(challenge.challengeToken, 'challenge');
+      expect(challenge.availableMethods, isEmpty);
+    },
+  );
+
+  test(
+    'GivenATokenWithoutExpiry_WhenLoggingIn_ThenAnIncompleteResponseIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(tokenWithoutExpiry);
+
+      // When
+      final result = await repository.login(email: 'a@b.c', password: 'x');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, incompleteResponse);
+    },
+  );
+
+  test(
+    'GivenAChallengeAnswer_WhenVerifyingTheFactor_ThenItIsPostedToTheVerify',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedChallenge);
+
+      // When
+      await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/2fa/verify');
+      expect(adapter.requests.single['challengeToken'], 'challenge');
+    },
+  );
+
+  test(
+    'GivenATokenWithoutFlags_WhenVerifyingTheFactor_ThenItIsFullAndVerified',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedChallenge);
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      final token = result.valueOrNull!;
+      expect(token.value, 'jwt');
+      expect(token.expiresAt, DateTime.utc(2030));
+      expect(token.emailVerified, isTrue);
+      expect(token.processingRestricted, isFalse);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenVerifyingTheFactor_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '000000',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoData_WhenVerifyingTheFactor_ThenAnIncompleteResponseIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.verifySecondFactor(
+        challengeToken: 'challenge',
+        code: '123456',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, incompleteResponse);
+    },
+  );
+
+  test('GivenATokenWithoutExpiry_WhenVerifyingTheFactor_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(tokenWithoutExpiry);
+
+    // When
+    final result = await repository.verifySecondFactor(
+      challengeToken: 'challenge',
+      code: '123456',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  test(
+    'GivenAnAcceptance_WhenACodeIsResent_ThenItIsPostedToTheResend',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.resendSecondFactorCode(
+        challengeToken: 'challenge',
+      );
+
+      // Then
+      expect(result.isSuccess, isTrue);
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/2fa/challenge/resend');
+    },
+  );
+
+  test('GivenARefusal_WhenACodeIsResent_ThenApiErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(refusedInEnvelope);
+
+    // When
+    final result = await repository.resendSecondFactorCode(
+      challengeToken: 'challenge',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenACodeIsResent_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.resendSecondFactorCode(
+        challengeToken: 'challenge',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenAnAddress_WhenRequestingRecovery_ThenItIsPostedToTheRecovery',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/password-recovery');
+    },
+  );
+
+  test(
+    'GivenARefusalWithinA200_WhenRequestingRecovery_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenRequestingRecovery_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.requestPasswordRecovery(email: 'a@b.c');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenAResetToken_WhenResetting_ThenItIsPostedToTheReset', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.resetPassword(
+      token: 'reset-token',
+      newPassword: 'new-secret',
+    );
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/password-reset');
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenResetting_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.resetPassword(
+        token: 'reset-token',
+        newPassword: 'new-secret',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenAVerificationToken_WhenVerifyingTheAddress_ThenItIsPostedToTheVerification', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.verifyEmail(token: 'verification-token');
+
+    // Then
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/verify-email');
+  });
+
+  test('GivenAnAcceptanceWithoutMessages_WhenVerifyingTheAddress_ThenNoMessagesAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.verifyEmail(token: 'verification-token');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(result.valueOrNull, isEmpty);
+  });
+
+  test(
+    'GivenARefusalWithinA200_WhenVerifyingTheAddress_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.verifyEmail(token: 'stale');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test('GivenARefusalWithoutReason_WhenVerifyingTheAddress_ThenNoErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(refusedWithoutReason);
+
+    // When
+    final result = await repository.verifyEmail(token: 'stale');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, isEmpty);
+  });
+
+  test(
+    'GivenASession_WhenResendingTheVerification_ThenItIsPostedToTheResend',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      await repository.resendVerificationEmail();
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/resend-verification');
+    },
+  );
+
+  test('GivenARefusalWithinA200_WhenResendingTheVerification_ThenApiErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(refusedInEnvelope);
+
+    // When
+    final result = await repository.resendVerificationEmail();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+  });
+
+  test('GivenARefusalWithoutReason_WhenResendingTheVerification_ThenNoErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(refusedWithoutReason);
+
+    // When
+    final result = await repository.resendVerificationEmail();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, isEmpty);
+  });
+
+  test(
+    'GivenAnIdToken_WhenSigningInWithGoogle_ThenItIsPostedToTheGoogleExchange',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedGoogleExchange);
+
+      // When
+      await repository.signInWithGoogle(idToken: 'google-id-token');
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/google');
+      expect(adapter.requests.single['idToken'], 'google-id-token');
+      expect(adapter.requests.single['scopeId'], isNull);
+    },
+  );
+
+  test(
+    'GivenATokenWithoutFlags_WhenSigningInWithGoogle_ThenItIsFullAndVerified',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedGoogleExchange);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+      );
+
+      // Then
+      final token = result.valueOrNull!;
+      expect(token.expiresAt, DateTime.utc(2030));
+      expect(token.emailVerified, isTrue);
+      expect(token.processingRestricted, isFalse);
+    },
+  );
+
+  test(
+    'GivenARefusalWithinA200_WhenSigningInWithGoogle_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test('GivenARefusalWithoutReason_WhenSigningInWithGoogle_ThenNoErrorsAreReturned', () async {
+    // Given
+    repository = repositoryAnswering(refusedWithoutReason);
+
+    // When
+    final result = await repository.signInWithGoogle(
+      idToken: 'google-id-token',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, isEmpty);
+  });
+
+  test(
+    'GivenNoData_WhenSigningInWithGoogle_ThenAnIncompleteResponseIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.signInWithGoogle(
+        idToken: 'google-id-token',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, incompleteResponse);
+    },
+  );
+
+  test('GivenATokenWithoutExpiry_WhenSigningInWithGoogle_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(tokenWithoutExpiry);
+
+    // When
+    final result = await repository.signInWithGoogle(
+      idToken: 'google-id-token',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  test(
+    'GivenAGoogleSession_WhenSigningOut_ThenItIsPostedToTheGoogleSignOut',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      await repository.signOutFromGoogle();
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/google/sign-out');
+    },
+  );
+
+  test(
+    'GivenARefusalWithinA200_WhenSigningOut_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.signOutFromGoogle();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenSigningOut_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.signOutFromGoogle();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoConnection_WhenSigningOut_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(noConnection);
+
+      // When
+      final result = await repository.signOutFromGoogle();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
+
+  test('GivenASession_WhenStatusRead_ThenItIsAGetOfTheStatus', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.twoFactorStatus();
+
+    // Then
+    expect(adapter.methods.single, 'GET');
+    expect(adapter.paths.single, '/api/auth/2fa');
+  });
+
+  test('GivenNoFlags_WhenStatusRead_ThenEverythingIsOff', () async {
+    // Given
+    repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.twoFactorStatus();
+
+    // Then
+    final status = result.valueOrNull!;
+    expect(status.isActive, isFalse);
+    expect(status.appEnabled, isFalse);
+    expect(status.emailEnabled, isFalse);
+    expect(status.remainingRecoveryCodes, 0);
+    expect(status.methods, isEmpty);
+  });
+
+  test('GivenOnlyTheEmailMethod_WhenStatusRead_ThenItIsListed', () async {
+    // Given
+    repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'isActive': true,
+            'appEnabled': false,
+            'emailEnabled': true,
+            'remainingRecoveryCodes': 2,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.twoFactorStatus();
+
+    // Then
+    expect(result.valueOrNull?.emailEnabled, isTrue);
+    expect(result.valueOrNull?.methods, <TwoFactorMethod>[
+      TwoFactorMethod.email,
+    ]);
+  });
+
+  test(
+    'GivenARefusalWithinA200_WhenStatusRead_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.twoFactorStatus();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenStatusRead_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.twoFactorStatus();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoData_WhenStatusRead_ThenAnIncompleteResponseIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.twoFactorStatus();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, incompleteResponse);
+    },
+  );
+
+  test(
+    'GivenTheEmailMethod_WhenEnabled_ThenItIsPostedToTheEnableWithItsWireValue',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'emailCodeSent': true},
+          },
+        ),
+      );
+
+      // When
+      await repository.enableTwoFactor(
+        TwoFactorMethod.email,
+        currentPassword: 'secret',
+      );
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/2fa/enable');
+      expect(adapter.requests.single['methods'], <String>['Email']);
+    },
+  );
+
+  test(
+    'GivenASetupWithoutFlags_WhenEnabled_ThenNoCodeIsSaidToBeSent',
+    () async {
+      // Given
+      repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{},
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.enableTwoFactor(
+        TwoFactorMethod.email,
+        currentPassword: 'secret',
+      );
+
+      // Then
+      final setup = result.valueOrNull!;
+      expect(setup.method, TwoFactorMethod.email);
+      expect(setup.emailCodeSent, isFalse);
+      expect(setup.otpAuthUri, isNull);
+    },
+  );
+
+  test(
+    'GivenARefusalWithinA200_WhenEnabled_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.enableTwoFactor(
+        TwoFactorMethod.app,
+        currentPassword: 'secret',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenEnabled_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.enableTwoFactor(
+        TwoFactorMethod.app,
+        currentPassword: 'secret',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenNoData_WhenEnabled_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  // A mistyped password is an input to correct, not the end of the session.
+  test('GivenAWrongPassword_WhenEnabled_ThenItIsAValidation', () async {
+    // Given
+    repository = repositoryAnswering(wrongCredential);
+
+    // When
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'wrong',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>[
+      'The password or code is incorrect.',
+    ]);
+  });
+
+  test('GivenNoConnection_WhenEnabled_ThenNetworkFailureIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.enableTwoFactor(
+      TwoFactorMethod.app,
+      currentPassword: 'secret',
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test('GivenACode_WhenConfirmed_ThenItIsPostedToTheConfirmation', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.confirmTwoFactor(
+      method: TwoFactorMethod.app,
+      code: '123456',
+    );
+
+    // Then
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/2fa/confirm');
+  });
+
+  test(
+    'GivenAnAcceptanceWithoutData_WhenConfirmed_ThenNoCodesAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.confirmTwoFactor(
+        method: TwoFactorMethod.app,
+        code: '123456',
+      );
+
+      // Then
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, isEmpty);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenConfirmed_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.confirmTwoFactor(
+        method: TwoFactorMethod.email,
+        code: '000000',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoConnection_WhenConfirmed_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(noConnection);
+
+      // When
+      final result = await repository.confirmTwoFactor(
+        method: TwoFactorMethod.app,
+        code: '123456',
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
+
+  test('GivenAnAcceptance_WhenDisabled_ThenItIsPostedToTheDisable', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.disableTwoFactor(password: 'secret');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/2fa/disable');
+  });
+
+  test('GivenACode_WhenDisabled_ThenOnlyThatFieldIsFilled', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.disableTwoFactor(code: '123456');
+
+    // Then
+    expect(adapter.requests.single['code'], '123456');
+    expect(adapter.requests.single['password'], isNull);
+    expect(adapter.requests.single['recoveryCode'], isNull);
+  });
+
+  test('GivenARecoveryCode_WhenDisabled_ThenOnlyThatFieldIsFilled', () async {
+    // Given
+    repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.disableTwoFactor(recoveryCode: 'recovery-1');
+
+    // Then
+    expect(adapter.requests.single['recoveryCode'], 'recovery-1');
+    expect(adapter.requests.single['password'], isNull);
+    expect(adapter.requests.single['code'], isNull);
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenDisabled_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.disableTwoFactor(password: 'secret');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenAWrongPassword_WhenDisabled_ThenItIsAValidation', () async {
+    // Given
+    repository = repositoryAnswering(wrongCredential);
+
+    // When
+    final result = await repository.disableTwoFactor(password: 'wrong');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>[
+      'The password or code is incorrect.',
+    ]);
+  });
+
+  test('GivenNoConnection_WhenDisabled_ThenNetworkFailureIsReturned', () async {
+    // Given
+    repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.disableTwoFactor(password: 'secret');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test(
+    'GivenACode_WhenRegenerated_ThenItIsPostedToTheRegenerationAsTheCode',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      await repository.regenerateRecoveryCodes(code: '123456');
+
+      // Then
+      expect(adapter.methods.single, 'POST');
+      expect(adapter.paths.single, '/api/auth/2fa/recovery-codes/regenerate');
+      expect(adapter.requests.single['code'], '123456');
+      expect(adapter.requests.single['recoveryCode'], isNull);
+    },
+  );
+
+  test(
+    'GivenAnAcceptanceWithoutData_WhenRegenerated_ThenNoCodesAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(acceptedWithoutData);
+
+      // When
+      final result = await repository.regenerateRecoveryCodes(code: '123456');
+
+      // Then
+      expect(result.isSuccess, isTrue);
+      expect(result.valueOrNull, isEmpty);
+    },
+  );
+
+  test(
+    'GivenARefusalWithinA200_WhenRegenerated_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.regenerateRecoveryCodes(code: '000000');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenRegenerated_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.regenerateRecoveryCodes(code: '000000');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test(
+    'GivenNoConnection_WhenRegenerated_ThenNetworkFailureIsReturned',
+    () async {
+      // Given
+      repository = repositoryAnswering(noConnection);
+
+      // When
+      final result = await repository.regenerateRecoveryCodes(code: '123456');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.network);
+    },
+  );
 }
