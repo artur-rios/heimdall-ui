@@ -72,17 +72,20 @@ void main() {
   testWidgets('GivenAShellScreen_WhenShown_ThenTheTabIsNamedAfterIt', (
     tester,
   ) async {
+    // Given / When
     await pumpShell(tester, const Text('Permissions'));
 
+    // Then
     expect(titles.last, 'Permissions - Heimdall');
   });
 
   testWidgets('GivenATitleThatIsNotText_WhenShown_ThenNoTitleIsSet', (
     tester,
   ) async {
+    // Given / When
     await pumpShell(tester, const Icon(Icons.home));
 
-    // The application's own title is empty here; the shell adds none.
+    // Then — the application's own title is empty here; the shell adds none.
     expect(titles.where((title) => title.isNotEmpty), isEmpty);
   });
 }

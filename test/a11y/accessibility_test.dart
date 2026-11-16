@@ -427,7 +427,10 @@ void main() {
           'Given${screen.name}_WhenTextIsDoubledIn${theme.key}${window.key}_'
           'ThenNothingOverflowsAndTheGuidelinesHold',
           (tester) async {
+            // Given
             final built = screen.build();
+
+            // When
             await pumpApp(
               tester,
               size: window.value,
@@ -438,6 +441,7 @@ void main() {
               home: built.screen,
             );
 
+            // Then
             expect(tester.takeException(), isNull);
             expect(find.textContaining(screen.rowText), findsWidgets);
             await meetsTheGuidelines(tester);
@@ -453,6 +457,7 @@ void main() {
         'GivenTheLoginScreen_WhenTextIsDoubledIn${theme.key}${window.key}_'
         'ThenNothingOverflowsAndTheGuidelinesHold',
         (tester) async {
+          // Given / When
           await pumpApp(
             tester,
             size: window.value,
@@ -476,6 +481,7 @@ void main() {
             home: const LoginScreen(),
           );
 
+          // Then
           expect(tester.takeException(), isNull);
           expect(find.byType(TextFormField), findsWidgets);
           await meetsTheGuidelines(tester);

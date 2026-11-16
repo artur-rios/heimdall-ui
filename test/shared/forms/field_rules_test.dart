@@ -9,41 +9,77 @@ void main() {
     'first.last+x@sub.d',
   ]) {
     test('GivenAnAddressTheApiTakes_WhenChecked_ThenItPasses: $email', () {
-      expect(isPlausibleEmail(email), isTrue);
+      // Given / When
+      final plausible = isPlausibleEmail(email);
+
+      // Then
+      expect(plausible, isTrue);
     });
   }
 
   for (final email in <String>['ada', '@example.com', 'ada@', 'a@b@c', '']) {
     test('GivenAnAddressTheApiRefuses_WhenChecked_ThenItFails: $email', () {
-      expect(isPlausibleEmail(email), isFalse);
+      // Given / When
+      final plausible = isPlausibleEmail(email);
+
+      // Then
+      expect(plausible, isFalse);
     });
   }
 
   test('GivenNoPassword_WhenValidated_ThenTheEmptyMessageIsGiven', () {
-    expect(
-      validateNewPassword('', emptyMessage: 'Enter a password.'),
-      'Enter a password.',
+    // Given
+    const password = '';
+
+    // When
+    final message = validateNewPassword(
+      password,
+      emptyMessage: 'Enter a password.',
     );
+
+    // Then
+    expect(message, 'Enter a password.');
   });
 
   test('GivenOnlySpaces_WhenValidated_ThenTheEmptyMessageIsGiven', () {
-    expect(
-      validateNewPassword('         ', emptyMessage: 'Enter a password.'),
-      'Enter a password.',
+    // Given
+    const password = '         ';
+
+    // When
+    final message = validateNewPassword(
+      password,
+      emptyMessage: 'Enter a password.',
     );
+
+    // Then
+    expect(message, 'Enter a password.');
   });
 
   test('GivenSevenCharacters_WhenValidated_ThenTheApiWordingIsGiven', () {
-    expect(
-      validateNewPassword('1234567', emptyMessage: 'Enter a password.'),
-      'Password must be at least 8 characters.',
+    // Given
+    const password = '1234567';
+
+    // When
+    final message = validateNewPassword(
+      password,
+      emptyMessage: 'Enter a password.',
     );
+
+    // Then
+    expect(message, 'Password must be at least 8 characters.');
   });
 
   test('GivenEightCharacters_WhenValidated_ThenItPasses', () {
-    expect(
-      validateNewPassword('12345678', emptyMessage: 'Enter a password.'),
-      isNull,
+    // Given
+    const password = '12345678';
+
+    // When
+    final message = validateNewPassword(
+      password,
+      emptyMessage: 'Enter a password.',
     );
+
+    // Then
+    expect(message, isNull);
   });
 }

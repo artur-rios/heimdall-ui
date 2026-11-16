@@ -62,28 +62,33 @@ void main() {
   testWidgets('GivenARestoredSession_WhenItsExpiryPasses_ThenItEndsAsExpired', (
     tester,
   ) async {
+    // Given
     await store.write(tokenExpiringIn(const Duration(hours: 1)));
     final controller = start();
     await controller.restore();
-
     await tester.pump(const Duration(minutes: 59));
     expect(session(), isA<Authenticated>());
 
+    // When
     await tester.pump(const Duration(minutes: 2));
 
+    // Then
     expect(expired(), isTrue);
   });
 
   testWidgets('GivenASessionThatEndedEarly_WhenItsExpiryPasses_ThenNothing', (
     tester,
   ) async {
+    // Given
     await store.write(tokenExpiringIn(const Duration(hours: 1)));
     final controller = start();
     await controller.restore();
     await controller.signOut();
 
+    // When
     await tester.pump(const Duration(hours: 2));
 
+    // Then
     expect(session(), isA<Unauthenticated>());
     expect(expired(), isFalse);
   });
@@ -91,15 +96,18 @@ void main() {
   testWidgets('GivenAReplacedToken_WhenTheFirstExpires_ThenTheSessionLives', (
     tester,
   ) async {
+    // Given
     await store.write(tokenExpiringIn(const Duration(hours: 1)));
     final controller = start();
     await controller.restore();
     await store.write(tokenExpiringIn(const Duration(hours: 5)));
     await controller.restore();
 
+    // When
     await tester.pump(const Duration(hours: 2));
-    expect(session(), isA<Authenticated>());
 
+    // Then
+    expect(session(), isA<Authenticated>());
     await tester.pump(const Duration(hours: 4));
     expect(expired(), isTrue);
   });
@@ -107,6 +115,7 @@ void main() {
   testWidgets('GivenATokenAlreadyExpired_WhenSignedIn_ThenItEndsAtOnce', (
     tester,
   ) async {
+    // Given
     when(
       () => repository.login(
         email: 'a@b.c',
@@ -120,34 +129,41 @@ void main() {
     );
     final controller = start();
     await controller.restore();
-    await controller.signIn(email: 'a@b.c', password: 'secret');
 
+    // When
+    await controller.signIn(email: 'a@b.c', password: 'secret');
     await tester.pumpAndSettle();
 
+    // Then
     expect(expired(), isTrue);
   });
 
   testWidgets('GivenAFarExpiry_WhenTheTimerCapPasses_ThenItIsArmedAgain', (
     tester,
   ) async {
+    // Given
     await store.write(tokenExpiringIn(const Duration(days: 60)));
     final controller = start();
     await controller.restore();
 
+    // When
     // A browser timer longer than 2^31-1 ms would fire at once, so none may be.
     await tester.pump(const Duration(days: 20));
-    expect(session(), isA<Authenticated>());
-
+    final afterOneCap = session();
     await tester.pump(const Duration(days: 20));
-    expect(session(), isA<Authenticated>());
-
+    final afterTwoCaps = session();
     await tester.pump(const Duration(days: 21));
+
+    // Then
+    expect(afterOneCap, isA<Authenticated>());
+    expect(afterTwoCaps, isA<Authenticated>());
     expect(expired(), isTrue);
   });
 
   testWidgets('GivenAStaleTimer_WhenItFires_ThenTheNewSessionStays', (
     tester,
   ) async {
+    // Given
     final fired = <void Function()>[];
     await store.write(tokenExpiringIn(const Duration(hours: 1)));
     final controller = start(
@@ -161,10 +177,12 @@ void main() {
     await store.write(tokenExpiringIn(const Duration(hours: 5)));
     await controller.restore();
 
+    // When
     // The first token's callback arrives after the session moved on.
     fired.first();
     await tester.pumpAndSettle();
 
+    // Then
     expect(session(), isA<Authenticated>());
   });
 }

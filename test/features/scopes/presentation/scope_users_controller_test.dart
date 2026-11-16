@@ -157,8 +157,36 @@ void main() {
     expect(state.query.search, 'Alan');
   });
 
-  test('GivenNoSearch_ThenTheQueryIsNotFiltered', () {
-    expect(const ScopeUsersQuery().isFiltered, isFalse);
-    expect(const ScopeUsersQuery(search: ' a ').isFiltered, isTrue);
+  test('GivenNoSearch_WhenAsked_ThenTheQueryIsNotFiltered', () {
+    // Given
+    const query = ScopeUsersQuery();
+
+    // When
+    final filtered = query.isFiltered;
+
+    // Then
+    expect(filtered, isFalse);
+  });
+
+  test('GivenABlankSearch_WhenAsked_ThenTheQueryIsNotFiltered', () {
+    // Given
+    const query = ScopeUsersQuery(search: '   ');
+
+    // When
+    final filtered = query.isFiltered;
+
+    // Then
+    expect(filtered, isFalse);
+  });
+
+  test('GivenAPaddedSearch_WhenAsked_ThenTheQueryIsFiltered', () {
+    // Given
+    const query = ScopeUsersQuery(search: ' a ');
+
+    // When
+    final filtered = query.isFiltered;
+
+    // Then
+    expect(filtered, isTrue);
   });
 }
