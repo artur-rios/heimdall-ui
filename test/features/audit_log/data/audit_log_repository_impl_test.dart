@@ -181,4 +181,290 @@ void main() {
       'The end of the date range must not be earlier than its start.',
     ]);
   });
+
+  test('GivenNoArguments_WhenListed_ThenTheFirstPageIsAskedFor', () async {
+    // Given
+    final repository = repositoryAnswering(emptyPage);
+
+    // When
+    await repository.list();
+
+    // Then
+    expect(adapter.methods.single, 'GET');
+    expect(adapter.paths.single, '/api/audit-log');
+    expect(adapter.queries.single['PageNumber'], 1);
+    expect(adapter.queries.single['PageSize'], 20);
+  });
+
+  test('GivenAPageSize_WhenListed_ThenItTravels', () async {
+    // Given
+    final repository = repositoryAnswering(emptyPage);
+
+    // When
+    await repository.list(pageSize: 50);
+
+    // Then
+    expect(adapter.queries.single['PageSize'], 50);
+  });
+
+  // A range needs both ends; half of one narrows nothing.
+  test('GivenOnlyAFirstDay_WhenListed_ThenNoDateBoundTravels', () async {
+    // Given
+    final repository = repositoryAnswering(emptyPage);
+
+    // When
+    await repository.list(filter: AuditLogFilter(firstDay: DateTime(2026)));
+
+    // Then
+    expect(adapter.queries.single['From'], isNull);
+    expect(adapter.queries.single['To'], isNull);
+  });
+
+  test('GivenOnlyALastDay_WhenListed_ThenNoDateBoundTravels', () async {
+    // Given
+    final repository = repositoryAnswering(emptyPage);
+
+    // When
+    await repository.list(filter: AuditLogFilter(lastDay: DateTime(2026)));
+
+    // Then
+    expect(adapter.queries.single['From'], isNull);
+    expect(adapter.queries.single['To'], isNull);
+  });
+
+  test('GivenSucceededOnly_WhenListed_ThenTrueTravels', () async {
+    // Given
+    final repository = repositoryAnswering(emptyPage);
+
+    // When
+    await repository.list(filter: const AuditLogFilter(succeeded: true));
+
+    // Then
+    expect(adapter.queries.single['Succeeded'].toString(), 'true');
+  });
+
+  test('GivenThePagingOfTheAnswer_WhenListed_ThenItIsMapped', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'a1', 'action': 'X', 'succeeded': true},
+          ],
+          'pageNumber': 3,
+          'pageSize': 1,
+          'totalItems': 7,
+          'totalPages': 7,
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.list(pageNumber: 3, pageSize: 1);
+
+    // Then
+    final page = result.valueOrNull!;
+    expect(page.pageNumber, 3);
+    expect(page.pageSize, 1);
+    expect(page.totalItems, 7);
+    expect(page.totalPages, 7);
+    expect(page.hasNextPage, isTrue);
+  });
+
+  test(
+    'GivenAnAnswerWithoutPaging_WhenListed_ThenTheRequestedPagingIsKept',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <Map<String, dynamic>>[
+              <String, dynamic>{'id': 'a1'},
+              <String, dynamic>{'id': 'a2'},
+            ],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.list(pageNumber: 4, pageSize: 5);
+
+      // Then
+      final page = result.valueOrNull!;
+      expect(page.items, hasLength(2));
+      expect(page.pageNumber, 4);
+      expect(page.pageSize, 5);
+      expect(page.totalItems, 2);
+      expect(page.totalPages, 1);
+    },
+  );
+
+  test('GivenAnAnswerWithoutData_WhenListed_ThenThePageIsEmpty', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{'success': true, 'errors': <String>[]},
+      ),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.valueOrNull!.items, isEmpty);
+    expect(result.valueOrNull!.totalItems, 0);
+  });
+
+  test(
+    'GivenAnEntryWithoutFields_WhenListed_ThenTheFallbacksAreUsed',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <Map<String, dynamic>>[<String, dynamic>{}],
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.list();
+
+      // Then
+      final entry = result.valueOrNull!.items.single;
+      expect(entry.id, '');
+      expect(entry.recordedAt, isNull);
+      expect(entry.actorId, isNull);
+      expect(entry.actorRole, isNull);
+      expect(entry.action, '');
+      expect(entry.targetId, isNull);
+      expect(entry.succeeded, isFalse);
+      expect(entry.failureReason, isNull);
+    },
+  );
+
+  test('GivenABlankFailureReason_WhenListed_ThenNoReasonIsKept', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'id': 'a1',
+              'succeeded': false,
+              'failureReason': '   ',
+            },
+          ],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.valueOrNull!.items.single.failureReason, isNull);
+  });
+
+  // A value the client does not know must never widen what it shows.
+  test('GivenAnUnknownRole_WhenListed_ThenItIsReadAsAUser', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <Map<String, dynamic>>[
+            <String, dynamic>{'id': 'a1', 'actorRole': 99},
+            <String, dynamic>{'id': 'a2', 'actorRole': 1},
+          ],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    final items = result.valueOrNull!.items;
+    expect(items[0].actorRole, Role.user);
+    expect(items[1].actorRole, Role.systemAdmin);
+  });
+
+  test('GivenARefusalWithinA200_WhenListed_ThenTheApiMessageIsKept', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['The page size must be at most 100.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.validation);
+    expect(result.failureOrNull!.errors, <String>[
+      'The page size must be at most 100.',
+    ]);
+  });
+
+  test('GivenARefusalWithoutReason_WhenListed_ThenNoErrorsAreKept', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(status: 200, body: <String, dynamic>{'success': false}),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.validation);
+    expect(result.failureOrNull!.errors, isEmpty);
+  });
+
+  test('GivenAnExpiredSession_WhenListed_ThenUnauthorizedIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 401,
+        body: <String, dynamic>{'success': false, 'errors': <String>[]},
+      ),
+    );
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.unauthorized);
+  });
+
+  test('GivenNoConnection_WhenListed_ThenNetworkFailureIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(const StubAnswer(status: 0));
+
+    // When
+    final result = await repository.list();
+
+    // Then
+    expect(result.failureOrNull!.kind, FailureKind.network);
+  });
 }

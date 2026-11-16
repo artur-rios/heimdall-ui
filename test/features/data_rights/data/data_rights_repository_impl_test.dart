@@ -392,4 +392,286 @@ void main() {
     // Then
     expect(result.failureOrNull?.kind, FailureKind.network);
   });
+
+  const refusedInEnvelope = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': false,
+      'errors': <String>['Refused by the API.'],
+    },
+  );
+
+  const refusedWithoutReason = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': false},
+  );
+
+  const acceptedWithoutData = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': true, 'errors': <String>[]},
+  );
+
+  const noConnection = StubAnswer(status: 0);
+
+  test(
+    'GivenARefusalWithinA200_WhenExported_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.exportMyData();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenExported_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.exportMyData();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenNoData_WhenExported_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.exportMyData();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, <String>[
+      'The API returned an incomplete response.',
+    ]);
+  });
+
+  test('GivenAnExportWithoutADate_WhenExported_ThenItHasNone', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'data': <String, dynamic>{
+            'subject': <String, dynamic>{'name': 'Ada'},
+            'security': <String, dynamic>{},
+            'processing': <String, dynamic>{},
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.exportMyData();
+
+    // Then
+    final export = result.valueOrNull!;
+    expect(export.exportedAt, isNull);
+    final document = jsonDecode(export.document) as Map<String, dynamic>;
+    expect((document['subject'] as Map<String, dynamic>)['name'], 'Ada');
+  });
+
+  test('GivenNoConnection_WhenExported_ThenANetworkFailure', () async {
+    // Given
+    final repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.exportMyData();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test('GivenACredential_WhenErasureRequested_ThenItIsAPost', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.requestErasure(const PasswordCredential('secret'));
+
+    // Then
+    expect(adapter.methods.single, 'POST');
+    expect(adapter.paths.single, '/api/auth/erasure-request');
+  });
+
+  test(
+    'GivenARecordedRequest_WhenErasureRequested_ThenItsDatesAreMapped',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'data': <String, dynamic>{
+              'requestedAt': '2026-10-11T00:00:00Z',
+              'dueAt': '2026-11-10T00:00:00Z',
+              'blocked': false,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.requestErasure(
+        const PasswordCredential('secret'),
+      );
+
+      // Then
+      final request = result.valueOrNull!;
+      expect(request.requestedAt, DateTime.utc(2026, 10, 11));
+      expect(request.blocked, isFalse);
+      expect(request.blockedReason, isNull);
+    },
+  );
+
+  // The request is recorded whether or not the answer says anything more.
+  test('GivenAnAcceptanceWithoutData_WhenErasureRequested_ThenAnUnblockedRequestIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.requestErasure(
+      const PasswordCredential('secret'),
+    );
+
+    // Then
+    final request = result.valueOrNull!;
+    expect(request.requestedAt, isNull);
+    expect(request.dueAt, isNull);
+    expect(request.blocked, isFalse);
+    expect(request.blockedReason, isNull);
+  });
+
+  test(
+    'GivenARefusalWithinA200_WhenErasureRequested_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.requestErasure(
+        const PasswordCredential('secret'),
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenErasureRequested_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.requestErasure(
+        const GoogleIdTokenCredential('google-id-token'),
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenNoConnection_WhenErasureRequested_ThenANetworkFailure', () async {
+    // Given
+    final repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.requestErasure(
+      const PasswordCredential('secret'),
+    );
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test(
+    'GivenARefusalWithinA200_WhenRestricted_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.restrictProcessing(
+        RestrictionGround.accuracyContested,
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenRestricted_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.restrictProcessing(
+        RestrictionGround.objectionPending,
+      );
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenARestriction_WhenLifted_ThenItIsAPost', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.liftOwnRestriction();
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(adapter.methods.single, 'POST');
+  });
+
+  test('GivenARefusalWithinA200_WhenLifted_ThenApiErrorsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(refusedInEnvelope);
+
+    // When
+    final result = await repository.liftOwnRestriction();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenLifted_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.liftOwnRestriction();
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
 }

@@ -226,4 +226,352 @@ void main() {
     expect(result.isSuccess, isFalse);
     expect(result.failureOrNull!.kind, FailureKind.unknown);
   });
+
+  const refusedInEnvelope = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': false,
+      'errors': <String>['Refused by the API.'],
+    },
+  );
+
+  const refusedWithoutReason = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': false},
+  );
+
+  const acceptedWithoutData = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{'success': true, 'errors': <String>[]},
+  );
+
+  const noConnection = StubAnswer(status: 0);
+
+  const incompleteResponse = <String>[
+    'The API returned an incomplete response.',
+  ];
+
+  test('GivenAnApplication_WhenListed_ThenItIsAGet', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    await repository.list('s1', 'a1');
+
+    // Then
+    expect(adapter.methods.single, 'GET');
+  });
+
+  test('GivenAnAnswerWithoutData_WhenListed_ThenNoneAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.list('s1', 'a1');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(result.valueOrNull, isEmpty);
+  });
+
+  test(
+    'GivenACredentialWithoutFields_WhenListed_ThenTheFallbacksAreUsed',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{
+              'credentials': <Map<String, dynamic>>[<String, dynamic>{}],
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.list('s1', 'a1');
+
+      // Then
+      final credential = result.valueOrNull!.single;
+      expect(credential.id, '');
+      expect(credential.live, isFalse);
+      expect(credential.createdAt, isNull);
+      expect(credential.expiresAt, isNull);
+      expect(credential.revokedAt, isNull);
+      expect(credential.lastUsedAt, isNull);
+    },
+  );
+
+  test('GivenACredential_WhenListed_ThenItsDatesAreMapped', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'credentials': <Map<String, dynamic>>[
+              <String, dynamic>{
+                'id': 'c1',
+                'createdAt': '2026-10-01T10:00:00Z',
+                'expiresAt': '2027-01-01T00:00:00Z',
+                'revokedAt': '2026-10-02T10:00:00Z',
+                'live': false,
+              },
+            ],
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.list('s1', 'a1');
+
+    // Then
+    final credential = result.valueOrNull!.single;
+    expect(credential.id, 'c1');
+    expect(credential.createdAt, DateTime.utc(2026, 10, 1, 10));
+    expect(credential.expiresAt, DateTime.utc(2027));
+    expect(credential.revokedAt, DateTime.utc(2026, 10, 2, 10));
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenListed_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.list('s1', 'a1');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenAForbiddenAnswer_WhenListed_ThenForbiddenIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 403,
+        body: <String, dynamic>{'success': false, 'errors': <String>[]},
+      ),
+    );
+
+    // When
+    final result = await repository.list('s1', 'a1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.forbidden);
+  });
+
+  test('GivenAnApplication_WhenIssued_ThenItsPathIsAddressed', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 201,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'id': 'c3', 'secret': 'hds_abc'},
+        },
+      ),
+    );
+
+    // When
+    await repository.issue('s1', 'a1');
+
+    // Then
+    expect(adapter.paths.single, '/api/scopes/s1/applications/a1/credentials');
+  });
+
+  test('GivenAnIssuedCredential_WhenIssued_ThenEveryFieldIsMapped', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 201,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'c3',
+            'secret': 'hds_abc',
+            'createdAt': '2026-10-14T12:00:00Z',
+            'expiresAt': '2027-03-09T23:59:59.999Z',
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    final issued = result.valueOrNull!;
+    expect(issued.id, 'c3');
+    expect(issued.secret, 'hds_abc');
+    expect(issued.createdAt, DateTime.utc(2026, 10, 14, 12));
+    expect(issued.expiresAt, DateTime.utc(2027, 3, 9, 23, 59, 59, 999));
+  });
+
+  test(
+    'GivenAnIssueAnswerWithoutDates_WhenIssued_ThenTheCredentialHasNone',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 201,
+          body: <String, dynamic>{
+            'success': true,
+            'errors': <String>[],
+            'data': <String, dynamic>{'id': 'c3', 'secret': 'hds_abc'},
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.issue('s1', 'a1');
+
+      // Then
+      expect(result.valueOrNull!.createdAt, isNull);
+      expect(result.valueOrNull!.expiresAt, isNull);
+    },
+  );
+
+  test('GivenAnIssueAnswerWithoutAnId_WhenIssued_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 201,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{'secret': 'hds_abc'},
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  test('GivenAnIssueAnswerWithoutData_WhenIssued_ThenAnIncompleteResponseIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(acceptedWithoutData);
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, incompleteResponse);
+  });
+
+  test('GivenARefusalWithinA200_WhenIssued_ThenApiErrorsAreReturned', () async {
+    // Given
+    final repository = repositoryAnswering(refusedInEnvelope);
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.validation);
+    expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+  });
+
+  test(
+    'GivenARefusalWithoutReason_WhenIssued_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.issue('s1', 'a1');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenNoConnection_WhenIssued_ThenNetworkFailureIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
+
+  test(
+    'GivenARefusalWithinA200_WhenRevoked_ThenApiErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedInEnvelope);
+
+      // When
+      final result = await repository.revoke('s1', 'a1', 'c1');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, <String>['Refused by the API.']);
+    },
+  );
+
+  test(
+    'GivenARefusalWithoutReason_WhenRevoked_ThenNoErrorsAreReturned',
+    () async {
+      // Given
+      final repository = repositoryAnswering(refusedWithoutReason);
+
+      // When
+      final result = await repository.revoke('s1', 'a1', 'c1');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.validation);
+      expect(result.failureOrNull?.errors, isEmpty);
+    },
+  );
+
+  test('GivenAnUnknownCredential_WhenRevoked_ThenNotFoundIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 404,
+        body: <String, dynamic>{
+          'success': false,
+          'errors': <String>['Credential not found.'],
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.revoke('s1', 'a1', 'missing');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.notFound);
+    expect(result.failureOrNull?.errors, <String>['Credential not found.']);
+  });
+
+  test('GivenNoConnection_WhenRevoked_ThenNetworkFailureIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(noConnection);
+
+    // When
+    final result = await repository.revoke('s1', 'a1', 'c1');
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.network);
+  });
 }
