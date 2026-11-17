@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -27,8 +26,8 @@ class ApiHealthRepository implements HealthRepository {
 
       // Whatever it said is the answer; that it answered is the point.
       return Success<String>(response.data ?? 'The API answered.');
-    } on DioException catch (error) {
-      return FailureResult<String>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<String>(failureFromRequest(error, stackTrace));
     }
   }
 }

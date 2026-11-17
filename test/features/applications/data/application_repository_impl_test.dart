@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/data/application_repository_impl.dart';
 import 'package:heimdall_ui/features/applications/domain/application.dart';

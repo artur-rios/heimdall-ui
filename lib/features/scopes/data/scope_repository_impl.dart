@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -54,10 +53,10 @@ class ApiScopeRepository implements ScopeRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-10b: a transport failure keeps its own kind, which is what lets the
       // screen offer a retry rather than render the API's silence as an error.
-      return FailureResult<Page<Scope>>(failureFromDioException(error));
+      return FailureResult<Page<Scope>>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -109,8 +108,8 @@ class ApiScopeRepository implements ScopeRepository {
           createdAt: data.createdAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Scope>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -138,10 +137,10 @@ class ApiScopeRepository implements ScopeRepository {
       }
 
       return Success<Scope>(scopeFromOutput(data));
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-12a and AF-12b depend on this: a `404` and a `403` are different
       // panels, and only the kind tells them apart.
-      return FailureResult<Scope>(failureFromDioException(error));
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -200,8 +199,8 @@ class ApiScopeRepository implements ScopeRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Scope>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -245,8 +244,8 @@ class ApiScopeRepository implements ScopeRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Scope>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -293,8 +292,8 @@ class ApiScopeRepository implements ScopeRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Scope>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -342,8 +341,8 @@ class ApiScopeRepository implements ScopeRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Scope>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Scope>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -353,11 +352,11 @@ class ApiScopeRepository implements ScopeRepository {
       final response = await _client.scopeDelete(id: id);
 
       return _deletionOutcome(response.success, response.errors);
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-13d: a `404` means somebody already deleted it, and the screen
       // treats that as done rather than as a failure — which it can only do
       // because the kind survives.
-      return FailureResult<void>(failureFromDioException(error));
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -367,8 +366,8 @@ class ApiScopeRepository implements ScopeRepository {
       final response = await _client.scopeHardDelete(id: id);
 
       return _deletionOutcome(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 

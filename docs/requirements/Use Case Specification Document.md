@@ -1206,7 +1206,8 @@ restricted person would land on the home screen and watch every request fail.
 
 1. The person chooses **Download my data**.
 2. The client calls `POST /api/auth/data-export`.
-3. The client saves the document as an indented JSON file named
+3. The client saves the document exactly as the API sent it — every field the API answered, `null`s
+   included — as an indented JSON file named
    `heimdall-data-export-<date>-<time>.json` — offered to the browser as a download on the web, and
    written to the downloads folder on every other target — and says where it went. It also says that the file
    holds personal data and is not encrypted, so it should be kept somewhere private and deleted when no longer needed.
@@ -1301,8 +1302,9 @@ screens.
    When non-empty after trimming, a link must be an absolute `http` or `https` URL with a host, at
    most 2048 characters (a path such as `/verify-email` is refused). **Cancel** leaves edit mode,
    restores the saved values and sends nothing.
-7. The client calls `PUT /api/scopes/{id}/email-links` with **both** values, trimmed, an empty link
-   sent as `null` (the API treats the body as the whole state, so an omitted link would be cleared).
+7. The client calls `PUT /api/scopes/{id}/email-links` with both links, trimmed. An empty link is left
+   out of the body: the API treats the body as the whole state, so it clears a link the body omits,
+   as it clears one sent as `null`.
 8. The card shows the saved notice and the scope state reflects the new links, including the
    condition of the self-registration dialog.
 

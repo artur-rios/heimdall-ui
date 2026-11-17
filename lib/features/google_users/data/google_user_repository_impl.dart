@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -33,8 +32,8 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
       }
 
       return Success<int>(response.totalItems ?? response.data?.length ?? 0);
-    } on DioException catch (error) {
-      return FailureResult<int>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<int>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -81,10 +80,12 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-28b and AF-28c depend on this: a transport failure and a `403` are
       // different panels, and only the kind tells them apart.
-      return FailureResult<Page<GoogleUser>>(failureFromDioException(error));
+      return FailureResult<Page<GoogleUser>>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -122,8 +123,8 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
       }
 
       return Success<GoogleUser>(googleUserFromOutput(data));
-    } on DioException catch (error) {
-      return FailureResult<GoogleUser>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<GoogleUser>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -138,8 +139,8 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
       // AF-29b: the API refuses a record it will not delete, and its own
       // strings say why.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -155,8 +156,8 @@ class ApiGoogleUserRepository implements GoogleUserRepository {
       );
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 

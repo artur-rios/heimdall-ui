@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/auth/data/auth_repository_impl.dart';
 import 'package:heimdall_ui/features/auth/domain/auth_repository.dart';
@@ -1356,6 +1356,21 @@ void main() {
     },
   );
 
+  // What the second factor and Google sign-in answer: a token, never the
+  // login's requiresTwoFactor.
+  const restrictedSession = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'errors': <String>[],
+      'data': <String, dynamic>{
+        'token': 'jwt',
+        'expiresAt': '2030-01-01T00:00:00Z',
+        'processingRestricted': true,
+      },
+    },
+  );
+
   // UI-30 — AF-11i.
   test('GivenARestrictedPerson_WhenLoggingIn_ThenTheTokenSaysSo', () async {
     // Given
@@ -1390,7 +1405,7 @@ void main() {
     'GivenARestrictedPerson_WhenVerifyingTheChallenge_ThenTheTokenSaysSo',
     () async {
       // Given
-      repository = repositoryAnswering(restrictedToken);
+      repository = repositoryAnswering(restrictedSession);
 
       // When
       final result = await repository.verifySecondFactor(
@@ -1408,7 +1423,7 @@ void main() {
     'GivenARestrictedGoogleUser_WhenSigningInWithGoogle_ThenTheTokenSaysSo',
     () async {
       // Given
-      repository = repositoryAnswering(restrictedToken);
+      repository = repositoryAnswering(restrictedSession);
 
       // When
       final result = await repository.signInWithGoogle(

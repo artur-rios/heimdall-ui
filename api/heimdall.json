@@ -1,5 +1,5 @@
 {
-  "openapi": "3.0.4",
+  "openapi": "3.1.2",
   "info": {
     "title": "Heimdall API",
     "description": "A centralized identity management API with scope-based multi-tenancy.\n\nEvery identifier in a path is a **PublicId** (GUID), never an internal id. Every endpoint answers one of two envelopes — `DataOutput<T>` for a single resource, `PaginatedOutput<T>` for a listing.\n\nObtain a token from `POST /api/auth/login`, then authorize with it. A challenge token issued by a 2FA-gated login is not one: no endpoint accepts it as a bearer credential, and it is read only from the `challengeToken` body field of `POST /api/auth/2fa/verify` and `POST /api/auth/2fa/challenge/resend`.",
@@ -50,11 +50,12 @@
                 "$ref": "#/components/schemas/CreateApplicationCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -291,7 +292,8 @@
                 "$ref": "#/components/schemas/UpdateApplicationCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -500,8 +502,8 @@
           }
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -692,7 +694,8 @@
                 "$ref": "#/components/schemas/IssueApplicationTokenCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -884,7 +887,8 @@
                 "$ref": "#/components/schemas/LoginCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -936,7 +940,8 @@
                 "$ref": "#/components/schemas/PasswordRecoveryCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -988,11 +993,12 @@
                 "$ref": "#/components/schemas/RegisterCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "202": {
+            "description": "Accepted",
             "content": {
               "text/plain": {
                 "schema": {
@@ -1040,7 +1046,8 @@
                 "$ref": "#/components/schemas/ResetPasswordCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1092,7 +1099,8 @@
                 "$ref": "#/components/schemas/VerifyEmailCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1184,7 +1192,8 @@
                 "$ref": "#/components/schemas/GoogleSignInCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1276,7 +1285,8 @@
                 "$ref": "#/components/schemas/EnableTwoFactorAuthCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1335,7 +1345,8 @@
                 "$ref": "#/components/schemas/ConfirmTwoFactorAuthCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1394,7 +1405,8 @@
                 "$ref": "#/components/schemas/VerifyTwoFactorAuthCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1446,7 +1458,8 @@
                 "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1498,7 +1511,8 @@
                 "$ref": "#/components/schemas/DisableTwoFactorAuthCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1557,7 +1571,8 @@
                 "$ref": "#/components/schemas/RegenerateRecoveryCodesCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1656,7 +1671,8 @@
                 "$ref": "#/components/schemas/RequestErasureCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1715,7 +1731,8 @@
                 "$ref": "#/components/schemas/RestrictProcessingCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1774,7 +1791,8 @@
                 "$ref": "#/components/schemas/ReapplyErasuresCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -1836,7 +1854,8 @@
                 "$ref": "#/components/schemas/LiftProcessingRestrictionCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -2294,6 +2313,39 @@
         "security": [ ]
       }
     },
+    "/api/healthcheck/ready": {
+      "get": {
+        "tags": [
+          "HealthCheck"
+        ],
+        "summary": "Readiness check (#215): `200 OK` when the database answers, `503 Service Unavailable`\nwhen it does not. Public — no authentication required.",
+        "description": "Liveness above reads no database, so an instance that has lost it stays \"healthy\" and keeps\nreceiving traffic it can only fail. This is the probe for that: an orchestrator or load\nbalancer stops routing to the instance without restarting it. It asks\n`DatabaseHealthCheck` alone and answers with the bare status, never a service\nbreakdown or a cause, which is why it can be anonymous and reachable from the internet. The\nbreakdown is on the metrics port (`InternalHealthEndpoint`), and the cause in the log,\nwhere `DatabaseHealthCheck` writes it.\nThe answer is held for five seconds (`ReadinessCache`), so an anonymous caller\ncannot make the probe a database read per request.\n\n**Anonymous** — no bearer token required.",
+        "operationId": "HealthCheck_Ready",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringDataOutput"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringDataOutput"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StringDataOutput"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
+    },
     "/api/persons": {
       "post": {
         "tags": [
@@ -2319,11 +2371,12 @@
                 "$ref": "#/components/schemas/CreateAdminCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -2392,11 +2445,12 @@
                 "$ref": "#/components/schemas/CreateUserCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -2554,11 +2608,12 @@
                 "$ref": "#/components/schemas/CreateScopeOwnerCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -2963,7 +3018,8 @@
                 "$ref": "#/components/schemas/UpdatePersonCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3020,7 +3076,7 @@
         "tags": [
           "Person"
         ],
-        "summary": "Logically deletes a person by setting `IsDeleted = true` (UC-09, FR-PE-06). The\nattribute keeps a plain `User` out; the owner rule (AF-09c) is data-dependent and is\ntherefore enforced by the handler, as are the self-deletion (AF-09d) and last-owner\n(AF-09e) refusals.",
+        "summary": "Logically deletes a person by setting `IsDeleted = true` (UC-09, FR-PE-06). The\nattribute keeps a plain `User` out; the owner rule (AF-09c) is data-dependent and is\ntherefore enforced by the handler, as are the self-deletion (AF-09d), last-owner (AF-09e)\nand last-System-Admin (AF-09f) refusals.",
         "description": "**Requires role:** System Admin or Scope Admin.",
         "operationId": "Person_Delete",
         "parameters": [
@@ -3131,7 +3187,7 @@
         "tags": [
           "Person"
         ],
-        "summary": "Permanently (hard) deletes a person, removing the applications they own, their password\nreset and email verification tokens, and their scope membership/ownership rows (UC-10,\nFR-PE-07). Restricted to System Admins; the self-deletion refusal (AF-10c) and the\nlast-owner guard (AF-10b) are enforced by the handler.",
+        "summary": "Permanently (hard) deletes a person, removing the applications they own, their password\nreset and email verification tokens, and their scope membership/ownership rows (UC-10,\nFR-PE-07). Restricted to System Admins; the self-deletion refusal (AF-10c), the\nlast-owner guard (AF-10b) and the last-System-Admin guard (AF-10d) are enforced by the\nhandler.",
         "description": "**Requires role:** System Admin.",
         "operationId": "Person_HardDelete",
         "parameters": [
@@ -3471,11 +3527,12 @@
                 "$ref": "#/components/schemas/CreateScopeCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -3617,7 +3674,8 @@
                 "$ref": "#/components/schemas/UpdateScopeCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3853,7 +3911,8 @@
                 "$ref": "#/components/schemas/SetGoogleSignInCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3926,7 +3985,8 @@
                 "$ref": "#/components/schemas/SetSelfRegistrationCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -3999,7 +4059,8 @@
                 "$ref": "#/components/schemas/SetScopeEmailLinksCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -4490,11 +4551,12 @@
                 "$ref": "#/components/schemas/CreateScopePermissionCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK",
+          "201": {
+            "description": "Created",
             "content": {
               "text/plain": {
                 "schema": {
@@ -4723,7 +4785,8 @@
                 "$ref": "#/components/schemas/UpdateScopePermissionCommand"
               }
             }
-          }
+          },
+          "required": true
         },
         "responses": {
           "200": {
@@ -4883,6 +4946,29 @@
           }
         ]
       }
+    },
+    "/.well-known/jwks.json": {
+      "get": {
+        "tags": [
+          "SigningKeys"
+        ],
+        "summary": "The public keys Heimdall's tokens are signed with, as an RFC 7517 JSON Web Key Set: the\ncurrent key first, then the previous one while a rotation is in progress. Public — no\nauthentication required, and any bearer token on the request is ignored.",
+        "description": "The body is the key set itself, not the `DataOutput` envelope every other endpoint\nanswers, so a standard JWKS reader can consume it unchanged. It carries no private member.\nCacheable for five minutes. Limited to ten requests a minute per address, a budget shared\nwith the other anonymous credential endpoints; a rejection answers 429 \"Too many requests.\"\nwith a `Retry-After` header.\n\n**Anonymous** — no bearer token required.",
+        "operationId": "SigningKeys_KeySet",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonWebKeySetDocument"
+                }
+              }
+            }
+          }
+        },
+        "security": [ ]
+      }
     }
   },
   "components": {
@@ -4905,18 +4991,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -4927,7 +5017,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/AcceptScopeOwnerInvitationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AcceptScopeOwnerInvitationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -4950,14 +5047,18 @@
             "type": "boolean"
           },
           "invitationId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "invitationExpiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -4966,18 +5067,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -4988,7 +5093,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/AddScopeOwnerCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddScopeOwnerCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -4997,11 +5109,13 @@
         "type": "object",
         "properties": {
           "credentials": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ApplicationCredentialOutput"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -5010,18 +5124,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5032,7 +5150,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ApplicationCredentialListOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationCredentialListOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5049,19 +5174,25 @@
             "format": "date-time"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "revokedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "lastUsedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "live": {
             "type": "boolean"
@@ -5077,8 +5208,10 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
             "type": "string",
@@ -5106,18 +5239,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5128,7 +5265,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ApplicationOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5137,18 +5281,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5159,11 +5307,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ApplicationOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -5181,6 +5331,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -5193,8 +5353,10 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
             "type": "string",
@@ -5215,18 +5377,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5237,7 +5403,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ApplicationTokenCheckOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ApplicationTokenCheckOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5254,30 +5427,40 @@
             "format": "date-time"
           },
           "actorId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "actorRole": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "action": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "targetId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "succeeded": {
             "type": "boolean"
           },
           "failureReason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -5286,18 +5469,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5308,11 +5495,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/AuditLogEntryOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -5330,6 +5519,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -5338,12 +5537,16 @@
         "type": "object",
         "properties": {
           "appCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "emailCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -5355,11 +5558,13 @@
             "type": "boolean"
           },
           "recoveryCodes": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -5368,18 +5573,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5390,7 +5599,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ConfirmTwoFactorAuthCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ConfirmTwoFactorAuthCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5399,16 +5615,22 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "role": {
             "type": "integer",
@@ -5421,8 +5643,10 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerId": {
             "type": "string",
@@ -5439,8 +5663,10 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
             "type": "string",
@@ -5461,18 +5687,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5483,7 +5713,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/CreateApplicationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreateApplicationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5496,12 +5733,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "role": {
             "type": "integer",
@@ -5511,9 +5752,11 @@
             "type": "boolean"
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "createdAt": {
             "type": "string",
@@ -5526,18 +5769,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5548,7 +5795,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/CreatePersonCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreatePersonCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5557,20 +5811,26 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -5583,12 +5843,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
@@ -5597,20 +5861,26 @@
             "type": "boolean"
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -5623,18 +5893,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5645,7 +5919,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/CreateScopeCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreateScopeCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5654,16 +5935,22 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -5672,12 +5959,16 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "includeAsJwtClaim": {
             "type": "boolean"
@@ -5693,12 +5984,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "includeAsJwtClaim": {
             "type": "boolean"
@@ -5718,18 +6013,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5740,7 +6039,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/CreateScopePermissionCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CreateScopePermissionCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5749,16 +6055,22 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -5771,8 +6083,10 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
             "type": "string",
@@ -5791,21 +6105,33 @@
             "type": "string",
             "format": "uuid"
           },
+          "involvement": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
           "action": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "targetId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "succeeded": {
             "type": "boolean"
           },
           "failureReason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -5836,68 +6162,91 @@
             "$ref": "#/components/schemas/DataExportProcessing"
           },
           "erasure": {
-            "$ref": "#/components/schemas/DataExportErasure"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataExportErasure"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "scopeMemberships": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "scopeOwnerships": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "applications": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportApplication"
-            },
-            "nullable": true
+            }
           },
           "auditEntries": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportAuditEntry"
-            },
-            "nullable": true
+            }
           },
           "auditEntriesTruncated": {
             "type": "boolean"
           },
           "withheld": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportWithheld"
-            },
-            "nullable": true
+            }
           },
           "recipients": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportRecipient"
-            },
-            "nullable": true
+            }
           },
           "sources": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportSource"
-            },
-            "nullable": true
+            }
           },
           "retention": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/DataExportRetention"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -5906,18 +6255,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -5928,7 +6281,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DataExportCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DataExportCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -5940,33 +6300,45 @@
             "type": "boolean"
           },
           "deletedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "deletionKind": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "anonymisedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "erasureRequestedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "erasureDueAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "erasureBlockedReason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -5979,17 +6351,23 @@
             "format": "int32"
           },
           "legalBasisName": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "privacyNoticeVersion": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "recordedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -5998,16 +6376,22 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "purpose": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "location": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6016,12 +6400,16 @@
         "type": "object",
         "properties": {
           "category": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "period": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6050,18 +6438,22 @@
             "format": "int32"
           },
           "lockedOutUntil": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "failedSecondFactorAttempts": {
             "type": "integer",
             "format": "int32"
           },
           "secondFactorLockedOutUntil": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "secondFactorLockouts": {
             "type": "integer",
@@ -6072,28 +6464,36 @@
             "format": "int32"
           },
           "reauthenticationWindowStartedAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "reauthenticationPausedUntil": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "accountEmailsSent": {
             "type": "integer",
             "format": "int32"
           },
           "accountEmailWindowEndsAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "accountEmailLastSentAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -6102,16 +6502,22 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "provides": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "dataSentThere": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6124,32 +6530,44 @@
             "format": "uuid"
           },
           "kind": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "emailVerified": {
             "type": "boolean"
           },
           "role": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "googleId": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "profilePictureUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isDeleted": {
             "type": "boolean"
@@ -6169,12 +6587,16 @@
         "type": "object",
         "properties": {
           "value": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "reason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6193,18 +6615,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6215,7 +6641,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeclineScopeOwnerInvitationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeclineScopeOwnerInvitationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6237,18 +6670,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6259,7 +6696,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeleteApplicationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeleteApplicationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6281,18 +6725,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6303,7 +6751,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeleteGoogleUserCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeleteGoogleUserCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6325,18 +6780,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6347,7 +6806,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeletePersonCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeletePersonCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6378,18 +6844,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6400,7 +6870,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeleteScopeCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeleteScopeCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6422,18 +6899,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6444,7 +6925,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DeleteScopePermissionCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DeleteScopePermissionCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6453,16 +6941,22 @@
         "type": "object",
         "properties": {
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "recoveryCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6480,18 +6974,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6502,7 +7000,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DisableTwoFactorAuthCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DisableTwoFactorAuthCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6521,18 +7026,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6543,7 +7052,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/DiscardPendingRegistrationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DiscardPendingRegistrationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6552,15 +7068,19 @@
         "type": "object",
         "properties": {
           "methods": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "currentPassword": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6569,12 +7089,16 @@
         "type": "object",
         "properties": {
           "otpAuthUri": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "emailCodeSent": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
         "additionalProperties": false
@@ -6583,18 +7107,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6605,7 +7133,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/EnableTwoFactorAuthCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EnableTwoFactorAuthCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6632,8 +7167,10 @@
             "type": "boolean"
           },
           "blockedReason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6642,18 +7179,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6664,11 +7205,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ErasureRequestOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -6686,6 +7229,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -6698,12 +7251,16 @@
             "format": "uuid"
           },
           "idToken": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "nonce": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -6712,8 +7269,10 @@
         "type": "object",
         "properties": {
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "expiresAt": {
             "type": "string",
@@ -6732,18 +7291,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6754,7 +7317,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/GoogleSignInCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleSignInCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6767,18 +7337,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6789,7 +7363,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/GoogleSignOutCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleSignOutCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6802,23 +7383,31 @@
             "format": "uuid"
           },
           "googleId": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "emailVerified": {
             "type": "boolean"
           },
           "profilePictureUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isDeleted": {
             "type": "boolean"
@@ -6842,18 +7431,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6864,7 +7457,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/GoogleUserOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GoogleUserOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6873,18 +7473,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6895,11 +7499,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/GoogleUserOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -6916,6 +7522,16 @@
           "totalPages": {
             "type": "integer",
             "format": "int32",
+            "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
             "readOnly": true
           }
         },
@@ -6935,18 +7551,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6957,7 +7577,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/HardDeleteApplicationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HardDeleteApplicationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -6976,18 +7603,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -6998,7 +7629,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/HardDeleteGoogleUserCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HardDeleteGoogleUserCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7025,18 +7663,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7047,7 +7689,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/HardDeletePersonCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HardDeletePersonCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7082,18 +7731,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7104,7 +7757,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/HardDeleteScopeCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HardDeleteScopeCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7123,18 +7783,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7145,7 +7809,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/HardDeleteScopePermissionCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HardDeleteScopePermissionCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7154,9 +7825,11 @@
         "type": "object",
         "properties": {
           "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -7169,17 +7842,21 @@
             "format": "uuid"
           },
           "secret": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "createdAt": {
             "type": "string",
             "format": "date-time"
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           }
         },
         "additionalProperties": false
@@ -7188,18 +7865,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7210,7 +7891,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/IssueApplicationCredentialCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueApplicationCredentialCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7227,8 +7915,10 @@
             "format": "uuid"
           },
           "secret": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -7241,8 +7931,10 @@
             "format": "uuid"
           },
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "expiresAt": {
             "type": "string",
@@ -7255,18 +7947,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7277,18 +7973,100 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/IssueApplicationTokenCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/IssueApplicationTokenCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
+      },
+      "JsonWebKeyDocument": {
+        "type": "object",
+        "properties": {
+          "kty": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The key type, always `EC`."
+          },
+          "crv": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The curve, always `P-256`."
+          },
+          "x": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The public point's x coordinate, base64url without padding."
+          },
+          "y": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The public point's y coordinate, base64url without padding."
+          },
+          "kid": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The key's RFC 7638 thumbprint, the `kid` in the header of every token it signed."
+          },
+          "use": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The key's use, always `sig`."
+          },
+          "alg": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "The algorithm, always `ES256`."
+          }
+        },
+        "additionalProperties": false,
+        "description": "One public key of the set. Documentation only. A key never carries a private member such as\n`d`."
+      },
+      "JsonWebKeySetDocument": {
+        "type": "object",
+        "properties": {
+          "keys": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/JsonWebKeyDocument"
+            },
+            "description": "The public keys: the current signing key, then the previous one during a rotation."
+          }
+        },
+        "additionalProperties": false,
+        "description": "The RFC 7517 key set `GET /.well-known/jwks.json` answers with: the public keys Heimdall's\ntokens verify under, the current key first. Documentation only — the endpoint writes the set\nfrom `TokenSigningKeys.JwksJson` and never serializes this type."
       },
       "LiftProcessingRestrictionCommand": {
         "type": "object",
         "properties": {
           "subjectId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         },
         "additionalProperties": false
@@ -7314,18 +8092,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7336,7 +8118,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LiftProcessingRestrictionCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7345,17 +8134,23 @@
         "type": "object",
         "properties": {
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         },
         "additionalProperties": false
@@ -7364,31 +8159,41 @@
         "type": "object",
         "properties": {
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "expiresAt": {
-            "type": "string",
-            "format": "date-time",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
           },
           "emailVerified": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "null",
+              "boolean"
+            ]
           },
           "requiresTwoFactor": {
             "type": "boolean"
           },
           "challengeToken": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "availableMethods": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "processingRestricted": {
             "type": "boolean"
@@ -7400,18 +8205,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7422,7 +8231,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/LoginCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/LoginCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7439,12 +8255,16 @@
             "format": "uuid"
           },
           "scopeName": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "invitedByName": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -7461,18 +8281,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7483,11 +8307,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/MyScopeInvitationOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -7505,6 +8331,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -7513,13 +8349,17 @@
         "type": "object",
         "properties": {
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         },
         "additionalProperties": false
@@ -7532,18 +8372,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7554,7 +8398,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/PasswordRecoveryCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PasswordRecoveryCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7567,12 +8418,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -7596,18 +8451,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7618,11 +8477,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/PendingRegistrationOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -7640,6 +8501,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -7652,12 +8523,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "role": {
             "type": "integer",
@@ -7673,17 +8548,21 @@
             "type": "boolean"
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "ownedScopeIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -7700,18 +8579,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7722,7 +8605,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/PersonOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PersonOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7731,18 +8621,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7753,11 +8647,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/PersonOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -7774,6 +8670,16 @@
           "totalPages": {
             "type": "integer",
             "format": "int32",
+            "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
             "readOnly": true
           }
         },
@@ -7787,12 +8693,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -7801,18 +8711,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7823,11 +8737,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/PersonSummaryOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -7845,6 +8761,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -7857,12 +8783,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "role": {
             "type": "integer",
@@ -7872,12 +8802,14 @@
             "type": "boolean"
           },
           "ownedScopeIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -7894,18 +8826,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7916,7 +8852,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/PromoteScopeUserCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PromoteScopeUserCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7925,12 +8868,14 @@
         "type": "object",
         "properties": {
           "subjectIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -7947,12 +8892,14 @@
             "format": "int32"
           },
           "notFound": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "scopeOwnerInvitationsVoided": {
             "type": "integer",
@@ -7965,18 +8912,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -7987,7 +8938,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ReapplyErasuresCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ReapplyErasuresCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -7996,12 +8954,16 @@
         "type": "object",
         "properties": {
           "code": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "recoveryCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -8010,11 +8972,13 @@
         "type": "object",
         "properties": {
           "recoveryCodes": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           }
         },
         "additionalProperties": false
@@ -8023,18 +8987,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8045,7 +9013,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RegenerateRecoveryCodesCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegenerateRecoveryCodesCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8054,21 +9029,29 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         },
         "additionalProperties": false
@@ -8081,18 +9064,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8103,7 +9090,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RegisterCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RegisterCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8126,18 +9120,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8148,7 +9146,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RemoveScopeOwnerCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RemoveScopeOwnerCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8157,12 +9162,16 @@
         "type": "object",
         "properties": {
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "idToken": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -8186,8 +9195,10 @@
             "type": "boolean"
           },
           "blockedReason": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "restrictionLifted": {
             "type": "boolean"
@@ -8199,18 +9210,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8221,7 +9236,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RequestErasureCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RequestErasureCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8230,8 +9252,10 @@
         "type": "object",
         "properties": {
           "challengeToken": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -8244,18 +9268,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8266,7 +9294,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResendTwoFactorChallengeCodeCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8279,18 +9314,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8301,7 +9340,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ResendVerificationEmailCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResendVerificationEmailCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8310,12 +9356,16 @@
         "type": "object",
         "properties": {
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "newPassword": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -8328,18 +9378,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8350,7 +9404,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ResetPasswordCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ResetPasswordCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8387,18 +9448,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8409,7 +9474,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RestrictProcessingCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RestrictProcessingCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8432,18 +9504,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8454,7 +9530,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/RevokeApplicationCredentialCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RevokeApplicationCredentialCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8467,12 +9550,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
@@ -8481,32 +9568,42 @@
             "type": "boolean"
           },
           "defaultLegalBasis": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "privacyNoticeUri": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "isDeleted": {
             "type": "boolean"
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -8523,18 +9620,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8545,7 +9646,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ScopeOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopeOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8554,18 +9662,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8576,11 +9688,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ScopeOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -8597,6 +9711,16 @@
           "totalPages": {
             "type": "integer",
             "format": "int32",
+            "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
             "readOnly": true
           }
         },
@@ -8614,16 +9738,22 @@
             "format": "uuid"
           },
           "inviteeName": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "inviteeEmail": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "invitedByName": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "createdAt": {
             "type": "string",
@@ -8640,18 +9770,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8662,11 +9796,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ScopeOwnerInvitationOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -8684,6 +9820,16 @@
             "type": "integer",
             "format": "int32",
             "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
+            "readOnly": true
           }
         },
         "additionalProperties": false
@@ -8696,12 +9842,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "includeAsJwtClaim": {
             "type": "boolean"
@@ -8728,18 +9878,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8750,7 +9904,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/ScopePermissionOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ScopePermissionOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8759,18 +9920,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8781,11 +9946,13 @@
             "readOnly": true
           },
           "data": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/ScopePermissionOutput"
-            },
-            "nullable": true
+            }
           },
           "pageNumber": {
             "type": "integer",
@@ -8802,6 +9969,16 @@
           "totalPages": {
             "type": "integer",
             "format": "int32",
+            "readOnly": true
+          },
+          "nextPageToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "hasNextPage": {
+            "type": "boolean",
             "readOnly": true
           }
         },
@@ -8821,18 +9998,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8843,7 +10024,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/SendPersonPasswordResetCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SendPersonPasswordResetCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8862,18 +10050,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8884,7 +10076,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/SendPersonVerificationEmailCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SendPersonVerificationEmailCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8893,8 +10092,10 @@
         "type": "object",
         "properties": {
           "enabled": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
         "additionalProperties": false
@@ -8907,31 +10108,41 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -8948,18 +10159,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -8970,7 +10185,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/SetGoogleSignInCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SetGoogleSignInCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -8979,12 +10201,16 @@
         "type": "object",
         "properties": {
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -8997,12 +10223,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
@@ -9011,20 +10241,26 @@
             "type": "boolean"
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -9041,18 +10277,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9063,7 +10303,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/SetScopeEmailLinksCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SetScopeEmailLinksCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9072,8 +10319,10 @@
         "type": "object",
         "properties": {
           "enabled": {
-            "type": "boolean",
-            "nullable": true
+            "type": [
+              "null",
+              "boolean"
+            ]
           }
         },
         "additionalProperties": false
@@ -9086,12 +10335,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
@@ -9100,20 +10353,26 @@
             "type": "boolean"
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -9130,18 +10389,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9152,7 +10415,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/SetSelfRegistrationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SetSelfRegistrationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9161,18 +10431,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9183,8 +10457,10 @@
             "readOnly": true
           },
           "data": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -9212,18 +10488,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9234,7 +10514,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/TwoFactorStatusOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TwoFactorStatusOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9243,8 +10530,10 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerId": {
             "type": "string",
@@ -9261,8 +10550,10 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "scopeId": {
             "type": "string",
@@ -9287,18 +10578,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9309,7 +10604,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/UpdateApplicationCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UpdateApplicationCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9318,25 +10620,35 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "roleId": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "currentPassword": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "twoFactorCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -9349,12 +10661,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "email": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "role": {
             "type": "integer",
@@ -9364,17 +10680,21 @@
             "type": "boolean"
           },
           "scopeId": {
-            "type": "string",
-            "format": "uuid",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           },
           "ownedScopeIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -9391,18 +10711,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9413,7 +10737,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/UpdatePersonCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UpdatePersonCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9422,21 +10753,29 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "defaultLegalBasis": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
           },
           "privacyNoticeUri": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -9449,12 +10788,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "googleSignInEnabled": {
             "type": "boolean"
@@ -9463,20 +10806,26 @@
             "type": "boolean"
           },
           "emailVerificationUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "passwordResetUrl": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "ownerIds": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string",
               "format": "uuid"
-            },
-            "nullable": true
+            }
           },
           "createdAt": {
             "type": "string",
@@ -9493,18 +10842,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9515,7 +10868,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/UpdateScopeCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UpdateScopeCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9524,12 +10884,16 @@
         "type": "object",
         "properties": {
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "includeAsJwtClaim": {
             "type": "boolean"
@@ -9545,12 +10909,16 @@
             "format": "uuid"
           },
           "name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "description": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "includeAsJwtClaim": {
             "type": "boolean"
@@ -9574,18 +10942,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9596,7 +10968,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/UpdateScopePermissionCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UpdateScopePermissionCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9605,12 +10984,16 @@
         "type": "object",
         "properties": {
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "password": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -9623,18 +11006,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9645,7 +11032,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/VerifyEmailCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerifyEmailCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9654,16 +11048,22 @@
         "type": "object",
         "properties": {
           "challengeToken": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "code": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "recoveryCode": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           }
         },
         "additionalProperties": false
@@ -9672,8 +11072,10 @@
         "type": "object",
         "properties": {
           "token": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "null",
+              "string"
+            ]
           },
           "expiresAt": {
             "type": "string",
@@ -9692,18 +11094,22 @@
         "type": "object",
         "properties": {
           "messages": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "errors": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "type": "string"
-            },
-            "nullable": true
+            }
           },
           "timestamp": {
             "type": "string",
@@ -9714,7 +11120,14 @@
             "readOnly": true
           },
           "data": {
-            "$ref": "#/components/schemas/VerifyTwoFactorAuthCommandOutput"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VerifyTwoFactorAuthCommandOutput"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "additionalProperties": false
@@ -9767,6 +11180,9 @@
     },
     {
       "name": "ScopePermission"
+    },
+    {
+      "name": "SigningKeys"
     }
   ]
 }

@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -43,10 +42,10 @@ class ApiPersonRepository implements PersonRepository {
       }
 
       return Success<Person>(personFromOutput(data));
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-08e depends on this: a `404` must arrive as notFound rather than as
       // a generic failure, because it is the one refusal that ends the session.
-      return FailureResult<Person>(failureFromDioException(error));
+      return FailureResult<Person>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -104,8 +103,8 @@ class ApiPersonRepository implements PersonRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Person>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Person>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -151,7 +150,7 @@ class ApiPersonRepository implements PersonRepository {
   /// API's own strings — a registered address and a password its policy
   /// refuses are told apart by what it says, not by anything decided here.
   Future<Result<Person>> _created(
-    Future<CreatePersonCommandOutputDataOutput> Function() send, {
+    Future<CreatePersonCommandOutputDataOutput$Response> Function() send, {
     required String name,
     required String email,
     required Role fallbackRole,
@@ -187,8 +186,8 @@ class ApiPersonRepository implements PersonRepository {
           createdAt: data.createdAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Person>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Person>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -200,8 +199,8 @@ class ApiPersonRepository implements PersonRepository {
       // AF-19b: the API refuses a person it will not delete — the last owner
       // of a scope, for instance — and its own strings say why.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -211,8 +210,8 @@ class ApiPersonRepository implements PersonRepository {
       final response = await _client.personHardDelete(id: id);
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -276,10 +275,12 @@ class ApiPersonRepository implements PersonRepository {
       );
 
       return _summaryPage(response, pageNumber: pageNumber, pageSize: pageSize);
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // A Scope Admin who may not manage the named scope is refused here, and
       // the picker falls back to an identifier rather than to nothing.
-      return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
+      return FailureResult<Page<PersonSummary>>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -299,8 +300,10 @@ class ApiPersonRepository implements PersonRepository {
       );
 
       return _summaryPage(response, pageNumber: pageNumber, pageSize: pageSize);
-    } on DioException catch (error) {
-      return FailureResult<Page<PersonSummary>>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Page<PersonSummary>>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -335,8 +338,10 @@ class ApiPersonRepository implements PersonRepository {
             ? AddOwnerOutcome.alreadyOwner
             : AddOwnerOutcome.added,
       );
-    } on DioException catch (error) {
-      return FailureResult<AddOwnerOutcome>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<AddOwnerOutcome>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -384,8 +389,8 @@ class ApiPersonRepository implements PersonRepository {
           createdAt: data.createdAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Person>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Person>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -403,8 +408,8 @@ class ApiPersonRepository implements PersonRepository {
       // AF-14a: a scope may not be left without an owner, and the API is the
       // only party that knows whether this removal would do that.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -420,8 +425,8 @@ class ApiPersonRepository implements PersonRepository {
       );
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -431,8 +436,8 @@ class ApiPersonRepository implements PersonRepository {
       final response = await _client.personSendVerificationEmail(id: personId);
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -442,8 +447,8 @@ class ApiPersonRepository implements PersonRepository {
       final response = await _client.personSendPasswordReset(id: personId);
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -455,7 +460,7 @@ class ApiPersonRepository implements PersonRepository {
   /// Maps a paginated person-summary envelope, failing with validation errors
   /// when the API reports `success` as false.
   static Result<Page<PersonSummary>> _summaryPage(
-    PersonSummaryOutputPaginatedOutput response, {
+    PersonSummaryOutputPaginatedOutput$Response response, {
     required int pageNumber,
     required int pageSize,
   }) {
@@ -491,7 +496,7 @@ class ApiPersonRepository implements PersonRepository {
 
   /// Runs a paginated person listing and maps its envelope.
   Future<Result<Page<Person>>> _listing(
-    Future<PersonOutputPaginatedOutput> Function() send, {
+    Future<PersonOutputPaginatedOutput$Response> Function() send, {
     required int pageNumber,
     required int pageSize,
   }) async {
@@ -520,8 +525,8 @@ class ApiPersonRepository implements PersonRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Page<Person>>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Page<Person>>(failureFromRequest(error, stackTrace));
     }
   }
 

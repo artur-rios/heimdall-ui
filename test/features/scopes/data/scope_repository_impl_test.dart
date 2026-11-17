@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/scopes/data/scope_repository_impl.dart';
 import 'package:heimdall_ui/features/scopes/domain/scope.dart';
@@ -390,23 +390,28 @@ void main() {
     },
   );
 
-  test('GivenEmailLinks_WhenSet_ThenBothTravelInTheBody', () async {
-    // Given
-    final repository = repositoryAnswering(signUpOpened);
+  // The body is the whole state of the two links (FR-SC-14): the API clears
+  // a link the body leaves out exactly as it clears one sent as null, and the
+  // generated client leaves a null out.
+  test(
+    'GivenAClearedLink_WhenEmailLinksSet_ThenItIsLeftOutOfTheBody',
+    () async {
+      // Given
+      final repository = repositoryAnswering(signUpOpened);
 
-    // When
-    await repository.setEmailLinks(
-      id: 'scope-1',
-      emailVerificationUrl: 'https://acme.example/verify-email',
-      passwordResetUrl: null,
-    );
+      // When
+      await repository.setEmailLinks(
+        id: 'scope-1',
+        emailVerificationUrl: 'https://acme.example/verify-email',
+        passwordResetUrl: null,
+      );
 
-    // Then
-    expect(adapter.bodies.single, <String, dynamic>{
-      'emailVerificationUrl': 'https://acme.example/verify-email',
-      'passwordResetUrl': null,
-    });
-  });
+      // Then
+      expect(adapter.requests.single, <String, dynamic>{
+        'emailVerificationUrl': 'https://acme.example/verify-email',
+      });
+    },
+  );
 
   test('GivenRefusedEmailLinks_WhenSet_ThenApiErrorsAreReturned', () async {
     // Given
@@ -494,6 +499,59 @@ void main() {
   const fullData = StubAnswer(
     status: 200,
     body: <String, dynamic>{'success': true, 'data': everyField},
+  );
+
+  // What the commands answer: each output's own fields and no other, since
+  // the generated models refuse a key their schema does not declare. None of
+  // them carries `isDeleted` or the privacy settings.
+  const createdFields = <String, dynamic>{
+    'id': 'scope-9',
+    'name': 'Globex',
+    'description': 'The second tenant',
+    'googleSignInEnabled': true,
+    'selfRegistrationEnabled': true,
+    'emailVerificationUrl': 'https://globex.example/verify-email',
+    'passwordResetUrl': 'https://globex.example/password-reset',
+    'ownerIds': <String>['person-7', 'person-8'],
+    'createdAt': '2026-01-02T03:04:05.000Z',
+  };
+
+  // CreateScopeCommandOutput.
+  const created = StubAnswer(
+    status: 201,
+    body: <String, dynamic>{'success': true, 'data': createdFields},
+  );
+
+  // UpdateScopeCommandOutput, SetSelfRegistrationCommandOutput and
+  // SetScopeEmailLinksCommandOutput.
+  const changed = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'data': <String, dynamic>{
+        ...createdFields,
+        'updatedAt': '2026-02-03T04:05:06.000Z',
+      },
+    },
+  );
+
+  // SetGoogleSignInCommandOutput, which has no self-registration either.
+  const googleSignInSet = StubAnswer(
+    status: 200,
+    body: <String, dynamic>{
+      'success': true,
+      'data': <String, dynamic>{
+        'id': 'scope-9',
+        'name': 'Globex',
+        'description': 'The second tenant',
+        'googleSignInEnabled': true,
+        'emailVerificationUrl': 'https://globex.example/verify-email',
+        'passwordResetUrl': 'https://globex.example/password-reset',
+        'ownerIds': <String>['person-7', 'person-8'],
+        'createdAt': '2026-01-02T03:04:05.000Z',
+        'updatedAt': '2026-02-03T04:05:06.000Z',
+      },
+    },
   );
 
   const blankLinks = StubAnswer(
@@ -706,7 +764,7 @@ void main() {
 
     test('GivenAScope_WhenCreated_ThenItIsPostedWithItsOwners', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(created);
 
       // When
       await createIn(repository);
@@ -723,7 +781,7 @@ void main() {
 
     test('GivenACreatedScope_WhenCreated_ThenTheAnswerIsMapped', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(created);
 
       // When
       final result = await createIn(repository);
@@ -745,7 +803,7 @@ void main() {
     // scope just created is neither deleted nor configured.
     test('GivenACreatedScope_WhenCreated_ThenItIsNotDeletedAndHasNoPrivacySettings', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(created);
 
       // When
       final result = await createIn(repository);
@@ -874,6 +932,30 @@ void main() {
   });
 
   group('getById', () {
+    // FR-UX-07 — the generated models refuse a key the contract does not
+    // declare, and the screen shows the unexpected-response error with Retry.
+    test('GivenAScopeWithAnUndeclaredKey_WhenRead_ThenAnUnexpectedResponseIsReturned', () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'data': <String, dynamic>{...everyField, 'region': 'eu-west'},
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.getById('scope-9');
+
+      // Then
+      expect(result.failureOrNull?.kind, FailureKind.unknown);
+      expect(result.failureOrNull?.errors, <String>[
+        kUnexpectedResponseMessage,
+      ]);
+    });
+
     test('GivenAnId_WhenRead_ThenItIsAskedForIncludingDeletedOnes', () async {
       // Given
       final repository = repositoryAnswering(fullData);
@@ -1051,9 +1133,10 @@ void main() {
       });
     });
 
-    // Clearing the privacy settings is sending them empty.
+    // Clearing the privacy settings is leaving them out: the update replaces
+    // every field, so the API clears one the body omits, as it did a null.
     test(
-      'GivenNoPrivacySettings_WhenUpdated_ThenTheyTravelAndReturnAsNull',
+      'GivenNoPrivacySettings_WhenUpdated_ThenTheyAreLeftOutAndReturnAsNull',
       () async {
         // Given
         final repository = repositoryAnswering(updated);
@@ -1069,8 +1152,6 @@ void main() {
         expect(adapter.requests.single, <String, dynamic>{
           'name': 'Acme Ltd',
           'description': 'The first tenant',
-          'defaultLegalBasis': null,
-          'privacyNoticeUri': null,
         });
         expect(result.valueOrNull?.defaultLegalBasis, isNull);
         expect(result.valueOrNull?.privacyNoticeUri, isNull);
@@ -1079,7 +1160,7 @@ void main() {
 
     test('GivenAnUpdatedScope_WhenUpdated_ThenTheAnswerIsMapped', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(changed);
 
       // When
       final result = await updateIn(repository);
@@ -1098,13 +1179,13 @@ void main() {
       expect(scope.updatedAt, DateTime.utc(2026, 2, 3, 4, 5, 6));
     });
 
-    // The update output carries no `isDeleted`, and the privacy settings are
-    // the ones sent, whatever the answer holds.
+    // The update output carries no `isDeleted` and no privacy settings, so
+    // the scope keeps the ones sent.
     test(
       'GivenAnUpdatedScope_WhenUpdated_ThenItIsNotDeletedAndKeepsWhatWasSent',
       () async {
         // Given
-        final repository = repositoryAnswering(fullData);
+        final repository = repositoryAnswering(changed);
 
         // When
         final result = await updateIn(repository);
@@ -1210,7 +1291,7 @@ void main() {
   group('setGoogleSignIn', () {
     test('GivenGoogleSignIn_WhenEnabled_ThenItIsPutToTheScope', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(googleSignInSet);
 
       // When
       await repository.setGoogleSignIn(id: 'scope-1', enabled: true);
@@ -1223,7 +1304,7 @@ void main() {
 
     test('GivenGoogleSignIn_WhenDisabled_ThenTheBodySaysSo', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(googleSignInSet);
 
       // When
       await repository.setGoogleSignIn(id: 'scope-1', enabled: false);
@@ -1234,7 +1315,7 @@ void main() {
 
     test('GivenAnAnswer_WhenGoogleSignInSet_ThenItIsMapped', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(googleSignInSet);
 
       // When
       final result = await repository.setGoogleSignIn(
@@ -1261,7 +1342,7 @@ void main() {
       'GivenAnAnswer_WhenGoogleSignInSet_ThenWhatItLacksIsLeftAtItsDefault',
       () async {
         // Given
-        final repository = repositoryAnswering(fullData);
+        final repository = repositoryAnswering(googleSignInSet);
 
         // When
         final result = await repository.setGoogleSignIn(
@@ -1382,7 +1463,7 @@ void main() {
   group('setSelfRegistration', () {
     test('GivenSelfRegistration_WhenClosed_ThenItIsPutToTheScope', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(changed);
 
       // When
       await repository.setSelfRegistration(id: 'scope-1', enabled: false);
@@ -1395,7 +1476,7 @@ void main() {
 
     test('GivenAnAnswer_WhenSelfRegistrationSet_ThenItIsMapped', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(changed);
 
       // When
       final result = await repository.setSelfRegistration(
@@ -1524,7 +1605,7 @@ void main() {
 
     test('GivenEmailLinks_WhenSet_ThenTheyArePutToTheScope', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(changed);
 
       // When
       await setLinksIn(repository);
@@ -1540,7 +1621,7 @@ void main() {
 
     test('GivenAnAnswer_WhenEmailLinksSet_ThenItIsMapped', () async {
       // Given
-      final repository = repositoryAnswering(fullData);
+      final repository = repositoryAnswering(changed);
 
       // When
       final result = await setLinksIn(repository);

@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/scope_invitations/data/scope_invitation_repository_impl.dart';
 
@@ -690,7 +690,7 @@ void main() {
           body: <String, dynamic>{
             'success': true,
             'errors': <String>[],
-            'data': <String, dynamic>{'id': 'i1', 'scopeId': 's1'},
+            'data': <String, dynamic>{'id': 'i1'},
           },
         ),
       );

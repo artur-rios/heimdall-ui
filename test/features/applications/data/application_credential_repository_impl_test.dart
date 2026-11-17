@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 import 'package:heimdall_ui/features/applications/data/application_credential_repository_impl.dart';
 import 'package:heimdall_ui/features/applications/domain/application_credential.dart';
@@ -91,7 +91,7 @@ void main() {
 
     // Then
     expect(result.valueOrNull!.secret, 'hds_abc');
-    final body = adapter.bodies.single as Map<String, dynamic>;
+    final body = adapter.requests.single;
     expect(
       DateTime.parse(body['expiresAt'] as String).isAtSameMomentAs(expiry),
       isTrue,
@@ -115,12 +115,39 @@ void main() {
     // When
     await repository.issue('s1', 'a1');
 
-    // Then
-    final body = adapter.bodies.single;
-    expect(
-      body == null || (body as Map<String, dynamic>)['expiresAt'] == null,
-      isTrue,
+    // Then — a null expiry is left out of the body, which the API reads as
+    // never.
+    expect(adapter.requests.single, <String, dynamic>{});
+  });
+
+  // The generated client checks this one status itself (its body is
+  // optional, so it is not left to retrofit), and the API answers 201.
+  test('GivenA201_WhenIssued_ThenTheCredentialIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 201,
+        body: <String, dynamic>{
+          'success': true,
+          'errors': <String>[],
+          'data': <String, dynamic>{
+            'id': 'c4',
+            'secret': 'hds_def',
+            'createdAt': '2026-10-14T12:00:00Z',
+            'expiresAt': null,
+          },
+        },
+      ),
     );
+
+    // When
+    final result = await repository.issue('s1', 'a1');
+
+    // Then
+    expect(result.isSuccess, isTrue);
+    expect(result.valueOrNull!.id, 'c4');
+    expect(result.valueOrNull!.secret, 'hds_def');
+    expect(result.valueOrNull!.expiresAt, isNull);
   });
 
   test(
@@ -242,6 +269,26 @@ void main() {
 
   const acceptedWithoutData = StubAnswer(
     status: 200,
+    body: <String, dynamic>{'success': true, 'errors': <String>[]},
+  );
+
+  // Issuing answers 201 and nothing else (ApplicationCredential_Issue), and
+  // the generated client takes no other status for it.
+  const issuedRefusedInEnvelope = StubAnswer(
+    status: 201,
+    body: <String, dynamic>{
+      'success': false,
+      'errors': <String>['Refused by the API.'],
+    },
+  );
+
+  const issuedRefusedWithoutReason = StubAnswer(
+    status: 201,
+    body: <String, dynamic>{'success': false},
+  );
+
+  const issuedWithoutData = StubAnswer(
+    status: 201,
     body: <String, dynamic>{'success': true, 'errors': <String>[]},
   );
 
@@ -466,7 +513,7 @@ void main() {
 
   test('GivenAnIssueAnswerWithoutData_WhenIssued_ThenAnIncompleteResponseIsReturned', () async {
     // Given
-    final repository = repositoryAnswering(acceptedWithoutData);
+    final repository = repositoryAnswering(issuedWithoutData);
 
     // When
     final result = await repository.issue('s1', 'a1');
@@ -476,9 +523,9 @@ void main() {
     expect(result.failureOrNull?.errors, incompleteResponse);
   });
 
-  test('GivenARefusalWithinA200_WhenIssued_ThenApiErrorsAreReturned', () async {
+  test('GivenARefusalWithinA201_WhenIssued_ThenApiErrorsAreReturned', () async {
     // Given
-    final repository = repositoryAnswering(refusedInEnvelope);
+    final repository = repositoryAnswering(issuedRefusedInEnvelope);
 
     // When
     final result = await repository.issue('s1', 'a1');
@@ -492,7 +539,7 @@ void main() {
     'GivenARefusalWithoutReason_WhenIssued_ThenNoErrorsAreReturned',
     () async {
       // Given
-      final repository = repositoryAnswering(refusedWithoutReason);
+      final repository = repositoryAnswering(issuedRefusedWithoutReason);
 
       // When
       final result = await repository.issue('s1', 'a1');

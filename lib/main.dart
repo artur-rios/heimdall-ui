@@ -2,7 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_web_plugins/url_strategy.dart';
 import 'package:google_sign_in/google_sign_in.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:material_ui/material_ui.dart';
 
 import 'app/heimdall_app.dart';
@@ -86,8 +86,10 @@ void main() {
             (ref) => ApiAuthRepository(AuthClient(ref.watch(dioProvider))),
           ),
           dataRightsRepositoryProvider.overrideWith(
-            (ref) =>
-                ApiDataRightsRepository(AuthClient(ref.watch(dioProvider))),
+            (ref) => ApiDataRightsRepository(
+              AuthClient(ref.watch(dioProvider)),
+              ref.watch(dioProvider),
+            ),
           ),
           erasureRequestRepositoryProvider.overrideWith(
             (ref) =>
