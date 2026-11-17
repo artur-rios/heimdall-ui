@@ -5,7 +5,8 @@ import 'package:dio/dio.dart'
 import 'package:retrofit/retrofit.dart'
     show RestApi, Extras, CancelRequest, GET, ParseErrorLogger;
 
-import 'models/string_data_output_response.dart' show StringDataOutput$Response;
+import '../application/models/string_data_output_response.dart'
+    show StringDataOutput$Response;
 
 part 'health_check_client.g.dart';
 

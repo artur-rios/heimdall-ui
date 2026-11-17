@@ -34,6 +34,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   the API's answer itself, so it keeps every field as sent, `null` fields included. `swagger_parser.yaml` moves to
   the 2.x configuration, and `tool/generate_api_client.dart` percent-encodes path parameters in the new layout,
   including the methods written directly against Dio.
+- The vendored API specification and the generated client match the Heimdall API's `develop` after it documented
+  every response it gives (artur-rios/heimdall-api#304, #305): the readiness check's `503`, the rate limiter's `429`
+  with `Retry-After`, and each endpoint's `400`/`401`/`403`/`404`/`409`/`422`/`429`/`500`/`503` envelope, with
+  `text/plain` no longer offered. The client gains the `ObjectDataOutput` and `ProcessOutput` envelope models and
+  keeps every method as it was, so the application sends and accepts the same requests and answers.
 
 ## [2.0.0] - 2026-11-10
 
