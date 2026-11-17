@@ -43,7 +43,7 @@ class HardDeleteApplicationCommandOutputDataOutput$Response {
   @JsonKey(disallowNullValue: true, includeIfNull: false)
   final bool? success;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final HardDeleteApplicationCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

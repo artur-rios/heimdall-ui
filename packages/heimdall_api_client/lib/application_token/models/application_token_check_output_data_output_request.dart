@@ -41,7 +41,7 @@ class ApplicationTokenCheckOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final ApplicationTokenCheckOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

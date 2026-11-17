@@ -13,7 +13,7 @@ _$ResendTwoFactorChallengeCodeCommandOutputDataOutput$ResponseFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return ResendTwoFactorChallengeCodeCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

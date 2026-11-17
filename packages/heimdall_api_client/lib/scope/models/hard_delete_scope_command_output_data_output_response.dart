@@ -41,7 +41,7 @@ class HardDeleteScopeCommandOutputDataOutput$Response {
   @JsonKey(disallowNullValue: true, includeIfNull: false)
   final bool? success;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final HardDeleteScopeCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -43,7 +43,7 @@ class SendPersonPasswordResetCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final SendPersonPasswordResetCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

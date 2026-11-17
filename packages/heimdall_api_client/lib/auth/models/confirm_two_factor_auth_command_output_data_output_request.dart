@@ -43,7 +43,7 @@ class ConfirmTwoFactorAuthCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final ConfirmTwoFactorAuthCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

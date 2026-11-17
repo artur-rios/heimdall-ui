@@ -45,7 +45,7 @@ class DeclineScopeOwnerInvitationCommandOutputDataOutput$Response {
   @JsonKey(disallowNullValue: true, includeIfNull: false)
   final bool? success;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final DeclineScopeOwnerInvitationCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

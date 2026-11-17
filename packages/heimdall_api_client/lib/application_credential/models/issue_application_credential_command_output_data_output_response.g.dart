@@ -13,7 +13,7 @@ _$IssueApplicationCredentialCommandOutputDataOutput$ResponseFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return IssueApplicationCredentialCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

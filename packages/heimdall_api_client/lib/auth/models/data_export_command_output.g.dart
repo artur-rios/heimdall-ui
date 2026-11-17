@@ -33,7 +33,6 @@ DataExportCommandOutput _$DataExportCommandOutputFromJson(
       'subject',
       'security',
       'processing',
-      'erasure',
       'auditEntriesTruncated',
     ],
   );

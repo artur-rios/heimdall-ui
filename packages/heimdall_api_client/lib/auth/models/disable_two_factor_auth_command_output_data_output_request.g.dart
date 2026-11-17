@@ -13,7 +13,7 @@ _$DisableTwoFactorAuthCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return DisableTwoFactorAuthCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

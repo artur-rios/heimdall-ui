@@ -13,7 +13,7 @@ _$ResetPasswordCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return ResetPasswordCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

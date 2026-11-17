@@ -13,7 +13,7 @@ _$PasswordRecoveryCommandOutputDataOutput$ResponseFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return PasswordRecoveryCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

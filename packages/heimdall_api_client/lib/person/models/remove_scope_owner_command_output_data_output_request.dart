@@ -41,7 +41,7 @@ class RemoveScopeOwnerCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final RemoveScopeOwnerCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -13,7 +13,7 @@ _$SetSelfRegistrationCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return SetSelfRegistrationCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

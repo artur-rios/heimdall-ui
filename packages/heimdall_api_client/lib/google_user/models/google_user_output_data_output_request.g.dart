@@ -12,7 +12,7 @@ GoogleUserOutputDataOutput$Request _$GoogleUserOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return GoogleUserOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

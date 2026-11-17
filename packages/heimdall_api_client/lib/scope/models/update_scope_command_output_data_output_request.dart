@@ -41,7 +41,7 @@ class UpdateScopeCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final UpdateScopeCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

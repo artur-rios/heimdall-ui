@@ -13,7 +13,7 @@ _$RestrictProcessingCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return RestrictProcessingCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

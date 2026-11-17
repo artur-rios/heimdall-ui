@@ -42,7 +42,7 @@ class SetSelfRegistrationCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final SetSelfRegistrationCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

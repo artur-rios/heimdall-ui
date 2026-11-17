@@ -13,7 +13,7 @@ _$DataExportCommandOutputDataOutput$ResponseFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return DataExportCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

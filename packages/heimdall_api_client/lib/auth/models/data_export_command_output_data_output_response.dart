@@ -41,7 +41,7 @@ class DataExportCommandOutputDataOutput$Response {
   @JsonKey(disallowNullValue: true, includeIfNull: false)
   final bool? success;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final DataExportCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -13,7 +13,7 @@ _$ApplicationTokenCheckOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return ApplicationTokenCheckOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

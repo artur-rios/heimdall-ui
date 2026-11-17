@@ -41,7 +41,7 @@ class VerifyEmailCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final VerifyEmailCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

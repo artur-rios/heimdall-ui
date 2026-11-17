@@ -11,7 +11,7 @@ _$RegisterCommandOutputDataOutput$ResponseFromJson(Map<String, dynamic> json) {
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return RegisterCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

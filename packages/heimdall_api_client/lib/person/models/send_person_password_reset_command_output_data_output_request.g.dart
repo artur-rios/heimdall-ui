@@ -13,7 +13,7 @@ _$SendPersonPasswordResetCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return SendPersonPasswordResetCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

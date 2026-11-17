@@ -41,7 +41,7 @@ class GoogleSignInCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final GoogleSignInCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -58,7 +58,7 @@ class DataExportCommandOutput {
   @JsonKey(required: true, disallowNullValue: true)
   final DataExportProcessing processing;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final DataExportErasure? erasure;
 
   @JsonKey(includeIfNull: false)

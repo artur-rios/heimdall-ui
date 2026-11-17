@@ -43,7 +43,7 @@ class SendPersonVerificationEmailCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final SendPersonVerificationEmailCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -13,7 +13,7 @@ _$DiscardPendingRegistrationCommandOutputDataOutput$ResponseFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'success', 'data'],
-    disallowNullValues: const ['timestamp', 'success', 'data'],
+    disallowNullValues: const ['timestamp', 'success'],
   );
   return DiscardPendingRegistrationCommandOutputDataOutput$Response(
     messages: (json['messages'] as List<dynamic>?)

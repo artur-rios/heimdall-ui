@@ -11,7 +11,7 @@ _$ApplicationOutputDataOutput$RequestFromJson(Map<String, dynamic> json) {
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return ApplicationOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

@@ -13,7 +13,7 @@ _$HardDeletePersonCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return HardDeletePersonCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

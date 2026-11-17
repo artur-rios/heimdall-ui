@@ -12,7 +12,7 @@ ScopeOutputDataOutput$Request _$ScopeOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return ScopeOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

@@ -40,7 +40,7 @@ class PersonOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final PersonOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

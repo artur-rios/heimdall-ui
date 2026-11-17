@@ -41,7 +41,7 @@ class HardDeletePersonCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final HardDeletePersonCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

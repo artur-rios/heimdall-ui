@@ -28,7 +28,7 @@ final class Api {
   static const String apiVersion = "v1";
 
   /// Exact Swagger or OpenAPI version.
-  static const String specVersion = "3.0.4";
+  static const String specVersion = "3.1.2";
 
   Api(this._client);
   final transport.Dio _client;

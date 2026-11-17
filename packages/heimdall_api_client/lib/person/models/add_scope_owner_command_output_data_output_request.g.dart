@@ -13,7 +13,7 @@ _$AddScopeOwnerCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return AddScopeOwnerCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)

@@ -43,7 +43,7 @@ class IssueApplicationCredentialCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final IssueApplicationCredentialCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

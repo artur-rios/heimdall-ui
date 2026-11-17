@@ -40,7 +40,7 @@ class ScopeOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final ScopeOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

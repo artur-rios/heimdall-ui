@@ -41,7 +41,7 @@ class CreateApplicationCommandOutputDataOutput$Request {
   )
   final DateTime? timestamp;
 
-  @JsonKey(disallowNullValue: true, includeIfNull: false)
+  @JsonKey(includeIfNull: false)
   final CreateApplicationCommandOutput? data;
 
   static DateTime? _read_timestamp(Object? value) =>

@@ -13,7 +13,7 @@ _$ReapplyErasuresCommandOutputDataOutput$RequestFromJson(
   $checkKeys(
     json,
     allowedKeys: const ['messages', 'errors', 'timestamp', 'data'],
-    disallowNullValues: const ['timestamp', 'data'],
+    disallowNullValues: const ['timestamp'],
   );
   return ReapplyErasuresCommandOutputDataOutput$Request(
     messages: (json['messages'] as List<dynamic>?)
