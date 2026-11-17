@@ -1,0 +1,26 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'enable_two_factor_auth_command.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+EnableTwoFactorAuthCommand _$EnableTwoFactorAuthCommandFromJson(
+  Map<String, dynamic> json,
+) {
+  $checkKeys(json, allowedKeys: const ['methods', 'currentPassword']);
+  return EnableTwoFactorAuthCommand(
+    methods: (json['methods'] as List<dynamic>?)
+        ?.map((e) => e as String)
+        .toList(),
+    currentPassword: json['currentPassword'] as String?,
+  );
+}
+
+Map<String, dynamic> _$EnableTwoFactorAuthCommandToJson(
+  EnableTwoFactorAuthCommand instance,
+) => <String, dynamic>{
+  'methods': ?instance.methods,
+  'currentPassword': ?instance.currentPassword,
+};
