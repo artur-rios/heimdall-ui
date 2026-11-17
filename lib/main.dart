@@ -86,8 +86,10 @@ void main() {
             (ref) => ApiAuthRepository(AuthClient(ref.watch(dioProvider))),
           ),
           dataRightsRepositoryProvider.overrideWith(
-            (ref) =>
-                ApiDataRightsRepository(AuthClient(ref.watch(dioProvider))),
+            (ref) => ApiDataRightsRepository(
+              AuthClient(ref.watch(dioProvider)),
+              ref.watch(dioProvider),
+            ),
           ),
           erasureRequestRepositoryProvider.overrideWith(
             (ref) =>

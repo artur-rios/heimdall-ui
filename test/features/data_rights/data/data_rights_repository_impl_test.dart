@@ -17,7 +17,7 @@ void main() {
     final dio = Dio(BaseOptions(baseUrl: 'https://example.invalid'))
       ..httpClientAdapter = adapter;
 
-    return ApiDataRightsRepository(AuthClient(dio));
+    return ApiDataRightsRepository(AuthClient(dio), dio);
   }
 
   /// The API's own refusal of a subject-rights-only token on an endpoint it is
@@ -61,6 +61,85 @@ void main() {
     expect((document['subject'] as Map<String, dynamic>)['name'], 'Ada');
     expect(export.document, contains('\n  "subject"'));
     expect(export.exportedAt, DateTime.utc(2026, 10, 11, 12, 30, 45));
+  });
+
+  // UI-30 — the file is the document the API sent: a field it answered with
+  // null is in the file as null, not left out as the generated model would
+  // write it.
+  test(
+    'GivenAnExportWithNulls_WhenExported_ThenTheDocumentKeepsThem',
+    () async {
+      // Given
+      final repository = repositoryAnswering(
+        const StubAnswer(
+          status: 200,
+          body: <String, dynamic>{
+            'success': true,
+            'data': <String, dynamic>{
+              'exportedAt': '2026-10-11T12:30:45.1234567Z',
+              'subject': <String, dynamic>{
+                'id': 'person-1',
+                'name': 'Ada',
+                'googleId': null,
+                'profilePictureUrl': null,
+              },
+              'security': <String, dynamic>{'lockedOutUntil': null},
+              'processing': <String, dynamic>{'recordedAt': null},
+              'erasure': null,
+              'applications': null,
+            },
+          },
+        ),
+      );
+
+      // When
+      final result = await repository.exportMyData();
+
+      // Then
+      final export = result.valueOrNull!;
+      final document = jsonDecode(export.document) as Map<String, dynamic>;
+      expect(document, <String, dynamic>{
+        'exportedAt': '2026-10-11T12:30:45.1234567Z',
+        'subject': <String, dynamic>{
+          'id': 'person-1',
+          'name': 'Ada',
+          'googleId': null,
+          'profilePictureUrl': null,
+        },
+        'security': <String, dynamic>{'lockedOutUntil': null},
+        'processing': <String, dynamic>{'recordedAt': null},
+        'erasure': null,
+        'applications': null,
+      });
+      expect(export.document, contains('\n  "erasure": null'));
+    },
+  );
+
+  // FR-UX-07 — a key the contract does not declare is an answer the client
+  // cannot read, for the export as for any other call.
+  test('GivenAnExportWithAnUndeclaredKey_WhenExported_ThenAnUnexpectedResponseIsReturned', () async {
+    // Given
+    final repository = repositoryAnswering(
+      const StubAnswer(
+        status: 200,
+        body: <String, dynamic>{
+          'success': true,
+          'data': <String, dynamic>{
+            'subject': <String, dynamic>{'id': 'person-1'},
+            'security': <String, dynamic>{},
+            'processing': <String, dynamic>{},
+            'shoeSize': 42,
+          },
+        },
+      ),
+    );
+
+    // When
+    final result = await repository.exportMyData();
+
+    // Then
+    expect(result.failureOrNull?.kind, FailureKind.unknown);
+    expect(result.failureOrNull?.errors, <String>[kUnexpectedResponseMessage]);
   });
 
   test('GivenAnExport_WhenExported_ThenItIsAPost', () async {

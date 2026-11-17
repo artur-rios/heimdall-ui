@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:dio/dio.dart';
 import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
@@ -10,16 +11,35 @@ import '../domain/data_rights_repository.dart';
 /// [DataRightsRepository] over the generated client.
 ///
 /// The endpoints live on the API's auth controller, so this wraps the same
-/// [AuthClient] the session does.
+/// [AuthClient] the session does, over [_transport], the [Dio] it was built
+/// on.
 class ApiDataRightsRepository implements DataRightsRepository {
-  const ApiDataRightsRepository(this._client);
+  const ApiDataRightsRepository(this._client, this._transport);
 
   final AuthClient _client;
+  final Dio _transport;
 
+  /// The export is asked for on [_transport] rather than through
+  /// [AuthClient.authExportMyData], whose model only gives back what it
+  /// declares and drops every `null` when written out again: the file must be
+  /// the document the API sent, `"x": null` keys included (UI-30). The model
+  /// still reads the answer, so one it refuses fails here as any other
+  /// unreadable answer does.
   @override
   Future<Result<DataExport>> exportMyData() async {
     try {
-      final response = await _client.authExportMyData();
+      // Decoded as the generated client decodes it, refusals included, but
+      // kept whole.
+      final answer = await _transport.post<Object?>(
+        '/api/auth/data-export',
+        options: Options(
+          headers: const <String, Object>{'Accept': 'application/json'},
+        ),
+      );
+      final json = answer.data as Map<String, dynamic>;
+      final response = DataExportCommandOutputDataOutput$Response.fromJson(
+        json,
+      );
 
       if (response.success != true) {
         return FailureResult<DataExport>(_rejected(response.errors));
@@ -33,7 +53,7 @@ class ApiDataRightsRepository implements DataRightsRepository {
 
       return Success<DataExport>(
         DataExport(
-          document: const JsonEncoder.withIndent('  ').convert(data.toJson()),
+          document: const JsonEncoder.withIndent('  ').convert(json['data']),
           exportedAt: data.exportedAt,
         ),
       );
