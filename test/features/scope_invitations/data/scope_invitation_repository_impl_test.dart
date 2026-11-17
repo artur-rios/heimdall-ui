@@ -690,7 +690,7 @@ void main() {
           body: <String, dynamic>{
             'success': true,
             'errors': <String>[],
-            'data': <String, dynamic>{'id': 'i1', 'scopeId': 's1'},
+            'data': <String, dynamic>{'id': 'i1'},
           },
         ),
       );

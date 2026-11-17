@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:heimdall_api_client/api.dart';
 import 'package:heimdall_ui/core/network/envelope.dart';
 import 'package:heimdall_ui/core/result/result.dart';
 
@@ -479,6 +480,84 @@ void main() {
       expect(failure.pause, expected);
     });
   }
+
+  group('failureFromRequest', () {
+    /// What decoding [json] as a scope throws: the generated models refuse a
+    /// key their schema does not declare, and a value of the wrong type.
+    Object decodingError(Map<String, Object?> json) {
+      try {
+        ScopeOutput.fromJson(json);
+      } catch (error) {
+        return error;
+      }
+
+      fail('the scope was read');
+    }
+
+    test('GivenAnAnswerWithAnUndeclaredKey_WhenMapped_ThenItIsAnUnexpectedResponse', () {
+      // Given
+      final error = decodingError(<String, Object?>{
+        'id': 'scope-1',
+        'shoeSize': 42,
+      });
+
+      // When
+      final failure = failureFromRequest(error, StackTrace.current);
+
+      // Then
+      expect(failure.kind, FailureKind.unknown);
+      expect(failure.errors, <String>[kUnexpectedResponseMessage]);
+    });
+
+    test(
+      'GivenAnAnswerWithAWrongType_WhenMapped_ThenItIsAnUnexpectedResponse',
+      () {
+        // Given
+        final error = decodingError(<String, Object?>{'name': 42});
+
+        // When
+        final failure = failureFromRequest(error, StackTrace.current);
+
+        // Then
+        expect(failure.kind, FailureKind.unknown);
+        expect(failure.errors, <String>[kUnexpectedResponseMessage]);
+      },
+    );
+
+    test('GivenADioException_WhenMapped_ThenItIsMappedByItsStatus', () {
+      // Given
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/api/scopes'),
+        response: Response<dynamic>(
+          requestOptions: RequestOptions(path: '/api/scopes'),
+          statusCode: 404,
+          data: <String, dynamic>{
+            'success': false,
+            'errors': <String>['Scope not found.'],
+          },
+        ),
+        type: DioExceptionType.badResponse,
+      );
+
+      // When
+      final failure = failureFromRequest(error, StackTrace.current);
+
+      // Then
+      expect(failure.kind, FailureKind.notFound);
+      expect(failure.errors, <String>['Scope not found.']);
+    });
+
+    test('GivenAnyOtherError_WhenMapped_ThenItIsRethrown', () {
+      // Given
+      final error = StateError('a bug');
+
+      // When
+      Failure map() => failureFromRequest(error, StackTrace.current);
+
+      // Then
+      expect(map, throwsA(same(error)));
+    });
+  });
 }
 
 String _capitalized(String name) =>
