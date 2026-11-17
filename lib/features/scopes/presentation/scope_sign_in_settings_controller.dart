@@ -131,8 +131,9 @@ class ScopeSignInSettingsController extends Notifier<SignInSettingsState>
     merge: (answer, known) => answer.withPrivacySettingsOf(known),
   );
 
-  /// Saves both links, trimmed, with an empty one sent as `null` (a clear).
-  /// Nothing is sent when neither differs from what the API holds.
+  /// Saves both links, trimmed, with an empty one as `null` (a clear), which
+  /// the generated client leaves out of the body. Nothing is sent when neither
+  /// differs from what the API holds.
   Future<void> saveEmailLinks({
     required String? emailVerificationUrl,
     required String? passwordResetUrl,

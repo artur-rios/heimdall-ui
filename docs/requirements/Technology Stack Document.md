@@ -59,7 +59,7 @@ versions and roles are maintained in exactly one place.
 
 | Package | Constraint | Role |
 | --- | --- | --- |
-| **swagger_parser** | `^1.46.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml`. |
+| **swagger_parser** | `^2.3.0` | Generates the DTOs and retrofit clients in `packages/heimdall_api_client/lib` from `api/heimdall.json`, one folder per API tag. Pure Dart, so no Java toolchain is required. Configured by `swagger_parser.yaml` (`generation.http_client: retrofit`, `generation.serializer: json_serializable`). |
 | **build_runner** | `^2.17.1` | Runs the generators. |
 | **json_serializable** | `^6.15.2` | Emits the `fromJson`/`toJson` bodies for the generated models. |
 | **retrofit_generator** | `^10.3.3` | Emits the client implementations. |
@@ -72,11 +72,18 @@ Generation runs as one command, which is what CI reruns:
 dart run tool/generate_api_client.dart
 ```
 
-It does three things in order:
+It does these things in order:
 
-1. Runs `swagger_parser` over `api/heimdall.json`.
-2. Runs `build_runner` inside the package to emit the `.g.dart` bodies.
-3. Runs `dart format` over the package, because the generators' own line breaking differs from what
+1. Empties `packages/heimdall_api_client/lib`, so a client or model the specification no longer has
+   disappears instead of lingering.
+2. Runs `swagger_parser` over `api/heimdall.json`, and removes the `.swagger_parser.lock` it leaves
+   behind.
+3. Runs `build_runner` inside the package to emit the `.g.dart` bodies.
+4. Wraps every path parameter of each client library so it is sent percent-encoded as one segment — in
+   retrofit's path literals and in the direct Dio fallbacks (`_xWithOptions`) beside them. The methods
+   `swagger_parser` writes against Dio itself already encode theirs. An id holding `/` or `?` would
+   otherwise reach a different endpoint.
+5. Runs `dart format` over the package, because the generators' own line breaking differs from what
    `dart format` at the repository root would produce — and a difference there would fail the drift
    check for no real reason.
 
@@ -99,10 +106,18 @@ drift guard the API applies to its own specification. Everything under
 `pubspec.yaml` is not generated and is maintained by hand. Ergonomic wrappers belong in the
 consuming feature's `data/` layer.
 
-The package's public entry point is `package:heimdall_api_client/export.dart`, and its clients are
-named after their area — `AuthClient`, `ScopeClient`, `PersonClient`, `ApplicationClient`,
-`ScopePermissionClient`, `GoogleUserClient`, and `HealthCheckClient` — each constructed as
-`AuthClient(dio)`.
+The package's public entry point is `package:heimdall_api_client/api.dart`, and its clients are
+named after their API tag — `AuthClient`, `ScopeClient`, `PersonClient`, `ApplicationClient`,
+`ApplicationCredentialClient`, `ScopePermissionClient`, `ScopeInvitationClient`, `AuditClient`,
+`GoogleUserClient`, and `HealthCheckClient`, among others — each constructed as `AuthClient(dio)`.
+A schema with read-only fields is split into an `X$Request` and an `X$Response` model.
+
+The generated models hold the answer to the specification: a key a schema does not declare, a `null`
+where it promises a value, or a value of the wrong type fails the decoding, and the application
+shows that as an unexpected response (FR-UX-07). A request leaves a `null` field out of its body
+rather than sending `"x": null`. A method with a required JSON body is retrofit's and accepts any
+2xx; one whose body is optional is written against Dio and accepts only the status the specification
+declares.
 
 ---
 
@@ -150,7 +165,7 @@ no test reaches the network.
 | Rendering | flutter_markdown_plus | `^1.0.12` |
 | Platform | url_launcher | `^6.3.3` |
 | Platform | path_provider | `^2.1.6` |
-| Generation | swagger_parser | `^1.46.0` |
+| Generation | swagger_parser | `^2.3.0` |
 | Generation | build_runner | `^2.17.1` |
 | Generation | json_serializable | `^6.15.2` |
 | Generation | retrofit_generator | `^10.3.3` |
