@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -53,11 +52,11 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-24b and AF-24c depend on this: a transport failure and a `403` are
       // different panels, and only the kind tells them apart.
       return FailureResult<Page<ScopePermission>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -105,8 +104,10 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
           createdAt: data.createdAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<ScopePermission>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<ScopePermission>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -139,10 +140,12 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       }
 
       return Success<ScopePermission>(scopePermissionFromOutput(data));
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-26a and AF-26b depend on this: a `404` and a `403` are different
       // panels, and only the kind tells them apart.
-      return FailureResult<ScopePermission>(failureFromDioException(error));
+      return FailureResult<ScopePermission>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -194,8 +197,10 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<ScopePermission>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<ScopePermission>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -213,8 +218,8 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       // AF-27b: the API refuses a permission it will not delete, and its own
       // strings say why.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -230,8 +235,8 @@ class ApiScopePermissionRepository implements ScopePermissionRepository {
       );
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 

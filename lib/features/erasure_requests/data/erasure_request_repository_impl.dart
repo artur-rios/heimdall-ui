@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -47,9 +46,9 @@ class ApiErasureRequestRepository implements ErasureRequestRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<Page<OutstandingErasure>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -83,9 +82,9 @@ class ApiErasureRequestRepository implements ErasureRequestRepository {
           notFound: data.notFound ?? const <String>[],
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<ReconciliationOutcome>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }

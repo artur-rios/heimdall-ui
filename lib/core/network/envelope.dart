@@ -129,6 +129,24 @@ Future<Result<T>> guardUnexpected<T>(Future<Result<T>> Function() call) async {
   }
 }
 
+/// Maps what a call through the generated client threw onto a [Failure], for a
+/// repository's `catch`.
+///
+/// A [DioException] — no answer, or a non-2xx — goes through
+/// [failureFromDioException]. A 2xx the client could not read goes through
+/// [failureFromUnexpected], as [guardUnexpected] does: the generated models
+/// refuse a key the specification does not declare (json_serializable's
+/// `UnrecognizedKeysException`), a `null` where it promises a value
+/// (`DisallowedNullValueException`), and a value of the wrong type (a
+/// `TypeError`). Any other [Error] is a bug, and is rethrown with its
+/// [stackTrace].
+Failure failureFromRequest(Object error, StackTrace stackTrace) =>
+    switch (error) {
+      final DioException error => failureFromDioException(error),
+      Exception() || TypeError() => failureFromUnexpected(),
+      _ => Error.throwWithStackTrace(error, stackTrace),
+    };
+
 /// Maps a transport or HTTP failure onto the domain's [Failure] model.
 Failure failureFromDioException(DioException error) {
   final response = error.response;

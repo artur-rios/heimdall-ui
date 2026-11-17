@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -42,9 +41,9 @@ class ApiScopeInvitationRepository implements ScopeInvitationRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<Page<OwnerInvitation>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -59,8 +58,8 @@ class ApiScopeInvitationRepository implements ScopeInvitationRepository {
       );
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -92,9 +91,9 @@ class ApiScopeInvitationRepository implements ScopeInvitationRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<Page<ScopeInvitation>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -109,8 +108,8 @@ class ApiScopeInvitationRepository implements ScopeInvitationRepository {
       return response.success == true
           ? const Success<void>(null)
           : FailureResult<void>(_refusal(response.errors));
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -124,8 +123,8 @@ class ApiScopeInvitationRepository implements ScopeInvitationRepository {
       return response.success == true
           ? const Success<void>(null)
           : FailureResult<void>(_refusal(response.errors));
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 }

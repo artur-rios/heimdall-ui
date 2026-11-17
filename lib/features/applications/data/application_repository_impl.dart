@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -55,10 +54,12 @@ class ApiApplicationRepository implements ApplicationRepository {
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-20b and AF-20c depend on this: a transport failure and a `403` are
       // different panels, and only the kind tells them apart.
-      return FailureResult<Page<Application>>(failureFromDioException(error));
+      return FailureResult<Page<Application>>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -100,8 +101,8 @@ class ApiApplicationRepository implements ApplicationRepository {
           createdAt: data.createdAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Application>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Application>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -134,10 +135,10 @@ class ApiApplicationRepository implements ApplicationRepository {
       }
 
       return Success<Application>(applicationFromOutput(data));
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-22a and AF-22b depend on this: a `404` and a `403` are different
       // panels, and only the kind tells them apart.
-      return FailureResult<Application>(failureFromDioException(error));
+      return FailureResult<Application>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -183,8 +184,8 @@ class ApiApplicationRepository implements ApplicationRepository {
           updatedAt: data.updatedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<Application>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<Application>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -202,8 +203,8 @@ class ApiApplicationRepository implements ApplicationRepository {
       // AF-23b: the API refuses an application it will not delete, and its own
       // strings say why.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -219,8 +220,8 @@ class ApiApplicationRepository implements ApplicationRepository {
       );
 
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 

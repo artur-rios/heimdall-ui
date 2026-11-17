@@ -1,7 +1,6 @@
 import 'dart:convert';
 
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -38,8 +37,8 @@ class ApiDataRightsRepository implements DataRightsRepository {
           exportedAt: data.exportedAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<DataExport>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<DataExport>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -75,11 +74,13 @@ class ApiDataRightsRepository implements DataRightsRepository {
           blockedReason: data?.blockedReason,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-42a's wrong credential arrives as a 401 the envelope helpers read
       // as a rejected input, not a rejected session — so it is shown, and the
       // person stays signed in to try again.
-      return FailureResult<ErasureRequest>(failureFromDioException(error));
+      return FailureResult<ErasureRequest>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -97,10 +98,10 @@ class ApiDataRightsRepository implements DataRightsRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // AF-44a's 409 arrives here, read by the envelope helpers as a conflict
       // with the API's own words.
-      return FailureResult<void>(failureFromDioException(error));
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -125,8 +126,8 @@ class ApiDataRightsRepository implements DataRightsRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 

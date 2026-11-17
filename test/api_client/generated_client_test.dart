@@ -1,6 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 void main() {
   test('GivenGeneratedLoginOutput_WhenDeserialized_ThenCarriesTheTwoFactorChallenge', () {

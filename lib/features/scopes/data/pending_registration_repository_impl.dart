@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -48,9 +47,9 @@ class ApiPendingRegistrationRepository
           totalPages: response.totalPages ?? 1,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<Page<PendingRegistration>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -71,8 +70,8 @@ class ApiPendingRegistrationRepository
                 errors: response.errors ?? const <String>[],
               ),
             );
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 }

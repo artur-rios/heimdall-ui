@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -28,8 +27,8 @@ class ApiAuthRepository implements AuthRepository {
       );
 
       return _outcomeFrom(response);
-    } on DioException catch (error) {
-      return FailureResult<LoginOutcome>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<LoginOutcome>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -79,8 +78,8 @@ class ApiAuthRepository implements AuthRepository {
           processingRestricted: data?.processingRestricted ?? false,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<AuthToken>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<AuthToken>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -105,8 +104,8 @@ class ApiAuthRepository implements AuthRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -130,8 +129,8 @@ class ApiAuthRepository implements AuthRepository {
       // an unknown address exactly as it answers a known one, and reading any
       // further would only invite the interface to tell them apart.
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -155,8 +154,8 @@ class ApiAuthRepository implements AuthRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -180,8 +179,8 @@ class ApiAuthRepository implements AuthRepository {
       // the messages are carried up rather than flattened away — they are what
       // lets the screen say which of the two happened.
       return Success<List<String>>(response.messages ?? const <String>[]);
-    } on DioException catch (error) {
-      return FailureResult<List<String>>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<List<String>>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -200,8 +199,8 @@ class ApiAuthRepository implements AuthRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -241,8 +240,8 @@ class ApiAuthRepository implements AuthRepository {
           processingRestricted: data?.processingRestricted ?? false,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<AuthToken>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<AuthToken>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -261,8 +260,8 @@ class ApiAuthRepository implements AuthRepository {
       }
 
       return const Success<void>(null);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -294,10 +293,12 @@ class ApiAuthRepository implements AuthRepository {
           remainingRecoveryCodes: data.remainingRecoveryCodes ?? 0,
         ),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       // A Google User is refused permanently rather than transiently, and only
       // the kind tells the screen to say so instead of offering a retry.
-      return FailureResult<TwoFactorStatus>(failureFromDioException(error));
+      return FailureResult<TwoFactorStatus>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -336,8 +337,10 @@ class ApiAuthRepository implements AuthRepository {
           emailCodeSent: data.emailCodeSent ?? false,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<TwoFactorSetup>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<TwoFactorSetup>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -371,8 +374,8 @@ class ApiAuthRepository implements AuthRepository {
       return Success<List<String>>(
         response.data?.recoveryCodes ?? const <String>[],
       );
-    } on DioException catch (error) {
-      return FailureResult<List<String>>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<List<String>>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -393,8 +396,8 @@ class ApiAuthRepository implements AuthRepository {
 
       // AF-09d: the API rejected the credential, and its own strings say so.
       return _acknowledgement(response.success, response.errors);
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -423,8 +426,8 @@ class ApiAuthRepository implements AuthRepository {
       return Success<List<String>>(
         response.data?.recoveryCodes ?? const <String>[],
       );
-    } on DioException catch (error) {
-      return FailureResult<List<String>>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<List<String>>(failureFromRequest(error, stackTrace));
     }
   }
 
@@ -441,7 +444,9 @@ class ApiAuthRepository implements AuthRepository {
 
   /// Reads a login response, which answers one of two ways: a usable token, or
   /// a challenge that must be answered before a session exists.
-  Result<LoginOutcome> _outcomeFrom(LoginCommandOutputDataOutput response) {
+  Result<LoginOutcome> _outcomeFrom(
+    LoginCommandOutputDataOutput$Response response,
+  ) {
     if (response.success != true) {
       return FailureResult<LoginOutcome>(
         Failure(

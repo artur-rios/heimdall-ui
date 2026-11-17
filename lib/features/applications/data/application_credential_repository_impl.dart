@@ -1,5 +1,4 @@
-import 'package:dio/dio.dart';
-import 'package:heimdall_api_client/export.dart';
+import 'package:heimdall_api_client/api.dart';
 
 import '../../../core/network/envelope.dart';
 import '../../../core/result/result.dart';
@@ -44,9 +43,9 @@ class ApiApplicationCredentialRepository
             )
             .toList(growable: false),
       );
-    } on DioException catch (error) {
+    } catch (error, stackTrace) {
       return FailureResult<List<ApplicationCredential>>(
-        failureFromDioException(error),
+        failureFromRequest(error, stackTrace),
       );
     }
   }
@@ -82,8 +81,10 @@ class ApiApplicationCredentialRepository
           expiresAt: data.expiresAt,
         ),
       );
-    } on DioException catch (error) {
-      return FailureResult<IssuedCredential>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<IssuedCredential>(
+        failureFromRequest(error, stackTrace),
+      );
     }
   }
 
@@ -103,8 +104,8 @@ class ApiApplicationCredentialRepository
       return response.success == true
           ? const Success<void>(null)
           : FailureResult<void>(_refusal(response.errors));
-    } on DioException catch (error) {
-      return FailureResult<void>(failureFromDioException(error));
+    } catch (error, stackTrace) {
+      return FailureResult<void>(failureFromRequest(error, stackTrace));
     }
   }
 }
