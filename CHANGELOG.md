@@ -39,6 +39,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   with `Retry-After`, and each endpoint's `400`/`401`/`403`/`404`/`409`/`422`/`429`/`500`/`503` envelope, with
   `text/plain` no longer offered. The client gains the `ObjectDataOutput` and `ProcessOutput` envelope models and
   keeps every method as it was, so the application sends and accepts the same requests and answers.
+- The vendored API specification also documents the errors the API's web server answers before a request reaches
+  an endpoint (artur-rios/heimdall-api#306): `400`, `408`, `414`, `431` and `505` with no body on every endpoint, and
+  `413`, `408` and `400` with an envelope on the endpoints that read a request body. The generated client is
+  unchanged.
 
 ## [2.0.0] - 2026-11-10
 
