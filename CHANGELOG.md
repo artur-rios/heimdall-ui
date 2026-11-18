@@ -43,6 +43,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   an endpoint (artur-rios/heimdall-api#306): `400`, `408`, `414`, `431` and `505` with no body on every endpoint, and
   `413`, `408` and `400` with an envelope on the endpoints that read a request body. The generated client is
   unchanged.
+- The vendored API specification also documents the remaining edge cases (artur-rios/heimdall-api#307): the
+  plain-text `429`, `502`, `504` and `500` of the reverse proxy in front of the API in production, the bodiless
+  `415` the endpoints that read a request body give for a body that is not JSON, and the `500` with no body the
+  web server gives when a failure escapes the API's error handling. The generated client is unchanged.
 
 ## [2.0.0] - 2026-11-10
 
