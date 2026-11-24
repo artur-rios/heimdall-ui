@@ -18,6 +18,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
   0.7.14 in `pubspec.lock`. The generated API client is unchanged.
 - 3.50.1 rather than 3.50.0: on an NVIDIA graphics card, a Linux build made with 3.50.0 shows only the
   application's top-right quarter, drawn into the window's bottom-left quarter (flutter/flutter#196418).
+- The Linux runner makes Flutter's Wayland subsurface again when the window's display scale changes: Flutter 3.50
+  sets its scale once, so after a move between monitors of different scales the contents came out twice their
+  size or shrunk into a corner.
 - Android build: Android Gradle Plugin 9.1.1 → 9.5.1, Kotlin Gradle Plugin 2.4.0 → 2.4.21 and Gradle 9.3.1 →
   9.9.1, at least the versions of Flutter 3.50's app template (9.3.1, 2.4.20 and 9.5.0); its Gradle plugin warns
   that older ones will soon be dropped.
